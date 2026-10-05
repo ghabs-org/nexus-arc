@@ -31,7 +31,10 @@ class CallbackHandlerDeps:
     workflow_state_plugin_kwargs: dict[str, Any]
     action_handlers: dict[str, Callable[..., Awaitable[None]]]
     report_bug_action: Callable[[InteractiveContext, str, str], Awaitable[None]]
-    route_feedback_action: Callable[[InteractiveContext, str, str, str | None, str | None], Awaitable[None]] | None = None
+    # Final feedback submission (ok, or wrong after the task+model steps).
+    # `final` is True only for completed flows; a bare `wrong` must never
+    # record directly — it must ask follow-ups first.
+    route_feedback_action: Callable[..., Awaitable[None]] | None = None
     requester_context_builder: Callable[[int], dict[str, Any]] | None = None
 
 
