@@ -1177,6 +1177,13 @@ def build_execution_env(
             account_auth_providers.append("copilot")
     if account_auth_providers:
         env["NEXUS_ACCOUNT_AUTH_PROVIDERS"] = ",".join(account_auth_providers)
+    from nexus.core.utils.logging_filters import omit_secret_keys
+
+    logger.debug(
+        "Resolved execution env for nexus_id=%s: keys=%s",
+        nexus_id,
+        sorted(omit_secret_keys(env)),
+    )
     return prepare_execution_env(nexus_id, env, purpose=purpose)
 
 

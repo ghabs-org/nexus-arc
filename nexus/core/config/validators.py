@@ -14,6 +14,7 @@ class _AIProviderEnum(Enum):
     CODEX = "codex"
     CLAUDE = "claude"
     OLLAMA = "ollama"
+    OPENCODE = "opencode"
 
 
 def _known_provider_names() -> set[str]:

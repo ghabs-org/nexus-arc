@@ -45,6 +45,10 @@ from nexus.plugins.builtin.ai_runtime.provider_invokers.ollama_invoker import (
     run_ollama_analysis_cli as run_ollama_analysis_cli_impl,
     run_ollama_transcription_cli as run_ollama_transcription_cli_impl,
 )
+from nexus.plugins.builtin.ai_runtime.provider_invokers.opencode_invoker import (
+    invoke_opencode_agent_cli as invoke_opencode_agent_cli_impl,
+    run_opencode_analysis_cli as run_opencode_analysis_cli_impl,
+)
 from nexus.plugins.builtin.ai_runtime.provider_invokers.transcription_invokers import (
     transcribe_with_copilot_cli as transcribe_with_copilot_cli_impl,
     transcribe_with_gemini_cli as transcribe_with_gemini_cli_impl,
@@ -80,6 +84,7 @@ class AIProvider(Enum):
     CODEX = "codex"
     CLAUDE = "claude"
     OLLAMA = "ollama"
+    OPENCODE = "opencode"
 
 
 class ToolUnavailableError(Exception):
@@ -117,6 +122,8 @@ class AIOrchestrator:
         self.claude_model = str(self.config.get("claude_model", "")).strip()
         self.ollama_cli_path = self.config.get("ollama_cli_path", "ollama")
         self.ollama_model = str(self.config.get("ollama_model", "")).strip()
+        self.opencode_cli_path = self.config.get("opencode_cli_path", "opencode")
+        self.opencode_model = str(self.config.get("opencode_model", "")).strip()
         self.copilot_model = str(self.config.get("copilot_model", "")).strip()
         self.copilot_supports_model = bool(self.config.get("copilot_supports_model", False))
         self.ai_tool_preferences_strict = bool(self.config.get("ai_tool_preferences_strict", False))
@@ -129,6 +136,9 @@ class AIOrchestrator:
         self.model_profiles = self.config.get("model_profiles", {})
         self.model_profiles_resolver: Callable[[str], dict[str, Any] | None] | None = (
             self.config.get("model_profiles_resolver")
+        )
+        self.agent_spec_model_resolver: Callable[[str, str], str] | None = self.config.get(
+            "agent_spec_model_resolver"
         )
         self.profile_provider_priority = self.config.get("profile_provider_priority", {})
         self.profile_provider_priority_resolver: Callable[[str], dict[str, Any] | None] | None = (
@@ -225,6 +235,7 @@ class AIOrchestrator:
                 AIProvider.CODEX,
                 AIProvider.CLAUDE,
                 AIProvider.OLLAMA,
+                AIProvider.OPENCODE,
             ],
         )
 
@@ -522,6 +533,18 @@ class AIOrchestrator:
         if not agent_name:
             return ""
 
+        # Explicit per-agent pin (spec.model) wins over profile models.
+        if callable(self.agent_spec_model_resolver):
+            try:
+                pinned = str(
+                    self.agent_spec_model_resolver(agent_name, project_name or "nexus") or ""
+                ).strip()
+            except Exception as exc:
+                logger.debug("agent_spec_model_resolver failed: %s", exc)
+                pinned = ""
+            if pinned:
+                return pinned
+
         spec = self._resolved_tool_spec(agent_name, project_name=project_name)
         spec_profile = str(getattr(spec, "profile", "") or "").strip()
         spec_valid = bool(getattr(spec, "valid", False))
@@ -635,6 +658,8 @@ class AIOrchestrator:
                 path = self.claude_cli_path
             elif tool == AIProvider.OLLAMA:
                 path = self.ollama_cli_path
+            elif tool == AIProvider.OPENCODE:
+                path = self.opencode_cli_path
             else:
                 path = self.copilot_cli_path
             result = subprocess.run(
@@ -730,6 +755,7 @@ class AIOrchestrator:
                 AIProvider.CLAUDE,
                 AIProvider.CODEX,
                 AIProvider.OLLAMA,
+                AIProvider.OPENCODE,
             ],
         )
         # Keep refine-description fallback deterministic across environments:
@@ -778,6 +804,7 @@ class AIOrchestrator:
                 AIProvider.CODEX: self._run_codex_analysis,
                 AIProvider.CLAUDE: self._run_claude_analysis,
                 AIProvider.OLLAMA: self._run_ollama_analysis,
+                AIProvider.OPENCODE: self._run_opencode_analysis,
             },
             text=text,
             task=task,
@@ -920,6 +947,19 @@ class AIOrchestrator:
                 log_subdir=log_subdir,
                 env=env,
                 execution_mode=execution_mode,
+            )
+        if tool == AIProvider.OPENCODE:
+            return self._invoke_opencode(
+                agent_prompt,
+                workspace_dir,
+                agents_dir,
+                base_dir,
+                model_override=model_override,
+                issue_num=issue_num,
+                log_subdir=log_subdir,
+                env=env,
+                execution_mode=execution_mode,
+                execution_mode_config=execution_mode_config,
             )
         raise ToolUnavailableError(f"No invoker implemented for tool: {tool.value}")
 
@@ -1199,6 +1239,38 @@ class AIOrchestrator:
             env=env,
         )
 
+    def _invoke_opencode(
+        self,
+        agent_prompt: str,
+        workspace_dir: str,
+        agents_dir: str,
+        base_dir: str,
+        model_override: str = "",
+        issue_num: str | None = None,
+        log_subdir: str | None = None,
+        env: dict[str, str] | None = None,
+        execution_mode: str | None = None,
+        execution_mode_config: Any | None = None,
+    ) -> int | None:
+        return invoke_opencode_agent_cli_impl(
+            check_tool_available=self.check_tool_available,
+            opencode_provider=AIProvider.OPENCODE,
+            opencode_cli_path=self.opencode_cli_path,
+            opencode_model=model_override or str(self.config.get("opencode_model", "")).strip(),
+            get_tasks_logs_dir=self.get_tasks_logs_dir,
+            tool_unavailable_error=ToolUnavailableError,
+            rate_limited_error=RateLimitedError,
+            logger=logger,
+            agent_prompt=agent_prompt,
+            workspace_dir=workspace_dir,
+            agents_dir=agents_dir,
+            issue_num=issue_num,
+            log_subdir=log_subdir,
+            env=env,
+            execution_mode=execution_mode,
+            execution_mode_config=execution_mode_config,
+        )
+
     def transcribe_audio(self, audio_file_path: str, project_name: str | None = None) -> str | None:
         attempts = self._resolve_transcription_attempts(project_name=project_name)
         return run_transcription_attempts_impl(
@@ -1329,6 +1401,11 @@ class AIOrchestrator:
                 agent_name=mapped_agent or None,
                 project_name=project_name,
             ),
+            "opencode": self._resolve_model_for_tool(
+                tool=AIProvider.OPENCODE,
+                agent_name=mapped_agent or None,
+                project_name=project_name,
+            ),
         }
         if tool_order:
             preferred = tool_order[0]
@@ -1361,6 +1438,7 @@ class AIOrchestrator:
         analysis_kwargs["_codex_model_override"] = model_overrides["codex"]
         analysis_kwargs["_claude_model_override"] = model_overrides["claude"]
         analysis_kwargs["_ollama_model_override"] = model_overrides["ollama"]
+        analysis_kwargs["_opencode_model_override"] = model_overrides["opencode"]
         provider_env, env_error = self._resolve_analysis_provider_env(kwargs.get("requester_context"))
         if provider_env:
             analysis_kwargs["_provider_env"] = provider_env
@@ -1637,6 +1715,36 @@ class AIOrchestrator:
             task=task,
             timeout=timeout,
             kwargs=prompt_kwargs,
+        )
+
+    def _run_opencode_analysis(self, text: str, task: str, **kwargs) -> dict[str, Any]:
+        timeout = (
+            self.refine_description_timeout
+            if task == "refine_description"
+            else self.analysis_timeout
+        )
+        opencode_model = (
+            str(kwargs.get("_opencode_model_override") or "").strip()
+            or str(self.config.get("opencode_model", "")).strip()
+        )
+        prompt_kwargs = {k: v for k, v in kwargs.items() if not str(k).startswith("_")}
+        provider_env = kwargs.get("_provider_env")
+        analysis_cwd = kwargs.get("_analysis_cwd")
+        return run_opencode_analysis_cli_impl(
+            check_tool_available=self.check_tool_available,
+            opencode_provider=AIProvider.OPENCODE,
+            opencode_cli_path=self.opencode_cli_path,
+            opencode_model=opencode_model,
+            build_analysis_prompt=self._build_analysis_prompt,
+            parse_analysis_result=self._parse_analysis_result,
+            tool_unavailable_error=ToolUnavailableError,
+            rate_limited_error=RateLimitedError,
+            text=text,
+            task=task,
+            timeout=timeout,
+            kwargs=prompt_kwargs,
+            env=provider_env if isinstance(provider_env, dict) else None,
+            cwd=analysis_cwd if isinstance(analysis_cwd, str) and analysis_cwd.strip() else None,
         )
 
     def _build_analysis_prompt(self, text: str, task: str, **kwargs) -> str:

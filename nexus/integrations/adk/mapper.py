@@ -140,3 +140,102 @@ def _slug(value: str) -> str:
 def _pairwise(values: Iterable[str]) -> Iterable[tuple[str, str]]:
     items = list(values)
     return zip(items, items[1:], strict=False)
+
+
+def import_adk_spec(
+    spec: AdkWorkflowSpec,
+    leaf_factory,
+    *,
+    ai_provider=None,
+    stop_condition=None,
+) -> BaseAgent:
+    """Rebuild an ARC agent composition from an ADK-style workflow spec.
+
+    Args:
+        spec: Workflow spec (e.g. from :func:`export_agent_to_adk_spec`).
+        leaf_factory: ``leaf_factory(node: AdkNodeSpec) -> BaseAgent`` for
+            ``kind="agent"`` leaves.
+        ai_provider: Provider for imported :class:`Coordinator` nodes.
+        stop_condition: Loop stop predicate; defaults to single-pass
+            (Python lambdas do not survive spec export).
+
+    Raises:
+        ValueError: On unknown node kinds, missing entrypoint, or loops
+            without exactly one child.
+    """
+    entry = spec.node_by_id(spec.entrypoint)
+    if entry is None:
+        raise ValueError(f"spec entrypoint '{spec.entrypoint}' not found")
+    return _build_node(spec, entry, leaf_factory, ai_provider=ai_provider,
+                       stop_condition=stop_condition)
+
+
+def _child_ids(spec: AdkWorkflowSpec, node_id: str, kinds: set[str]) -> list[str]:
+    direct = [
+        edge for edge in spec.edges
+        if edge.source == node_id and edge.kind in kinds
+    ]
+    sequenced = [edge.target for edge in direct if edge.metadata.get("sequence") is True]
+    sequenced += [edge.target for edge in direct if edge.target not in sequenced]
+    return sequenced
+
+
+def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
+    from nexus.agents.parallel import ParallelAgent as _Parallel
+    from nexus.agents.sequential import SequentialAgent as _Sequential
+
+    if node.kind == "agent":
+        return leaf_factory(node)
+    if node.kind == "sequential":
+        children = [_build_node(spec, _require(spec, cid), leaf_factory,
+                                ai_provider=ai_provider, stop_condition=stop_condition)
+                    for cid in _child_ids(spec, node.id, {"next"})]
+        if not children:
+            raise ValueError(f"sequential node '{node.id}' has no children")
+        return _Sequential(name=node.name, sub_agents=children, description=node.description)
+    if node.kind == "parallel":
+        children = [_build_node(spec, _require(spec, cid), leaf_factory,
+                                ai_provider=ai_provider, stop_condition=stop_condition)
+                    for cid in _child_ids(spec, node.id, {"branch", "next"})]
+        if not children:
+            raise ValueError(f"parallel node '{node.id}' has no children")
+        metadata = dict(node.metadata or {})
+        return _Parallel(
+            name=node.name, sub_agents=children, description=node.description,
+            merge_strategy=str(metadata.get("merge_strategy") or "concat"),
+            separator=str(metadata.get("separator", "\n")),
+        )
+    if node.kind == "loop":
+        children = _child_ids(spec, node.id, {"loop", "next"})
+        if len(children) != 1:
+            raise ValueError(f"loop node '{node.id}' needs exactly one child")
+        metadata = dict(node.metadata or {})
+        return LoopAgent(
+            name=node.name,
+            sub_agent=_build_node(spec, _require(spec, children[0]), leaf_factory,
+                                  ai_provider=ai_provider, stop_condition=stop_condition),
+            stop_condition=stop_condition or (lambda _output: True),
+            max_iterations=int(metadata.get("max_iterations") or 5),
+            description=node.description,
+        )
+    if node.kind == "coordinator":
+        children = [_build_node(spec, _require(spec, cid), leaf_factory,
+                                ai_provider=ai_provider, stop_condition=stop_condition)
+                    for cid in _child_ids(spec, node.id, {"delegates", "next"})]
+        if not children:
+            raise ValueError(f"coordinator node '{node.id}' has no children")
+        metadata = dict(node.metadata or {})
+        return Coordinator(
+            name=node.name, sub_agents=children, ai_provider=ai_provider,
+            router_url=str(metadata.get("router_url") or "http://127.0.0.1:7771"),
+            workspace_path=str(metadata.get("workspace_path") or "/tmp"),
+            description=node.description,
+        )
+    raise ValueError(f"unknown node kind '{node.kind}' for node '{node.id}'")
+
+
+def _require(spec: AdkWorkflowSpec, node_id: str):
+    node = spec.node_by_id(node_id)
+    if node is None:
+        raise ValueError(f"edge target '{node_id}' not found")
+    return node

@@ -129,6 +129,7 @@ def register_application_handlers(
         ("feature_forget", "feature_forget_handler", "execute"),
         ("chat", "chat_menu_handler", "execute"),
         ("chatagents", "chat_agents_handler", "execute"),
+        ("sessions", "sessions_handler", "execute"),
     ]
     visible_commands = set(
         filter_visible_commands((cmd for cmd, _handler_name, _action in command_specs), local_task_files=local_task_files)

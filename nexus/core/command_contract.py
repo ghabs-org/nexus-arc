@@ -50,6 +50,7 @@ TELEGRAM_COMMANDS: set[str] = {
     "feature_done",
     "feature_list",
     "feature_forget",
+    "sessions",
 }
 
 

@@ -78,27 +78,53 @@ class ToolNode(FunctionNode):
 
     Tool nodes behave like function nodes at runtime, but preserve `kind="tool"`
     for graph introspection, docs, and future MCP/A2A export.
+
+    Pass a registered tool *name* instead of a callable to resolve it from
+    the shared :mod:`nexus.tools` registry at run time::
+
+        ToolNode("text:wordcount")
     """
 
     def __init__(
         self,
-        tool: Callable[..., Any],
+        tool: str | Callable[..., Any],
         *,
         name: str | None = None,
         input_schema: type | None = None,
         output_schema: type | None = None,
         rerun_on_resume: bool = False,
         metadata: dict[str, Any] | None = None,
+        registry: Any | None = None,
     ) -> None:
+        self.tool_name = tool if isinstance(tool, str) else None
+        self.registry = registry
         super().__init__(
-            tool,
-            name=name,
+            tool if callable(tool) else _missing_tool,
+            name=name or (tool if isinstance(tool, str) else None),
             input_schema=input_schema,
             output_schema=output_schema,
             rerun_on_resume=rerun_on_resume,
             kind="tool",
             metadata=metadata,
         )
+
+    async def run(self, ctx: Any, node_input: Any = None) -> Any:
+        if self.tool_name is None:
+            return await super().run(ctx, node_input)
+        from nexus.tools import tool_registry as default_registry
+
+        registry = self.registry or default_registry
+        if node_input is not None:
+            result = await registry.call(self.tool_name, node_input)
+        else:
+            result = await registry.call(self.tool_name)
+        if not result.ok:
+            raise RuntimeError(f"tool '{self.tool_name}' failed: {result.error}")
+        return result.output
+
+
+def _missing_tool() -> None:
+    raise RuntimeError("ToolNode created without a callable; pass a registered tool name")
 
 
 @dataclass(eq=False)

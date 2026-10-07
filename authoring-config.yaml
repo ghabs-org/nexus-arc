@@ -1,0 +1,8 @@
+# Minimal project config for the authoring UI container.
+# The framework requires PROJECT_CONFIG_PATH at import time; the UI itself
+# only writes agent/workflow YAML into the served directory, so one sample
+# project entry is enough to boot.
+authoring:
+  agents_dir: sample/authoring-agents
+  workspace: sample/authoring
+  git_repo: sample-org/authoring

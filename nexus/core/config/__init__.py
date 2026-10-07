@@ -312,6 +312,50 @@ def get_profile_provider_priority(project: str = "nexus") -> dict:
     return {}
 
 
+_agent_spec_model_cache: dict[tuple[str, str], str] = {}
+
+
+def get_agent_spec_model(agent_type: str, project: str = "nexus") -> str:
+    """Return the pinned ``spec.model`` for an agent type, or "".
+
+    Scans the project's ``agents_dir`` plus the shared org agents dir using
+    the standard agent-definition lookup. Results are cached per process
+    (restart picks up YAML edits), matching the other lazy config wrappers.
+    """
+    key = (str(project or "nexus"), str(agent_type or ""))
+    if key in _agent_spec_model_cache:
+        return _agent_spec_model_cache[key]
+    model = ""
+    try:
+        from nexus.core.execution import find_agent_definition
+
+        config = _get_project_config()
+        dirs: list[str] = []
+        proj_config = config.get(key[0]) if isinstance(config, dict) else None
+        if isinstance(proj_config, dict):
+            agents_dir = str(proj_config.get("agents_dir") or "").strip()
+            if agents_dir:
+                dirs.append(
+                    agents_dir if os.path.isabs(agents_dir) else os.path.join(BASE_DIR, agents_dir)
+                )
+        shared = config.get("shared_agents_dir", "") if isinstance(config, dict) else ""
+        if shared:
+            shared = str(shared)
+            dirs.append(shared if os.path.isabs(shared) else os.path.join(BASE_DIR, shared))
+        found = find_agent_definition(key[1], dirs) if dirs else None
+        if found:
+            import yaml as _yaml
+
+            with open(found, encoding="utf-8") as handle:
+                data = _yaml.safe_load(handle)
+            spec = data.get("spec", {}) if isinstance(data, dict) else {}
+            model = str(spec.get("model") or "").strip()
+    except Exception as exc:
+        logger.debug("get_agent_spec_model failed for %s: %s", key, exc)
+    _agent_spec_model_cache[key] = model
+    return model
+
+
 def get_system_operations(project: str = "nexus") -> dict:
     """Get operation-task -> agent-type mapping for a project.
 
@@ -569,12 +613,17 @@ def _get_orchestrator_config():
             "codex_model": os.getenv("CODEX_MODEL", "").strip(),
             "claude_cli_path": os.getenv("CLAUDE_CLI_PATH", "claude"),
             "claude_model": os.getenv("CLAUDE_MODEL", "").strip(),
+            "opencode_cli_path": os.getenv("OPENCODE_CLI_PATH", "opencode"),
+            "opencode_model": os.getenv(
+                "OPENCODE_MODEL", "opencode/muse-spark-1.3-contributor-free"
+            ).strip(),
             "ai_tool_preferences_strict": os.getenv("AI_TOOL_PREFERENCES_STRICT", "false").lower()
             == "true",
             "tool_preferences": AI_TOOL_PREFERENCES._ensure_loaded(),
             "tool_preferences_resolver": get_ai_tool_preferences,
             "model_profiles": MODEL_PROFILES._ensure_loaded(),
             "model_profiles_resolver": get_model_profiles,
+            "agent_spec_model_resolver": get_agent_spec_model,
             "profile_provider_priority": PROFILE_PROVIDER_PRIORITY._ensure_loaded(),
             "profile_provider_priority_resolver": get_profile_provider_priority,
             "system_operations": SYSTEM_OPERATIONS._ensure_loaded(),

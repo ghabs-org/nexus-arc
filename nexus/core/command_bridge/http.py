@@ -575,6 +575,37 @@ def create_command_bridge_app(
                 status = 200 if result.get("ok") else 400
                 return _json_response(start_response, status, result)
 
+            # ── chat operator: Q&A grounded in live inventory ────────────────
+            if method == "POST" and path == "/api/v1/chat":
+                payload = _load_json_body(environ)
+                from nexus.core.command_bridge.chat_handler import handle_chat_run
+
+                result = asyncio.run(handle_chat_run(payload, config=config))
+                status = 200 if result.get("ok") else 400
+                return _json_response(start_response, status, result)
+
+            if method == "GET" and path == "/chat":
+                from nexus.core.command_bridge.chat_handler import CHAT_PAGE
+
+                body = CHAT_PAGE.encode("utf-8")
+                start_response(
+                    "200 OK",
+                    [
+                        ("Content-Type", "text/html; charset=utf-8"),
+                        ("Content-Length", str(len(body))),
+                    ],
+                )
+                return [body]
+
+            if method == "GET" and path == "/api/v1/platform/inventory":
+                from nexus.core.command_bridge.platform_handler import (
+                    handle_platform_inventory,
+                )
+
+                result = asyncio.run(handle_platform_inventory({}, config=config))
+                status = 200 if result.get("ok") else 400
+                return _json_response(start_response, status, result)
+
             if method == "POST" and path == "/api/v1/n8n/runs":
                 payload = _load_json_body(environ)
                 from nexus.core.command_bridge.n8n_state_machine import create_run

@@ -149,6 +149,10 @@ from nexus.core.handlers.feature_registry_command_handlers import (
     feature_forget_handler as core_feature_forget_handler,
     feature_list_handler as core_feature_list_handler,
 )
+from nexus.core.handlers.session_command_handlers import (
+    SessionsHandlerDeps,
+    sessions_handler as core_sessions_handler,
+)
 from nexus.core.handlers.hands_free_routing_handler import (
     HandsFreeRoutingDeps,
     resolve_pending_project_selection,
@@ -1039,6 +1043,16 @@ def _feature_registry_command_deps() -> FeatureRegistryCommandDeps:
         get_project_label=_get_project_label,
         feature_registry=feature_registry_service,
         ensure_project=_ctx_ensure_project,
+    )
+
+
+def _sessions_handler_deps() -> SessionsHandlerDeps:
+    from nexus.adapters.ai.opencode_provider import list_recent_sessions
+
+    return SessionsHandlerDeps(
+        logger=logger,
+        allowed_user_ids=TELEGRAM_ALLOWED_USER_IDS,
+        list_sessions=list_recent_sessions,
     )
 
 
@@ -2431,6 +2445,13 @@ async def feature_forget_handler(update: Update, context: ContextTypes.DEFAULT_T
     )
 
 
+async def sessions_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List recent OpenCode sessions with per-session model and cost."""
+    await core_sessions_handler(
+        _build_telegram_interactive_ctx(update, context), _sessions_handler_deps()
+    )
+
+
 async def comments_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View recent comments on an issue."""
     await issue_comments_handler(
@@ -2594,6 +2615,7 @@ def main():
             "feature_done_handler": feature_done_handler,
             "feature_list_handler": feature_list_handler,
             "feature_forget_handler": feature_forget_handler,
+            "sessions_handler": sessions_handler,
             "chat_menu_handler": chat_menu_handler,
             "chat_agents_handler": chat_agents_handler,
             "chat_callback_handler": chat_callback_handler,

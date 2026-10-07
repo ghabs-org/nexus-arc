@@ -34,6 +34,8 @@ class AgentRegistry:
         self._agents_dir = agents_dir
         # Maps agent_type -> provider name (e.g. "copilot" | "gemini")
         self._provider_map: dict[str, str] = {}
+        # Maps agent_type -> explicit model (spec.model), when pinned
+        self._model_map: dict[str, str] = {}
         if agents_dir:
             self._load(agents_dir)
 
@@ -85,6 +87,10 @@ class AgentRegistry:
         """
         return self._provider_map.get(agent_type, _DEFAULT_PROVIDER)
 
+    def get_model(self, agent_type: str) -> str | None:
+        """Return the pinned model (``spec.model``) for *agent_type*, if any."""
+        return self._model_map.get(agent_type)
+
     def registered_types(self) -> list[str]:
         """Return all agent_type values found across loaded YAML files."""
         return list(self._provider_map.keys())
@@ -106,7 +112,7 @@ class AgentRegistry:
                 logger.warning("AgentRegistry: failed to parse %s — %s", yaml_file, exc)
 
     def _parse_yaml(self, path: Path) -> None:
-        """Extract ``spec.agent_type`` and ``spec.provider`` from one file."""
+        """Extract ``spec.agent_type``, ``spec.provider`` and ``spec.model``."""
         with path.open() as fh:
             data = yaml.safe_load(fh)
 
@@ -117,9 +123,13 @@ class AgentRegistry:
 
         provider_name = spec.get("provider", _DEFAULT_PROVIDER)
         self._provider_map[agent_type] = provider_name
+        model_name = str(spec.get("model") or "").strip()
+        if model_name:
+            self._model_map[agent_type] = model_name
         logger.debug(
-            "AgentRegistry: registered agent_type=%r provider=%r (source=%s)",
+            "AgentRegistry: registered agent_type=%r provider=%r model=%r (source=%s)",
             agent_type,
             provider_name,
+            model_name or "default",
             path.name,
         )

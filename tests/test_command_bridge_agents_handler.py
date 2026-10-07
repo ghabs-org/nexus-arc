@@ -112,3 +112,31 @@ def test_coordinator_without_provider():
         }))
     assert result["ok"] is False
     assert "AI provider" in result["error"]
+
+
+def test_stop_condition_allows_safe_expression():
+    from nexus.core.command_bridge.agents_handler import _make_stop_condition
+    from nexus.agents.base import AgentOutput
+
+    cond = _make_stop_condition("content == 'done'")
+    assert cond(AgentOutput(content="done")) is True
+    assert cond(AgentOutput(content="working")) is False
+    cond = _make_stop_condition("'error' in content or content == 'done'")
+    assert cond(AgentOutput(content="fatal error")) is True
+
+
+def test_stop_condition_rejects_code_execution():
+    from nexus.core.command_bridge.agents_handler import _make_stop_condition
+    from nexus.agents.base import AgentOutput
+
+    witness = []
+    for expr in (
+        "__import__('os').system('echo PWNED')",
+        "(lambda: 1)()",
+        "[x for x in range(3)]",
+        "output.content.upper()",
+        "open('/etc/passwd').read()",
+    ):
+        cond = _make_stop_condition(expr)
+        assert cond(AgentOutput(content="done")) is False, expr
+    assert witness == []

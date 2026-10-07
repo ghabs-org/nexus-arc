@@ -1,0 +1,17 @@
+name: nexus-authoring
+
+# Browser UI for authoring ARC agents and workflows:
+#   docker compose -f docker-compose.authoring.yml up --build
+#   open http://localhost:5002  (files land in ./authored/)
+services:
+  authoring:
+    build:
+      context: .
+      dockerfile: Dockerfile.authoring
+    image: nexus-authoring:local
+    ports:
+      # Localhost-only: public access goes through the nginx tailnet vhost.
+      - "127.0.0.1:${NEXUS_AUTHORING_PORT:-5002}:5002"
+    volumes:
+      - ./authored:/data
+    restart: unless-stopped

@@ -44,6 +44,16 @@ def test_validate_project_config_accepts_claude_provider_in_profiles_and_priorit
     validate_project_config(payload)
 
 
+def test_validate_project_config_accepts_opencode_provider_in_profiles_and_priority():
+    payload = {
+        "model_profiles": {"fast": {"opencode": "opencode/muse-spark-1.3-contributor-free"}},
+        "profile_provider_priority": {"fast": ["opencode"]},
+        "ai_tool_preferences": {"triage": {"provider": "opencode", "profile": "fast"}},
+        "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
+    }
+    validate_project_config(payload)
+
+
 def test_validate_project_config_accepts_copilot_permissions():
     payload = {
         "copilot_permissions": {

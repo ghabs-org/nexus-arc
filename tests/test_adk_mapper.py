@@ -107,3 +107,51 @@ def test_export_disambiguates_duplicate_agent_names():
     spec = export_agent_to_adk_spec(seq)
 
     assert [node.id for node in spec.nodes] == ["pipeline", "review", "review-2"]
+
+
+def test_import_roundtrip_sequential():
+    from nexus.integrations.adk.mapper import export_agent_to_adk_spec, import_adk_spec
+
+    original = SequentialAgent(
+        "Pipe", [StubAgent("A", "first"), StubAgent("B", "second")]
+    )
+    spec = export_agent_to_adk_spec(original)
+    rebuilt = import_adk_spec(
+        spec, lambda node: StubAgent(node.name, node.description)
+    )
+    assert isinstance(rebuilt, SequentialAgent)
+    assert [c.name for c in rebuilt.sub_agents] == ["A", "B"]
+
+
+def test_import_roundtrip_parallel_and_loop():
+    from nexus.integrations.adk.mapper import export_agent_to_adk_spec, import_adk_spec
+
+    loop = LoopAgent(
+        "Retry", StubAgent("W", "work"),
+        stop_condition=lambda output: True, max_iterations=3,
+    )
+    par = ParallelAgent("Fan", [StubAgent("X", "x"), loop])
+    rebuilt = import_adk_spec(
+        export_agent_to_adk_spec(par), lambda node: StubAgent(node.name, node.description)
+    )
+    assert isinstance(rebuilt, ParallelAgent)
+    assert isinstance(rebuilt.sub_agents[1], LoopAgent)
+    assert rebuilt.sub_agents[1].max_iterations == 3
+
+
+def test_import_rejects_unknown_kind_and_missing_entrypoint():
+    import pytest
+
+    from nexus.integrations.adk.mapper import import_adk_spec
+    from nexus.integrations.adk.types import AdkNodeSpec, AdkWorkflowSpec
+
+    bad = AdkWorkflowSpec(
+        name="bad", entrypoint="n1",
+        nodes=(AdkNodeSpec(id="n1", kind="singularity", name="N1"),),
+        edges=(),
+    )
+    with pytest.raises(ValueError, match="unknown node kind"):
+        import_adk_spec(bad, lambda node: StubAgent("s", "d"))
+    empty = AdkWorkflowSpec(name="empty", entrypoint="nope", nodes=(), edges=())
+    with pytest.raises(ValueError, match="entrypoint"):
+        import_adk_spec(empty, lambda node: StubAgent("s", "d"))

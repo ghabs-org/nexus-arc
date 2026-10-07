@@ -1934,3 +1934,215 @@ class TestOpenClawNotificationChannel:
                 _mod._require_aiohttp()
         finally:
             _mod._AIOHTTP_AVAILABLE = original
+
+
+# ---------------------------------------------------------------------------
+# OpenCodeProvider
+# ---------------------------------------------------------------------------
+
+
+class TestOpenCodeProvider:
+    def _make_provider(self, **kwargs):
+        from nexus.adapters.ai.opencode_provider import OpenCodeProvider
+
+        return OpenCodeProvider(**kwargs)
+
+    def test_name(self):
+        assert self._make_provider().name == "opencode"
+
+    def test_default_model_is_free_tier(self):
+        from nexus.adapters.ai.opencode_provider import DEFAULT_MODEL
+
+        assert self._make_provider()._model == DEFAULT_MODEL
+        assert "free" in DEFAULT_MODEL
+
+    def test_preference_score(self):
+        provider = self._make_provider()
+        assert provider.get_preference_score("reasoning") == 0.8
+        assert provider.get_preference_score("code_generation") == 0.7
+
+    def test_extract_run_text_from_json_events(self):
+        from nexus.adapters.ai.opencode_provider import extract_run_text
+
+        raw = (
+            '{"type":"step_start","part":{"type":"step-start"}}\n'
+            '{"type":"text","part":{"type":"text","text":"Hello"}}\n'
+            '{"type":"text","part":{"type":"text","text":"world"}}\n'
+        )
+        assert extract_run_text(raw) == "Hello\nworld"
+
+    def test_extract_run_text_falls_back_to_raw(self):
+        from nexus.adapters.ai.opencode_provider import extract_run_text
+
+        assert extract_run_text("> status line\nReal answer\n") == "Real answer"
+
+    def test_execute_agent_success(self):
+        import json as _json
+
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider = self._make_provider()
+        payload = _json.dumps({"type": "text", "part": {"type": "text", "text": "Hi free"}})
+
+        async def _fake_communicate():
+            return (payload.encode(), b"")
+
+        fake_process = MagicMock()
+        fake_process.communicate = _fake_communicate
+        fake_process.returncode = 0
+
+        async def _fake_create(*args, **kwargs):
+            return fake_process
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_fake_create):
+            ctx = ExecutionContext(agent_name="triage", prompt="Say hi", workspace=Path("/tmp"))
+            result = asyncio.run(provider.execute_agent(ctx))
+        assert result.success is True
+        assert result.output == "Hi free"
+        assert result.provider_used == "opencode"
+
+    def test_execute_agent_failure(self):
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider = self._make_provider()
+
+        async def _fake_communicate():
+            return (b"", b"auth required")
+
+        fake_process = MagicMock()
+        fake_process.communicate = _fake_communicate
+        fake_process.returncode = 1
+
+        async def _fake_create(*args, **kwargs):
+            return fake_process
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_fake_create):
+            ctx = ExecutionContext(agent_name="triage", prompt="Say hi", workspace=Path("/tmp"))
+            result = asyncio.run(provider.execute_agent(ctx))
+        assert result.success is False
+        assert "auth required" in (result.error or "")
+
+    def test_check_availability_false_without_binary(self):
+        provider = self._make_provider(cli_path="opencode-definitely-missing-xyz")
+        assert asyncio.run(provider.check_availability()) is False
+
+    def test_registry_creates_opencode(self):
+        from nexus.adapters.registry import AdapterRegistry
+        from nexus.adapters.ai.opencode_provider import OpenCodeProvider
+
+        assert isinstance(AdapterRegistry().create_ai("opencode"), OpenCodeProvider)
+
+
+class TestOpenCodeSessionListing:
+    def _payload(self):
+        import json as _json
+
+        return _json.dumps(
+            {
+                "data": [
+                    {
+                        "id": "ses_new",
+                        "title": "New chat",
+                        "model": {"providerID": "opencode", "modelID": "spark-free"},
+                        "cost": 0.0,
+                        "tokens": {"input": 100, "output": 20},
+                        "time": {"created": 1, "updated": 2000},
+                    },
+                    {
+                        "id": "ses_old",
+                        "title": "Old chat",
+                        "model": {"providerID": "opencode", "modelID": "spark-free"},
+                        "cost": 0.5,
+                        "tokens": {"input": 10, "output": 2},
+                        "time": {"created": 1, "updated": 1000},
+                    },
+                ]
+            }
+        )
+
+    def test_lists_newest_first_with_limit(self):
+        from nexus.adapters.ai.opencode_provider import list_recent_sessions
+
+        fake = MagicMock()
+        fake.returncode = 0
+        fake.stdout = self._payload()
+        with patch("subprocess.run", return_value=fake) as mock_run:
+            sessions = list_recent_sessions(limit=1, cli_path="opencode")
+        mock_run.assert_called_once()
+        assert [s["id"] for s in sessions] == ["ses_new"]
+        assert sessions[0]["model"] == "opencode/spark-free"
+        assert sessions[0]["tokens_in"] == 100
+
+    def test_raises_on_cli_failure(self):
+        from nexus.adapters.ai.opencode_provider import list_recent_sessions
+
+        fake = MagicMock()
+        fake.returncode = 1
+        fake.stderr = "not logged in"
+        with patch("subprocess.run", return_value=fake):
+            import pytest as _pytest
+
+            with _pytest.raises(RuntimeError, match="not logged in"):
+                list_recent_sessions(cli_path="opencode")
+
+
+class TestNotificationRegistryCoverage:
+    def test_create_discord_channel(self):
+        import nexus.adapters.notifications.discord as _mod
+
+        original = _mod._AIOHTTP_AVAILABLE if hasattr(_mod, "_AIOHTTP_AVAILABLE") else None
+        from unittest.mock import MagicMock as _MagicMock
+
+        with patch.dict("sys.modules", {"aiohttp": _MagicMock()}):
+            setattr(_mod, "_AIOHTTP_AVAILABLE", True)
+            try:
+                from nexus.adapters.registry import AdapterRegistry
+
+                channel = AdapterRegistry().create_notification(
+                    "discord", webhook_url="https://discord.com/api/webhooks/x"
+                )
+            finally:
+                if original is not None:
+                    setattr(_mod, "_AIOHTTP_AVAILABLE", original)
+        assert channel.name == "discord"
+
+    def test_create_openclaw_channel(self):
+        import nexus.adapters.notifications.openclaw as _mod
+
+        from unittest.mock import MagicMock as _MagicMock
+
+        original = getattr(_mod, "_AIOHTTP_AVAILABLE", None)
+        with patch.dict("sys.modules", {"aiohttp": _MagicMock()}):
+            setattr(_mod, "_AIOHTTP_AVAILABLE", True)
+            try:
+                from nexus.adapters.registry import AdapterRegistry
+
+                channel = AdapterRegistry().create_notification(
+                    "openclaw", bridge_url="http://x:99"
+                )
+            finally:
+                if original is not None:
+                    setattr(_mod, "_AIOHTTP_AVAILABLE", original)
+        assert channel.name == "openclaw"
+
+
+class TestAgentSpecModel:
+    def _registry(self, tmp_path, model=None):
+        from nexus.adapters.ai.registry import AgentRegistry
+
+        spec_lines = ['spec:', '  agent_type: "writer"', '  provider: "opencode"']
+        if model:
+            spec_lines.append(f'  model: "{model}"')
+        (tmp_path / "w.yaml").write_text(
+            'apiVersion: "nexus-arc/v1"\nkind: "Agent"\nmetadata:\n  name: "W"\n'
+            + "\n".join(spec_lines)
+            + "\n"
+        )
+        return AgentRegistry(agents_dir=tmp_path)
+
+    def test_get_model_none_without_pin(self, tmp_path):
+        assert self._registry(tmp_path).get_model("writer") is None
+
+    def test_get_model_returns_pin(self, tmp_path):
+        registry = self._registry(tmp_path, model="opencode/spark-free")
+        assert registry.get_model("writer") == "opencode/spark-free"

@@ -12,6 +12,7 @@ from nexus.core.chat.chat_context_service import (
 )
 from nexus.core.handlers.inbox_routing_handler import PROJECTS
 from nexus.core.interactive.context import InteractiveContext
+from nexus.core.config import get_chat_agent_types
 from nexus.core.memory import (
     create_chat,
     delete_chat,

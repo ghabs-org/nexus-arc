@@ -247,11 +247,16 @@ def test_chat_falls_through_full_provider_chain_and_returns_honest_default(monke
         call_order.append("ollama")
         raise Exception("ollama unavailable")
 
+    def _opencode(*_args, **_kwargs):
+        call_order.append("opencode")
+        raise Exception("opencode unavailable")
+
     monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
     monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
     monkeypatch.setattr(orchestrator, "_run_codex_analysis", _codex)
     monkeypatch.setattr(orchestrator, "_run_ollama_analysis", _ollama)
+    monkeypatch.setattr(orchestrator, "_run_opencode_analysis", _opencode)
 
     result = orchestrator.run_text_to_speech_analysis(
         "hello",
@@ -259,10 +264,10 @@ def test_chat_falls_through_full_provider_chain_and_returns_honest_default(monke
         project_name="nexus",
     )
 
-    assert call_order == ["gemini", "copilot", "claude", "codex", "ollama"]
+    assert call_order == ["gemini", "copilot", "claude", "codex", "ollama", "opencode"]
     assert "couldn't generate a reply right now" in result["text"].lower()
-    assert "gemini, copilot, claude, codex, ollama" in result["text"].lower()
-    assert "last error: ollama unavailable" in result["text"].lower()
+    assert "gemini, copilot, claude, codex, ollama, opencode" in result["text"].lower()
+    assert "last error: opencode unavailable" in result["text"].lower()
 
 
 def test_chat_analysis_uses_requester_scoped_env_and_project_cwd(monkeypatch, tmp_path):

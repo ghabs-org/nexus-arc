@@ -115,7 +115,14 @@ def _build_sub_agents(specs: list[dict], *, ai_provider: Any) -> list:
 
         if ai_provider is not None:
             from nexus.agents.coordinator import LLMSubAgent
-            agents.append(LLMSubAgent(name=name, description=description, ai_provider=ai_provider))
+            agents.append(
+                LLMSubAgent(
+                    name=name,
+                    description=description,
+                    ai_provider=ai_provider,
+                    model_override=(spec.get("model") or "").strip() or None,
+                )
+            )
         else:
             fixed_response = spec.get("response") or f"[{name}]: {description}"
 
@@ -137,7 +144,7 @@ async def _get_ai_provider(config: dict | None) -> Any:
 
     Priority:
     1. config["ai_provider_factory"] callable (explicit injection)
-    2. Auto-discover from registered Nexus adapters (Claude > Copilot > Gemini)
+    2. Auto-discover from registered Nexus adapters (Claude > Copilot > Gemini > OpenCode)
 
     Constructors are cheap but don't check CLI/env availability — we call
     check_availability() to verify before returning. Returns None if no
@@ -154,7 +161,8 @@ async def _get_ai_provider(config: dict | None) -> Any:
         except Exception as exc:
             logger.debug("ai_provider_factory failed: %s", exc)
 
-    # 2. Auto-discover in preference order, checking availability
+    # 2. Auto-discover in preference order, checking availability.
+    # OpenCode last: free account-auth fallback when no paid/keyed CLI is set up.
     candidates = []
     try:
         from nexus.adapters.ai.claude_provider import ClaudeProvider
@@ -174,6 +182,12 @@ async def _get_ai_provider(config: dict | None) -> Any:
     except Exception as exc:
         logger.debug("GeminiCLIProvider init failed: %s", exc)
 
+    try:
+        from nexus.adapters.ai.opencode_provider import OpenCodeProvider
+        candidates.append(OpenCodeProvider())
+    except Exception as exc:
+        logger.debug("OpenCodeProvider init failed: %s", exc)
+
     for provider in candidates:
         try:
             if await provider.check_availability():
@@ -186,15 +200,58 @@ async def _get_ai_provider(config: dict | None) -> Any:
 
 def _make_stop_condition(expr: str):
     """
-    Build a stop_condition callable from a Python expression string.
-    Falls back to never-stop if expression is empty or invalid.
+    Build a stop_condition callable from a small safe expression language.
+
+    Allowed: comparisons, boolean/unary operators, literals, and the names
+    ``output`` (AgentOutput) and ``content`` (output.content string).
+    Anything else — calls, imports, attribute chains — is rejected and the
+    condition falls back to never-stop. Raw ``eval`` on bridge input would
+    be remote code execution, so the AST is allowlisted instead.
     """
+    import ast as _ast
+
     if not expr:
         return lambda output: False
 
+    try:
+        tree = _ast.parse(str(expr), mode="eval")
+    except SyntaxError:
+        return lambda output: False
+
+    _ALLOWED = (
+        _ast.Expression,
+        _ast.BoolOp,
+        _ast.UnaryOp,
+        _ast.Compare,
+        _ast.Name,
+        _ast.Load,
+        _ast.Constant,
+        _ast.And,
+        _ast.Or,
+        _ast.Not,
+        _ast.Eq,
+        _ast.NotEq,
+        _ast.Lt,
+        _ast.LtE,
+        _ast.Gt,
+        _ast.GtE,
+        _ast.In,
+        _ast.NotIn,
+        _ast.Is,
+        _ast.IsNot,
+    )
+    allowed_names = {"output", "content", "True", "False", "None"}
+    for node in _ast.walk(tree):
+        if not isinstance(node, _ALLOWED):
+            return lambda output: False
+        if isinstance(node, _ast.Name) and node.id not in allowed_names:
+            return lambda output: False
+
+    code = compile(tree, "<stop_condition>", "eval")
+
     def _stop(output):
         try:
-            return bool(eval(expr, {}, {"output": output, "content": output.content}))  # noqa: S307
+            return bool(eval(code, {"__builtins__": {}}, {"output": output, "content": output.content}))  # noqa: S307
         except Exception:
             return False
 

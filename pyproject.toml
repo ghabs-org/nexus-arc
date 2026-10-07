@@ -32,6 +32,7 @@ dependencies = [
     "pyyaml>=6.0",
     "pydantic>=2.0",
     "typing-extensions>=4.0",
+    "requests>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -105,11 +106,20 @@ nexus-bot-chat = [
 nexus-bot-voice = [
     "openai-whisper>=20250625",
 ]
+mqtt = [
+    "paho-mqtt>=1.6",
+]
+s3 = [
+    "boto3>=1.28",
+]
+mcp = [
+    "mcp>=1.0",
+]
 nexus-bot = [
     "nexus-arc[nexus-bot-runtime,nexus-bot-chat,nexus-bot-voice]",
 ]
 all = [
-    "nexus-arc[telegram,slack,discord,postgres,redis,openai,anthropic,hotreload,nexus-bot]",
+    "nexus-arc[telegram,slack,discord,postgres,redis,openai,anthropic,hotreload,nexus-bot,s3,mcp,mqtt]",
 ]
 dev = [
     "pytest>=7.0",

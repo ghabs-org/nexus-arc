@@ -9,6 +9,7 @@ class _Ctx:
         self.user_state = {}
         self.query = None
         self.calls = []
+        self.platform = "telegram"
 
     async def reply_text(self, text, buttons=None):
         self.calls.append(("reply", text, buttons))

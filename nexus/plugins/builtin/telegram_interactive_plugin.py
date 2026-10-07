@@ -49,6 +49,14 @@ class TelegramInteractivePlugin(InteractiveClientPlugin):
         self.command_handlers: dict[str, Callable] = {}
         self.message_handler: Callable | None = None
 
+        # Inbound normalization lives on the gateway contract: one Bot API
+        # shape parser shared with webhook/polling alternatives. The plugin
+        # keeps PTB lifecycle + callback dispatch; transport send stays here
+        # until the lifecycle itself moves onto the adapter.
+        from nexus.adapters.telegram_gateway import TelegramGatewayAdapter
+
+        self._gateway = TelegramGatewayAdapter(send=lambda chat_id, text: "")
+
         self._app: Application | None = None
 
     @property
@@ -70,9 +78,11 @@ class TelegramInteractivePlugin(InteractiveClientPlugin):
             # Create a closure to capture the correct callback
             def create_handler(cb: Callable) -> Callable:
                 async def _cmd_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-                    user_id = str(update.effective_user.id) if update.effective_user else ""
-                    text = update.message.text if update.message and update.message.text else ""
-                    await cb(user_id=user_id, text=text, context=context.args, raw_event=update)
+                    task = self._gateway.to_task(update.to_dict())
+                    user_id = task.user_id or (
+                        str(update.effective_user.id) if update.effective_user else ""
+                    )
+                    await cb(user_id=user_id, text=task.text, context=context.args, raw_event=update)
 
                 return _cmd_handler
 
@@ -82,8 +92,11 @@ class TelegramInteractivePlugin(InteractiveClientPlugin):
         if self.message_handler:
 
             async def _msg_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-                user_id = str(update.effective_user.id) if update.effective_user else ""
-                text = update.message.text or update.message.caption or ""
+                task = self._gateway.to_task(update.to_dict())
+                user_id = task.user_id or (
+                    str(update.effective_user.id) if update.effective_user else ""
+                )
+                text = task.text
                 attachments: list[ImageAttachment] = []
                 if update.message and update.message.photo:
                     try:

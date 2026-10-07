@@ -1,0 +1,24 @@
+# Authoring UI container: serves `nexus init --gui` (agent/workflow authoring).
+# Slim on purpose — the UI only writes and validates YAML, so it needs the
+# base nexus-arc install and nothing else (no gh/glab/Node/AI CLIs).
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY pyproject.toml /nexus-arc/pyproject.toml
+COPY nexus /nexus-arc/nexus
+COPY README.md /nexus-arc/README.md
+COPY authoring-config.yaml /nexus-arc/authoring-config.yaml
+RUN pip install --no-cache-dir /nexus-arc
+
+# The framework requires a project config at import time; the UI only
+# authors agent/workflow YAML into /data, so the baked minimal config suffices.
+ENV PROJECT_CONFIG_PATH=/nexus-arc/authoring-config.yaml
+
+VOLUME /data
+EXPOSE 5002
+
+CMD ["nexus", "init", "--gui", "--host", "0.0.0.0", "--dir", "/data"]

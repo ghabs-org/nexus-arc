@@ -42,3 +42,69 @@ def install_secret_redaction(
     redaction_filter = SecretRedactingFilter(secrets)
     for handler in logger.handlers:
         handler.addFilter(redaction_filter)
+
+
+# Key names whose values must never appear in logs, even masked: masked
+# values still leak length/shape, so these keys are omitted entirely.
+SECRET_KEYS = frozenset(
+    {
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GITHUB_TOKEN",
+        "GITLAB_TOKEN",
+        "COPILOT_GITHUB_TOKEN",
+        "SLACK_TOKEN",
+        "DISCORD_BOT_TOKEN",
+        "TELEGRAM_TOKEN",
+        "NEXUS_COMMAND_BRIDGE_AUTH_TOKEN",
+        "NEXUS_OPENCLAW_BRIDGE_TOKEN",
+    }
+)
+
+
+def omit_secret_keys(mapping: Any, extra_keys: Iterable[str] = ()) -> dict[str, Any]:
+    """Return a copy of *mapping* with secret keys removed (not masked).
+
+    Non-mapping input yields an empty dict. Use for anything crossing a log
+    or API boundary: auth configs, resolved env summaries, error contexts.
+    """
+    if not isinstance(mapping, dict):
+        return {}
+    denied = set(SECRET_KEYS) | {str(key) for key in extra_keys}
+    return {key: value for key, value in mapping.items() if str(key) not in denied}
+
+
+# Key names whose values must never appear in logs, even masked: masked
+# values still leak length/shape, so these keys are omitted entirely.
+SECRET_KEYS = frozenset(
+    {
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GITHUB_TOKEN",
+        "GITLAB_TOKEN",
+        "COPILOT_GITHUB_TOKEN",
+        "SLACK_TOKEN",
+        "DISCORD_BOT_TOKEN",
+        "TELEGRAM_TOKEN",
+        "NEXUS_COMMAND_BRIDGE_AUTH_TOKEN",
+        "NEXUS_OPENCLAW_BRIDGE_TOKEN",
+    }
+)
+
+
+def omit_secret_keys(mapping: Any, extra_keys: Iterable[str] = ()) -> dict[str, Any]:
+    """Return a copy of *mapping* with secret keys removed (not masked).
+
+    Non-mapping input yields an empty dict. Use for anything crossing a log
+    or API boundary: auth configs, resolved env summaries, error contexts.
+    """
+    if not isinstance(mapping, dict):
+        return {}
+    denied = set(SECRET_KEYS) | {str(key) for key in extra_keys}
+    return {key: value for key, value in mapping.items() if str(key) not in denied}

@@ -137,8 +137,63 @@ class Coordinator(BaseAgent):
             f"\n\nAgent name:"
         )
 
+    async def _select_agent_via_jev(self, context: AgentContext) -> BaseAgent | None:
+        """Typed delegation choice; None when unkeyed, unsure, or failing.
+
+        Runs in a thread (blocking HTTP) and never raises: any doubt falls
+        through to the LLM path in :meth:`_select_agent`.
+        """
+        import asyncio as _asyncio
+        import os as _os
+
+        if not (
+            (_os.getenv("OPENROUTER_API_KEY") or "").strip()
+            or (_os.getenv("OPENCODE_API_KEY") or "").strip()
+        ):
+            return None
+        if _os.getenv("JEV_DELEGATION", "true").strip().lower() != "true":
+            return None
+        try:
+            from nexus.adapters.decisions.jev import decide_choice
+
+            options = {
+                agent.name: agent.description or agent.name for agent in self.sub_agents
+            }
+            choice, confidence, sure = await _asyncio.to_thread(
+                decide_choice,
+                context.task,
+                options,
+                "Which sub-agent should handle this task?",
+                min_confidence=float(_os.getenv("JEV_MIN_CONFIDENCE", "0.6")),
+                default=self.sub_agents[0].name,
+            )
+            if not sure:
+                logger.info(
+                    "Coordinator Jev unsure (confidence %.2f) — using LLM delegation",
+                    confidence,
+                )
+                return None
+            for agent in self.sub_agents:
+                if agent.name.lower() == str(choice).lower():
+                    logger.info(
+                        "Coordinator selected agent via Jev: %s (confidence %.2f)",
+                        agent.name,
+                        confidence,
+                    )
+                    return agent
+            logger.warning(
+                "Coordinator Jev chose unknown agent %r — using LLM delegation", choice
+            )
+            return None
+        except Exception as exc:
+            logger.debug("Coordinator Jev delegation failed (%s) — using LLM delegation", exc)
+            return None
+
     async def _select_agent(self, context: AgentContext) -> BaseAgent:
-        """Use LLM to select the best sub-agent for the task."""
+        """Use Jev typed choice first, falling back to LLM selection."""
+        jev_pick = await self._select_agent_via_jev(context)
+        if jev_pick is not None:
+            return jev_pick
         from pathlib import Path
 
         from nexus.adapters.ai.base import ExecutionContext
@@ -179,9 +234,13 @@ class Coordinator(BaseAgent):
             logger.info("nexus-router selected model: %s for agent: %s", model, selected.name)
 
         # 3. Run selected agent with sliced context; inject router model via metadata
-        #    to avoid mutating the shared sub-agent object.
+        #    to avoid mutating the shared sub-agent object. An explicit agent
+        #    model pin always wins over the router suggestion.
         sliced = slice_context(context)
-        if model and isinstance(selected, LLMSubAgent):
+        explicit_model = (
+            selected.model_override if isinstance(selected, LLMSubAgent) else None
+        )
+        if model and isinstance(selected, LLMSubAgent) and not explicit_model:
             sliced = AgentContext(
                 task=sliced.task,
                 prior_outputs=sliced.prior_outputs,
@@ -189,5 +248,5 @@ class Coordinator(BaseAgent):
             )
         output = await selected.run(sliced)
         output.metadata["coordinator_selected_agent"] = selected.name
-        output.metadata["coordinator_model"] = model
+        output.metadata["coordinator_model"] = explicit_model or model
         return output
