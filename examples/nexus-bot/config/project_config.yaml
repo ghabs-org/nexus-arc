@@ -16,16 +16,6 @@ projects:
     aliases:
       - nexus arc
       - nexus-arc
-  atl:
-    code: atlas
-    aliases:
-      - atlas
-      - alpha
-  orn:
-    code: orion
-    aliases:
-      - orion
-      - beta
 
 # Merge queue behavior (project-level enforcement)
 # review_mode:
@@ -37,7 +27,8 @@ merge_queue:
 # Global model profiles and AI tool preferences.
 # model_profiles define concrete model IDs per provider for each profile.
 # ai_tool_preferences map agent_type -> {profile, provider}.
-# provider can be: copilot, gemini, codex, auto.
+# provider can be: copilot, gemini, codex, claude, ollama, opencode, auto.
+# opencode uses the local OpenCode CLI account auth (free tiers work, no API key).
 #
 # Architecture:
 # 1. Agent YAML files define: spec.agent_type (e.g., "triage", "debug", "escalation")
@@ -55,15 +46,17 @@ model_profiles:
     copilot: gpt-4o-mini
     gemini: gemini-2.0-flash
     codex: gpt-5-mini
+    opencode: opencode/muse-spark-1.3-contributor-free
   reasoning:
     copilot: gpt-5.3-codex
     gemini: gemini-2.5-pro
     codex: gpt-5.3-codex
+    opencode: opencode/muse-spark-1.3-contributor-free
 
 # Optional: profile-specific provider order used when provider=auto
 profile_provider_priority:
-  fast: [ gemini, copilot, codex ]
-  reasoning: [ codex, copilot, gemini ]
+  fast: [ opencode, gemini, copilot, codex ]
+  reasoning: [ opencode, codex, copilot, gemini ]
 
 ai_tool_preferences:
   triage: { profile: fast, provider: auto }
@@ -159,13 +152,15 @@ nexus:
       copilot: gpt-4o-mini
       gemini: gemini-2.0-flash
       codex: gpt-5-mini
+      opencode: opencode/muse-spark-1.3-contributor-free
     reasoning:
       copilot: gpt-5.3-codex
       gemini: gemini-2.5-pro
       codex: gpt-5.3-codex
+      opencode: opencode/muse-spark-1.3-contributor-free
   profile_provider_priority:
-    fast: [ gemini, copilot, codex ]
-    reasoning: [ codex, copilot, gemini ]
+    fast: [ opencode, gemini, copilot, codex ]
+    reasoning: [ opencode, codex, copilot, gemini ]
   ai_tool_preferences:
     triage: { profile: fast, provider: auto }
     designer: { profile: fast, provider: gemini }
@@ -176,59 +171,3 @@ nexus:
     deployer: { profile: fast, provider: copilot }
     writer: { profile: fast, provider: gemini }
     finalizer: { profile: fast, provider: gemini }
-
-# Fake sample project (example-only)
-atlas:
-  agents_dir: ghabs/nexus-arc/examples/agents
-  workspace: atlas
-  git_platform: gitlab
-  git_repo: demo-org/atlas
-  git_repos:
-    - demo-org/atlas
-    - demo-org/atlas-shared
-  git_branches:
-    default: develop
-    repos:
-      demo-org/atlas: main
-  git_sync:
-    on_workflow_start: true
-    bootstrap_missing_workspace: true
-    bootstrap_missing_repos: true
-    network_auth_retries: 3
-    retry_backoff_seconds: 5
-    decision_timeout_seconds: 120
-  access_control:
-    gitlab_groups:
-      - demo-org/atlas-team
-    gitlab_users:
-      - alice
-
-# Fake sample project (example-only)
-orion:
-  agents_dir: ghabs/nexus-arc/examples/agents
-  workspace: orion
-  git_platform: github
-  git_repo: demo-org/orion
-  git_repos:
-    - demo-org/orion
-    - demo-org/orion-shared
-  git_branches:
-    default: develop
-    repos:
-      demo-org/orion: main
-  git_sync:
-    on_workflow_start: true
-    bootstrap_missing_workspace: false
-    bootstrap_missing_repos: false
-    network_auth_retries: 3
-    retry_backoff_seconds: 5
-    decision_timeout_seconds: 120
-  access_control:
-    github_teams:
-      - demo-org/orion-team
-    github_users:
-      - bob
-    gitlab_groups:
-      - demo-org/orion-team
-    gitlab_users:
-      - bob
