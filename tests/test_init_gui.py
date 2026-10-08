@@ -313,3 +313,18 @@ def test_field_defs_drive_forms(tmp_path):
         assert [f["id"] for f in forms["step"]] == ["s-id", "s-name", "s-type"]
     finally:
         server.shutdown()
+
+
+def test_profiles_accept_custom_names(tmp_path):
+    """GUI 'Add profile' sends arbitrary names; backend must not restrict to fast/reasoning."""
+    server = _start_server(tmp_path)
+    try:
+        status, body = _post(
+            server,
+            "/api/profiles",
+            {"profiles": {"nightly": {"provider": "opencode", "model": "opencode/spark-free"}}},
+        )
+        assert status == 200, body
+        assert "nightly" in body["yaml"]
+    finally:
+        server.shutdown()

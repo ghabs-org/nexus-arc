@@ -120,6 +120,7 @@ validated by the framework before it is written. Serve with
 <code>project_config.yaml</code> &mdash; both runtimes honor <code>model_profiles</code>.
 Unavailable providers are marked; free models carry a badge.</p>
 <div id="profiles"></div>
+<button class="secondary" onclick="addProfileRow()">＋ Add profile</button>
 <button onclick="submitProfiles()">Generate snippet</button>
 <button class="secondary" onclick="copySnippet()">Copy</button>
 <button class="secondary" id="apply-btn" onclick="applyProfiles()" style="display:none">Apply to bot config</button>
@@ -195,11 +196,18 @@ async function configStatus(){
   CONFIG_PATH = (await r.json()).project_config;
   if(CONFIG_PATH) document.getElementById("apply-btn").style.display = "";
 }
-async function applyProfiles(){
+function profileNames(){
+  return [...document.querySelectorAll("#profiles .prow")].map(r => r.dataset.profile);
+}
+function collectProfiles(){
   const profiles = {};
-  ["fast","reasoning"].forEach(profile => {
+  profileNames().forEach(profile => {
     profiles[profile] = {provider: v("p-" + profile), model: v("m-" + profile)};
   });
+  return profiles;
+}
+async function applyProfiles(){
+  const profiles = collectProfiles();
   const r = await fetch("/api/profiles/apply", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify({profiles})});
   const data = await r.json();
@@ -212,8 +220,13 @@ async function loadProviders(){
   const r = await fetch("/api/providers"); if(!r.ok) return;
   CATALOG = (await r.json()).providers || [];
   const box = document.getElementById("profiles"); box.innerHTML = "";
-  ["fast","reasoning"].forEach(profile => {
-    const row = document.createElement("div"); row.className = "grid2";
+  ["fast","reasoning"].forEach(addProfileRow);
+}
+function addProfileRow(profile){
+  profile = ((typeof profile === "string" && profile) ? profile : (prompt("Profile name:") || "")).trim().toLowerCase();
+  if(!profile || document.getElementById("p-" + profile)) return;
+  const box = document.getElementById("profiles");
+  const row = document.createElement("div"); row.className = "grid2 prow"; row.dataset.profile = profile;
     row.innerHTML = '<label><span>' + profile + ' &middot; provider</span><select id="p-' + profile + '"></select></label>' +
       '<label><span>' + profile + ' &middot; model</span><input id="m-' + profile + '" list="dl-' + profile + '" placeholder="provider default"><datalist id="dl-' + profile + '"></datalist></label>';
     box.appendChild(row);
@@ -226,7 +239,9 @@ async function loadProviders(){
     sel.value = "opencode";
     sel.onchange = () => fillModels(profile);
     fillModels(profile);
-  });
+}
+function submitProfiles(){
+  post("/api/profiles", {profiles: collectProfiles()}, "m-out");
 }
 function fillModels(profile){
   const prov = document.getElementById("p-" + profile).value;
@@ -242,13 +257,6 @@ function fillModels(profile){
   const firstFree = entry.models.find(m => m.free);
   if(firstFree && !input.value) input.value = firstFree.id;
   if(!entry.models.length && !input.placeholder) input.placeholder = "provider default";
-}
-function submitProfiles(){
-  const profiles = {};
-  ["fast","reasoning"].forEach(profile => {
-    profiles[profile] = {provider: v("p-" + profile), model: v("m-" + profile)};
-  });
-  post("/api/profiles", {profiles}, "m-out");
 }
 function copySnippet(){navigator.clipboard.writeText(document.getElementById("m-out").textContent);}
 async function loadTools(){
