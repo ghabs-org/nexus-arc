@@ -52,6 +52,7 @@ async def test_chat_bridge_callback_emits_feedback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_task_confirmation_callback_emits_feedback_for_routed_result():
+    pytest.importorskip("telegram")
     from nexus.core.telegram.telegram_task_capture_service import handle_task_confirmation_callback
 
     query = SimpleNamespace()

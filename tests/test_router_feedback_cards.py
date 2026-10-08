@@ -4,8 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from nexus.core.handlers import callback_command_handlers as callback_handlers
-from nexus.core.handlers.callback_command_handlers import CallbackHandlerDeps, route_feedback_callback_handler
+from nexus.core.handlers.callback_command_handlers import CallbackHandlerDeps, route_feedback_handler
 from nexus.core.telegram import telegram_router_feedback_service as feedback_service
 
 
@@ -44,7 +43,7 @@ def _deps() -> CallbackHandlerDeps:
         workflow_state_plugin_kwargs={},
         action_handlers={},
         report_bug_action=lambda *a, **k: None,
-        router_feedback_url="http://router.test",
+        route_feedback_action=None,
     )
 
 
@@ -107,48 +106,38 @@ def test_load_feedback_meta_for_ref_accepts_uuid_decision_id(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_route_feedback_callback_accepts_older_card_when_token_resolves(monkeypatch):
-    old_decision = "11111111-1111-4111-8111-111111111111"
-    latest_decision = "22222222-2222-4222-8222-222222222222"
-    old_meta = {
-        "decision_id": old_decision,
-        "feedback_mode": "router",
-        "task_type": "reasoning",
-        "selected_model": "openai/gpt-5",
-        "source_channel": "telegram",
-        "metadata": {"source_message_preview": "first routed reply"},
-    }
-    latest_meta = {
-        "decision_id": latest_decision,
-        "feedback_mode": "router",
-        "task_type": "coding",
-        "selected_model": "anthropic/claude-sonnet",
-        "source_channel": "telegram",
-        "metadata": {"source_message_preview": "newer routed reply"},
-    }
-    token = feedback_service.decision_token(old_decision)
-    submitted: dict = {}
+async def test_route_feedback_handler_delegates_ok_verdict():
+    """Handler parses ``routefb:<verdict>:<decision_id>`` and delegates.
 
-    monkeypatch.setattr(callback_handlers, "load_feedback_meta_for_ref", lambda **kwargs: dict(old_meta))
-    monkeypatch.setattr(callback_handlers, "resolve_feedback_token", lambda **kwargs: old_decision)
-    monkeypatch.setattr(callback_handlers, "has_feedback_submission", lambda *a, **k: False)
-    monkeypatch.setattr(
-        callback_handlers,
-        "submit_feedback",
-        lambda *, router_url, payload: (submitted.update({"router_url": router_url, "payload": payload}) or True, "ok"),
-    )
+    Token resolution and submission live in the injected
+    ``route_feedback_action`` (wired in telegram_bot), not in this module.
+    """
+    calls: dict = {}
 
+    async def fake_action(ctx, decision_id, verdict, corrected_task=None, model_verdict=None):
+        calls.update(
+            {
+                "decision_id": decision_id,
+                "verdict": verdict,
+                "corrected_task": corrected_task,
+                "model_verdict": model_verdict,
+            }
+        )
+
+    decision_id = "11111111-1111-4111-8111-111111111111"
+    deps = _deps()
+    deps.route_feedback_action = fake_action
     ctx = _DummyCtx(
-        action_data=f"routefb:ok:{token}",
+        action_data=f"routefb:ok:{decision_id}",
         user_id="user-1",
-        user_state={feedback_service.PENDING_KEY: dict(latest_meta)},
+        user_state={},
     )
 
-    await route_feedback_callback_handler(ctx, _deps())
+    await route_feedback_handler(ctx, deps)
 
-    assert submitted["router_url"] == "http://router.test"
-    assert submitted["payload"]["decision_id"] == old_decision
-    assert submitted["payload"]["metadata"]["task_type"] == "reasoning"
-    assert submitted["payload"]["metadata"]["selected_model"] == "openai/gpt-5"
-    assert ctx.edits[-1]["text"] == "✅ Feedback recorded."
-    assert feedback_service.PENDING_KEY not in ctx.user_state
+    assert calls == {
+        "decision_id": decision_id,
+        "verdict": "ok",
+        "corrected_task": None,
+        "model_verdict": None,
+    }
