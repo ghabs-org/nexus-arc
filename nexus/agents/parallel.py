@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 from typing import Literal
 
-from .base import AgentContext, AgentOutput, BaseAgent
+from .base import AgentContext, AgentOutput, BaseAgent, run_child
 from .context import merge_outputs, slice_context
 
 
@@ -28,8 +28,9 @@ class ParallelAgent(BaseAgent):
         description: str = "",
         merge_strategy: Literal["concat", "llm_merge"] = "concat",
         separator: str = "\n\n---\n\n",
+        timeout: float | None = None,
     ) -> None:
-        super().__init__(name=name, description=description)
+        super().__init__(name=name, description=description, timeout=timeout)
         if not sub_agents:
             raise ValueError("ParallelAgent requires at least one sub-agent")
         self.sub_agents = sub_agents
@@ -43,7 +44,7 @@ class ParallelAgent(BaseAgent):
 
         # Run all sub-agents concurrently
         outputs: list[AgentOutput] = await asyncio.gather(
-            *[agent.run(slice_context(sliced)) for agent in self.sub_agents]
+            *[run_child(agent, slice_context(sliced), self.timeout) for agent in self.sub_agents]
         )
 
         if self.merge_strategy == "concat":

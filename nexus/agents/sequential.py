@@ -3,7 +3,7 @@ nexus/agents/sequential.py — SequentialAgent: runs sub-agents in order.
 """
 from __future__ import annotations
 
-from .base import AgentContext, AgentOutput, BaseAgent
+from .base import AgentContext, AgentOutput, BaseAgent, run_child
 from .context import slice_context
 
 
@@ -14,8 +14,8 @@ class SequentialAgent(BaseAgent):
     prior outputs accumulated so far — never raw conversation history.
     """
 
-    def __init__(self, name: str, sub_agents: list[BaseAgent], description: str = "") -> None:
-        super().__init__(name=name, description=description)
+    def __init__(self, name: str, sub_agents: list[BaseAgent], description: str = "", timeout: float | None = None) -> None:
+        super().__init__(name=name, description=description, timeout=timeout)
         if not sub_agents:
             raise ValueError("SequentialAgent requires at least one sub-agent")
         self.sub_agents = sub_agents
@@ -28,7 +28,7 @@ class SequentialAgent(BaseAgent):
 
         for agent in self.sub_agents:
             sliced = slice_context(current_context)
-            last_output = await agent.run(sliced)
+            last_output = await run_child(agent, sliced, self.timeout)
             current_context = current_context.with_output(last_output)
 
         # Return the final agent's output; prior outputs available in context

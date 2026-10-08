@@ -3,9 +3,13 @@ nexus/agents/base.py — BaseAgent abstract class and core data types.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,15 +56,38 @@ class AgentContext:
 class BaseAgent(ABC):
     """Abstract base class for all Nexus agents."""
 
-    def __init__(self, name: str, description: str = "") -> None:
+    def __init__(self, name: str, description: str = "", timeout: float | None = None) -> None:
         self.name = name
         self.description = description
+        # Per-run seconds budget enforced by parent composites; None = unbounded.
+        self.timeout = timeout
         self._parent: BaseAgent | None = None
 
     @abstractmethod
     async def run(self, context: AgentContext) -> AgentOutput:
         """Execute the agent with the given context and return an output."""
         ...
+
+
+async def run_child(
+    agent: BaseAgent, context: AgentContext, timeout: float | None = None
+) -> AgentOutput:
+    """Run a child bounded by its own timeout, else the caller's budget.
+
+    A timeout becomes a failed output (``metadata["timeout"] is True``), never
+    raised — composites keep running and the failure stays visible downstream.
+    """
+    budget = agent.timeout if agent.timeout is not None else timeout
+    if budget is None:
+        return await agent.run(context)
+    try:
+        return await asyncio.wait_for(agent.run(context), timeout=budget)
+    except asyncio.TimeoutError:
+        logger.warning("Agent '%s' timed out after %ss", agent.name, budget)
+        return AgentOutput(
+            content="",
+            metadata={"timeout": True, "agent": agent.name, "timeout_seconds": budget},
+        )
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r})"

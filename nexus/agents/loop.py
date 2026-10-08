@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .base import AgentContext, AgentOutput, BaseAgent
+from .base import AgentContext, AgentOutput, BaseAgent, run_child
 from .context import slice_context
 
 
@@ -26,8 +26,9 @@ class LoopAgent(BaseAgent):
         stop_condition: Callable[[AgentOutput], bool],
         max_iterations: int = 5,
         description: str = "",
+        timeout: float | None = None,
     ) -> None:
-        super().__init__(name=name, description=description)
+        super().__init__(name=name, description=description, timeout=timeout)
         if max_iterations < 1:
             raise ValueError("max_iterations must be >= 1")
         self.sub_agent = sub_agent
@@ -44,7 +45,7 @@ class LoopAgent(BaseAgent):
         for i in range(self.max_iterations):
             iterations = i + 1
             sliced = slice_context(current_context)
-            last_output = await self.sub_agent.run(sliced)
+            last_output = await run_child(self.sub_agent, sliced, self.timeout)
             current_context = current_context.with_output(last_output)
 
             if self.stop_condition(last_output):

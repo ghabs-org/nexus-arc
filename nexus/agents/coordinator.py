@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from .base import AgentContext, AgentOutput, BaseAgent
+from .base import AgentContext, AgentOutput, BaseAgent, run_child
 from .context import slice_context
 
 if TYPE_CHECKING:
@@ -110,8 +110,9 @@ class Coordinator(BaseAgent):
         router_url: str = "http://127.0.0.1:7771",
         workspace_path: str = "/tmp",
         description: str = "",
+        timeout: float | None = None,
     ) -> None:
-        super().__init__(name=name, description=description or "Coordinator that delegates tasks to sub-agents")
+        super().__init__(name=name, description=description or "Coordinator that delegates tasks to sub-agents", timeout=timeout)
         if not sub_agents:
             raise ValueError("Coordinator requires at least one sub-agent")
         self.sub_agents = sub_agents
@@ -246,7 +247,7 @@ class Coordinator(BaseAgent):
                 prior_outputs=sliced.prior_outputs,
                 metadata={**sliced.metadata, "_router_model": model},
             )
-        output = await selected.run(sliced)
+        output = await run_child(selected, sliced, self.timeout)
         output.metadata["coordinator_selected_agent"] = selected.name
         output.metadata["coordinator_model"] = explicit_model or model
         return output
