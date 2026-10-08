@@ -140,3 +140,45 @@ def test_stop_condition_rejects_code_execution():
         cond = _make_stop_condition(expr)
         assert cond(AgentOutput(content="done")) is False, expr
     assert witness == []
+
+
+@_no_provider
+def test_run_applies_default_and_explicit_timeout():
+    import asyncio as _asyncio
+
+    from nexus.agents.base import AgentContext, AgentOutput, BaseAgent
+
+    seen = {}
+
+    class _Spy(BaseAgent):
+        async def run(self, context):
+            seen["parent_timeout"] = self._parent.timeout
+            return AgentOutput(content="ok")
+
+    with patch(
+        "nexus.core.command_bridge.agents_handler._build_sub_agents",
+        return_value=[_Spy("s")],
+    ):
+        result = _run(handle_agents_run({
+            "task": "t", "agent_type": "sequential", "agents": AGENTS,
+        }))
+        assert result["ok"] is True
+        assert seen["parent_timeout"] == 300
+
+        result = _run(handle_agents_run({
+            "task": "t", "agent_type": "sequential", "agents": AGENTS, "timeout": 45,
+        }))
+        assert result["ok"] is True
+        assert seen["parent_timeout"] == 45
+
+
+@_no_provider
+def test_requester_reaches_output_metadata():
+    result = _run(handle_agents_run({
+        "task": "t",
+        "agent_type": "sequential",
+        "agents": AGENTS,
+        "requester": {"source": "openclaw", "user_id": "u9"},
+    }))
+    assert result["ok"] is True
+    assert result["metadata"]["requester"] == {"source": "openclaw", "user_id": "u9"}

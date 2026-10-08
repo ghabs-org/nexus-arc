@@ -21,7 +21,7 @@ def test_factory_memory_and_unknown(monkeypatch):
     monkeypatch.delenv("NEXUS_TRANSPORT", raising=False)
     assert isinstance(create_transport(), MemoryTransport)
     with pytest.raises(ValueError, match="Unknown transport"):
-        create_transport("kafka")
+        create_transport("pigeon")
 
 
 def test_mqtt_missing_dep_raises_helpfully(monkeypatch):
@@ -107,3 +107,84 @@ def test_registry_creates_memory_transport():
     from nexus.adapters.transport import MemoryTransport
 
     assert isinstance(AdapterRegistry().create_transport("memory"), MemoryTransport)
+
+
+def test_kafka_missing_dep_raises_helpfully(monkeypatch):
+    import builtins
+    import sys
+
+    import pytest
+
+    monkeypatch.delitem(sys.modules, "kafka", raising=False)
+    real_import = builtins.__import__
+
+    def _guarded(name, *args, **kwargs):
+        if name == "kafka" or name.startswith("kafka."):
+            raise ImportError("No module named 'kafka'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _guarded)
+    from nexus.adapters.transport import KafkaTransport
+
+    with pytest.raises(ImportError, match="nexus-arc\\[kafka\\]"):
+        KafkaTransport()
+
+
+def test_kafka_publish_subscribe_with_fake_client(monkeypatch):
+    import json as _json
+    import sys
+    import time as _time
+    import types
+
+    import nexus.adapters.transport as _transport
+
+    kafka = types.ModuleType("kafka")
+    pending: list = []
+
+    class _Producer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def send(self, topic, payload):
+            pending.append(
+                types.SimpleNamespace(topic=topic, value=_json.loads(_json.dumps(payload)))
+            )
+
+        def close(self):
+            pass
+
+    class _Consumer:
+        def __init__(self, *args, **kwargs):
+            self.topics = []
+
+        def subscribe(self, topics):
+            self.topics = list(topics)
+
+        def poll(self, timeout_ms=None):
+            if not pending:
+                return {}
+            batch, pending[:] = list(pending), []
+            return {"p0": batch}
+
+        def close(self):
+            pass
+
+    kafka.KafkaProducer = _Producer
+    kafka.KafkaConsumer = _Consumer
+    monkeypatch.setitem(sys.modules, "kafka", kafka)
+
+    received = []
+    transport = _transport.KafkaTransport(bootstrap_servers="fake:9092")
+    transport.subscribe("t", lambda topic, payload: received.append((topic, payload)))
+    transport.subscribe("t2", lambda topic, payload: received.append((topic, payload)))
+    # Resubscribing must keep both topics (kafka subscribe replaces).
+    assert transport._consumer.topics == ["t", "t2"]
+    transport.publish("t", {"n": 1})
+    for _ in range(100):
+        if received:
+            break
+        _time.sleep(0.02)
+    transport.close()
+    assert received == [("t", {"n": 1})]
+
+    assert isinstance(_transport.create_transport("kafka"), _transport.KafkaTransport)

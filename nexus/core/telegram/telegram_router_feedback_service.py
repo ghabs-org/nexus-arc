@@ -28,6 +28,7 @@ SUBMITTED_KEY = "router_feedback_submitted"
 CALLBACK_PREFIX = "routefb:"
 FALLBACK_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_fallback.jsonl")
 PENDING_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_pending.json")
+OUTBOX_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_outbox.json")
 TOKEN_MAP_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_tokens.json")
 TOKEN_MAP_TTL_SECONDS = 24 * 3600
 
@@ -373,19 +374,8 @@ def _append_fallback_feedback(
         return (False, str(exc))
 
 
-def submit_feedback(
-    *,
-    router_url: str,
-    payload: dict[str, Any],
-    timeout_seconds: float = 3.0,
-    fallback_store_path: str = FALLBACK_STORE_PATH,
-) -> tuple[bool, str]:
-    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
-    feedback_mode = str(metadata.get("feedback_mode") or "router").strip().lower()
-    if feedback_mode == "fallback":
-        return _append_fallback_feedback(payload, store_path=fallback_store_path)
-    if not router_url:
-        return (False, "router feedback disabled")
+def _post_feedback_once(*, router_url: str, payload: dict[str, Any], timeout_seconds: float) -> str:
+    """POST one feedback payload; returns response body, raises on failure."""
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         f"{router_url.rstrip('/')}/feedback",
@@ -393,15 +383,63 @@ def submit_feedback(
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
+        return response.read().decode("utf-8")
+
+
+def submit_feedback(
+    *,
+    router_url: str,
+    payload: dict[str, Any],
+    timeout_seconds: float = 3.0,
+    fallback_store_path: str = FALLBACK_STORE_PATH,
+    outbox_path: str | None = OUTBOX_STORE_PATH,
+) -> tuple[bool, str]:
+    """Submit feedback; failures queue in a durable outbox for retry.
+
+    Previously a failed POST meant lost feedback. Now the outbox drains
+    pending events for this router first, then a failed send enqueues
+    (``outbox_path=None`` restores the old drop-on-failure behavior).
+    Delivery is at-least-once: feedback is advisory signal, duplicates are
+    low-impact.
+    """
+    from nexus.outbox import FileOutbox
+
+    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    feedback_mode = str(metadata.get("feedback_mode") or "router").strip().lower()
+    if feedback_mode == "fallback":
+        return _append_fallback_feedback(payload, store_path=fallback_store_path)
+    if not router_url:
+        return (False, "router feedback disabled")
+    if outbox_path:
+        try:
+            outbox = FileOutbox(outbox_path)
+            outbox.drain(
+                lambda event: _post_feedback_once(
+                    router_url=str(event.payload.get("router_url") or router_url),
+                    payload=event.payload.get("payload") or {},
+                    timeout_seconds=timeout_seconds,
+                )
+            )
+        except Exception as exc:
+            LOGGER.debug("Feedback outbox drain failed: %s", exc)
     try:
-        with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
-            raw = response.read().decode("utf-8")
-        return (True, raw)
+        return (True, _post_feedback_once(
+            router_url=router_url, payload=payload, timeout_seconds=timeout_seconds
+        ))
     except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        return (False, detail or str(exc))
+        detail = exc.read().decode("utf-8", errors="ignore") or str(exc)
     except Exception as exc:
-        return (False, str(exc))
+        detail = str(exc)
+    if outbox_path:
+        try:
+            event_id = FileOutbox(outbox_path).enqueue(
+                "router.feedback", {"router_url": router_url, "payload": payload}
+            )
+            return (False, f"queued for retry ({event_id}): {detail}")
+        except Exception as exc:
+            LOGGER.debug("Feedback outbox enqueue failed: %s", exc)
+    return (False, detail)
 
 
 def _load_pending_store(*, store_path: str = PENDING_STORE_PATH) -> dict[str, Any]:

@@ -67,3 +67,15 @@ def test_loop_bounds_each_iteration():
     loop = LoopAgent("loop", _Sleepy(), stop_condition=lambda o: True, timeout=0.05)
     out = asyncio.run(loop.run(AgentContext(task="t")))
     assert out.metadata["timeout"] is True
+
+
+def test_requester_survives_delegation():
+    from nexus.agents.base import propagate_requester
+
+    ctx = AgentContext(task="t", metadata={"requester": {"source": "bridge", "user_id": "u1"}})
+    seq = SequentialAgent("seq", [_Quick("a")])
+    out = asyncio.run(seq.run(ctx))
+    assert out.metadata["requester"] == {"source": "bridge", "user_id": "u1"}
+    bare = asyncio.run(SequentialAgent("seq2", [_Quick("b")]).run(AgentContext(task="t")))
+    assert "requester" not in bare.metadata
+    assert propagate_requester(AgentContext(task="t"), AgentOutput(content="x")).metadata == {}

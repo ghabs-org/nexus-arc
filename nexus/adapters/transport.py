@@ -1,14 +1,14 @@
 """Message transports: publish/subscribe beyond process boundaries.
 
-One :class:`MessageTransport` shape for event buses (MQTT today, Kafka when
-a deployment needs it) plus an in-memory transport for tests and local dev::
+One :class:`MessageTransport` shape for event buses (memory, MQTT, Kafka)
+plus an in-memory transport for tests and local dev::
 
     transport = create_transport("mqtt", host="broker.local")
     transport.publish("nexus/events", {"type": "workflow.done"})
     transport.subscribe("nexus/events", on_event)
 
-Client libraries stay optional: MQTT needs ``pip install nexus-arc[mqtt]``.
-Kafka arrives the same way — subclass the ABC, no other changes.
+Client libraries stay optional: MQTT needs ``pip install nexus-arc[mqtt]``,
+Kafka needs ``pip install nexus-arc[kafka]``.
 """
 
 from __future__ import annotations
@@ -117,11 +117,91 @@ class MqttTransport(MessageTransport):
             pass
 
 
-def create_transport(kind: str = "", **kwargs: Any) -> MessageTransport:
-    """Build a transport by kind (``memory`` default, ``mqtt``); env overrides.
+class KafkaTransport(MessageTransport):
+    """Kafka via kafka-python (background consumer thread).
 
-    Env: ``NEXUS_TRANSPORT`` (memory|mqtt), ``MQTT_HOST``, ``MQTT_PORT``,
-    ``MQTT_USERNAME``, ``MQTT_PASSWORD``, ``MQTT_CLIENT_ID``.
+    Requires ``pip install nexus-arc[kafka]``. Unproven against a live
+    broker — covered by fake-client tests only until a deployment needs it.
+    """
+
+    def __init__(
+        self,
+        bootstrap_servers: str = "localhost:9092",
+        group_id: str = "nexus-arc",
+        **kwargs: Any,
+    ):
+        import json as _json
+
+        try:
+            import kafka as _kafka
+        except ImportError as exc:
+            raise ImportError(
+                "kafka-python is required for Kafka transport. "
+                "Install it with: pip install nexus-arc[kafka]"
+            ) from exc
+        self._json = _json
+        self._callbacks: dict[str, list[Callable]] = {}
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._producer = _kafka.KafkaProducer(
+            bootstrap_servers=str(bootstrap_servers),
+            value_serializer=lambda value: _json.dumps(value).encode("utf-8"),
+            **kwargs,
+        )
+        self._consumer = _kafka.KafkaConsumer(
+            bootstrap_servers=str(bootstrap_servers),
+            group_id=str(group_id),
+            value_deserializer=lambda data: _json.loads(data.decode("utf-8")),
+            auto_offset_reset="latest",
+            enable_auto_commit=True,
+        )
+        self._thread = threading.Thread(target=self._poll, name="nexus-kafka", daemon=True)
+        self._thread.start()
+
+    def _poll(self) -> None:
+        while not self._stop.is_set():
+            try:
+                records = self._consumer.poll(timeout_ms=100)
+            except Exception:
+                continue
+            for _partition, messages in (records or {}).items():
+                for message in messages:
+                    topic = getattr(message, "topic", "")
+                    payload = getattr(message, "value", None)
+                    if not isinstance(payload, dict):
+                        continue
+                    with self._lock:
+                        callbacks = list(self._callbacks.get(topic, []))
+                    for callback in callbacks:
+                        try:
+                            callback(topic, payload)
+                        except Exception:
+                            pass
+
+    def publish(self, topic: str, payload: dict[str, Any]) -> None:
+        self._producer.send(topic, payload)
+
+    def subscribe(self, topic: str, callback: Callable[[str, dict[str, Any]], None]) -> None:
+        # KafkaConsumer.subscribe replaces the subscription: always resend the full set.
+        with self._lock:
+            self._callbacks.setdefault(topic, []).append(callback)
+            self._consumer.subscribe(sorted(self._callbacks))
+
+    def close(self) -> None:
+        self._stop.set()
+        try:
+            self._producer.close()
+            self._consumer.close()
+        except Exception:
+            pass
+
+
+def create_transport(kind: str = "", **kwargs: Any) -> MessageTransport:
+    """Build a transport by kind (``memory`` default, ``mqtt``, ``kafka``); env overrides.
+
+    Env: ``NEXUS_TRANSPORT`` (memory|mqtt|kafka), ``MQTT_HOST``, ``MQTT_PORT``,
+    ``MQTT_USERNAME``, ``MQTT_PASSWORD``, ``MQTT_CLIENT_ID``,
+    ``KAFKA_BOOTSTRAP_SERVERS``, ``KAFKA_GROUP_ID``.
     """
     resolved = (kind or os.getenv("NEXUS_TRANSPORT", "memory")).strip().lower()
     if resolved == "memory":
@@ -133,5 +213,14 @@ def create_transport(kind: str = "", **kwargs: Any) -> MessageTransport:
             username=kwargs.get("username") or os.getenv("MQTT_USERNAME"),
             password=kwargs.get("password") or os.getenv("MQTT_PASSWORD"),
             client_id=str(kwargs.get("client_id") or os.getenv("MQTT_CLIENT_ID", "nexus-arc")),
+        )
+    if resolved == "kafka":
+        extra = {k: v for k, v in kwargs.items() if k not in {"bootstrap_servers", "group_id"}}
+        return KafkaTransport(
+            bootstrap_servers=str(
+                kwargs.get("bootstrap_servers") or os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+            ),
+            group_id=str(kwargs.get("group_id") or os.getenv("KAFKA_GROUP_ID", "nexus-arc")),
+            **extra,
         )
     raise ValueError(f"Unknown transport: {resolved}")

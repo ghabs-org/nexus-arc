@@ -92,8 +92,10 @@ def run_suite(
     cases: list[dict[str, Any]],
     registry: Any | None = None,
     respond: Callable[[str], str] | None = None,
+    judge_provider: Any | None = None,
+    workspace: Any = "/tmp",
 ) -> dict[str, Any]:
-    """Run tool/text cases; returns cases + summary (passed/total/mean_f1)."""
+    """Run tool/text/judge cases; returns cases + summary (passed/total/mean_f1)."""
     from nexus.tools import tool_registry as default_registry
 
     results: list[CaseResult] = []
@@ -109,6 +111,29 @@ def run_suite(
             else:
                 try:
                     results.append(evaluate_text_case(respond(str(case.get("input") or "")), case))
+                except Exception as exc:
+                    results.append(
+                        CaseResult(name=str(case.get("name")), passed=False, detail=str(exc))
+                    )
+        elif kind == "judge":
+            if respond is None or judge_provider is None:
+                results.append(
+                    CaseResult(
+                        name=str(case.get("name")),
+                        passed=False,
+                        detail="judge cases need respond + judge_provider",
+                    )
+                )
+            else:
+                try:
+                    results.append(
+                        judge_text(
+                            respond(str(case.get("input") or "")),
+                            case,
+                            judge_provider,
+                            workspace,
+                        )
+                    )
                 except Exception as exc:
                     results.append(
                         CaseResult(name=str(case.get("name")), passed=False, detail=str(exc))

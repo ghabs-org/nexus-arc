@@ -164,3 +164,30 @@ def test_embeds_resolve_callables_and_keep_unknowns():
     assert resolve_embeds("x «bad»", {"bad": lambda: 1 / 0}) == "x «bad»"
     assert render_text("Hi {name}, «when»", {"name": "Al"}, {"when": "now"}) == "Hi Al, now"
     assert render_text("Hi {unknown}", {}) == "Hi {unknown}"
+
+
+def test_tool_node_persists_artifact_disposition(tmp_path):
+    from nexus.adapters.artifacts import FilesystemStore
+    from nexus.tools import ToolRegistry
+    from nexus.tools.registry import ToolResult
+    from nexus.workflows.nodes import ToolNode
+
+    registry = ToolRegistry()
+    registry.register("big:report", lambda: ToolResult(ok=True, output="x" * 5000))
+    store = FilesystemStore(tmp_path / "artifacts")
+    node = ToolNode("big:report", registry=registry, artifact_store=store)
+    ref = asyncio.run(node.run(None))
+    assert ref.startswith("artifact://tool-artifacts/big:report-")
+    key = ref.rsplit("/", 1)[1]
+    assert store.get("tool-artifacts", key) == b"x" * 5000
+
+
+def test_tool_node_inline_without_store(tmp_path):
+    from nexus.tools import ToolRegistry
+    from nexus.tools.registry import ToolResult
+    from nexus.workflows.nodes import ToolNode
+
+    registry = ToolRegistry()
+    registry.register("big:report", lambda: ToolResult(ok=True, output="x" * 5000))
+    node = ToolNode("big:report", registry=registry)
+    assert asyncio.run(node.run(None)) == "x" * 5000

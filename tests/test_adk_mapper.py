@@ -155,3 +155,15 @@ def test_import_rejects_unknown_kind_and_missing_entrypoint():
     empty = AdkWorkflowSpec(name="empty", entrypoint="nope", nodes=(), edges=())
     with pytest.raises(ValueError, match="entrypoint"):
         import_adk_spec(empty, lambda node: StubAgent("s", "d"))
+
+
+def test_timeout_survives_export_import_roundtrip():
+    from nexus.integrations.adk.mapper import import_adk_spec
+
+    original = SequentialAgent(
+        "Pipe", [StubAgent("A", "first")], timeout=90,
+    )
+    rebuilt = import_adk_spec(
+        export_agent_to_adk_spec(original), lambda node: StubAgent(node.name, node.description)
+    )
+    assert rebuilt.timeout == 90

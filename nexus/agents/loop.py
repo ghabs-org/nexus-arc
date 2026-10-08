@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .base import AgentContext, AgentOutput, BaseAgent, run_child
+from .base import AgentContext, AgentOutput, BaseAgent, propagate_requester, run_child
 from .context import slice_context
 
 
@@ -55,4 +55,4 @@ class LoopAgent(BaseAgent):
         last_output.metadata["loop_iterations"] = iterations
         last_output.metadata["loop_completed"] = stop_met
         last_output.metadata["loop_hit_max"] = iterations == self.max_iterations
-        return last_output
+        return propagate_requester(current_context, last_output)

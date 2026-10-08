@@ -109,8 +109,17 @@ nexus-bot-voice = [
 mqtt = [
     "paho-mqtt>=1.6",
 ]
+kafka = [
+    "kafka-python>=2.0",
+]
 s3 = [
     "boto3>=1.28",
+]
+gcs = [
+    "google-cloud-storage>=2.0",
+]
+azure = [
+    "azure-storage-blob>=12.0",
 ]
 mcp = [
     "mcp>=1.0",
@@ -119,7 +128,7 @@ nexus-bot = [
     "nexus-arc[nexus-bot-runtime,nexus-bot-chat,nexus-bot-voice]",
 ]
 all = [
-    "nexus-arc[telegram,slack,discord,postgres,redis,openai,anthropic,hotreload,nexus-bot,s3,mcp,mqtt]",
+    "nexus-arc[telegram,slack,discord,postgres,redis,openai,anthropic,hotreload,nexus-bot,s3,mcp,mqtt,kafka,gcs,azure]",
 ]
 dev = [
     "pytest>=7.0",

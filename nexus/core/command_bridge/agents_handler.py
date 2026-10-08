@@ -56,6 +56,16 @@ async def handle_agents_run(payload: dict[str, Any], config: dict | None = None)
     router_url = payload.get("router_url") or "http://127.0.0.1:7771"
     max_iterations = int(payload.get("max_iterations") or 5)
     stop_expr = payload.get("stop_condition") or ""
+    # Per-child run budget; unbounded when explicitly null (leaf timeouts still apply).
+    timeout = payload.get("timeout", 300)
+    timeout = None if timeout is None else float(timeout)
+    # Identity for audit attribution; preserved through delegation slices.
+    requester = payload.get("requester")
+    requester_meta = (
+        {"requester": {str(k): str(v) for k, v in dict(requester).items()}}
+        if isinstance(requester, dict)
+        else {}
+    )
 
     if not agents_spec:
         return {"ok": False, "error": "agents list is required"}
@@ -69,9 +79,9 @@ async def handle_agents_run(payload: dict[str, Any], config: dict | None = None)
     try:
         agent: BaseAgent
         if agent_type == "sequential":
-            agent = SequentialAgent(name="bridge_sequential", sub_agents=sub_agents)
+            agent = SequentialAgent(name="bridge_sequential", sub_agents=sub_agents, timeout=timeout)
         elif agent_type == "parallel":
-            agent = ParallelAgent(name="bridge_parallel", sub_agents=sub_agents)
+            agent = ParallelAgent(name="bridge_parallel", sub_agents=sub_agents, timeout=timeout)
         elif agent_type == "loop":
             if len(sub_agents) != 1:
                 return {"ok": False, "error": "loop agent_type requires exactly one agent"}
@@ -80,6 +90,7 @@ async def handle_agents_run(payload: dict[str, Any], config: dict | None = None)
                 sub_agent=sub_agents[0],
                 stop_condition=_make_stop_condition(stop_expr),
                 max_iterations=max_iterations,
+                timeout=timeout,
             )
         elif agent_type == "coordinator":
             if ai_provider is None:
@@ -89,11 +100,12 @@ async def handle_agents_run(payload: dict[str, Any], config: dict | None = None)
                 sub_agents=sub_agents,
                 ai_provider=ai_provider,
                 router_url=router_url,
+                timeout=timeout,
             )
         else:
             return {"ok": False, "error": f"unknown agent_type: {agent_type}"}
 
-        output = await agent.run(AgentContext(task=task))
+        output = await agent.run(AgentContext(task=task, metadata=requester_meta))
         return {"ok": True, "output": output.content, "metadata": output.metadata}
 
     except Exception as exc:

@@ -80,3 +80,19 @@ def test_judge_no_score_or_rubric():
     assert result.passed is False
 
 
+
+
+def test_run_suite_judge_kind():
+    from nexus.eval import run_suite
+
+    case = {
+        "kind": "judge",
+        "name": "tone",
+        "input": "hi",
+        "judge_rubric": "Be concise.",
+        "judge_min_score": 7,
+    }
+    result = run_suite([case], respond=lambda prompt: "hi", judge_provider=_JudgeProvider("Score: 9\nReasoning: crisp."))
+    assert result["summary"] == {"passed": 1, "total": 1, "mean_score": 0.9}
+    missing = run_suite([dict(case, name="x")], respond=lambda prompt: "hi")
+    assert missing["cases"][0]["passed"] is False

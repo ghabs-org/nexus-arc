@@ -28,6 +28,11 @@ class AgentContext:
     Minimal context passed to each sub-agent.
     Always sliced — sub-agents receive only their task + prior outputs,
     never the full conversation history.
+
+    Identity convention: entry points set
+    ``metadata["requester"] = {"source": ..., "user_id": ...}`` (both
+    strings, either may be empty). Slicing preserves it, so attribution
+    survives delegation without every layer knowing about auth.
     """
     task: str
     prior_outputs: list[AgentOutput] = field(default_factory=list)
@@ -68,6 +73,9 @@ class BaseAgent(ABC):
         """Execute the agent with the given context and return an output."""
         ...
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r})"
+
 
 async def run_child(
     agent: BaseAgent, context: AgentContext, timeout: float | None = None
@@ -89,5 +97,10 @@ async def run_child(
             metadata={"timeout": True, "agent": agent.name, "timeout_seconds": budget},
         )
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.name!r})"
+
+def propagate_requester(context: AgentContext, output: AgentOutput) -> AgentOutput:
+    """Copy entry-point identity onto an output for audit attribution."""
+    requester = context.metadata.get("requester")
+    if isinstance(requester, dict):
+        output.metadata.setdefault("requester", requester)
+    return output

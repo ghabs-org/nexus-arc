@@ -8,11 +8,16 @@ Python callables.
 from __future__ import annotations
 
 import inspect
+import json
+import logging
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from nexus.agents.base import AgentContext, BaseAgent
+
+logger = logging.getLogger(__name__)
 
 NodeMode = Literal["chat", "task", "single_turn"]
 NodeKind = Literal["agent", "function", "dynamic", "tool", "workflow"]
@@ -95,9 +100,13 @@ class ToolNode(FunctionNode):
         rerun_on_resume: bool = False,
         metadata: dict[str, Any] | None = None,
         registry: Any | None = None,
+        artifact_store: Any | None = None,
+        artifact_bucket: str = "tool-artifacts",
     ) -> None:
         self.tool_name = tool if isinstance(tool, str) else None
         self.registry = registry
+        self.artifact_store = artifact_store
+        self.artifact_bucket = artifact_bucket
         super().__init__(
             tool if callable(tool) else _missing_tool,
             name=name or (tool if isinstance(tool, str) else None),
@@ -120,6 +129,25 @@ class ToolNode(FunctionNode):
             result = await registry.call(self.tool_name)
         if not result.ok:
             raise RuntimeError(f"tool '{self.tool_name}' failed: {result.error}")
+        from nexus.tools.registry import resolve_disposition
+
+        if resolve_disposition(result) == "artifact" and self.artifact_store is not None:
+            output = result.output
+            if isinstance(output, bytes):
+                blob = output
+            elif isinstance(output, str):
+                blob = output.encode("utf-8")
+            else:
+                blob = json.dumps(output, default=str).encode("utf-8")
+            key = f"{self.tool_name or 'tool'}-{uuid.uuid4().hex[:8]}".replace("/", "_")
+            self.artifact_store.put(
+                self.artifact_bucket, key, blob, content_type=result.mime_type
+            )
+            logger.debug(
+                "Tool '%s' output persisted as artifact %s/%s",
+                self.tool_name, self.artifact_bucket, key,
+            )
+            return f"artifact://{self.artifact_bucket}/{key}"
         return result.output
 
 

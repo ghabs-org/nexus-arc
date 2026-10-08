@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from .base import AgentContext, AgentOutput, BaseAgent, run_child
+from .base import AgentContext, AgentOutput, BaseAgent, propagate_requester, run_child
 from .context import slice_context
 
 if TYPE_CHECKING:
@@ -250,4 +250,4 @@ class Coordinator(BaseAgent):
         output = await run_child(selected, sliced, self.timeout)
         output.metadata["coordinator_selected_agent"] = selected.name
         output.metadata["coordinator_model"] = explicit_model or model
-        return output
+        return propagate_requester(sliced, output)

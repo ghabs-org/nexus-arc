@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 from typing import Literal
 
-from .base import AgentContext, AgentOutput, BaseAgent, run_child
+from .base import AgentContext, AgentOutput, BaseAgent, propagate_requester, run_child
 from .context import merge_outputs, slice_context
 
 
@@ -55,4 +55,4 @@ class ParallelAgent(BaseAgent):
 
         merged.metadata["parallel_agent_count"] = len(self.sub_agents)
         merged.metadata["parallel_agent_names"] = [a.name for a in self.sub_agents]
-        return merged
+        return propagate_requester(context, merged)

@@ -42,7 +42,9 @@ def _walk_agent(
     node_id = _unique_id(agent.name, used_ids)
 
     if isinstance(agent, SequentialAgent):
-        nodes.append(_node_for_agent(agent, node_id, "sequential"))
+        nodes.append(_node_for_agent(
+            agent, node_id, "sequential", metadata={"timeout": agent.timeout},
+        ))
         child_ids = [
             _walk_agent(child, nodes=nodes, edges=edges, used_ids=used_ids)
             for child in agent.sub_agents
@@ -61,7 +63,8 @@ def _walk_agent(
                 agent,
                 node_id,
                 "parallel",
-                metadata={"merge_strategy": agent.merge_strategy, "separator": agent.separator},
+                metadata={"merge_strategy": agent.merge_strategy, "separator": agent.separator,
+                        "timeout": agent.timeout},
             )
         )
         child_ids = [
@@ -82,6 +85,7 @@ def _walk_agent(
                     "max_iterations": agent.max_iterations,
                     "stop_condition_exported": False,
                     "unsupported": ["python_stop_condition"],
+                    "timeout": agent.timeout,
                 },
             )
         )
@@ -95,7 +99,8 @@ def _walk_agent(
                 agent,
                 node_id,
                 "coordinator",
-                metadata={"router_url": agent.router_url, "workspace_path": agent.workspace_path},
+                metadata={"router_url": agent.router_url, "workspace_path": agent.workspace_path,
+                          "timeout": agent.timeout},
             )
         )
         child_ids = [
@@ -180,6 +185,12 @@ def _child_ids(spec: AdkWorkflowSpec, node_id: str, kinds: set[str]) -> list[str
     return sequenced
 
 
+def _node_timeout(metadata: dict) -> float | None:
+    """Per-child run budget from node metadata (seconds); None = unbounded."""
+    raw = (metadata or {}).get("timeout")
+    return None if raw is None else float(raw)
+
+
 def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
     from nexus.agents.parallel import ParallelAgent as _Parallel
     from nexus.agents.sequential import SequentialAgent as _Sequential
@@ -192,7 +203,8 @@ def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
                     for cid in _child_ids(spec, node.id, {"next"})]
         if not children:
             raise ValueError(f"sequential node '{node.id}' has no children")
-        return _Sequential(name=node.name, sub_agents=children, description=node.description)
+        return _Sequential(name=node.name, sub_agents=children, description=node.description,
+                           timeout=_node_timeout(dict(node.metadata or {})))
     if node.kind == "parallel":
         children = [_build_node(spec, _require(spec, cid), leaf_factory,
                                 ai_provider=ai_provider, stop_condition=stop_condition)
@@ -204,6 +216,7 @@ def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
             name=node.name, sub_agents=children, description=node.description,
             merge_strategy=str(metadata.get("merge_strategy") or "concat"),
             separator=str(metadata.get("separator", "\n")),
+            timeout=_node_timeout(metadata),
         )
     if node.kind == "loop":
         children = _child_ids(spec, node.id, {"loop", "next"})
@@ -217,6 +230,7 @@ def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
             stop_condition=stop_condition or (lambda _output: True),
             max_iterations=int(metadata.get("max_iterations") or 5),
             description=node.description,
+            timeout=_node_timeout(metadata),
         )
     if node.kind == "coordinator":
         children = [_build_node(spec, _require(spec, cid), leaf_factory,
@@ -230,6 +244,7 @@ def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
             router_url=str(metadata.get("router_url") or "http://127.0.0.1:7771"),
             workspace_path=str(metadata.get("workspace_path") or "/tmp"),
             description=node.description,
+            timeout=_node_timeout(metadata),
         )
     raise ValueError(f"unknown node kind '{node.kind}' for node '{node.id}'")
 

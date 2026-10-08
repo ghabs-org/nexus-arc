@@ -3,7 +3,7 @@ nexus/agents/sequential.py — SequentialAgent: runs sub-agents in order.
 """
 from __future__ import annotations
 
-from .base import AgentContext, AgentOutput, BaseAgent, run_child
+from .base import AgentContext, AgentOutput, BaseAgent, propagate_requester, run_child
 from .context import slice_context
 
 
@@ -35,4 +35,4 @@ class SequentialAgent(BaseAgent):
         last_output.metadata["sequential_outputs"] = [
             o.content for o in current_context.prior_outputs
         ]
-        return last_output
+        return propagate_requester(current_context, last_output)

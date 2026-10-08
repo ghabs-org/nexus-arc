@@ -109,3 +109,46 @@ async def test_task_confirmation_callback_emits_feedback_for_routed_result():
     assert kwargs["source_message_id"] == "555"
     assert kwargs["feedback_config"]["router_url"] == "http://router"
     assert context.user_data.get("pending_task_confirmation") is None
+
+
+def test_submit_feedback_queues_then_retries(tmp_path, monkeypatch):
+    """Failed POST enqueues; next call drains the outbox first (at-least-once)."""
+    import urllib.error
+
+    from nexus.core.telegram import telegram_router_feedback_service as svc
+
+    calls = []
+    failures = {"n": 1}
+
+    class _Resp:
+        def read(self):
+            return b'{"ok": true}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def _fake_urlopen(req, timeout=None):
+        calls.append(req.full_url)
+        if failures["n"]:
+            failures["n"] -= 1
+            raise urllib.error.URLError("router down")
+        return _Resp()
+
+    monkeypatch.setattr(svc.urllib.request, "urlopen", _fake_urlopen)
+    outbox = str(tmp_path / "outbox.json")
+    payload = {"decision_id": "d1", "metadata": {"feedback_mode": "router"}}
+
+    ok, detail = svc.submit_feedback(router_url="http://router", payload=payload, outbox_path=outbox)
+    assert ok is False and "queued for retry" in detail
+
+    ok, _ = svc.submit_feedback(router_url="http://router", payload=payload, outbox_path=outbox)
+    assert ok is True
+    # first send fails (1 POST), drain resends queued event + current send (2 POSTs)
+    assert calls == ["http://router/feedback"] * 3
+
+    from nexus.outbox import FileOutbox
+
+    assert FileOutbox(outbox).pending() == []
