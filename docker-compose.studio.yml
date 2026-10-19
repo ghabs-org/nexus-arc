@@ -1,0 +1,52 @@
+name: nexus-studio
+
+# Nexus Studio in authenticated team mode (one owner is fine), behind an HTTPS
+# proxy that routes /login and /auth/* to the existing Nexus webhook/auth server
+# and everything else to Studio on the same origin:
+#   docker compose -f docker-compose.studio.yml up -d --build
+#
+# Host prerequisites (see deploy/studio/PERSONAL-VM.md):
+#   - NEXUS_UID/NEXUS_GID: service account owning the host directories below.
+#   - ${NEXUS_STUDIO_CONFIG_DIR}/studio.env (0600): the same NEXUS_AUTH_*,
+#     NEXUS_STORAGE_*, NEXUS_CREDENTIALS_* and PROJECT_CONFIG_PATH values as the
+#     auth service.
+#   - ${NEXUS_STUDIO_CONFIG_DIR}/studio-team.json: team config (outside the project).
+#   - ${NEXUS_STUDIO_CONFIG_DIR}/studio-runtime.json (0600): SQL state settings;
+#     its state.url_env variable (e.g. NEXUS_STUDIO_DATABASE_URL) lives in studio.env.
+#   - ${NEXUS_STUDIO_DATA_DIR}/{project,private,home} (0700).
+#   - NEXUS_PROJECT_CONFIG_DIR: directory holding PROJECT_CONFIG_PATH, mounted
+#     read-only at the same path.
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile.studio
+    image: nexus-studio:local
+    user: "${NEXUS_UID:?set NEXUS_UID}:${NEXUS_GID:?set NEXUS_GID}"
+    # Host networking reaches loopback Postgres; Studio itself binds 127.0.0.1
+    # only, so the backend is reachable solely through the local proxy.
+    network_mode: host
+    env_file:
+      - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio.env
+    environment:
+      HOME: /var/lib/nexus-studio/home
+      TMPDIR: /var/lib/nexus-studio/home/tmp
+    command:
+      - --dir
+      - /var/lib/nexus-studio/project
+      - --host
+      - 127.0.0.1
+      - --port
+      - "${NEXUS_STUDIO_PORT:-5003}"
+      - --team-config
+      - /etc/nexus-studio/studio-team.json
+      - --runtime-config
+      - /etc/nexus-studio/studio-runtime.json
+      - --state-dir
+      - /var/lib/nexus-studio/private
+    volumes:
+      - ${NEXUS_STUDIO_DATA_DIR:-/var/lib/nexus-studio}:/var/lib/nexus-studio
+      - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio-team.json:/etc/nexus-studio/studio-team.json:ro
+      - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio-runtime.json:/etc/nexus-studio/studio-runtime.json:ro
+      - ${NEXUS_PROJECT_CONFIG_DIR:?set NEXUS_PROJECT_CONFIG_DIR}:${NEXUS_PROJECT_CONFIG_DIR}:ro
+    restart: unless-stopped

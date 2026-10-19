@@ -23,6 +23,10 @@ internal `team` name does not require multiple users.
    It binds Studio to VM loopback. The separate temporary directory is visible to
    the Docker daemon for CLI scratch mounts despite systemd's private `/tmp`.
    Install/start the unit only on your chosen VM after these paths are configured.
+   To run Studio in Docker instead, use `docker-compose.studio.yml` at the repository
+   root: it builds `Dockerfile.studio`, binds Studio to loopback via host networking,
+   and reads the same `studio.env`, team configuration and an optional SQL runtime
+   configuration from a private configuration directory (see the file header).
 5. Adapt `Caddyfile.example`: route `/login` and `/auth/*` to the existing Nexus
    login service, everything else to Studio. Use the real HTTPS hostname and a
    valid certificate. Keep both backend ports on loopback; expose only the HTTPS
