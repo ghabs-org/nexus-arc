@@ -109,6 +109,18 @@ class SQLWorkspaceLock:
         self.local.after_rollback.append(rolled_back)
 
 
+def _psycopg2_url(url):
+    """Pin bare PostgreSQL URLs to the psycopg2 driver shipped by the postgres extra.
+
+    SQLAlchemy 2.1 maps ``postgresql://`` to psycopg 3, which that extra does not install.
+    """
+    text = str(url or "")
+    for prefix in ("postgresql://", "postgres://"):
+        if text.startswith(prefix):
+            return "postgresql+psycopg2://" + text[len(prefix) :]
+    return url
+
+
 class StudioSQLState:
     def __init__(self, url, namespace):
         try:
@@ -120,7 +132,9 @@ class StudioSQLState:
                 "SQL state requires an explicit workspace namespace (up to 96 characters)"
             )
         self.sa, self.namespace, self.local = sa, namespace, threading.local()
-        self.engine = sa.create_engine(url, pool_pre_ping=True, hide_parameters=True)
+        self.engine = sa.create_engine(
+            _psycopg2_url(url), pool_pre_ping=True, hide_parameters=True
+        )
         if self.engine.dialect.name not in {"postgresql", "sqlite"}:
             self.engine.dispose()
             raise ValueError("Studio SQL state supports PostgreSQL or SQLite")

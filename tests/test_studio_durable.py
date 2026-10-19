@@ -195,3 +195,20 @@ def test_sql_yaml_gate_and_runtime_survive_restart(tmp_path):
         assert "YAML approved" in run["output"]
     finally:
         worker.close()
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["postgresql://u:p@127.0.0.1:5432/db", "postgres://u:p@127.0.0.1:5432/db"],
+)
+def test_sql_state_pins_bare_postgres_urls_to_psycopg2(url):
+    from nexus.core.studio_state import _psycopg2_url
+
+    assert _psycopg2_url(url) == "postgresql+psycopg2://u:p@127.0.0.1:5432/db"
+
+
+def test_sql_state_keeps_explicit_driver_and_sqlite_urls():
+    from nexus.core.studio_state import _psycopg2_url
+
+    for url in ("postgresql+psycopg://u@h/db", "sqlite:///state.db"):
+        assert _psycopg2_url(url) == url
