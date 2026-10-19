@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from nexus.plugins.builtin.ai_runtime.provider_registry import parse_tool_preference
+from nexus.core.provider_preferences import parse_tool_preference
 
 
 class _AIProviderEnum(Enum):

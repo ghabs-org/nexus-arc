@@ -65,6 +65,21 @@ def test_chat_run_context_none_skips_prelude():
     assert provider.seen_prompts[0] == "hi"
 
 
+def test_chat_run_system_override_replaces_prelude_keeps_memory(tmp_path, monkeypatch):
+    from nexus.core.command_bridge import chat_handler
+
+    monkeypatch.setenv("NEXUS_CHAT_MEMORY_DIR", str(tmp_path))
+    provider = _Provider(output="noted")
+    cfg = {"ai_provider_factory": lambda: provider}
+    first = asyncio.run(chat_handler.handle_chat_run({"task": "my name is Ada", "system": "You are Ghabs."}, config=cfg))
+    asyncio.run(chat_handler.handle_chat_run(
+        {"task": "what is my name?", "system": "You are Ghabs.", "session_id": first["session_id"]}, config=cfg))
+
+    assert provider.seen_prompts[0].startswith("You are Ghabs.")
+    assert "workflow tools" not in provider.seen_prompts[0]
+    assert "my name is Ada" in provider.seen_prompts[1]
+
+
 def test_chat_run_requires_task_and_provider():
     import pytest
 

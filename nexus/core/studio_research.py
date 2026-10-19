@@ -1,0 +1,471 @@
+"""Bounded, opt-in research adapters shared by agents, workflows and Studio.
+
+Search queries go only to the selected provider. Page fetches send no account
+credentials, reject private destinations and never follow redirects. Sources
+are recorded on the current run, including retrieval time and content digest.
+"""
+
+import asyncio
+import hashlib
+import importlib.util
+import ipaddress
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import UTC, datetime
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import urlencode, urlparse
+
+import requests
+
+from nexus.core.studio_connections import env_name
+from nexus.core.studio_data_tools import current_run_id
+from nexus.core.studio_remote import validate_destination, validate_remote
+
+
+class PageText(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.hidden = 0
+        self.text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"script", "style", "template", "noscript", "svg"}:
+            self.hidden += 1
+        elif tag in {"p", "div", "li", "br", "h1", "h2", "h3", "tr"} and not self.hidden:
+            self.text.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in {"script", "style", "template", "noscript", "svg"}:
+            self.hidden = max(0, self.hidden - 1)
+
+    def handle_data(self, data):
+        if not self.hidden:
+            self.text.append(data)
+
+
+def public_url(value):
+    if not isinstance(value, str) or len(value) > 2000:
+        raise ValueError("Supply a public HTTP(S) URL up to 2000 characters")
+    parsed = urlparse(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+    ):
+        raise ValueError("Supply a public HTTP(S) URL without credentials or fragment")
+    if parsed.port not in {None, 80, 443} or any(c in value for c in "\r\n\x00"):
+        raise ValueError("Page fetches use standard web ports only")
+    validate_destination(value)
+    return value
+
+
+class StudioResearch:
+    def __init__(self, studio, config=None, request_client=None, finance_client=None):
+        self.studio = studio
+        self.config = config or {}
+        if not isinstance(self.config, dict) or set(self.config) - {
+            "search",
+            "finance",
+            "ip_location",
+        }:
+            raise ValueError("Research configuration uses search, finance and ip_location")
+        for key in ("finance", "ip_location"):
+            if type(self.config.get(key, False)) is not bool:
+                raise ValueError(f"Research {key} must be explicitly true or false")
+        search = self.config.get("search", {})
+        if not isinstance(search, dict) or set(search) - {
+            "provider",
+            "url",
+            "token_env",
+            "allow_private",
+        }:
+            raise ValueError("Search uses provider, URL and credential environment reference")
+        self.search = dict(search)
+        if search:
+            provider = search.get("provider")
+            if provider not in {"tavily", "brave", "searxng"}:
+                raise ValueError(
+                    "Choose tavily, brave or an explicitly configured searxng search service"
+                )
+            if search.get("token_env"):
+                env_name(search["token_env"])
+            if provider == "searxng":
+                self.search.update(
+                    validate_remote(
+                        {
+                            "url": search.get("url"),
+                            "allow_private": search.get("allow_private", False),
+                        }
+                    )
+                )
+            elif set(search) - {"provider", "token_env"}:
+                raise ValueError("Hosted search adapters use their fixed provider endpoint")
+        self.request_client = request_client
+        self.finance_client = finance_client
+        self.names = {}
+        namespace = hashlib.sha256(str(studio.state).encode()).hexdigest()[:12]
+        from nexus.tools import tool_registry
+
+        descriptions = {
+            "web_search": "Search using the explicitly configured search account; arguments: query, optional limit (1–10). Returns source URLs and excerpts.",
+            "image_search": "Search for image source URLs with the configured Tavily or Brave account; arguments: query, optional limit (1–10). Does not fetch images.",
+            "web_fetch": "Fetch a public URL without credentials or redirects; arguments: url. Returns bounded untrusted page text and source citation.",
+            "research": "Collect a cited research bundle using up to four supplied queries and four page fetches; arguments: queries (list), optional fetch_limit (0–4). No automatic provider fallback.",
+            "ip_location": "Look up a public IP with explicitly enabled ipapi.co; arguments: optional ip. An empty IP looks up the Studio server's public location.",
+            "finance": "Read up to one year of daily prices using explicitly enabled yfinance; arguments: ticker and optional period (1mo, 3mo, 6mo, 1y). No trading operations.",
+        }
+        for action, description in descriptions.items():
+            name = f"studio:{namespace}:{action}"
+
+            def bind(selected):
+                async def invoke(**kwargs):
+                    return await self.execute(selected, kwargs)
+
+                return invoke
+
+            function = bind(action)
+            tool_registry.register(name, function, description=description, category="Research")
+            self.names[name] = function
+
+    def close(self):
+        from nexus.tools import tool_registry
+
+        for name, function in self.names.items():
+            tool_registry.unregister(name, func=function)
+
+    def inventory(self):
+        ready = bool(self.search)
+        finance = self.config.get("finance", False) and (
+            self.finance_client is not None or importlib.util.find_spec("yfinance") is not None
+        )
+        return {
+            "items": [
+                {
+                    "id": name,
+                    "configured": ready
+                    if action in {"web_search", "research"}
+                    else ready and self.search["provider"] != "searxng"
+                    if action == "image_search"
+                    else finance
+                    if action == "finance"
+                    else self.config.get("ip_location", False)
+                    if action == "ip_location"
+                    else True,
+                    "billing": "Selected search API account"
+                    if action in {"web_search", "image_search", "research"}
+                    and self.search.get("provider") != "searxng"
+                    else "Selected public data service"
+                    if action in {"finance", "ip_location"}
+                    else "Local processing; selected source requests",
+                    "setup": "Configure research.search in private runtime settings. No search provider or API account is chosen automatically."
+                    if action in {"web_search", "image_search", "research"}
+                    else "Explicitly enable research.finance and install the studio-research extra."
+                    if action == "finance"
+                    else "Explicitly enable research.ip_location to use ipapi.co."
+                    if action == "ip_location"
+                    else "Public HTTP(S) pages only; bounded text, no redirects or credentials.",
+                }
+                for name in self.names
+                for action in [name.rsplit(":", 1)[1]]
+            ]
+        }
+
+    def request(self, method, url, headers=None, body=None, *, private=False, text=False):
+        validate_destination(url, private)
+        if self.request_client:
+            return self.request_client(method, url, headers or {}, body, text)
+        try:
+            with requests.Session() as session:
+                session.trust_env = False
+                with session.request(
+                    method,
+                    url,
+                    headers={"User-Agent": "NexusStudio/1.0", **(headers or {})},
+                    json=body,
+                    timeout=(5, 15),
+                    allow_redirects=False,
+                    stream=True,
+                ) as response:
+                    if not 200 <= response.status_code < 300:
+                        raise ValueError("Research service rejected the request")
+                    raw = bytearray()
+                    start = time.monotonic()
+                    for part in response.iter_content(16384):
+                        raw.extend(part)
+                        if len(raw) > 512 * 1024 or time.monotonic() - start > 20:
+                            raise ValueError("Research response exceeded its size or time limit")
+                    if text:
+                        kind = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+                        if kind not in {
+                            "text/html",
+                            "text/plain",
+                            "text/markdown",
+                            "application/xhtml+xml",
+                            "application/json",
+                        }:
+                            raise ValueError("Fetch supports text, HTML, Markdown and JSON pages")
+                        return {"text": raw.decode("utf-8", errors="replace"), "content_type": kind}
+                    return json.loads(raw)
+        except Exception:
+            raise ValueError(
+                "Research request failed; review the selected service, account or public URL. No other provider was used."
+            ) from None
+
+    def token(self, actor):
+        values = os.environ
+        if self.studio.team:
+            values, error = self.studio.team.environment_resolver(actor["nexus_id"])
+            if error:
+                raise PermissionError("Search account credentials are unavailable")
+        name = self.search.get("token_env") or {
+            "tavily": "TAVILY_API_KEY",
+            "brave": "BRAVE_SEARCH_API_KEY",
+        }.get(self.search.get("provider"))
+        value = values.get(name, "")
+        if not value or any(c in value for c in "\r\n"):
+            raise PermissionError("Configure credentials for the selected search provider")
+        return value
+
+    def search_pages(self, query, limit, images, actor):
+        if (
+            not isinstance(query, str)
+            or not 1 <= len(query.strip()) <= 600
+            or type(limit) is not int
+            or not 1 <= limit <= 10
+        ):
+            raise ValueError("Search needs a query up to 600 characters and limit from 1 to 10")
+        provider = self.search.get("provider")
+        if not provider:
+            raise ValueError("Configure a search provider explicitly before using search")
+        if provider == "tavily":
+            result = self.request(
+                "POST",
+                "https://api.tavily.com/search",
+                {"Authorization": "Bearer " + self.token(actor)},
+                {
+                    "query": query,
+                    "max_results": limit,
+                    "include_images": images,
+                    "include_image_descriptions": images,
+                    "include_answer": False,
+                },
+            )
+            rows = result.get("images", []) if images else result.get("results", [])
+        elif provider == "brave":
+            path = "images" if images else "web"
+            result = self.request(
+                "GET",
+                f"https://api.search.brave.com/res/v1/{path}/search?"
+                + urlencode({"q": query, "count": limit}),
+                {"X-Subscription-Token": self.token(actor)},
+            )
+            rows = result.get("results", []) if images else result.get("web", {}).get("results", [])
+        else:
+            if images:
+                raise ValueError(
+                    "Image search needs the explicitly selected Tavily or Brave adapter"
+                )
+            result = self.request(
+                "GET",
+                self.search["url"] + "/search?" + urlencode({"q": query, "format": "json"}),
+                private=self.search["allow_private"],
+            )
+            rows = result.get("results", [])
+        output = []
+        for row in rows[:limit]:
+            if isinstance(row, str):
+                row = {"url": row}
+            url = row.get("original", row.get("url", ""))
+            parsed = urlparse(str(url))
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+            ):
+                continue
+            output.append(
+                {
+                    "url": str(url)[:2000],
+                    "title": str(row.get("title", row.get("description", url)))[:500],
+                    "text": str(row.get("content", row.get("description", "")))[:4000],
+                    "source_url": row.get("url") if images else url,
+                }
+            )
+        return {"provider": provider, "items": output, "untrusted": True}
+
+    def fetch(self, url):
+        url = public_url(url)
+        response = self.request("GET", url, text=True)
+        text = response["text"]
+        if response["content_type"] in {"text/html", "application/xhtml+xml"}:
+            parser = PageText()
+            parser.feed(text)
+            text = "\n".join(
+                " ".join(line.split()) for line in "".join(parser.text).splitlines() if line.strip()
+            )
+        text = text[:16000]
+        return {
+            "url": url,
+            "title": urlparse(url).hostname,
+            "text": text,
+            "untrusted": True,
+            "retrieved_at": datetime.now(UTC).isoformat(),
+            "sha256": hashlib.sha256(text.encode()).hexdigest(),
+        }
+
+    def cite(self, rows, actor):
+        run_id = current_run_id.get()
+        if not run_id:
+            return
+        with self.studio.lock:
+            run = self.studio.collaboration.owned(self.studio.run(run_id), actor)
+            citations = list(run.get("citations", []))
+            known = {c.get("url") for c in citations if c.get("url")}
+            for row in rows:
+                if row["url"] not in known and len(citations) < 40:
+                    citations.append(
+                        {
+                            "kind": "web",
+                            "url": row["url"],
+                            "title": row.get("title", row["url"]),
+                            "excerpt": row.get("text", "")[:4000],
+                            "retrieved_at": row.get("retrieved_at", datetime.now(UTC).isoformat()),
+                            "sha256": row.get(
+                                "sha256", hashlib.sha256(row.get("text", "").encode()).hexdigest()
+                            ),
+                        }
+                    )
+                    known.add(row["url"])
+                if row["url"] in known:
+                    index = next(
+                        i
+                        for i, source in enumerate(citations, 1)
+                        if source.get("url") == row["url"]
+                    )
+                    row["citation_ref"] = f"[source:{index}]"
+            self.studio._update_run(run_id, citations=citations)
+
+    def finance(self, args):
+        if not self.config.get("finance"):
+            raise ValueError("Explicitly enable the finance adapter in private runtime settings")
+        ticker, period = args.get("ticker"), args.get("period", "1mo")
+        if (
+            not isinstance(ticker, str)
+            or not re.fullmatch(r"[A-Za-z0-9^=.-]{1,24}", ticker)
+            or period not in {"1mo", "3mo", "6mo", "1y"}
+        ):
+            raise ValueError("Choose a ticker and period: 1mo, 3mo, 6mo or 1y")
+        if self.finance_client:
+            return self.finance_client(ticker, period)
+        if importlib.util.find_spec("yfinance") is None:
+            raise ValueError("Install the studio-research extra to use yfinance")
+        with tempfile.TemporaryDirectory(prefix="nexus-finance-") as directory:
+            try:
+                process = subprocess.run(
+                    [
+                        sys.executable,
+                        "-I",
+                        str(Path(__file__).with_name("studio_finance_worker.py")),
+                        ticker,
+                        period,
+                    ],
+                    cwd=directory,
+                    env={"PATH": os.defpath, "HOME": directory},
+                    capture_output=True,
+                    timeout=40,
+                    check=True,
+                )
+                if len(process.stdout) > 256 * 1024:
+                    raise ValueError
+                return json.loads(process.stdout)
+            except Exception:
+                raise ValueError(
+                    "Finance service failed; no trading action was performed"
+                ) from None
+
+    async def execute(self, action, arguments):
+        actor = self.studio.data_tools.actor()
+        if action in {"web_search", "image_search"}:
+            result = await asyncio.to_thread(
+                self.search_pages,
+                arguments.get("query"),
+                arguments.get("limit", 5),
+                action == "image_search",
+                actor,
+            )
+            if action == "web_search":
+                self.cite(result["items"], actor)
+            return result
+        if action == "web_fetch":
+            result = await asyncio.to_thread(self.fetch, arguments.get("url"))
+            self.cite([result], actor)
+            return result
+        if action == "research":
+            queries, maximum = arguments.get("queries"), arguments.get("fetch_limit", 2)
+            if (
+                not isinstance(queries, list)
+                or not 1 <= len(queries) <= 4
+                or type(maximum) is not int
+                or not 0 <= maximum <= 4
+            ):
+                raise ValueError("Research supports 1–4 queries and 0–4 fetched pages")
+            rows, seen, errors = [], set(), []
+            for query in queries:
+                results = await asyncio.to_thread(self.search_pages, query, 5, False, actor)
+                for row in results["items"]:
+                    if row["url"] not in seen:
+                        seen.add(row["url"])
+                        rows.append(row)
+            for row in rows[:maximum]:
+                try:
+                    row.update(await asyncio.to_thread(self.fetch, row["url"]))
+                except ValueError:
+                    errors.append(
+                        {
+                            "url": row["url"],
+                            "error": "Page unavailable or disallowed; search excerpt retained",
+                        }
+                    )
+            self.cite(rows, actor)
+            return {"queries": queries, "sources": rows, "errors": errors, "untrusted": True}
+        if action == "finance":
+            return await asyncio.to_thread(self.finance, arguments)
+        if action == "ip_location":
+            if not self.config.get("ip_location"):
+                raise ValueError(
+                    "Explicitly enable IP/location lookups in private runtime settings"
+                )
+            value = arguments.get("ip", "")
+            if value:
+                address = ipaddress.ip_address(value)
+                if not address.is_global:
+                    raise ValueError("Look up a public IP address")
+                value = str(address) + "/"
+            result = await asyncio.to_thread(
+                self.request, "GET", "https://ipapi.co/" + value + "json/"
+            )
+            if result.get("error"):
+                raise ValueError("IP/location service rejected the lookup")
+            return {
+                key: result.get(key)
+                for key in (
+                    "ip",
+                    "city",
+                    "region",
+                    "country_name",
+                    "latitude",
+                    "longitude",
+                    "timezone",
+                    "org",
+                )
+            }
+        raise ValueError("Unknown research tool")

@@ -30,14 +30,18 @@ async def list_server_tools(
     command: str, args: list[str] | None = None, env: dict[str, str] | None = None
 ) -> list[dict[str, Any]]:
     """Return [{name, description}] for tools served by an MCP stdio server."""
-    ClientSession, StdioServerParameters, stdio_client = _require_mcp()
-    params = StdioServerParameters(command=command, args=list(args or []), env=env)
+    session_type, parameters_type, stdio_client = _require_mcp()
+    params = parameters_type(command=command, args=list(args or []), env=env)
     async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
+        async with session_type(read, write) as session:
             await session.initialize()
             listed = await session.list_tools()
     return [
-        {"name": t.name, "description": t.description or ""}
+        {
+            "name": t.name,
+            "description": t.description or "",
+            "inputSchema": getattr(t, "inputSchema", getattr(t, "input_schema", {})),
+        }
         for t in (listed.tools or [])
     ]
 
@@ -50,12 +54,14 @@ async def call_server_tool(
     env: dict[str, str] | None = None,
 ) -> str:
     """Call one MCP tool; returns concatenated text content."""
-    ClientSession, StdioServerParameters, stdio_client = _require_mcp()
-    params = StdioServerParameters(command=command, args=list(args or []), env=env)
+    session_type, parameters_type, stdio_client = _require_mcp()
+    params = parameters_type(command=command, args=list(args or []), env=env)
     async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
+        async with session_type(read, write) as session:
             await session.initialize()
             result = await session.call_tool(tool_name, dict(arguments or {}))
+    if getattr(result, "isError", getattr(result, "is_error", False)):
+        raise RuntimeError("MCP server reported a tool error")
     texts = [
         getattr(block, "text", "")
         for block in (result.content or [])
@@ -76,14 +82,17 @@ async def register_mcp_server(
     for info in await list_server_tools(command, args=args, env=env):
         qualified = f"mcp:{server_name}:{info['name']}"
 
-        async def _invoke(qualified=qualified, **kwargs):
-            return await call_server_tool(
-                command, info["name"], kwargs, args=args, env=env
-            )
+        def bind(tool_name):
+            async def invoke(**kwargs):
+                return await call_server_tool(command, tool_name, kwargs, args=args, env=env)
 
+            return invoke
+
+        _invoke = bind(info["name"])
         _invoke.__name__ = qualified
         registry.register(
-            qualified, _invoke,
+            qualified,
+            _invoke,
             description=info["description"] or f"MCP tool {info['name']} on {server_name}",
             category="mcp",
         )

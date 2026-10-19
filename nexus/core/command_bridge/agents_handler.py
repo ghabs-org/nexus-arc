@@ -9,7 +9,8 @@ Request schema:
         "task": "string (required) — the task to run",
         "agent_type": "sequential|parallel|loop|coordinator (default: sequential)",
         "agents": [
-            {"name": "string", "description": "string", "response": "string (mock only)"}
+            {"name": "string", "description": "string", "instructions": "string (optional)",
+             "model": "string (optional)", "response": "string (mock only)"}
         ],
         "router_url": "string (optional, default: http://127.0.0.1:7771)",
         "max_iterations": int (LoopAgent only, default 5),
@@ -133,6 +134,7 @@ def _build_sub_agents(specs: list[dict], *, ai_provider: Any) -> list:
                     description=description,
                     ai_provider=ai_provider,
                     model_override=(spec.get("model") or "").strip() or None,
+                    instructions=str(spec.get("instructions") or "").strip(),
                 )
             )
         else:

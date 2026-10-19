@@ -1,0 +1,18 @@
+// Replace namespace and paths. Mount the private audit directory read-only.
+local.file_match "studio_audit" {
+  path_targets = [{
+    __path__ = "/var/lib/nexus/studio-private/audit-events/*.jsonl",
+    app = "nexus-studio",
+    namespace = "your-existing-nexus-project",
+  }]
+}
+loki.source.file "studio_audit" {
+  targets = local.file_match.studio_audit.targets
+  forward_to = [loki.write.studio.receiver]
+}
+loki.write "studio" {
+  endpoint {
+    url = sys.env("NEXUS_LOKI_PUSH_URL")
+    // Configure the authentication/TLS settings required by your Loki service.
+  }
+}

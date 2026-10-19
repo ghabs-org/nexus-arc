@@ -1,0 +1,16 @@
+{
+  "id": "conversation",
+  "title": "Legacy conversation",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Remember the old release."
+    },
+    {
+      "role": "assistant",
+      "content": "Plain text retained."
+    }
+  ],
+  "created_at": "2025-01-15T09:00:00+00:00",
+  "updated_at": "2025-01-15T09:00:00+00:00"
+}

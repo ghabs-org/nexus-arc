@@ -1,0 +1,10 @@
+version: 1
+name: Nexus typed-decision compatibility subset
+slug: studio-decisions
+protocol: http
+port: 49642
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

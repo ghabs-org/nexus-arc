@@ -1,0 +1,439 @@
+"use strict";
+const featureApi=(path,data)=>api(`/api/studio/${path}`,data);
+function fieldsDialog(title,html,label="Save") {
+  return new Promise(resolve=>{
+    const dialog=document.createElement("dialog");dialog.className="feature-dialog";
+    dialog.innerHTML=`<form><header class="dialog-heading"><h2>${escapeHtml(title)}</h2><button type="button" data-dismiss aria-label="Close">×</button></header>${html}<p class="form-error" role="alert"></p><footer><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">${escapeHtml(label)}</button></footer></form>`;
+    document.body.append(dialog);let result=null;
+    dialog.querySelectorAll("[data-dismiss]").forEach(b=>b.onclick=()=>dialog.close());
+    dialog.addEventListener("close",()=>{dialog.remove();resolve(result);},{once:true});
+    dialog.querySelector("form").onsubmit=event=>{event.preventDefault();result=new FormData(event.target);dialog.close();};dialog.showModal();
+  });
+}
+function downloadJson(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function refreshFeatureViews(){
+  if(!state.ready)return;
+  const projectListing=await featureApi("projects"),projects=projectListing.items;
+  state.knowledgeProjects=projects;state.knowledgeRetrievalOptions=projectListing.retrieval_options;
+  let disclosure=$("knowledge-disclosure");if(!disclosure){disclosure=document.createElement("p");disclosure.id="knowledge-disclosure";disclosure.className="callout";$("chat-project").closest(".chat-controls").after(disclosure);$("chat-project").addEventListener("change",updateKnowledgeDisclosure);}
+  const selected=$("chat-project").value;
+  $("chat-project").innerHTML='<option value="">No project</option>'+projects.filter(p=>!p.archived).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");$("chat-project").value=selected;updateKnowledgeDisclosure();
+  $("projects-content").innerHTML=projects.map(p=>`<article class="library-row"><div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(p.instructions)}</p><small>Revision ${p.revision}${p.archived?" · Archived":""}</small></div><div class="card-actions"><button data-project-open="${escapeHtml(p.id)}" ${p.archived?"disabled":""}>Open</button><button class="secondary" data-project-edit="${escapeHtml(p.id)}">Edit</button><button class="secondary" data-project-archive="${escapeHtml(p.id)}">${p.archived?"Restore":"Archive"}</button></div></article>`).join("")||empty("No knowledge projects","Create a project, add documents and ask questions grounded in your sources.");
+  if(view()==="feedback"){
+    const feedback=(await featureApi("feedback")).items;
+    $("feedback-content").innerHTML='<button class="secondary" id="feedback-export">Export feedback</button>'+feedback.map(f=>`<article class="library-row"><div><h2>${f.rating>0?"Helpful":"Needs improvement"}</h2><p>${escapeHtml(f.task)}</p><p>${escapeHtml(f.comment)}</p></div><button class="secondary" data-feedback-promote="${escapeHtml(f.id)}">Create evaluation case</button></article>`).join("");
+    $("feedback-export").onclick=()=>downloadJson("response-feedback.json",{format:"nexus-response-feedback/v1",items:feedback});
+  }
+  if(view()==="sharing"){
+    const sharing=await featureApi("sharing");
+    $("sharing-content").innerHTML=`<p>Public snapshot links: ${sharing.public_enabled?"enabled":"disabled"}.</p><button class="secondary" id="sharing-toggle">${sharing.public_enabled?"Disable":"Enable"} public links</button>`+sharing.items.map(s=>`<article class="library-row"><div><h2>${escapeHtml(s.title)}</h2><p>${s.public?"Public link":"Private snapshot"} · expires ${escapeHtml(new Date(s.expires_at).toLocaleString())}${s.revoked?" · Revoked":""}</p></div>${s.revoked?"":`<button class="secondary" data-share-revoke="${escapeHtml(s.id)}">Revoke</button>`}</article>`).join("");
+    $("sharing-toggle").onclick=async()=>{if(!sharing.public_enabled){const answer=await fieldsDialog("Enable public sharing",'<p>Anyone holding an explicitly created public link can read its snapshot until expiry or revocation. Existing private conversations stay private.</p>',"Enable public links");if(!answer)return;}await featureApi("sharing",{enabled:!sharing.public_enabled});await refreshFeatureViews();};
+  }
+}
+function knowledgeRetrievalNotice(){return state.knowledgeRetrievalOptions?.notice||"Semantic and hybrid search use this workspace's configured embedding service.";}
+function updateKnowledgeDisclosure(){const note=$("knowledge-disclosure");if(!note)return;const project=state.knowledgeProjects?.find(project=>project.id===$("chat-project").value);note.hidden=!project||!['semantic','hybrid'].includes(project.retrieval_mode)||['local','none'].includes(state.knowledgeRetrievalOptions?.embedding_kind);note.textContent=note.hidden?"":knowledgeRetrievalNotice();}
+async function editProject(id){
+  const p=id?await featureApi(`projects/${encodeURIComponent(id)}`):{};
+  const form=await fieldsDialog(id?"Edit knowledge project":"Create knowledge project",inputField("name","Name",p.name||"")+`<label>Instructions<textarea name="instructions" rows="5" maxlength="16000">${escapeHtml(p.instructions||"")}</textarea></label><label>Default agent<select name="agent"><option value="">General assistant</option>${state.agents.map(a=>`<option value="${escapeHtml(a.id)}" ${a.id===p.default_agent_id?"selected":""}>${escapeHtml(a.id)}</option>`).join("")}</select></label><label>Default search<select name="retrieval_mode">${[["lexical","Local text search"],["semantic","Semantic"],["hybrid","Hybrid"]].map(([value,label])=>`<option value="${value}" ${value===(p.retrieval_mode||"lexical")?"selected":""}>${label}</option>`).join("")}</select></label><p>${escapeHtml(knowledgeRetrievalNotice())}</p>`);
+  if(!form)return;await featureApi("projects",{...p,name:form.get("name"),instructions:form.get("instructions"),default_agent_id:form.get("agent")||null,retrieval_mode:form.get("retrieval_mode")});await refreshFeatureViews();
+}
+async function openProject(id){
+  const [project,docs,artifacts,sessions]=await Promise.all([featureApi(`projects/${id}`),featureApi(`projects/${id}/documents`),api("/api/catalog/artifacts"),featureApi(`projects/${id}/sessions`)]);
+  showDetail(project.name,`<div class="card-actions"><button id="project-chat">New conversation</button><button class="secondary" id="project-export">Export configuration</button><button class="secondary" id="project-package">Export with documents</button></div><p>Default search: ${escapeHtml(project.retrieval_mode||"lexical")}</p><h3>Documents</h3><form id="project-attach"><label>Saved file<select name="artifact" required><option value="">Choose a file</option>${artifacts.items.filter(a=>!a.archived).map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}</option>`).join("")}</select></label><button type="submit">Add document</button></form><p>Upload files in Library → Artifacts first.</p>${docs.items.map(d=>`<p>${escapeHtml(d.filename)} · revision ${d.artifact_revision} · ${escapeHtml(d.status)}${d.error?` · ${escapeHtml(d.error)}`:""}${(d.retryable||["failed","interrupted"].includes(d.status))?` <button class="secondary" data-document-retry="${escapeHtml(d.id)}">Retry indexing</button>`:""}</p>`).join("")}<h3>Search documents</h3><p>${escapeHtml(knowledgeRetrievalNotice())}</p><form id="project-search"><label>Question<input name="query" required maxlength="2000"></label><label>Search method<select name="mode"><option value="lexical">Local text search</option><option value="semantic">Semantic</option><option value="hybrid">Hybrid</option></select></label><button type="submit">Search</button></form><div id="project-search-results"></div><h3>Related conversations</h3>${sessions.items.length?sessions.items.map(session=>`<button class="secondary" data-project-session="${escapeHtml(session.id)}">${escapeHtml(session.title)}</button>`).join(""):"<p>No related conversations yet.</p>"}<p id="project-detail-error" role="alert"></p>`);
+  $("project-chat").onclick=()=>{newChat();$("chat-project").value=id;updateKnowledgeDisclosure();$("detail").close();};
+  $("project-search").elements.mode.value=project.retrieval_mode||"lexical";
+  $("detail-content").querySelectorAll("[data-document-retry]").forEach(button=>button.onclick=async()=>{button.disabled=true;try{await featureApi(`projects/${id}/documents/${button.dataset.documentRetry}/reindex`,{});await openProject(id);}catch(error){button.disabled=false;$("project-detail-error").textContent=error.message;}});
+  $("project-package").onclick=async()=>{try{downloadJson("knowledge-project-with-documents.json",await featureApi(`projects/${id}/package`));}catch(error){$("project-detail-error").textContent=error.message;}};
+  $("detail-content").querySelectorAll("[data-project-session]").forEach(button=>button.onclick=async()=>{try{const session=await api(`/api/sessions/${encodeURIComponent(button.dataset.projectSession)}`);if(state.busy)throw new Error("Let the current conversation finish first.");state.sessionId=session.id;$("chat-project").value=id;updateKnowledgeDisclosure();$("messages").replaceChildren();session.messages.forEach(message=>addMessage(message.role,message.content,providerName(message.provider||""),message.run_id,message.citations||[],message.structured_content||[],message.retrieval_notice));$("chat-agent").value=session.agent_id||"";$("chat-provider").value=session.provider||"codex";$("chat-model").value=session.model||"";$("detail").close();location.hash="chat";}catch(error){$("project-detail-error").textContent=error.message;}});
+  $("project-export").onclick=async()=>downloadJson("knowledge-project.json",await featureApi(`projects/${id}/export`));
+  $("project-attach").onsubmit=async e=>{e.preventDefault();try{await featureApi(`projects/${id}/documents`,{artifact_id:new FormData(e.target).get("artifact")});await openProject(id);}catch(error){$("project-detail-error").textContent=error.message;}};
+  $("project-search").onsubmit=async e=>{e.preventDefault();try{const form=new FormData(e.target),result=await featureApi(`projects/${id}/search?q=${encodeURIComponent(form.get("query"))}&mode=${form.get("mode")}`);const root=$("project-search-results");root.replaceChildren();if(result.notice){const p=document.createElement("p");p.textContent=result.notice;root.append(p);}for(const item of result.items){const article=document.createElement("article"),title=document.createElement("h4"),text=document.createElement("p");title.textContent=`${item.filename} · page ${item.page}`;text.textContent=item.text;article.append(title,text);root.append(article);}if(!result.items.length)root.textContent="No matching documents.";}catch(error){$("project-detail-error").textContent=error.message;}};
+}
+async function resolvePromptValues(task){
+  const prompts=(await api("/api/catalog/prompts")).items.filter(p=>!p.archived),result={};
+  for(const p of prompts){if(!task.split(/\s+/).some(token=>token===`/${p.id}`||p.data.shortcut&&token===`/${p.data.shortcut}`)||!Object.keys(p.data.variables||{}).length)continue;
+    const names=Object.keys(p.data.variables);const form=await fieldsDialog(p.name,names.map((name,index)=>inputField(`v${index}`,name,p.data.variables[name])).join(""),"Use prompt");
+    if(!form)throw new Error("Prompt insertion cancelled");result[p.id]=Object.fromEntries(names.map((name,index)=>[name,form.get(`v${index}`)]));
+  }return result;
+}
+async function designResource(){
+  const kind=library.kind==="schedules"?"schedule":"prompt";
+  const form=await fieldsDialog(`Build ${kind} with AI`,`<label>Describe what you need<textarea name="task" rows="5" required maxlength="16000"></textarea></label><label>Provider<select name="provider">${providerOptions($("chat-provider").value)}</select></label>`,"Generate draft");if(!form)return;
+  let task=form.get("task"),conversation="",proposal;
+  while(true){
+    const run=await featureApi("design",{design_kind:kind,task,conversation,provider:form.get("provider")});showRun(run);
+    const completed=await pollRun(run.id,updateRunDetail);proposal=completed.design_proposal;
+    let choice;
+    while(true){
+      choice=await fieldsDialog(`Review ${kind} draft`,`<p>Edit the draft or describe a refinement.${kind==="schedule"?" Schedules stay disabled until you enable them.":""}</p><label>Draft JSON<textarea name="proposal" rows="14" required>${escapeHtml(JSON.stringify(proposal,null,2))}</textarea></label><label>Refine with AI (optional)<textarea name="refine" rows="3" maxlength="4000" placeholder="What should change?"></textarea></label>`,"Continue");
+      if(!choice)return;
+      try{proposal=JSON.parse(choice.get("proposal"));break;}catch{notify("Draft must contain valid JSON. Your previous draft is retained.");}
+    }
+    if(String(choice.get("refine")||"").trim()){
+      conversation=`Original request: ${form.get("task")}\nCurrent draft: ${JSON.stringify(proposal)}`;task=choice.get("refine");continue;
+    }
+    if(kind==="schedule"&&proposal.data)proposal.data.enabled=false;
+    await api(`/api/catalog/${kind==="prompt"?"prompts":"schedules"}`,proposal);window.dispatchEvent(new CustomEvent("studio-resource-saved",{detail:{kind:kind==="prompt"?"prompts":"schedules"}}));$("detail").close();await refreshLibrary();return;
+  }
+}
+async function rateResponse(runId,rating){const form=await fieldsDialog(rating>0?"Helpful response":"Improve this response",'<label>Comment (optional)<textarea name="comment" maxlength="2000" rows="4"></textarea></label>',"Save feedback");if(form)await featureApi("feedback",{run_id:runId,rating,comment:form.get("comment")});}
+async function shareConversation(){
+  if(!state.sessionId)throw new Error("Start a conversation first");
+  const form=await fieldsDialog("Share conversation",'<p>Create a read-only snapshot of current messages.</p><label>Nexus recipient IDs (comma separated)<input name="recipients"></label><label>Expires after (hours)<input name="expires" type="number" value="168" min="1" max="8760" required></label><label class="check-label"><input name="public" type="checkbox">Create public link (owner must enable first)</label>',"Create snapshot");if(!form)return;
+  const result=await featureApi("shares",{session_id:state.sessionId,recipients:String(form.get("recipients")||"").split(",").map(v=>v.trim()).filter(Boolean),public:form.has("public"),expires_hours:Number(form.get("expires"))});
+  const url=new URL(result.token?`/shared.html#public/${result.token}`:`/shared.html#private/${result.id}`,location.href);
+  showDetail("Snapshot created",`<p>Snapshot includes current messages. Revoke it under Conversation sharing.</p><a class="button-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Open shared snapshot</a><label>Snapshot link<input readonly value="${escapeHtml(url.href)}"></label>`);
+}
+document.addEventListener("click",async event=>{const b=event.target.closest("button");if(!b)return;try{
+  if(b.id==="project-import"){
+    const form=await fieldsDialog("Import knowledge project",'<p>Choose an exported configuration or package with documents. Imported projects and files receive new IDs in this workspace.</p><label>Project file<input name="package" type="file" accept=".json,application/json" required></label>',"Import");
+    if(form){const file=form.get("package");if(!file||!file.size||file.size>24*1024*1024)throw new Error("Choose a JSON package up to 24 MiB.");let value;try{value=JSON.parse(await file.text());}catch{throw new Error("Choose a valid JSON project export.");}const project=await featureApi("projects/import",value);await refreshFeatureViews();notify("Project imported. Documents are indexed locally in the background.");await openProject(project.id);}
+  }
+  if(b.id==="project-create"||b.dataset.projectEdit)await editProject(b.dataset.projectEdit);
+  if(b.dataset.projectOpen)await openProject(b.dataset.projectOpen);
+  if(b.dataset.projectArchive){const p=await featureApi(`projects/${b.dataset.projectArchive}`);await featureApi("projects",{...p,archived:!p.archived});await refreshFeatureViews();}
+  if(b.dataset.shareRevoke){await featureApi(`shares/${b.dataset.shareRevoke}/revoke`,{});await refreshFeatureViews();}
+  if(b.dataset.feedbackPromote){const form=await fieldsDialog("Create evaluation case",inputField("name","Evaluation name","")+targetField()+inputField("expected","Expected answer phrase",""));if(form){const [target_kind,target_id]=form.get("target").split(":");await featureApi("feedback/promote",{feedback_id:b.dataset.feedbackPromote,name:form.get("name"),target_kind,target_id,expected:form.get("expected")});notify("Evaluation case created.");}}
+  if(b.id==="design-resource")await designResource();
+  if(b.id==="share-conversation")await shareConversation();
+  if(b.dataset.rate)await rateResponse(b.closest(".message").dataset.runId,Number(b.dataset.rate));
+}catch(error){notify(error.message);}});
+window.addEventListener("studio-ready",()=>{
+  if($("share-conversation")){refreshFeatureViews().catch(e=>notify(e.message));return;}
+  const share=document.createElement("button");share.id="share-conversation";share.className="secondary";share.textContent="Share snapshot";$("chat-project").closest(".chat-controls").append(share);
+  const design=document.createElement("button");design.id="design-resource";design.className="secondary";design.textContent="Build with AI";$("library-create").after(design);
+  new MutationObserver(()=>{$("design-resource").hidden=!["prompts","schedules"].includes(library.kind);}).observe($("library-heading"),{childList:true});
+  refreshFeatureViews().catch(e=>notify(e.message));
+  new MutationObserver(()=>document.querySelectorAll(".message[data-run-id]").forEach(message=>{if(message.querySelector(".response-actions"))return;const actions=document.createElement("div");actions.className="response-actions";actions.innerHTML='<button class="secondary" data-rate="1">Helpful</button><button class="secondary" data-rate="-1">Needs improvement</button>';message.append(actions);})).observe($("messages"),{subtree:true,attributes:true,attributeFilter:["data-run-id"],childList:true});
+});
+window.addEventListener("hashchange",()=>{if(["projects","feedback","sharing"].includes(view()))refreshFeatureViews().catch(e=>notify(e.message));});
+
+const originalLibraryEditor=openLibraryEditor;
+openLibraryEditor=async function(id,template){
+  await originalLibraryEditor(id,template);
+  if(library.kind!=="prompts")return;
+  const data=library.editing?.data||{};
+  const box=document.createElement("div");box.innerHTML=inputField("prompt_shortcut","Chat shortcut",data.shortcut||"")+inputField("prompt_tags","Tags (comma separated)",(data.tags||[]).join(", "))+'<p>Use {{Variable Name}} in prompt content. Users fill these values when inserting the prompt.</p>'+`<label>Variable defaults (JSON object)<textarea name="prompt_defaults" rows="3">${escapeHtml(JSON.stringify(data.variables||{},null,2))}</textarea></label>`;
+  $("library-fields").append(box);
+};
+const originalApi=api;
+api=async function(path,body){
+  if(path==="/api/catalog/prompts"&&body&&$("library-editor").open){
+    const tags=$("library-form").elements.prompt_tags?.value||"";
+    body={...body,data:{...body.data,variables:JSON.parse($("library-form").elements.prompt_defaults?.value||"{}"),shortcut:$("library-form").elements.prompt_shortcut?.value||"",tags:tags.split(",").map(v=>v.trim()).filter(Boolean)}};
+  }
+  return originalApi(path,body);
+};
+const originalOperationFields=operationFields;
+operationFields=function(item){
+  const result=originalOperationFields(item);
+  if(library.kind==="entrypoints")return result+`<label class="check-label"><input type="checkbox" name="mcp_enabled" ${item?.data?.mcp_enabled?"checked":""}>Expose this bearer webhook as an MCP task gateway</label><p>Use /api/mcp/ENTRYPOINT_ID with the same bearer token. Only this target is exposed; approvals remain in Studio.</p>`;
+  if(library.kind!=="schedules")return result;
+  const data=item?.data||{};
+  return result+inputField("cron","Cron schedule (optional; overrides fixed interval)",data.cron||"")+inputField("timezone","Time zone",data.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC")+'<p>Example: 0 9 * * 1-5 runs weekdays at 09:00 in the selected time zone. Missing DST times are skipped; repeated times run once.</p><button type="button" class="secondary" id="cron-preview">Preview upcoming dates</button><p id="cron-preview-output"></p>';
+};
+const originalOperationFormData=operationFormData;
+operationFormData=function(form){
+  if(library.kind==="schedules"&&String(form.get("cron")||"").trim()){
+    const [target_kind,...target]=String(form.get("target")||"").split(":");
+    return {target_kind,target_id:target.join(":"),task:form.get("task"),cron:String(form.get("cron")).trim(),timezone:form.get("timezone"),interval_seconds:0,enabled:form.has("enabled")};
+  }
+  const data=originalOperationFormData(form);
+  if(library.kind==="schedules")data.timezone=form.get("timezone")||"UTC";
+  if(library.kind==="entrypoints")data.mcp_enabled=form.has("mcp_enabled");
+  return data;
+};
+document.addEventListener("click",async event=>{if(event.target.id!=="cron-preview")return;try{const form=new FormData($("library-form"));const result=await featureApi("schedules/preview",{cron:form.get("cron"),timezone:form.get("timezone")});$("cron-preview-output").textContent=result.items.map(v=>new Date(v).toLocaleString(undefined,{timeZone:form.get("timezone")})).join(" · ");}catch(error){$("cron-preview-output").textContent=error.message;}});
+const connectorEditor=openLibraryEditor;
+openLibraryEditor=async function(id,template){
+  await connectorEditor(id,template);if(library.kind!=="connectors")return;
+  const data=library.editing?.data||{};
+  const select=$("library-form").elements.connector_type;
+  for(const [value,label] of [["sql","SQL database"],["openapi","OpenAPI service"]]){const option=document.createElement("option");option.value=value;option.textContent=label;select.append(option);}select.value=data.type||select.value;
+  const fields=document.createElement("div");fields.innerHTML=`<fieldset data-extra-service="sql"><legend>SQL database</legend><label>Database type<select name="sql_dialect">${["postgresql","mysql","mariadb","mssql","oracle"].map(v=>`<option ${data.dialect===v?"selected":""}>${v}</option>`).join("")}</select></label>${inputField("dsn_env","Database connection environment reference",data.dsn_env||"")}<p>Use a read-only database account. Configure the connection string on the server; do not paste it here.</p><label><input type="checkbox" name="sql_writes" ${data.allow_writes?"checked":""}>Allow reviewed write operations</label></fieldset><fieldset data-extra-service="openapi"><legend>OpenAPI service</legend><label>OpenAPI JSON definition<input type="file" id="openapi-definition" accept=".json,application/json"></label><input name="openapi_spec" type="hidden" value="${escapeHtml(JSON.stringify(data.spec||{}))}"><label>Enabled operations<select name="openapi_operations" multiple size="6"></select></label><label>Connectivity check<select name="openapi_health_operation" aria-label="Connectivity check operation"></select></label><p>Choose a read-only operation without required inputs. Runs only when you request a build connectivity check.</p><label><input name="openapi_writes" type="checkbox" ${(data.actions||[]).includes("invoke")?"checked":""}>Allow reviewed mutating operations</label></fieldset><fieldset data-extra-service="mcp"><legend>MCP transport</legend><label>Transport<select name="mcp_transport">${[["stdio","Installed local executable"],["streamable-http","Streamable HTTP"],["sse","Legacy SSE"]].map(([v,label])=>`<option value="${v}" ${(data.transport||"stdio")===v?"selected":""}>${label}</option>`).join("")}</select></label></fieldset><fieldset data-extra-service="remote"><legend>Remote service account</legend>${inputField("remote_url","Service base URL",data.url||"")}<label>Authentication<select name="remote_auth">${["none","bearer","api-key","basic","query","url-token"].map(v=>`<option ${(data.auth?.type||"none")===v?"selected":""}>${v}</option>`).join("")}</select></label>${inputField("remote_token","Credential environment reference",data.auth?.token_env||data.token_env||"")}${inputField("remote_header","API-key header",data.auth?.header||"X-API-Key")}${inputField("remote_parameter","API-key query parameter",data.auth?.parameter||"token")}${inputField("remote_user","Username environment reference",data.auth?.username_env||"")}${inputField("remote_password","Password environment reference",data.auth?.password_env||"")}</fieldset>`;
+  $("library-fields").append(fields);
+  function sync(){const kind=select.value;fields.querySelectorAll("[data-extra-service]").forEach(f=>f.hidden=f.dataset.extraService!==kind&&!(f.dataset.extraService==="remote"&&(kind==="openapi"||kind==="mcp"&&$("library-form").elements.mcp_transport.value!=="stdio")));}
+  fields.querySelector('[name="mcp_transport"]').onchange=sync;select.addEventListener("change",sync);sync();
+  let currentSpec=data.spec||{};
+  function fillHealth(selection){const form=$("library-form"),root=form.elements.openapi_health_operation,selected=Array.from(form.elements.openapi_operations.selectedOptions,option=>option.value);const previous=selection??root.value;root.replaceChildren();const empty=document.createElement("option");empty.value="";empty.textContent="No connectivity check";root.append(empty);for(const operation of openAPIHealthOptions(currentSpec,selected)){const option=document.createElement("option");option.value=operation.id;option.textContent=operation.label;root.append(option);}root.value=Array.from(root.options).some(option=>option.value===previous)?previous:"";}
+  function fillOperations(spec){currentSpec=spec;const selected=new Set(data.operations||[]),root=$("library-form").elements.openapi_operations;root.replaceChildren();for(const [path,entry] of Object.entries(spec.paths||{}))for(const [method,operation] of Object.entries(entry)){if(!["get","post","put","patch","delete","head","options"].includes(method))continue;const option=document.createElement("option");option.value=operation.operationId||`${method}:${path}`;option.textContent=`${method.toUpperCase()} ${path}`;option.selected=selected.has(option.value);root.append(option);}fillHealth(data.health_operation||"");}
+  $("library-form").elements.openapi_operations.addEventListener("change",()=>fillHealth());
+  fillOperations(data.spec||{});
+  $("openapi-definition").onchange=async event=>{try{const file=event.target.files[0];if(!file||file.size>512000)throw new Error("Choose an OpenAPI JSON file no larger than 500 KiB");const spec=JSON.parse(await file.text());$("library-form").elements.openapi_spec.value=JSON.stringify(spec);fillOperations(spec);}catch(error){$("library-form-error").textContent=error.message;}};
+};
+const connectorFormData=operationFormData;
+operationFormData=function(form){
+  const type=form.get("connector_type");
+  if(library.kind==="connectors"&&type==="sql")return {type:"sql",dialect:form.get("sql_dialect"),dsn_env:form.get("dsn_env"),allow_writes:form.has("sql_writes"),actions:["query","inspect_schema",...(form.has("sql_writes")?["execute"]:[])],enabled:form.has("enabled")};
+  const remote={url:form.get("remote_url"),allow_private:form.has("allow_private"),auth:{type:form.get("remote_auth"),token_env:form.get("remote_token")||undefined,header:form.get("remote_header")||"X-API-Key",parameter:form.get("remote_parameter")||"token",username_env:form.get("remote_user")||undefined,password_env:form.get("remote_password")||undefined}};
+  if(library.kind==="connectors"&&type==="openapi")return {type:"openapi",...remote,spec:JSON.parse(form.get("openapi_spec")||"{}"),operations:form.getAll("openapi_operations"),...(form.get("openapi_health_operation")?{health_operation:form.get("openapi_health_operation")}:{}),actions:["list_operations","read",...(form.has("openapi_writes")?["invoke"]:[])],enabled:form.has("enabled")};
+  const data=connectorFormData(form);
+  if(library.kind==="connectors"&&type==="mcp"){data.transport=form.get("mcp_transport")||"stdio";if(data.transport!=="stdio")Object.assign(data,remote);}
+  return data;
+};
+let voiceRecorder=null,voiceStream=null,voiceChunks=[];
+async function chooseSpeech(action,text=""){
+  const available=(await featureApi("speech")).items.filter(p=>p.action===action);
+  const html=`<label>Speech provider<select name="profile">${available.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.id)} · ${escapeHtml(p.billing)}${p.local&&!p.model_ready?" · model setup required":""}</option>`).join("")}</select></label><p>API voice uses separately billed credentials. Local voice requires installed models.</p>`+(action==="speak"?'<label>Voice (API profile)<input name="voice" placeholder="Provider default"></label>':'<label>Language hint (optional)<input name="language" maxlength="20" placeholder="en"></label>');
+  const form=await fieldsDialog(action==="speak"?"Generate spoken response":"Record a voice message",html,action==="speak"?"Generate speech":"Start recording");if(!form)return null;
+  return {profile:form.get("profile"),voice:form.get("voice")||undefined,language:form.get("language")||undefined,text};
+}
+async function beginRecording(){
+  if(voiceRecorder){voiceRecorder.stop();return;}
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)throw new Error("Voice recording needs a supported browser on localhost or HTTPS");
+  const options=await chooseSpeech("transcribe");if(!options)return;
+  voiceStream=await navigator.mediaDevices.getUserMedia({audio:true});voiceChunks=[];
+  const mime=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/mp4";
+  voiceRecorder=new MediaRecorder(voiceStream,{mimeType:mime});let bytes=0;
+  const button=$("record-voice");button.textContent="Stop recording";button.setAttribute("aria-pressed","true");
+  voiceRecorder.ondataavailable=e=>{bytes+=e.data.size;voiceChunks.push(e.data);if(bytes>4*1024*1024&&voiceRecorder?.state==="recording")voiceRecorder.stop();};
+  voiceRecorder.onstop=async()=>{voiceStream.getTracks().forEach(t=>t.stop());voiceStream=null;voiceRecorder=null;button.textContent="Record voice";button.setAttribute("aria-pressed","false");try{
+    const blob=new Blob(voiceChunks,{type:mime});voiceChunks=[];if(blob.size>4*1024*1024)throw new Error("Recording exceeded 4 MiB. Try a shorter message.");
+    const run=await featureApi("speech",{...options,audio_base64:await fileContent(blob),format:mime.startsWith("audio/webm")?"webm":"mp4"});notify("Transcribing audio…");const result=await pollRun(run.id);$("chat-task").value=[$("chat-task").value,result.output].filter(Boolean).join("\n");$("chat-task").focus();notify("Transcript ready. Review before sending.");
+  }catch(error){notify(error.message);}};
+  voiceRecorder.onerror=()=>{voiceStream?.getTracks().forEach(t=>t.stop());voiceRecorder=null;voiceStream=null;button.textContent="Record voice";notify("Recording failed; check microphone permission.");};voiceRecorder.start(1000);
+}
+async function speakResponse(text){
+  const options=await chooseSpeech("speak",text.slice(0,3000));if(!options)return;
+  const run=await featureApi("speech",options);notify("Generating speech…");const completed=await pollRun(run.id);
+  const preview=await api(`/api/catalog/artifacts/${completed.speech_artifact_id}/preview`);showDetail("Spoken response","");$("detail-content").replaceChildren(previewContent(preview));
+}
+function playOnDevice(text){
+  if(!window.speechSynthesis)throw new Error("Device speech is unavailable in this browser");
+  const voices=speechSynthesis.getVoices().filter(v=>v.localService);if(!voices.length)throw new Error("No local device voice is available. Choose server speech instead.");
+  speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.voice=voices.find(v=>v.voiceURI===$("device-speech-voice")?.value)||voices[0];utterance.rate=Number($("device-speech-rate")?.value||1);speechSynthesis.speak(utterance);
+}
+window.addEventListener("studio-ready",()=>{
+  if($("record-voice"))return;
+  const button=document.createElement("button");button.id="record-voice";button.type="button";button.className="secondary";button.textContent="Record voice";button.setAttribute("aria-pressed","false");$("chat-project").closest(".chat-controls").append(button);
+  const prefs=document.createElement("details");prefs.className="speech-preferences";prefs.innerHTML='<summary>Voice playback</summary><label>Device voice<select id="device-speech-voice"></select></label><label>Playback speed<select id="device-speech-rate"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><label><input id="speech-autoplay" type="checkbox">Automatically play completed responses using a local device voice</label><button class="secondary" type="button" id="stop-speech">Stop playback</button>';
+  $("chat-form").before(prefs);
+  new MutationObserver(()=>document.querySelectorAll(".response-actions").forEach(actions=>{if(actions.querySelector("[data-speak]"))return;const buttons=document.createElement("span");buttons.innerHTML='<button class="secondary" data-speak="device">Play on device</button><button class="secondary" data-speak="server">Generate speech</button>';actions.append(buttons);})).observe($("messages"),{childList:true,subtree:true});
+});
+document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
+  if(button.id==="record-voice")await beginRecording();
+  if(button.id==="stop-speech"){window.speechSynthesis?.cancel();document.querySelectorAll("audio").forEach(a=>a.pause());}
+  if(button.dataset.speak){const text=button.closest(".message").querySelector(".message-body").innerText;if(button.dataset.speak==="device")playOnDevice(text);else await speakResponse(text);}
+}catch(error){notify(error.message);}});
+window.addEventListener("pagehide",()=>{voiceStream?.getTracks().forEach(t=>t.stop());window.speechSynthesis?.cancel();});
+
+window.addEventListener("studio-response-completed",event=>{if($("speech-autoplay")?.checked){try{playOnDevice(event.detail.text);}catch(error){notify(error.message);}}});
+function refreshDeviceVoices(){const root=$("device-speech-voice");if(!root||!window.speechSynthesis)return;root.replaceChildren();speechSynthesis.getVoices().filter(v=>v.localService).forEach(voice=>{const option=document.createElement("option");option.value=voice.voiceURI;option.textContent=voice.name+" · "+voice.lang;root.append(option);});}
+window.addEventListener("studio-ready",refreshDeviceVoices);window.speechSynthesis?.addEventListener("voiceschanged",refreshDeviceVoices);
+function executionGraph(data,cursor=data.timeline.length){
+  const box=document.createElement("div");box.className="execution-graph";box.tabIndex=0;box.setAttribute("role","region");box.setAttribute("aria-label","Scrollable execution graph");box.style.maxHeight="28rem";box.style.overflow="auto";const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg"),nodes=data.graph.nodes;
+  if(!nodes.length)return box;
+  const states={},events=data.timeline.slice(0,cursor);for(const step of events){if(step.graph_node_id)states[step.graph_node_id]=step.node_status||step.status;else if(step.node_id&&["node","branch","approval","input"].includes(step.kind))states[step.node_id]=step.node_status||step.status;}
+  if(cursor===data.timeline.length)Object.assign(states,data.states);
+  const rank=new Map(nodes.map(node=>[node.id,0]));for(let pass=0;pass<nodes.length;pass++){let changed=false;for(const edge of data.graph.edges){if(!rank.has(edge.source)||!rank.has(edge.target))continue;const next=Math.min(nodes.length,rank.get(edge.source)+1);if(rank.get(edge.target)<next){rank.set(edge.target,next);changed=true;}}if(!changed)break;}
+  const lanes=new Map(),position=new Map();for(const node of nodes){const column=rank.get(node.id),lane=lanes.get(column)||0;lanes.set(column,lane+1);position.set(node.id,{x:20+column*190,y:20+lane*90});}
+  const width=Math.max(600,(Math.max(...rank.values())+1)*190+20),height=Math.max(130,Math.max(...lanes.values())*90+20);svg.setAttribute("viewBox",`0 0 ${width} ${height}`);svg.style.maxHeight="none";svg.style.width=`${width}px`;svg.style.height=`${height}px`;svg.setAttribute("role","img");svg.setAttribute("aria-label",`Execution graph at event ${cursor} of ${data.timeline.length}. Detailed node states follow in the timeline.`);
+  for(const edge of data.graph.edges){const a=position.get(edge.source),b=position.get(edge.target);if(!a||!b)continue;const line=document.createElementNS(ns,"line");for(const [key,value] of Object.entries({x1:a.x+160,y1:a.y+30,x2:b.x,y2:b.y+30}))line.setAttribute(key,value);line.classList.add("execution-edge");if(edge.relationship){const title=document.createElementNS(ns,"title");title.textContent=edge.relationship==="run-membership"?"Part of this run; no execution order implied":"Explicitly recorded parent relationship";line.append(title);if(edge.relationship==="run-membership")line.setAttribute("stroke-dasharray","4 4");}if(edge.choice){const title=document.createElementNS(ns,"title");title.textContent=`Branch: ${edge.choice}`;line.append(title);}svg.append(line);}
+  for(const node of nodes){const p=position.get(node.id),g=document.createElementNS(ns,"g"),rect=document.createElementNS(ns,"rect"),title=document.createElementNS(ns,"text"),status=document.createElementNS(ns,"text"),description=document.createElementNS(ns,"title");for(const [key,value] of Object.entries({x:p.x,y:p.y,width:160,height:65,rx:8}))rect.setAttribute(key,value);title.setAttribute("x",p.x+10);title.setAttribute("y",p.y+24);title.textContent=(node.name||node.id).slice(0,21);status.setAttribute("x",p.x+10);status.setAttribute("y",p.y+46);status.textContent=states[node.id]||"Pending";description.textContent=`${node.name||node.id} · ${node.kind} · ${status.textContent}`;g.append(description,rect,title,status);svg.append(g);}
+  box.append(svg);if(data.graph.relationship_note){const note=document.createElement("p");note.textContent=data.graph.relationship_note;box.append(note);}return box;
+}
+const executionReplay=new Map(),executionRequests=new Map(),executionTimes=new Map();
+function renderExecutionReplay(root,data,run){
+  root._stopExecutionReplay?.();
+  let replay=executionReplay.get(run.id);if(!replay){replay={cursor:data.timeline.length,live:true,playing:false};executionReplay.set(run.id,replay);if(executionReplay.size>20)executionReplay.delete(executionReplay.keys().next().value);}
+  const selectedEvent=!replay.live&&replay.cursor?replay.events?.[replay.cursor-1]?.id:null;
+  if(replay.events){const known=new Map(replay.events.map(event=>[event.id,event]));for(const event of data.timeline)known.set(event.id,event);data={...data,timeline:Array.from(known.values()).sort((a,b)=>a.sequence-b.sequence)};}replay.events=data.timeline;
+  if(selectedEvent){const selectedIndex=data.timeline.findIndex(event=>event.id===selectedEvent);if(selectedIndex>=0)replay.cursor=selectedIndex+1;}
+  data.replay={...data.replay,previous_cursor:data.timeline[0]?.sequence>1?data.timeline[0].id:null};
+  if(replay.live)replay.cursor=data.timeline.length;replay.cursor=Math.min(replay.cursor,data.timeline.length);
+  const heading=document.createElement("h3");heading.textContent="Execution history";
+  const controls=document.createElement("div");controls.className="card-actions";controls.style.flexWrap="wrap";
+  const makeButton=(text,label)=>{const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent=text;button.setAttribute("aria-label",label);controls.append(button);return button;};
+  const previous=makeButton("Previous","Previous execution event"),play=makeButton("Play","Play recorded execution events"),next=makeButton("Next","Next execution event"),live=makeButton("Live","Show latest execution events");
+  const slider=document.createElement("input");slider.type="range";slider.min="0";slider.max=String(data.timeline.length);slider.step="1";slider.setAttribute("aria-label","Execution replay position");slider.style.minWidth="140px";slider.style.flex="1";controls.append(slider);
+  const count=document.createElement("p");count.setAttribute("role","status");count.setAttribute("aria-live","polite");
+  const graph=document.createElement("div"),timeline=document.createElement("ol");timeline.className="execution-timeline";timeline.style.overflowWrap="anywhere";
+  const note=document.createElement("p");note.className="muted";note.textContent="Replay reviews saved events; it does not run tasks. "+(data.coverage.missing_timestamps?data.coverage.legacy_ordering+" ":"")+data.coverage.provider_tool_events;
+  let timer=null;
+  const stop=()=>{if(timer)clearInterval(timer);timer=null;replay.playing=false;play.textContent="Play";play.setAttribute("aria-label","Play recorded execution events");};
+  function draw(){
+    slider.value=String(replay.cursor);count.textContent=`Event ${replay.cursor} of ${data.timeline.length}${replay.live?" · Live":" · Replay"}`;previous.disabled=replay.cursor===0;next.disabled=replay.cursor===data.timeline.length;live.setAttribute("aria-pressed",String(replay.live));graph.replaceChildren(executionGraph(data,replay.cursor));timeline.replaceChildren();
+    for(const step of data.timeline.slice(0,replay.cursor)){const item=document.createElement("li"),details=document.createElement("details"),summary=document.createElement("summary");const name=step.node_name||step.agent||step.tool||step.message||step.kind;summary.textContent=`${step.sequence}. ${name} · ${step.status||step.phase||step.kind}`;const meta=document.createElement("p");meta.textContent=[step.at?new Date(step.at).toLocaleString():"Time unavailable",step.kind,step.provider,step.model,step.duration_seconds!==undefined?`${Number(step.duration_seconds).toFixed(2)}s`:null,step.node_id].filter(Boolean).join(" · ");details.append(summary,meta);if(step.artifact_id){const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent="View artifact";button.onclick=async()=>{try{const preview=await api(`/api/catalog/artifacts/${encodeURIComponent(step.artifact_id)}/preview${step.artifact_revision?`?revision=${step.artifact_revision}`:""}`);showDetail("Artifact","");$("detail-content").replaceChildren(previewContent(preview));}catch(error){notify(error.message);}};details.append(button);}item.append(details);timeline.append(item);}
+    if(!replay.cursor){const item=document.createElement("li");item.textContent="No events shown.";timeline.append(item);}
+  }
+  const seek=value=>{stop();replay.live=false;replay.cursor=Math.max(0,Math.min(data.timeline.length,value));draw();};
+  previous.onclick=()=>seek(replay.cursor-1);next.onclick=()=>seek(replay.cursor+1);slider.oninput=()=>seek(Number(slider.value));live.onclick=()=>{stop();replay.live=true;replay.cursor=data.timeline.length;draw();};
+  play.onclick=()=>{if(replay.playing){stop();return;}replay.live=false;if(replay.cursor===data.timeline.length)replay.cursor=0;replay.playing=true;play.textContent="Pause";play.setAttribute("aria-label","Pause execution replay");draw();timer=setInterval(()=>{if(!root.isConnected||state.detailRunId!==run.id||!replay.playing){stop();return;}replay.cursor++;draw();if(replay.cursor>=data.timeline.length)stop();},700);};
+  root._stopExecutionReplay=stop;root.replaceChildren(heading,controls,count,graph,timeline,note);if(data.replay.previous_cursor){const older=makeButton("Load earlier events","Load earlier execution events");older.onclick=async()=>{older.disabled=true;try{const earlier=await featureApi(`runs/${encodeURIComponent(run.id)}/execution?before=${encodeURIComponent(data.replay.previous_cursor)}`);if(root.isConnected&&state.detailRunId===run.id){stop();const actions=Array.from(root.children).filter(element=>element.dataset.executionAction);renderExecutionReplay(root,{...data,timeline:earlier.timeline,replay:earlier.replay},run);root.append(...actions);}}catch(error){older.disabled=false;notify(error.message);}};}if(data.coverage.graph_nodes_omitted)note.textContent+=` ${data.coverage.graph_nodes_omitted} graph nodes omitted from this overview; all events remain available in the timeline.`;draw();
+}
+const basicRunDetail=updateRunDetail;
+updateRunDetail=function(run){
+  basicRunDetail(run);if(state.detailRunId!==run.id||!$("run-output"))return;
+  let root=$("run-execution");if(!root){root=document.createElement("section");root.id="run-execution";$("run-output").after(root);}
+  if(executionRequests.has(run.id)||(["running","queued"].includes(run.status)&&Date.now()-(executionTimes.get(run.id)||0)<1000))return;executionTimes.set(run.id,Date.now());
+  const request=featureApi(`runs/${encodeURIComponent(run.id)}/execution`).then(data=>{if(state.detailRunId!==run.id||root!==$("run-execution"))return;const signature=JSON.stringify([data.timeline,data.states,run.status,run.cancel_requested,run.awaiting_input]);if(root.dataset.signature===signature)return;root.dataset.signature=signature;
+    const focused=document.activeElement?.getAttribute("aria-label");renderExecutionReplay(root,data,run);if(focused)Array.from(root.querySelectorAll("[aria-label]")).find(element=>element.getAttribute("aria-label")===focused)?.focus();
+    if(["running","queued","waiting"].includes(run.status)||(run.status==="interrupted"&&run.cancellation_cleanup)){const stop=document.createElement("button");stop.className="secondary";stop.dataset.executionAction="true";const pendingCleanup=run.cancellation_cleanup&&run.status==="waiting",interruptedCleanup=run.cancellation_cleanup&&run.status==="interrupted";stop.textContent=pendingCleanup?"Skip this cleanup step":interruptedCleanup?"Continue cleanup":run.cancel_requested?"Stop requested":"Stop task";stop.disabled=!!run.cancel_requested&&!pendingCleanup&&!interruptedCleanup;stop.onclick=async()=>{try{await featureApi(`runs/${run.id}/cancel`,{});stop.textContent="Stop requested";stop.disabled=true;pollRun(run.id,updateRunDetail).catch(error=>notify(error.message));}catch(error){notify(error.message);}};root.append(stop);}
+    for(const requested of run.awaiting_input||[]){const form=document.createElement("form");form.dataset.executionAction="true";form.innerHTML=`<label>${escapeHtml(requested.name)}<textarea name="answer" required></textarea></label><button type="submit">Provide input</button><p>Input fields requiring structured data accept JSON.</p>`;form.onsubmit=async event=>{event.preventDefault();try{const raw=new FormData(form).get("answer");let value=raw;if(requested.schema?.type&&requested.schema.type!=="string")value=JSON.parse(raw);await featureApi(`runs/${run.id}/input`,{values:{[requested.id]:value}});pollRun(run.id,updateRunDetail).catch(error=>notify(error.message));}catch(error){notify(error.message);}};root.append(form);}
+  }).catch(error=>{if(state.detailRunId===run.id&&root===$("run-execution")&&!root.dataset.signature)root.textContent=error.message;}).finally(()=>executionRequests.delete(run.id));executionRequests.set(run.id,request);
+};
+const embeddedAgent=location.pathname==="/agent.html"?new URLSearchParams(location.search).get("agent"):null;
+if(location.pathname==="/agent.html"){
+  document.body.classList.add("single-agent");
+  document.querySelector('#welcome [data-action="quick-build"]')?.remove();
+  function syncEmbeddedAgent(){$("chat-agent").disabled=true;const agent=state.agents.find(item=>item.id===embeddedAgent);if(!agent){$("send-message").disabled=true;$("chat-task").disabled=true;$("view-title").textContent="Agent unavailable";return;}$("chat-agent").value=embeddedAgent;selectAgent();$("view-title").textContent=agent.document.metadata?.name||embeddedAgent;document.title=$("view-title").textContent+" · Nexus Studio";$("chat-agent").disabled=true;}
+  window.addEventListener("studio-ready",()=>{syncEmbeddedAgent();if(!state.agents.some(item=>item.id===embeddedAgent))notify("This agent is unavailable in your workspace.");location.hash="chat";renderSessions();});
+  const workspaceRenderSessions=renderSessions;
+  renderSessions=function(){const original=state.sessions;state.sessions=original.filter(s=>s.agent_id===embeddedAgent);workspaceRenderSessions();state.sessions=original;};
+  window.addEventListener("hashchange",()=>{if(location.hash!=="#chat")location.hash="chat";syncEmbeddedAgent();});
+}
+
+let toolReadinessGeneration=0;
+const baseRenderTools=renderTools;
+renderTools=function(){
+  baseRenderTools();const generation=++toolReadinessGeneration;
+  featureApi("tools").then(result=>{
+    if(generation!==toolReadinessGeneration)return;
+    const readiness=new Map(result.items.map(row=>[row.id,row]));
+    $("tools-content").querySelectorAll("[data-tool]").forEach(button=>{
+      const row=readiness.get(button.dataset.tool);if(!row)return;
+      const card=button.closest("article"),note=document.createElement("p");note.className="tool-readiness";
+      note.textContent=`${row.configured?"Configured · live check pending":"Setup required"} · ${row.billing}. ${row.setup}`;
+      card.querySelector(".card-actions").before(note);button.disabled=!row.configured;
+    });
+  }).catch(error=>notify(error.message));
+};
+async function showIntegrationCatalog(){
+  const result=await featureApi("integrations");
+  const rows=items=>items.map(row=>`<article class="library-row"><div><h3>${escapeHtml(row.name)}</h3><p>${escapeHtml(row.description)}</p><p>${row.mode==="tool"?(row.configured?"Configured · live check pending":"Setup required"):row.mode==="planned"?"Planned":row.mode==="feature"?"Uses an existing workspace feature":"Configure and review before enabling"}</p></div><button class="secondary" data-integration-setup="${escapeHtml(row.id)}" ${row.mode==="planned"?"disabled":""}>${row.mode==="tool"?"Tool setup":row.mode==="feature"?"Open":"Set up"}</button></article>`).join("");
+  showDetail("Integration catalog",`<p>${escapeHtml(result.note)}</p><label>Search integrations<input type="search" id="catalog-search" placeholder="Name or capability"></label><p id="catalog-result-count" role="status"></p><div class="integration-catalog"><section><h2>Built-in services</h2>${rows(result.official_items||[])}</section><section><h2>Community equivalents</h2>${rows(result.items)}</section></div>`);
+  const filter=()=>{const query=$("catalog-search").value.trim().toLowerCase();let count=0;document.querySelectorAll('.integration-catalog article').forEach(row=>{row.hidden=!row.textContent.toLowerCase().includes(query);if(!row.hidden)count++;});document.querySelectorAll('.integration-catalog section').forEach(group=>group.hidden=!Array.from(group.querySelectorAll('article')).some(row=>!row.hidden));$("catalog-result-count").textContent=count?`${count} ${count===1?"integration":"integrations"}`:"No integrations match this search.";};$("catalog-search").oninput=filter;filter();
+}
+async function configureIntegration(id){
+  const result=await featureApi("integrations"),row=[...result.items,...(result.official_items||[])].find(item=>item.id===id);if(!row)throw new Error("Integration unavailable");
+  if(row.mode==="feature"){$("detail").close();location.hash=row.target;if(row.target==="library"){library.kind="artifacts";await refreshLibrary();}return;}
+  if(row.mode==="connection"){$("detail").close();library.kind="connectors";location.hash="connectors";await refreshLibrary();await openLibraryEditor();$("library-form").elements.name.value=row.name;const select=$("library-form").elements.connector_type;select.value=row.target;select.dispatchEvent(new Event("change",{bubbles:true}));return;}
+  if(row.mode==="tool"){
+    showDetail(row.name,`<p>${escapeHtml(row.description)}</p><p>${escapeHtml(row.setup)}</p>${row.tool_id?`<code>${escapeHtml(row.tool_id)}</code><div class="card-actions"><button data-tool="${escapeHtml(row.tool_id)}" ${row.configured?"":"disabled"}>Run tool</button></div>`:""}`);return;
+  }
+  if(row.mode==="sharing"){location.hash="sharing";$("detail").close();return;}
+  if(row.mode==="cli"){showDetail("Terminal chat",'<p>Use your existing Nexus account. Set your session through an environment reference when team login is enabled.</p><pre>nexus chat --url '+escapeHtml(location.origin)+' "Hello"\nnexus chat --url '+escapeHtml(location.origin)+' --session-env NEXUS_SESSION</pre><p>Continue with --session-id. Inspect an existing task with --run-id; this does not resubmit it.</p>');return;}
+  const html=inputField("name","Connection name",row.name)+(row.mode==="filesystem"?inputField("command","Installed filesystem MCP executable",""):'<p>Secrets stay in server-managed account credentials or environment references. This creates a disabled connection; discover and select tools before enabling them.</p>'+inputField("token_env","Credential environment reference",row.token_env||"SENDGRID_API_KEY"));
+  const form=await fieldsDialog(`Set up ${row.name}`,html,"Create disabled connection");if(!form)return;
+  await featureApi(`integrations/${id}/configure`,Object.fromEntries(form));location.hash="connectors";$("detail").close();await refreshLibrary();notify("Disabled connection created. Review configuration and permissions before enabling it.");
+}
+window.addEventListener("studio-ready",()=>{
+  for(const [id,target] of [["tools-integrations",$("view-tools").querySelector(".section-heading")],["library-integrations",$("library-create").parentElement]]){
+    if($(id))continue;const button=document.createElement("button");button.id=id;button.className="secondary";button.textContent="Integration catalog";target.append(button);
+  }
+});
+document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
+  if(["tools-integrations","library-integrations"].includes(button.id))await showIntegrationCatalog();
+  if(button.dataset.integrationSetup)await configureIntegration(button.dataset.integrationSetup);
+}catch(error){notify(error.message);}});
+
+const enterpriseTypes={bedrock:"Amazon Bedrock Agent","bedrock-kb":"Amazon Bedrock knowledge base","bedrock-flow":"Amazon Bedrock Flow",mongodb:"MongoDB",nuclia:"Nuclia",powerbi:"Power BI"};
+const enterpriseEditor=openLibraryEditor;
+openLibraryEditor=async function(id,template){
+  await enterpriseEditor(id,template);if(library.kind!=="connectors")return;
+  const data=library.editing?.data||{},select=$("library-form").elements.connector_type;
+  for(const [value,label] of Object.entries(enterpriseTypes)){const option=document.createElement("option");option.value=value;option.textContent=label;select.append(option);}
+  const fields=document.createElement("div");fields.className="enterprise-fields";
+  const field=(key,label,fallback="")=>inputField("enterprise_"+key,label,data[key]||fallback);
+  fields.innerHTML=`<fieldset data-enterprise="aws"><legend>Amazon Bedrock</legend>${field("region","AWS region","eu-west-1")}${field("resource_id","Agent, knowledge base or flow ID")}${field("alias_id","Agent or flow alias ID")}${field("access_key_env","AWS access-key environment reference","AWS_ACCESS_KEY_ID")}${field("secret_key_env","AWS secret-key environment reference","AWS_SECRET_ACCESS_KEY")}${field("session_token_env","AWS session-token reference (optional)")}${field("input_node","Flow input node","FlowInputNode")}${field("input_name","Flow output name","document")}<p>Knowledge retrieval is read-only. Agent and flow invocations require reviewed confirmation because they may run external actions.</p></fieldset><fieldset data-enterprise="mongodb"><legend>MongoDB</legend>${field("dsn_env","MongoDB URI environment reference")}${field("database","Database")}${inputField("enterprise_collections","Allowed collections (comma separated)",(data.collections||[]).join(", "))}<label><input name="enterprise_allow_writes" type="checkbox" ${data.allow_writes?"checked":""}>Allow reviewed single-document writes</label></fieldset><fieldset data-enterprise="nuclia"><legend>Nuclia knowledge</legend>${field("url","Nuclia service base URL")}${field("knowledge_box","Knowledge box ID")}<label><input type="checkbox" name="enterprise_private" ${data.allow_private?"checked":""}>Allow private Nuclia server</label></fieldset><fieldset data-enterprise="powerbi"><legend>Power BI</legend>${field("dataset_id","Dataset ID")}${field("workspace_id","Workspace ID (optional)")}<p>Read dataset metadata and execute DAX queries against this dataset.</p></fieldset><fieldset data-enterprise="account"><legend>Service account</legend>${field("token_env","Token environment reference")}</fieldset><fieldset data-enterprise="actions"><legend>Permissions</legend>${inputField("enterprise_actions","Enabled actions (comma separated)",(data.actions||[]).join(", "))}<p>Leave empty for the connector’s default actions. Credentials stay in Nexus account settings or server environment references. API billing belongs to the selected service account.</p></fieldset>`;
+  $("library-fields").append(fields);
+  function sync(){const type=select.value;fields.querySelectorAll("[data-enterprise]").forEach(box=>{const key=box.dataset.enterprise;box.hidden=!(key===type||key==="aws"&&type.startsWith("bedrock")||key==="account"&&["nuclia","powerbi"].includes(type)||key==="actions"&&Object.hasOwn(enterpriseTypes,type));});
+    ["alias_id","input_node","input_name"].forEach(key=>{const show=key==="alias_id"?["bedrock","bedrock-flow"].includes(type):type==="bedrock-flow";fields.querySelector(`[name="enterprise_${key}"]`).closest("label").hidden=!show;});}
+  select.addEventListener("change",sync);if(Object.hasOwn(enterpriseTypes,data.type)){select.value=data.type;select.dispatchEvent(new Event("change",{bubbles:true}));}sync();
+};
+const enterpriseFormData=operationFormData;
+operationFormData=function(form){
+  const type=form.get("connector_type");if(library.kind!=="connectors"||!Object.hasOwn(enterpriseTypes,type))return enterpriseFormData(form);
+  const data={type,enabled:form.has("enabled")},read=key=>String(form.get("enterprise_"+key)||"").trim();
+  const keys=type.startsWith("bedrock")?["region","resource_id","access_key_env","secret_key_env","session_token_env",...(type!=="bedrock-kb"?["alias_id"]:[]),...(type==="bedrock-flow"?["input_node","input_name"]:[])]:type==="mongodb"?["dsn_env","database"]:type==="nuclia"?["url","knowledge_box","token_env"]:["dataset_id","workspace_id","token_env"];
+  keys.forEach(key=>data[key]=read(key));
+  if(type==="mongodb"){data.collections=read("collections").split(",").map(v=>v.trim()).filter(Boolean);data.allow_writes=form.has("enterprise_allow_writes");}
+  if(type==="nuclia")data.allow_private=form.has("enterprise_private");
+  if(read("actions"))data.actions=read("actions").split(",").map(v=>v.trim()).filter(Boolean);return data;
+};
+
+let promptSuggestionCache=[];
+async function refreshPromptSuggestions(){promptSuggestionCache=(await api('/api/catalog/prompts')).items.filter(p=>!p.archived);}
+function attachPromptSuggestions(input){
+  if(!input||input.dataset.promptSuggestions)return;input.dataset.promptSuggestions='true';
+  const list=document.createElement('div');list.className='prompt-suggestions';list.id=input.id+'-suggestions';list.setAttribute('role','listbox');list.setAttribute('aria-label','Saved prompts');list.hidden=true;input.after(list);input.setAttribute('aria-controls',list.id);input.setAttribute('aria-autocomplete','list');let choices=[],active=0,match;
+  function close(){list.hidden=true;input.setAttribute('aria-expanded','false');}
+  function insert(index){const prompt=choices[index];if(!prompt||!match)return;const end=input.selectionStart,start=end-match[1].length-1;input.setRangeText('/'+(prompt.data.shortcut||prompt.id)+' ',start,end,'end');close();input.focus();}
+  function render(){list.replaceChildren();choices.forEach((p,index)=>{const button=document.createElement('button');button.type='button';button.setAttribute('role','option');button.setAttribute('aria-selected',String(index===active));button.textContent=`/${p.data.shortcut||p.id} · ${p.name}`;button.addEventListener('click',()=>insert(index));list.append(button);});list.hidden=!choices.length;input.setAttribute('aria-expanded',String(!!choices.length));}
+  input.addEventListener('input',()=>{match=input.value.slice(0,input.selectionStart).match(/(?:^|\s)\/([\w-]*)$/);if(!match){close();return;}const query=match[1].toLowerCase();choices=promptSuggestionCache.filter(p=>[p.id,p.name,p.data.shortcut||'',...(p.data.tags||[])].some(v=>v.toLowerCase().includes(query))).slice(0,8);active=0;render();});
+  input.addEventListener('keydown',event=>{if(list.hidden||event.shiftKey)return;if(['ArrowDown','ArrowUp','Enter','Escape'].includes(event.key)){event.preventDefault();event.stopImmediatePropagation();if(event.key==='Escape')close();else if(event.key==='Enter')insert(active);else{active=(active+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length;render();}}},true);
+  input.addEventListener('blur',()=>setTimeout(()=>{if(!list.contains(document.activeElement))close();},150));
+}
+window.addEventListener('studio-ready',()=>{
+  refreshPromptSuggestions().catch(error=>notify(error.message));['chat-task','builder-task'].forEach(id=>attachPromptSuggestions($(id)));
+  if($('mobile-chat-options'))return;
+  const controls=$('chat-project').closest('.chat-controls'),actions=document.createElement('div');actions.className='chat-extra-actions';
+  const button=document.createElement('button');button.id='mobile-chat-options';button.type='button';button.className='secondary mobile-chat-options';button.textContent='Options';button.setAttribute('aria-expanded','false');button.onclick=()=>{const expanded=controls.classList.toggle('options-expanded');button.setAttribute('aria-expanded',String(expanded));};
+  actions.append(button);['share-conversation','record-voice'].forEach(id=>{if($(id))actions.append($(id));});controls.append(actions);
+  controls.querySelectorAll('label').forEach(label=>{if(!label.contains($('chat-project'))&&!label.contains($('chat-agent')))label.classList.add('chat-advanced-setting');});
+});
+window.addEventListener('studio-resource-saved',event=>{if(event.detail.kind==='prompts')refreshPromptSuggestions().catch(error=>notify(error.message));});
+
+const calendarEditor=openLibraryEditor;
+openLibraryEditor=async function(id,template){
+  await calendarEditor(id,template);if(library.kind!=="schedules")return;
+  const form=$('library-form'),cron=form.elements.cron;
+  const sync=()=>{if(form.elements.run_at)form.elements.run_at.required=!cron.value.trim();};cron.addEventListener('input',sync);sync();
+};
+
+const baseConnectionFieldVisibility=updateConnectionFields;
+updateConnectionFields=function(){
+  baseConnectionFieldVisibility();const form=$('library-form'),type=form.elements.connector_type?.value;if(!type)return;
+  const privateField=form.elements.allow_private?.closest('label');if(privateField)privateField.hidden=!["http","openapi"].includes(type)&&!(type==="mcp"&&form.elements.mcp_transport?.value!=="stdio");
+  const notes=$('library-fields').querySelectorAll(':scope > p.callout');
+  if(notes[0])notes[0].hidden=["sql","openapi",...Object.keys(enterpriseTypes)].includes(type);
+  if(notes[1])notes[1].hidden=!["http","sqlite"].includes(type);
+};
+document.addEventListener('change',event=>{if(event.target.name==='mcp_transport')updateConnectionFields();});
+
+function interopDiagnostics(report){return `<p role="alert">Resolve these settings before continuing. Nothing was saved.</p><ul>${report.diagnostics.map(item=>`<li><code>${escapeHtml(item.path)}</code>: ${escapeHtml(item.message)}</li>`).join("")}</ul>`;}
+async function importSAMConfiguration(draft={}){
+  const form=await fieldsDialog("Import external agents and workflows",`<p>Paste external YAML, JSON or an exported bundle. Conversion runs locally and checks every field before review.</p><label>External configuration<textarea name="source" rows="10" maxlength="1048576" required>${escapeHtml(draft.source||"")}</textarea></label><label>Provider<select name="provider"><option value="">Use mappings included in the bundle</option>${state.providers.map(p=>`<option value="${escapeHtml(p.id)}" ${draft.provider===p.id?"selected":""}>${escapeHtml(p.name)} · ${p.kind==="cli"?"local CLI account":"API billing"}</option>`).join("")}</select></label><label>External model alias<input name="alias" value="${escapeHtml(draft.alias||"general")}" maxlength="200"></label><label>External agent name (runtime YAML only)<input name="agent" value="${escapeHtml(draft.agent||"")}" maxlength="200"></label><details><summary>Tool mappings</summary><p>Map external builtin tool names to registered Nexus tool IDs. Remote connections need separate setup.</p><label>Tool mappings (JSON)<textarea name="tools" rows="3">${escapeHtml(draft.tools||"{}")}</textarea></label></details><details><summary>Decision model mappings</summary><p>Bind each external decision alias to a Nexus decision backend and an explicit model. Uses server-managed credentials; decision calls use API billing.</p><label>Decision model mappings (JSON)<textarea name="decisions" rows="3" maxlength="65536" placeholder='{"triage":{"backend":"openrouter","model":"your-selected-model"}}'>${escapeHtml(draft.decisions||"{}")}</textarea></label></details><details><summary>Resource mappings</summary><p>Bind existing model profiles, skills, toolsets and MCP connections. Conversion never reads skill paths or launches servers.</p><label>Resource mappings (JSON)<textarea name="resources" rows="4" maxlength="65536" placeholder='{"skills":{"source-name":"saved-skill"},"toolsets":{"group-name":"saved-toolset"}}'>${escapeHtml(draft.resources||"{}")}</textarea></label></details><p>Import does not sign in, call a provider, run tools or activate resources. API execution can incur charges after you run a task.</p>`,"Check configuration");
+  if(!form)return;
+  const edit=()=>{$("detail").close();importSAMConfiguration(Object.fromEntries(form)).catch(error=>notify(error.message));};
+  const payload={text:form.get("source")};let tools,decisions,resources;
+  try{tools=JSON.parse(form.get("tools"));if(!tools||typeof tools!=="object"||Array.isArray(tools))throw new Error();}
+  catch(error){showDetail("Tool mappings need changes",'<p role="alert">Use a JSON object mapping each external tool name to a Nexus tool ID.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
+  try{decisions=JSON.parse(form.get("decisions"));if(!decisions||typeof decisions!=="object"||Array.isArray(decisions))throw new Error();}
+  catch(error){showDetail("Decision model mappings need changes",'<p role="alert">Use a JSON object mapping each external decision alias to its backend and model. Do not enter credentials here.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
+  try{resources=JSON.parse(form.get("resources")||"{}");if(!resources||typeof resources!=="object"||Array.isArray(resources)||Object.keys(resources).some(key=>!["models","agents","skills","toolsets","connectors"].includes(key)))throw new Error();}
+  catch(error){showDetail("Resource mappings need changes",'<p role="alert">Use an object containing explicit model, agent, skill, toolset or connector mappings. Keep credentials in server settings.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
+  if(form.get("provider")||Object.keys(tools).length||Object.keys(decisions).length||Object.keys(resources).length){
+    payload.bindings={...resources,tools};
+    if(Object.keys(decisions).length)payload.bindings.decisions=decisions;
+    if(form.get("provider")){
+      payload.bindings.models={...(resources.models||{}),[form.get("alias")]:{provider:form.get("provider")}};
+      if(form.get("agent"))payload.bindings.agents={...(resources.agents||{}),[form.get("agent")]:{provider:form.get("provider")}};
+    }
+  }
+  const report=await featureApi("configuration/interop/convert",payload);
+  if(!report.valid){showDetail("External conversion needs changes",interopDiagnostics(report)+'<button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
+  showDetail("Review external conversion",`<p>${report.document.definitions.length} agents/workflows passed conversion. Review before saving.</p><ul>${report.document.definitions.map(item=>`<li>${escapeHtml(item.document.metadata.name)} · ${item.collection==="agents"?escapeHtml(providerName(item.document.spec.provider)):"workflow"}</li>`).join("")}</ul><details><summary>Converted configuration</summary><pre>${escapeHtml(JSON.stringify(report.document,null,2))}</pre></details><button id="interop-plan">Review changes</button>`);
+  $("interop-plan").onclick=async()=>{try{const plan=await featureApi("configuration/plan",{document:report.document});showDetail("Save reviewed external configuration",`<p>These local definitions will be saved. This action does not execute or deploy them.</p><ul>${plan.changes.map(item=>`<li>${escapeHtml(item.action)} · ${escapeHtml(item.resource)}</li>`).join("")}</ul><details><summary>Reviewed configuration</summary><pre>${escapeHtml(JSON.stringify(plan.document,null,2))}</pre></details><button id="interop-apply">Save reviewed configuration</button>`);$("interop-apply").onclick=async()=>{const button=$("interop-apply");button.disabled=true;try{await featureApi("configuration/apply",{plan_id:plan.id,digest:plan.digest});$("detail").close();await refreshDefinitions();notify("Agents and workflows saved. Review provider setup before running them.");}catch(error){notify(error.message);}finally{button.disabled=false;}};}catch(error){notify(error.message);}};
+}
+async function exportSAMConfiguration(){
+  const document={format:"nexus-studio-config/v1",definitions:[...state.agents.map(item=>["agents",item]),...state.workflows.map(item=>["workflows",item])].filter(([,item])=>item.document).map(([collection,item])=>({collection,id:item.id,document:item.document})),resources:[]};
+  const report=await featureApi("configuration/interop/export",{document});
+  if(!report.valid){showDetail("External export needs changes",interopDiagnostics(report));return;}
+  showDetail("External agents and workflows export",`<p>The bundle contains external resource documents plus explicit Nexus provider/tool mappings. Review before downloading. Other workspace resources use native export.</p><pre>${escapeHtml(JSON.stringify(report.bundle,null,2))}</pre><button id="interop-download">Download external bundle</button>`);$("interop-download").onclick=()=>downloadJson("interop-agents-workflows.json",report.bundle);
+}
+document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{if(button.id==="import-interop")await importSAMConfiguration();if(button.id==="export-interop")await exportSAMConfiguration();}catch(error){notify(error.message);}});
+
+function openAPIHealthOptions(spec,selected){
+ const enabled=new Set(selected),result=[];
+ for(const [path,entry] of Object.entries(spec.paths||{})){
+  if(!entry||typeof entry!=="object")continue;
+  for(const method of ["get","head","options"]){
+   const operation=entry[method];if(!operation||typeof operation!=="object")continue;
+   const id=operation.operationId||`${method}:${path}`;
+   const parameters=[...(entry.parameters||[]),...(operation.parameters||[])];
+   if(enabled.has(id)&&!operation.requestBody&&!parameters.some(p=>p.required||p.in==="path"))result.push({id,label:`${method.toUpperCase()} ${path}`});
+  }
+ }
+ return result;
+}

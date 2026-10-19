@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: Nexus workflow cancellation and cleanup
+  version: 1.1.0
+  description: Existing owner-scoped cancellation/approval operations. Explicit cancellation runs saved external always/on_cancel handlers, deepest entered workflow first. Stop requests do not undo external effects. Cleanup retains ordinary approval/input gates and never replays acknowledged effects. Shared handler templates have separate phase checkpoints. Approved continuations wait for the current file/SQL attempt to finish; the SQL handoff retains its worker fence. Shutdown/lease expiry leaves unacknowledged handoffs interrupted for explicit recovery, never automatic replay.
+security:
+  - StudioToken: []
+paths:
+  /api/studio/runs/{id}/cancel:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      description: Running cancellation remains nonterminal until cleanup finishes or pauses. Never-started queued tasks have no cleanup. Repeated requests during cleanup are idempotent; stopping paused cleanup skips its current handler with a warning and continues remaining handlers. Calling this operation on interrupted pending cleanup explicitly continues saved cleanup only; uncertain tools fail without replay and become warnings.
+      responses:
+        '202':
+          description: Current run; inspect status and cleanup_status. Pending cleanup is queued/running/waiting, completed cleanup is cancelled. Shutdown exposes interrupted cleanup. workflow_warnings retain failed/rejected/uncertain handlers. Awaiting input/approval belongs only to the active cleanup handler after cancellation.
+        '400': {description: Already terminal or invalid request}
+        '401': {description: Shared mode requires an existing Nexus session}
+        '403': {description: Existing ownership/project/role authorization denied}
+  /api/runs/{id}/resume:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      description: Approve continues only saved pending gates. Rejecting ordinary body approval requests cancellation; rejecting cleanup approval skips that handler with a visible warning. All operations retain existing authorization and original requester credentials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties: {decision: {type: string, enum: [approve, reject]}}
+      responses:
+        '202': {description: Current queued/running/waiting/cancelled run}
+        '400': {description: Not waiting for approval}
+        '401': {description: Shared mode requires an existing Nexus session}
+        '403': {description: Authorization denied}
+components:
+  securitySchemes:
+    StudioToken:
+      type: apiKey
+      in: header
+      name: X-Nexus-Studio-Token
+      description: Existing local token or per-session shared token; shared mode also requires the existing Nexus session cookie. Mutation Origin must match the configured Studio origin.

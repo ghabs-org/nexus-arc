@@ -256,6 +256,10 @@ class OpenClawNotificationChannel(NotificationChannel):
     async def send_message(self, user_id: str, message: Message) -> str:
         emoji = _SEVERITY_EMOJI.get(message.severity, "ℹ️")
         text = f"{emoji} **[Nexus]** {message.text}"
+        if message.buttons:
+            # Hooks deliver text rather than platform-native callback components.
+            # An incoming Studio bridge may return the opaque callback value.
+            text += "\n" + "\n".join(f"{button.label}: {button.callback_data}" for button in message.buttons)
         payload = self._build_payload(text, target_user=user_id or self._sender_id, session_key=False)
         ok = await self._post(payload)
         if not ok:

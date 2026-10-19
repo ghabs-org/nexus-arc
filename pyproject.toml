@@ -36,6 +36,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+studio-grpc = ["a2a-sdk[grpc]==1.1.5"]
+studio-research = ["yfinance>=0.2.65,<2"]
+studio-enterprise = ["boto3>=1.35", "pymongo>=4.9,<5"]
+studio-connectors = ["sqlalchemy>=2.0", "psycopg2-binary>=2.9", "pymysql>=1.1", "pymssql>=2.3", "oracledb>=2.0", "jsonschema>=4.22", "referencing>=0.35"]
+documents = ["pypdf>=5.0"]
 telegram = [
     "python-telegram-bot>=21.0.0",
 ]
@@ -131,6 +136,7 @@ all = [
     "nexus-arc[telegram,slack,discord,postgres,redis,openai,anthropic,hotreload,nexus-bot,s3,mcp,mqtt,kafka,gcs,azure]",
 ]
 dev = [
+    "aiohttp>=3.9",
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "pytest-cov>=4.0",
@@ -157,6 +163,9 @@ nexus-arc-bridge = "nexus.command_bridge_service:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["nexus*"]
+
+[tool.setuptools.package-data]
+nexus = ["studio_static/*.html", "studio_static/*.css", "studio_static/*.js", "studio_static/*.webmanifest", "studio_static/*.png", "studio_static/vendor/*.js", "studio_static/vendor/*.txt", "studio_static/vendor/*.json", "studio_static/vendor/**/*.mjs"]
 
 [tool.black]
 line-length = 100

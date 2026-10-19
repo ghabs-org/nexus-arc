@@ -585,17 +585,11 @@ def create_command_bridge_app(
                 return _json_response(start_response, status, result)
 
             if method == "GET" and path == "/chat":
-                from nexus.core.command_bridge.chat_handler import CHAT_PAGE
-
-                body = CHAT_PAGE.encode("utf-8")
-                start_response(
-                    "200 OK",
-                    [
-                        ("Content-Type", "text/html; charset=utf-8"),
-                        ("Content-Length", str(len(body))),
-                    ],
+                return _json_response(
+                    start_response,
+                    404,
+                    {"error": "The chat page moved to Nexus Studio: run `nexus studio`", "error_code": "moved"},
                 )
-                return [body]
 
             if method == "GET" and path == "/api/v1/platform/inventory":
                 from nexus.core.command_bridge.platform_handler import (

@@ -1,0 +1,5 @@
+simulation: studio-decisions
+routing: path
+mocks:
+  - routeKey: decisions
+    path: ../mocks/studio-decisions/config.yaml

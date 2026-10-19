@@ -1,0 +1,12 @@
+# Supply a reviewed Node image digest and exact official CLI versions.
+ARG NODE_IMAGE
+FROM ${NODE_IMAGE}
+ARG CODEX_VERSION
+ARG CLAUDE_CODE_VERSION
+RUN test -n "$CODEX_VERSION" && test -n "$CLAUDE_CODE_VERSION" \
+    && npm install --global "@openai/codex@${CODEX_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && npm cache clean --force
+ENV DISABLE_AUTOUPDATER=1
+WORKDIR /workspace
+# Studio supplies the numeric service UID and per-user mounts at invocation.
+CMD ["codex", "--version"]

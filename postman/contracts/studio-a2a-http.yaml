@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: Nexus A2A HTTP+JSON task binding
+  version: 1.0.0
+  description: A2A 1.0 HTTP+JSON binding over the existing task service. Base URL is /api/a2a/{entrypoint}/rest. JSON-RPC 0.3/1.0 paths remain unchanged. Same bearer creator identity, workspace ownership, deduplication, continuation, cancellation and polling records serve both bindings. Optional gRPC is advertised only for an explicitly running listener; push delivery is not offered. Canonical source https://a2a-protocol.org/latest/specification/ sections 5.4 and 11, inspected 2026-10-19.
+servers:
+  - url: /api/a2a/{entrypoint}/rest
+    variables:
+      entrypoint: {default: configured-entrypoint}
+security:
+  - bearer: []
+paths:
+  /message:send:
+    post:
+      description: Accept SendMessageRequest directly, no JSON-RPC envelope. Stable messageId deduplicates across both bindings. Existing owner-approved gates cannot be approved by bearer continuation.
+      responses:
+        '200': {description: SendMessageResponse containing task}
+        '400': {description: Invalid argument, unsupported mode/version or disabled push request}
+        '403': {description: Entrypoint or creator execution access denied}
+  /message:stream:
+    post:
+      responses:
+        '200': {description: SSE StreamResponse objects without JSON-RPC envelopes; reconnect by task ID, never resubmit}
+  /tasks:
+    get:
+      description: CamelCase filters contextId/status/pageSize/pageToken. Query values must occur once; bounded pageSize and historyLength parse as decimal integers.
+      responses:
+        '200': {description: Scoped ListTasksResponse}
+  /tasks/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      responses:
+        '200': {description: Existing scoped Task; optional historyLength}
+        '404': {description: TASK_NOT_FOUND, including tasks from another entrypoint}
+  /tasks/{id}:cancel:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      description: Path ID cannot be replaced by a body ID. Reports actual task state; request does not promise effects were undone. Terminal tasks return TASK_NOT_CANCELABLE.
+      responses:
+        '200': {description: Current Task after cancellation request}
+        '400': {description: TASK_NOT_CANCELABLE or INVALID_ARGUMENT}
+  /tasks/{id}:subscribe:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      responses:
+        '200': {description: SSE StreamResponse objects; permission rechecked during delivery}
+        '400': {description: UNSUPPORTED_OPERATION for terminal/paused tasks}
+  /extendedAgentCard:
+    get:
+      responses:
+        '200': {description: Authenticated card advertises JSONRPC/HTTP+JSON and an optional currently running gRPC listener}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer}
+  schemas:
+    Error:
+      type: object
+      description: HTTP status and error.code agree. status/message/details use google.rpc.Status JSON; A2A-specific failures include google.rpc.ErrorInfo reason and a2a-protocol.org domain. No private exception or credential text.
+      properties:
+        error:
+          type: object
+          properties:
+            code: {type: integer}
+            status: {type: string}
+            message: {type: string}
+            details: {type: array, items: {type: object}}

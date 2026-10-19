@@ -1,0 +1,10 @@
+apiVersion: nexus-arc/v1
+kind: Agent
+metadata:
+  name: Reviewer
+spec:
+  agent_type: reviewer
+  provider: codex
+  purpose: Review legacy evidence.
+  timeout_seconds: 60
+  max_retries: 0

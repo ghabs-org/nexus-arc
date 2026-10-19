@@ -62,6 +62,20 @@ class GitHubPlatform(GitPlatform):
         data = await self._post(f"repos/{self.repo}/issues", payload)
         return self._to_issue(data)
 
+    async def list_pull_requests(self, state: str = "open", limit: int = 30) -> list[PullRequest]:
+        if state not in {"open", "closed", "all"} or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Choose open/closed/all and a limit from 1 to 100")
+        return [self._to_pr(item) for item in await self._get(f"repos/{self.repo}/pulls?state={state}&per_page={limit}")]
+
+    async def get_pull_request(self, pr_id: str) -> PullRequest:
+        return self._to_pr(await self._get(f"repos/{self.repo}/pulls/{int(pr_id)}"))
+
+    async def create_pull_request(self, title: str, body: str, head: str, base: str = "main", draft: bool = True) -> PullRequest:
+        return self._to_pr(await self._post(f"repos/{self.repo}/pulls", {"title": title, "body": body, "head": head, "base": base, "draft": draft}))
+
+    async def add_pull_request_comment(self, pr_id: str, body: str) -> Comment:
+        return await self.add_comment(str(int(pr_id)), body)
+
     async def get_issue(self, issue_id: str) -> Issue | None:
         try:
             data = await self._get(f"repos/{self.repo}/issues/{issue_id}")
@@ -382,7 +396,7 @@ class GitHubPlatform(GitPlatform):
                 return json.loads(body)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode(errors="replace")
-            setattr(exc, "_nexus_body", body)
+            exc._nexus_body = body
             normalized_method = str(method or "").strip().upper()
             normalized_path = str(path or "").strip().lstrip("/")
             is_label_exists = (

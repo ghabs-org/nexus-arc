@@ -1377,11 +1377,14 @@ class TestCodexCLIProvider:
             "--skip-git-repo-check",
             "--model",
             "gpt-5-codex",
-            "Implement feature X",
+            "-",
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd="/tmp",
         )
+
+        mock_proc.communicate.assert_awaited_once_with(b"Implement feature X")
 
     def test_execute_agent_timeout(self):
         from nexus.adapters.ai.base import ExecutionContext
@@ -1413,7 +1416,7 @@ class TestCodexCLIProvider:
         assert result.success is False
         assert "Timeout" in (result.error or "")
 
-    def test_execute_agent_cleans_empty_codex_rollout_files(self, tmp_path, monkeypatch):
+    def test_execute_agent_preserves_codex_owned_rollout_files(self, tmp_path, monkeypatch):
         from nexus.adapters.ai.base import ExecutionContext
         from nexus.adapters.ai.codex_provider import CodexCLIProvider
 
@@ -1445,7 +1448,8 @@ class TestCodexCLIProvider:
 
         assert result.success is True
         assert non_empty_rollout.exists()
-        assert not empty_rollout.exists()
+        assert empty_rollout.exists()
+        assert non_empty_rollout.read_text(encoding="utf-8") == '{"ok":true}\n'
 
 
 # ---------------------------------------------------------------------------
@@ -1556,12 +1560,16 @@ class TestDiscordNotificationChannel:
         from nexus.core.models import Severity
 
         channel = self._make_channel()
-        btns = [Button(label="Approve", callback_data="approve", url="https://example.com")]
+        btns = [
+            Button(label="Open", callback_data="open", url="https://example.com"),
+            Button(label="Approve", callback_data="nexus:approval-token"),
+        ]
         msg = Message(text="Approve?", severity=Severity.WARNING, buttons=btns)
         payload = channel._build_payload(msg)
-        assert "content" in payload
-        assert "Approve" in payload["content"]
-        assert "https://example.com" in payload["content"]
+        assert payload["components"] == [{"type": 1, "components": [
+            {"type": 2, "style": 5, "label": "Open", "url": "https://example.com"},
+            {"type": 2, "style": 1, "label": "Approve", "custom_id": "nexus:approval-token"},
+        ]}]
 
     async def test_send_message_uses_webhook(self):
         channel = self._make_channel()

@@ -1,0 +1,10 @@
+"use strict";
+(async()=>{const parts=location.hash.slice(1).split("/");const status=document.getElementById("shared-status");try{
+  if(parts.length!==2||!["private","public"].includes(parts[0]))throw new Error("Invalid snapshot link");
+  const endpoint=parts[0]==="public"?"/api/public-shares/":"/api/studio/shares/";
+  const response=await fetch(endpoint+encodeURIComponent(parts[1]),{credentials:parts[0]==="private"?"same-origin":"omit",cache:"no-store"});
+  if(response.status===401){status.textContent="Sign in to Nexus, then reopen this private snapshot.";return;}
+  if(!response.ok)throw new Error("Snapshot unavailable, expired or revoked");
+  const share=await response.json();document.getElementById("shared-title").textContent=share.title;status.textContent="Read-only snapshot · expires "+new Date(share.expires_at).toLocaleString();
+  const root=document.getElementById("shared-messages");for(const artifact of share.artifacts||[]){const button=document.createElement("button");button.className="secondary";button.textContent="Download "+artifact.filename;button.onclick=async()=>{try{const response=await fetch(endpoint+encodeURIComponent(parts[1])+"/artifacts/"+encodeURIComponent(artifact.id),{credentials:parts[0]==="private"?"same-origin":"omit",cache:"no-store"});if(!response.ok)throw new Error("File unavailable; snapshot may have been revoked");const file=await response.json(),bytes=Uint8Array.from(atob(file.content_base64),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:"application/octet-stream"})),a=document.createElement("a");a.href=url;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){status.textContent=error.message;}};root.append(button);}for(const message of share.messages){const article=document.createElement("article"),heading=document.createElement("h2"),body=document.createElement("div");heading.textContent=message.role==="user"?"User":"Assistant";renderContent(body,message.content);article.append(heading,body);root.append(article);}
+}catch(error){status.textContent=error.message;}})();

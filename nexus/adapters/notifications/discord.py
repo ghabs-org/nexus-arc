@@ -273,15 +273,11 @@ class DiscordNotificationChannel(NotificationChannel):
             ]
         }
         if message.buttons:
-            # Discord components require an application command context;
-            # fall back to including button labels as plain text links.
-            links = []
-            for btn in message.buttons:
-                if btn.url:
-                    links.append(f"[{btn.label}]({btn.url})")
-                else:
-                    links.append(f"`{btn.label}`")
-            payload["content"] = " | ".join(links)
+            payload["components"] = [{"type": 1, "components": [
+                {"type": 2, "style": 5 if btn.url else 1, "label": btn.label,
+                 **({"url": btn.url} if btn.url else {"custom_id": btn.callback_data})}
+                for btn in message.buttons[:5]
+            ]}]
         return payload
 
     # ------------------------------------------------------------------

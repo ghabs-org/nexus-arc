@@ -1,0 +1,100 @@
+openapi: 3.0.3
+info:
+  title: Nexus reviewed build lifecycle
+  version: 1.2.0
+  description: Additive owner-scoped build review, dependency/health inspection, activation and rollback. Plans pin the build revision and current workspace contents. No credential resolution values, probes or external effects during review.
+paths:
+  /api/builds/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      description: Existing account-scoped build record. proposal.workflow remains primary test target; optional proposal.workflows holds additional named definitions. Reopen, review, save and rollback retain the complete bundle and advanced agent settings.
+      responses:
+        '200': {description: Owned build with revision, proposal, saved/draft state and release identity where saved}
+        '403': {description: Existing account ownership denied}
+  /api/studio/builds/{id}/health:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      description: Explicit owner-triggered read-only connectivity check. Supports managed SQLite, SQL schema, MCP discovery and explicitly configured OpenAPI health operations. OpenAPI health_operation must select an enabled GET, HEAD or OPTIONS operation with no required parameters or request body; existing read permission and original-owner credentials apply. No automatic endpoint choice, tool invocation, generation, enablement or installation. Results contain no response bodies or exception messages. Browsing never probes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision, release_id, component]
+              properties:
+                revision: {type: integer}
+                release_id: {type: string}
+                component: {type: string}
+      responses:
+        '200': {description: Versioned result pinned to release and component revision; status passed, failed or stale. Setup/access prerequisites are rechecked.}
+        '400': {description: Stale build/release, unsupported component or missing prerequisite; no probe performed}
+        '403': {description: Workspace owner authorization or original build owner execution access denied}
+  /api/studio/builds/{id}/review:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: {type: integer}
+                proposal:
+                  type: object
+                  description: Existing proposal plus optional workflows array (up to twelve additional named child workflows). workflow remains the optional primary test target. All local workflow references are resolved within the complete prospective release before saving. Duplicate IDs, cycles and missing dependencies reject the whole proposal; legacy proposals remain readable.
+                  properties:
+                    workflow: {type: object, nullable: true}
+                    workflows: {type: array, maxItems: 12, items: {type: object}}
+      responses:
+        '200': {description: Saved non-executing review of the exact draft with digest, changed paths and dependencies. Apply through the existing build apply route with review_id and digest. Reviewed saves remain inactive until explicitly activated.}
+        '400': {description: Invalid proposal or stale draft revision}
+        '403': {description: Existing account ownership or role denied}
+  /api/studio/builds/{id}/lifecycle:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      responses:
+        '200': {description: Components, dependencies, readiness, local drift and separately reported live health}
+        '403': {description: Existing account ownership or role denied}
+  /api/studio/builds/{id}/plan:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision, action]
+              properties:
+                revision: {type: integer}
+                action: {type: string, enum: [activate, deactivate, rollback]}
+                enable: {type: array, items: {type: string}}
+                release: {type: string}
+      responses:
+        '200': {description: Saved review plan with digest, exact changes, dependencies and readiness errors; unavailable resources are not silently enabled}
+        '400': {description: Stale build revision or unsupported operation}
+        '403': {description: Existing account ownership or role denied}
+  /api/studio/builds/{id}/transition:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_id, digest]
+              properties: {plan_id: {type: string}, digest: {type: string}}
+      responses:
+        '200': {description: Exact reviewed transition committed; safe repeat returns the existing result}
+        '400': {description: Drift, failed complete preflight or unavailable dependency; nothing partially activated}
+        '403': {description: Wrong account, plan or authorization}

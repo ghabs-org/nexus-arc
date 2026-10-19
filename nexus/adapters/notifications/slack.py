@@ -187,6 +187,7 @@ class SlackNotificationChannel(NotificationChannel):
                     "type": "button",
                     "text": {"type": "plain_text", "text": btn.label},
                     "action_id": btn.callback_data,
+                    "value": btn.callback_data,
                 }
                 if btn.url:
                     element["url"] = btn.url

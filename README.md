@@ -87,6 +87,18 @@ Nexus ARC is where Jarvis gets safe, reusable access to authenticated systems.
 
 ## Quick Start
 
+### Local agent workspace
+
+```sh
+nexus studio --dir ./my-workspace
+```
+
+Open `http://127.0.0.1:5003` for conversations, saved agents, sequential workflows,
+tools, and activity history. Select Codex or Claude Code to use the installed
+official CLI and its local account configuration, or choose an API provider.
+Provider usage limits and billing configuration still apply.
+See the [Studio guide](docs/STUDIO.md) for setup and execution boundaries.
+
 ### Installation
 
 ```bash

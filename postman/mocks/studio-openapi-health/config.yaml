@@ -1,0 +1,10 @@
+version: 1
+name: Nexus selected OpenAPI health operation fixture
+slug: studio-openapi-health
+protocol: http
+port: 49645
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

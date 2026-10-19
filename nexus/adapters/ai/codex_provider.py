@@ -76,23 +76,24 @@ class CodexCLIProvider(AIProvider):
         start = time.time()
         workspace = Path(context.workspace)
         workspace.mkdir(parents=True, exist_ok=True)
-        self._cleanup_empty_rollout_files()
-
         cmd = [self._binary, "exec", "--skip-git-repo-check"]
-        if self._model:
-            cmd.extend(["--model", self._model])
+        model = context.model_override or self._model
+        if model:
+            cmd.extend(["--model", model])
         cmd.extend(self._extra_args)
-        cmd.append(context.prompt)
+        cmd.append("-")
 
+        process = None
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(workspace),
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(context.prompt.encode()),
                 timeout=context.timeout or self._timeout,
             )
             elapsed = time.time() - start
@@ -126,6 +127,10 @@ class CodexCLIProvider(AIProvider):
                 execution_time=time.time() - start,
                 provider_used=self.name,
             )
+        finally:
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
 
     def _cleanup_empty_rollout_files(self) -> int:
         """Best-effort cleanup for zero-byte Codex rollout files."""

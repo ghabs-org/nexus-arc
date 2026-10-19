@@ -54,11 +54,13 @@ class LLMSubAgent(BaseAgent):
         ai_provider: Any,
         workspace_path: str = "/tmp",
         model_override: str | None = None,
+        instructions: str = "",
     ) -> None:
         super().__init__(name=name, description=description)
         self.ai_provider = ai_provider
         self.workspace_path = workspace_path
         self.model_override = model_override
+        self.instructions = instructions
 
     async def run(self, context: AgentContext) -> AgentOutput:
         from pathlib import Path
@@ -69,6 +71,8 @@ class LLMSubAgent(BaseAgent):
         prompt = context.task
         if prior:
             prompt = f"Previous context:\n{prior}\n\nYour task:\n{context.task}"
+        if self.instructions:
+            prompt = f"{self.instructions}\n\n{prompt}"
 
         # Prefer model injected by Coordinator via context metadata over the instance default.
         model_override = context.metadata.get("_router_model") or self.model_override

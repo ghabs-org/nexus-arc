@@ -1,0 +1,5 @@
+simulation: studio-knowledge
+routing: path
+mocks:
+  - routeKey: embeddings
+    path: ../mocks/studio-embeddings/config.yaml

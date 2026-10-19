@@ -113,6 +113,21 @@ class OpenAIProvider(AIProvider):
         if context.issue_url:
             messages[1]["content"] = f"{context.prompt}\n\nIssue: {context.issue_url}"
 
+        attachments = (context.metadata or {}).get("attachments", [])
+        if attachments:
+            parts = [{"type": "text", "text": messages[1]["content"]}]
+            for attachment in attachments:
+                encoded = f"data:{attachment['media_type']};base64,{attachment['data']}"
+                if attachment["media_type"] == "application/pdf":
+                    parts.append(
+                        {
+                            "type": "file",
+                            "file": {"filename": attachment["filename"], "file_data": encoded},
+                        }
+                    )
+                else:
+                    parts.append({"type": "image_url", "image_url": {"url": encoded}})
+            messages[1]["content"] = parts
         try:
             create_kwargs: dict = {
                 "model": model,

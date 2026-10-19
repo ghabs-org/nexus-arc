@@ -29,13 +29,22 @@ from nexus.core.models import (
 )
 from nexus.core.orchestrator import AIOrchestrator
 from nexus.core.workflow import WorkflowDefinition, WorkflowEngine
-from nexus.plugins import (
-    PluginKind,
-    PluginNotFoundError,
-    PluginRegistrationError,
-    PluginRegistry,
-    PluginSpec,
-)
+
+
+def __getattr__(name):
+    """Load optional plugin exports only when requested.
+
+    Importing the local CLI/Studio must not bootstrap bot authentication and
+    require PROJECT_CONFIG_PATH before command-line arguments can be parsed.
+    """
+    if name in {"PluginKind", "PluginNotFoundError", "PluginRegistrationError",
+                "PluginRegistry", "PluginSpec"}:
+        from importlib import import_module
+
+        value = getattr(import_module("nexus.plugins"), name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     # Version

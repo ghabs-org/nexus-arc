@@ -68,7 +68,7 @@ def test_mqtt_publish_subscribe_with_fake_client(monkeypatch):
             pass
 
         def loop_start(self):
-            pass
+            self.on_connect(self, None, {}, 0, None)
 
         def loop_stop(self):
             pass
@@ -187,4 +187,68 @@ def test_kafka_publish_subscribe_with_fake_client(monkeypatch):
     transport.close()
     assert received == [("t", {"n": 1})]
 
-    assert isinstance(_transport.create_transport("kafka"), _transport.KafkaTransport)
+    created = _transport.create_transport("kafka")
+    try:
+        assert isinstance(created, _transport.KafkaTransport)
+    finally:
+        created.close()
+    assert not created._thread.is_alive()
+
+
+def test_mqtt_factory_enables_verified_tls_before_connect(monkeypatch):
+    import sys
+    import types
+    from unittest.mock import MagicMock
+
+    from nexus.adapters.transport import create_transport
+
+    client = MagicMock()
+    mqtt = types.ModuleType("paho.mqtt.client")
+    mqtt.Client = lambda **kwargs: client
+    mqtt.MQTTv5 = 5
+    client.loop_start.side_effect = lambda: client.on_connect(client, None, {}, 0, None)
+    parent = types.ModuleType("paho.mqtt")
+    parent.client = mqtt
+    root = types.ModuleType("paho")
+    root.mqtt = parent
+    monkeypatch.setitem(sys.modules, "paho", root)
+    monkeypatch.setitem(sys.modules, "paho.mqtt", parent)
+    monkeypatch.setitem(sys.modules, "paho.mqtt.client", mqtt)
+    transport = create_transport(
+        "mqtt", host="broker.test", port=8883, tls=True, ca_certs="/trusted/ca.pem"
+    )
+    client.tls_set.assert_called_once_with(ca_certs="/trusted/ca.pem")
+    names = [call[0] for call in client.method_calls]
+    assert names.index("tls_set") < names.index("connect")
+    transport.close()
+
+
+def test_kafka_tls_and_user_auth_reach_both_clients(monkeypatch):
+    import sys
+    import types
+    from unittest.mock import MagicMock
+
+    from nexus.adapters.transport import create_transport
+
+    producer, consumer = MagicMock(), MagicMock()
+    consumer.return_value.poll.return_value = {}
+    kafka = types.ModuleType("kafka")
+    kafka.KafkaProducer, kafka.KafkaConsumer = producer, consumer
+    monkeypatch.setitem(sys.modules, "kafka", kafka)
+    transport = create_transport(
+        "kafka",
+        bootstrap_servers="broker:9093",
+        security_protocol="SASL_SSL",
+        sasl_mechanism="PLAIN",
+        sasl_plain_username="studio",
+        sasl_plain_password="test-secret",
+        ssl_check_hostname=True,
+    )
+    try:
+        for factory in [producer, consumer]:
+            kwargs = factory.call_args.kwargs
+            assert kwargs["security_protocol"] == "SASL_SSL"
+            assert kwargs["ssl_check_hostname"] is True
+            assert kwargs["sasl_plain_password"] == "test-secret"
+    finally:
+        transport.close()

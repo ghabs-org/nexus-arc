@@ -1,0 +1,16 @@
+{
+  "id": "notes",
+  "kind": "artifacts",
+  "name": "Legacy notes",
+  "description": "Inline legacy artifact",
+  "revision": 1,
+  "archived": false,
+  "created_at": "2025-01-15T09:00:00+00:00",
+  "updated_at": "2025-01-15T09:00:00+00:00",
+  "data": {
+    "filename": "notes.txt",
+    "content_base64": "TGVnYWN5IGRvY3VtZW50IGJ5dGVzLgo=",
+    "size": 23,
+    "content_type": "text/plain"
+  }
+}

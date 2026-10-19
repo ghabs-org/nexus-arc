@@ -4,7 +4,10 @@ POST /api/v1/chat {"task": "how do I add a tool?"} answers from a live
 system inventory (providers, registered tools, capabilities) plus a short
 maintainer-written playbook — no docs folder needed at runtime.
 
-Set ``"context": "none"`` to skip the system prelude for plain chat.
+Set ``"context": "none"`` to skip the system prelude for plain chat, or pass
+``"system": "..."`` to replace the prelude while keeping session memory.
+A ``config["on_delta"]`` callable receives reply text as it is written, for
+providers with ``execute_agent_streaming``; others answer in one piece.
 """
 
 from __future__ import annotations
@@ -163,80 +166,10 @@ def build_system_prompt(capabilities: dict[str, Any] | None = None) -> str:
         "nexus/adapters/registry.py + row in docs/INTEGRATIONS.md.\n"
         "- New bot command: core handler + telegram table entry + TELEGRAM_COMMANDS "
         "+ wrapper in examples/nexus-bot.\n"
-        "- Scaffold starters: `nexus init [--yes]`; browser authoring: `nexus init --gui`.\n"
+        "- Scaffold starters: `nexus init [--yes]`; browser workspace: `nexus studio`.\n"
         "When prior turns appear under 'Conversation so far', use them to resolve "
         "follow-ups (pronouns, 'my X', 'it', 'that').\n"
     )
-
-
-CHAT_PAGE = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nexus ARC &mdash; Operator chat</title>
-<style>
-:root{--canvas:#F7F6F3;--surface:#FFFFFF;--ink:#111111;--muted:#787774;--line:#EAEAEA}
-*{box-sizing:border-box}
-body{background:var(--canvas);color:var(--ink);margin:0;
-font-family:"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;line-height:1.6}
-main{max-width:720px;margin:0 auto;padding:64px 24px 96px}
-p.kicker{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
-h1{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.02em;font-size:40px;margin:0 0 24px}
-#log{margin:0 0 16px}
-.msg{background:var(--surface);border:1px solid var(--line);border-radius:12px;
-padding:16px 20px;margin-bottom:12px;white-space:pre-wrap}
-.msg.you{border-left:3px solid var(--ink)}
-.msg .who{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.row{display:flex;gap:8px}
-input{flex:1;border:1px solid var(--line);border-radius:6px;padding:10px 12px;font:inherit}
-button{background:var(--ink);color:#fff;border:0;border-radius:6px;padding:10px 18px;font:inherit;cursor:pointer}
-button:active{transform:scale(.98)}
-#token{margin-bottom:12px}
-p.note{color:var(--muted);font-size:13px}
-</style></head>
-<body><main>
-<p class="kicker">Nexus ARC</p><h1>Operator chat</h1>
-<input id="token" type="password" placeholder="Bridge bearer token">
-<div id="log"></div>
-<div class="row"><input id="q" placeholder="Ask about the system, e.g. how do I add a tool?">
-<button onclick="send()">Send</button>
-<button onclick="newChat()" style="background:transparent;color:var(--ink);border:1px solid var(--line)">New chat</button></div>
-<p class="note">Answers are grounded in the live registry. Token is kept in this browser only.</p>
-</main>
-<script>
-const t = document.getElementById("token");
-t.value = localStorage.getItem("nexus_token") || "";
-t.onchange = () => localStorage.setItem("nexus_token", t.value);
-function add(who, text){
-  const d = document.createElement("div");
-  d.className = "msg" + (who === "you" ? " you" : "");
-  d.innerHTML = "";
-  const w = document.createElement("div"); w.className = "who"; w.textContent = who;
-  const b = document.createElement("div"); b.textContent = text;
-  d.appendChild(w); d.appendChild(b);
-  document.getElementById("log").appendChild(d);
-  d.scrollIntoView(false);
-}
-async function send(){
-  const q = document.getElementById("q"); if(!q.value.trim()) return;
-  const text = q.value; q.value = ""; add("you", text);
-  const r = await fetch("/api/v1/chat", {method: "POST",
-    headers: {"Content-Type": "application/json", "Authorization": "Bearer " + t.value},
-    body: JSON.stringify({task: text, session_id: localStorage.getItem("nexus_session") || undefined})});
-  const data = await r.json();
-  if(r.ok && data.ok){
-    if(data.session_id) localStorage.setItem("nexus_session", data.session_id);
-    add("nexus", data.output);
-  } else {
-    add("nexus", "Error: " + (data.error || r.status));
-  }
-}
-function newChat(){
-  localStorage.removeItem("nexus_session");
-  document.getElementById("log").innerHTML = "";
-}
-document.getElementById("q").addEventListener("keydown", e => { if(e.key === "Enter") send(); });
-</script></body></html>
-"""
 
 
 async def handle_chat_run(payload: dict[str, Any], config: dict | None = None) -> dict[str, Any]:
@@ -275,17 +208,21 @@ async def handle_chat_run(payload: dict[str, Any], config: dict | None = None) -
     if not enriched:
         prompt = task
     else:
-        prompt = build_system_prompt(capabilities)
+        prompt = str(payload.get("system") or "").strip() or build_system_prompt(capabilities)
         prior = _render_history(session_id)
         if prior:
             prompt += f"\nConversation so far:\n{prior}\n"
         prompt += f"\nUser question: {task}\n"
 
     workspace = Path(tempfile.gettempdir()) / "nexus-chat"
+    context = ExecutionContext(agent_name="chat-operator", prompt=prompt, workspace=workspace)
+    on_delta = (config or {}).get("on_delta")
+    stream = getattr(provider, "execute_agent_streaming", None)
     try:
-        result = await provider.execute_agent(
-            ExecutionContext(agent_name="chat-operator", prompt=prompt, workspace=workspace)
-        )
+        if callable(on_delta) and callable(stream):
+            result = await stream(context, on_delta)
+        else:
+            result = await provider.execute_agent(context)
     except Exception as exc:
         logger.exception("chat_run failed")
         return {"ok": False, "error": str(exc)}

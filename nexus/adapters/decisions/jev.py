@@ -104,11 +104,12 @@ def _request(
     model: str | None = None,
     api_key: str | None = None,
     timeout: int = 20,
+    endpoint: str | None = None,
 ) -> dict[str, Any]:
     """POST one System One request; returns the ``answers`` mapping."""
     import requests as _requests
 
-    resolved = resolve_backend(model=model, api_key=api_key)
+    resolved = resolve_backend(model=model, api_key=api_key, endpoint=endpoint)
     if resolved is None:
         raise ValueError("No Jev credentials: set OPENCODE_API_KEY or OPENROUTER_API_KEY")
     endpoint, key, resolved_model = resolved
@@ -136,10 +137,13 @@ def ask(
     model: str | None = None,
     api_key: str | None = None,
     timeout: int = 20,
+    endpoint: str | None = None,
 ) -> dict[str, Any]:
     """Ask typed questions; empty dict when misconfigured or failing."""
     try:
-        answers = _request(state, questions, model=model, api_key=api_key, timeout=timeout)
+        answers = _request(
+            state, questions, model=model, api_key=api_key, timeout=timeout, endpoint=endpoint
+        )
     except Exception as exc:
         logger.debug("Jev decision failed: %s", exc)
         return {}
@@ -166,8 +170,7 @@ def parse_choice(answer: Any, default: str = "") -> ChoiceResult:
     if not isinstance(answer, dict):
         return ChoiceResult(choice=default)
     probs = {
-        str(option): float(score)
-        for option, score in (answer.get("probabilities") or {}).items()
+        str(option): float(score) for option, score in (answer.get("probabilities") or {}).items()
     }
     choice = str(answer.get("choice") or default)
     return ChoiceResult(
@@ -194,11 +197,58 @@ def decide_choice(
     route low-confidence cases to the safe default.
     """
     answers = ask(
-        state, {"route": choice_question(instructions, options)},
-        model=model, api_key=api_key, timeout=timeout,
+        state,
+        {"route": choice_question(instructions, options)},
+        model=model,
+        api_key=api_key,
+        timeout=timeout,
     )
     result = parse_choice(answers.get("route"), default=default or next(iter(options), ""))
     if result.confidence < min_confidence:
         fallback = default or next(iter(options), "")
         return fallback, result.confidence, False
     return result.choice, result.confidence, True
+
+
+def _ask_strict_once(state, questions, model=None, api_key=None, timeout=20, endpoint=None):
+    """Bounded strict transport; existing ``ask`` keeps its fallback contract."""
+    from nexus.adapters.decisions.errors import DecisionAnswers, DecisionCallError
+    from nexus.adapters.decisions.http import metadata, request_json
+
+    resolved = resolve_backend(model=model, api_key=api_key, endpoint=endpoint)
+    if resolved is None:
+        raise DecisionCallError("config")
+    endpoint, key, resolved_model = resolved
+    body = request_json(
+        endpoint, key, {"model": resolved_model, "state": state, "questions": questions}, timeout
+    )
+    if not isinstance(body.get("answers"), dict):
+        raise DecisionCallError("invalid_response")
+    return metadata(DecisionAnswers(body["answers"]), body)
+
+
+def ask_strict(state, questions, model=None, api_key=None, timeout=20, endpoint=None):
+    """At most three transient attempts within one total call budget; no fallback."""
+    import math
+    import time
+
+    from nexus.adapters.decisions.errors import DecisionCallError
+
+    if type(timeout) not in {int, float} or not math.isfinite(timeout) or not 0 < timeout <= 300:
+        raise DecisionCallError("config")
+    deadline = time.monotonic() + timeout
+    for attempt in range(3):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise DecisionCallError("timeout")
+        try:
+            return _ask_strict_once(state, questions, model, api_key, remaining, endpoint)
+        except DecisionCallError as error:
+            delay = 0.1 * 2**attempt
+            if (
+                error.category not in {"rate_limited", "unreachable"}
+                or attempt == 2
+                or deadline - time.monotonic() <= delay
+            ):
+                raise
+            time.sleep(delay)

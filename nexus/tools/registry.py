@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -103,6 +103,14 @@ class ToolRegistry:
     def get(self, name: str) -> ToolSpec | None:
         """Return the spec for *name*, or None when unknown."""
         return self._tools.get(name)
+
+    def unregister(self, name: str, *, func: Callable | None = None) -> bool:
+        """Remove a registration, optionally only if it still belongs to this callable."""
+        spec = self._tools.get(name)
+        if spec is None or func is not None and spec.func is not func:
+            return False
+        del self._tools[name]
+        return True
 
     def names(self) -> list[str]:
         """All registered tool names, sorted."""
