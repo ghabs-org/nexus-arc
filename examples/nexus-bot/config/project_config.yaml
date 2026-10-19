@@ -122,7 +122,7 @@ nexus:
     decision_timeout_seconds: 120
   access_control:
     github_teams:
-      - ghabs-org/nexus-team
+      - ghabs-org/ghabs-org
     github_users:
       - Ghabs95
   system_operations:
