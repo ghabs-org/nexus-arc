@@ -279,7 +279,8 @@ def _run_acl_sync_if_due() -> None:
 
 def _safe_next_path(raw_path: str | None, *, default: str = "/visualizer") -> str:
     candidate = str(raw_path or "").strip()
-    if candidate.startswith("/") and not candidate.startswith("//"):
+    # Browsers treat "\" like "/", so "/\evil.example" would leave this origin.
+    if candidate.startswith("/") and not candidate.startswith("//") and "\\" not in candidate:
         return candidate
     return default
 
@@ -2627,6 +2628,54 @@ def index():
             session_hint=session_hint,
         )
     )
+    if session_hint:
+        _clear_web_session_cookie(response)
+    return response
+
+
+def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
+    safe_next = html.escape(next_path, quote=True)
+    body = f"""
+<p>Sign in with the session reference from <code>/login</code> in Telegram or Discord,
+after finishing the GitHub/GitLab step it links to.</p>
+{message_html}
+<form method="post" action="/login" autocomplete="off">
+  <label for="session"><strong>Session Reference</strong></label>
+  <input id="session" name="session" type="text" placeholder="Paste the session reference from /login" spellcheck="false" autocapitalize="off" autocorrect="off" required />
+  <input type="hidden" name="next" value="{safe_next}" />
+  <button type="submit" class="form-submit">Sign In</button>
+</form>
+"""
+    return _render_auth_message("Nexus Sign In", body, status_code=200)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def web_login():
+    """Exchange a ready auth session for this origin's HttpOnly session cookie.
+
+    Apps proxied next to ``/auth`` on the same origin (e.g. Nexus Studio) send
+    unauthenticated users here; ``next`` must be a same-origin path.
+    """
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message(
+            "Auth Disabled",
+            "Auth onboarding is disabled in this environment.",
+            status_code=404,
+        )
+    next_path = _safe_next_path(request.values.get("next"), default="/")
+    session_hint = str(request.values.get("session", "")).strip()
+    ready_session_id, _payload = _resolve_ready_web_session(session_hint or None)
+    if ready_session_id:
+        response = make_response(redirect(next_path, code=302))
+        _set_web_session_cookie(response, ready_session_id)
+        return response
+    message_html = (
+        "<p><small>Session not found, expired, or setup is not ready yet. "
+        "Complete OAuth from <code>/login</code> first.</small></p>"
+        if session_hint
+        else ""
+    )
+    response = make_response(_render_web_sign_in_page(next_path=next_path, message_html=message_html))
     if session_hint:
         _clear_web_session_cookie(response)
     return response

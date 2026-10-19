@@ -496,3 +496,92 @@ def test_visualizer_disabled_flag_returns_404(monkeypatch):
     assert root_response.status_code == 404
     assert visualizer_response.status_code == 404
     assert snapshot_response.status_code == 404
+
+
+def _enable_web_login(monkeypatch, webhook_server, *, ready: bool = True):
+    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
+    monkeypatch.setattr(
+        webhook_server,
+        "_svc_get_session_and_setup_status",
+        lambda session_id: (
+            _ready_session_payload(str(session_id)) if ready else {"exists": False}
+        ),
+    )
+
+
+def test_login_sets_cookie_and_redirects_to_next(monkeypatch):
+    import webhook_server
+
+    _enable_web_login(monkeypatch, webhook_server)
+
+    client = webhook_server.app.test_client()
+    response = client.get("/login?session=sess-123&next=/workspace")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/workspace")
+    cookie = response.headers.get("Set-Cookie") or ""
+    assert f"{webhook_server._WEB_SESSION_COOKIE_NAME}=sess-123" in cookie
+    assert "HttpOnly" in cookie
+
+
+def test_login_form_post_sets_cookie(monkeypatch):
+    import webhook_server
+
+    _enable_web_login(monkeypatch, webhook_server)
+
+    client = webhook_server.app.test_client()
+    response = client.post("/login", data={"session": "sess-123", "next": "/"})
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+    assert webhook_server._WEB_SESSION_COOKIE_NAME in (response.headers.get("Set-Cookie") or "")
+
+
+def test_login_renders_sign_in_form_without_ready_session(monkeypatch):
+    import webhook_server
+
+    _enable_web_login(monkeypatch, webhook_server, ready=False)
+
+    client = webhook_server.app.test_client()
+    response = client.get("/login?next=/")
+
+    assert response.status_code == 200
+    assert b"Nexus Sign In" in response.data
+    assert b'action="/login"' in response.data
+    assert "Set-Cookie" not in response.headers
+
+
+def test_login_rejects_unknown_session_and_clears_cookie(monkeypatch):
+    import webhook_server
+
+    _enable_web_login(monkeypatch, webhook_server, ready=False)
+
+    client = webhook_server.app.test_client()
+    response = client.get("/login?session=bogus")
+
+    assert response.status_code == 200
+    assert b"setup is not ready" in response.data
+    assert "Max-Age=0" in (response.headers.get("Set-Cookie") or "")
+
+
+def test_login_ignores_off_origin_next(monkeypatch):
+    import webhook_server
+
+    _enable_web_login(monkeypatch, webhook_server)
+
+    client = webhook_server.app.test_client()
+    for unsafe in ("//evil.example", "/\\evil.example", "https://evil.example"):
+        response = client.get("/login", query_string={"session": "sess-123", "next": unsafe})
+        assert response.status_code == 302
+        assert response.headers["Location"] in {"/", "http://localhost/"}
+
+
+def test_login_is_unavailable_when_auth_disabled(monkeypatch):
+    import webhook_server
+
+    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", False)
+
+    client = webhook_server.app.test_client()
+    response = client.get("/login")
+
+    assert response.status_code == 404
