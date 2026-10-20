@@ -706,6 +706,9 @@ def _requires_manual_auth_code(*, provider: str, log_text: str) -> bool:
     provider_name = str(provider or "").strip().lower()
     if provider_name == "agy":
         return "accounts.google.com/o/oauth2" in _strip_terminal_control_sequences(log_text)
+    if provider_name == "claude":
+        # `claude auth login` prints the URL, then reads the code claude.com shows.
+        return "paste code here" in _strip_terminal_control_sequences(log_text).lower()
     if provider_name != "gemini":
         return False
     normalized = _strip_terminal_control_sequences(log_text).lower()
@@ -850,6 +853,10 @@ def _gemini_should_use_pty_wrapper() -> bool:
 
 
 _AGY_SIGNIN_CHECK_INTERVAL_SECONDS = 5
+# Logins that read a code pasted from the provider's web page on stdin.
+_CODE_ENTRY_PROVIDERS = {"gemini", "agy", "claude"}
+# Logins without a device code: hyphenated runs in their OAuth client_id are not one.
+_NO_DEVICE_CODE_PROVIDERS = {"agy", "claude"}
 _AGY_OAUTH_URL_PREFIX = "https://accounts.google.com/o/oauth2/auth?"
 
 
@@ -2044,7 +2051,9 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
                 log_text = _log_tail(str(existing.get("log_path") or ""))
                 verify_url, user_code = _parse_device_auth_url_and_code(log_text)
                 if provider_name == "agy":
-                    verify_url, user_code = _parse_agy_oauth_url(log_text), ""
+                    verify_url = _parse_agy_oauth_url(log_text)
+                if provider_name in _NO_DEVICE_CODE_PROVIDERS:
+                    user_code = ""
                 callback_url_hint = _parse_local_callback_url(log_text)
                 requires_code = _requires_manual_auth_code(provider=provider_name, log_text=log_text)
                 last_line = _truncate_for_log(_last_log_line(log_text, ""), limit=220)
@@ -2094,7 +2103,7 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
             env["HOME"] = provider_home
             env.setdefault("NO_BROWSER", "true")
         process_stdin: int | Any = subprocess.DEVNULL
-        if provider_name in {"gemini", "agy"}:
+        if provider_name in _CODE_ENTRY_PROVIDERS:
             # Gemini asks for an authorization code on stdin after browser confirmation.
             process_stdin = subprocess.PIPE
         try:
@@ -2222,7 +2231,7 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
         exit_code = process.poll() if getattr(process, "poll", None) else None
         if provider_name == "agy":
             verify_url = _parse_agy_oauth_url(log_text)
-            # No device code in this flow; digits-hyphen runs in the OAuth client_id are not one.
+        if provider_name in _NO_DEVICE_CODE_PROVIDERS:
             user_code = ""
 
         if exit_code is None and provider_name == "agy":
@@ -2520,14 +2529,14 @@ def submit_provider_account_login_code(
         return {"submitted": False, "state": "invalid_session", "message": "Invalid session"}
 
     provider_name = _normalize_provider_account_connector(provider)
-    if provider_name not in {"gemini", "agy"}:
+    if provider_name not in _CODE_ENTRY_PROVIDERS:
         return {
             "submitted": False,
             "session_id": session_record.session_id,
             "session_ref": format_login_session_ref(session_record.session_id),
             "provider": provider_name,
             "state": "unsupported_provider",
-            "message": "Authorization-code submission is supported only for Gemini and Antigravity.",
+            "message": "Authorization-code submission is supported for Gemini, Antigravity and Claude.",
         }
     provider_label = _provider_account_label(provider_name)
 

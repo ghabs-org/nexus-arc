@@ -521,7 +521,8 @@ def test_start_provider_account_login_launches_gemini_and_claude(monkeypatch, tm
     assert calls[1]["cmd"] == ["claude", "auth", "login"]
     assert str(calls[1]["env"].get("CLAUDE_HOME", "")).endswith("/auth/claude/nexus-device-claude")
     assert str(calls[1]["env"].get("HOME", "")).endswith("/auth/home/nexus-device-claude")
-    assert calls[1]["stdin"] == auth_mod.subprocess.DEVNULL
+    # `claude auth login` reads the code claude.com shows after approval.
+    assert calls[1]["stdin"] == auth_mod.subprocess.PIPE
 
 
 def test_start_provider_account_login_wraps_gemini_with_script_tty_by_default(monkeypatch, tmp_path):
@@ -1536,3 +1537,72 @@ def test_parse_agy_oauth_url_splits_tui_redraws():
     assert parsed == url
     assert parse_qs(urlparse(parsed).query)["state"] == ["VyYliKbMfSV_sEFm4zKxdQ"]
     assert auth_mod._parse_agy_oauth_url("no url yet") == ""
+
+
+_CLAUDE_LOGIN_LOG = (
+    "Opening browser to sign in…\n"
+    "If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true"
+    "&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code"
+    "&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&state=abc\n"
+    "Paste code here if prompted > "
+)
+
+
+def test_claude_status_asks_for_pasted_code_without_fake_device_code(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("claude-pending")
+    _patch_agy_session(monkeypatch, auth_mod, session, {"claude_account_enabled": False})
+    log_path = tmp_path / "claude.log"
+    log_path.write_text(_CLAUDE_LOGIN_LOG, encoding="utf-8")
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="claude")
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS[key] = {
+            "provider": "claude",
+            "session_id": session.session_id,
+            "nexus_id": session.nexus_id,
+            "process": SimpleNamespace(poll=lambda: None, stdin=_AgyStdin()),
+            "log_path": str(log_path),
+            "log_file": None,
+        }
+
+    result = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="claude")
+
+    assert result["state"] == "pending"
+    assert result["requires_code"] is True
+    assert result["verify_url"].startswith("https://claude.com/cai/oauth/authorize?")
+    # The hyphenated client_id must not be shown as a code to type.
+    assert result["user_code"] == ""
+    assert "authorization code" in result["message"].lower()
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS.pop(key, None)
+
+
+def test_submit_provider_account_login_code_sends_line_to_claude(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("claude-code")
+    _patch_agy_session(monkeypatch, auth_mod, session, {"claude_account_enabled": False})
+    log_path = tmp_path / "claude.log"
+    log_path.write_text(_CLAUDE_LOGIN_LOG, encoding="utf-8")
+    stdin = _AgyStdin()
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="claude")
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS[key] = {
+            "provider": "claude",
+            "session_id": session.session_id,
+            "nexus_id": session.nexus_id,
+            "process": SimpleNamespace(poll=lambda: None, stdin=stdin),
+            "log_path": str(log_path),
+            "log_file": None,
+        }
+
+    result = auth_mod.submit_provider_account_login_code(
+        session_id=session.session_id, provider="claude", authorization_code="code123#state456"
+    )
+
+    assert result["submitted"] is True
+    assert stdin.writes == ["code123#state456\n"]
+    assert "Claude CLI" in result["message"]
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS.pop(key, None)
