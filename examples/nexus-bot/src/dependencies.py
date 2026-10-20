@@ -100,7 +100,7 @@ install_secret_redaction([TELEGRAM_TOKEN or ""], logging.getLogger())
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-# Initialize AI Orchestrator (CLI-only: gemini-cli + copilot-cli)
+# Initialize AI Orchestrator (CLI-only: codex-cli + copilot-cli)
 orchestrator = get_orchestrator(ORCHESTRATOR_CONFIG)
 
 # Initialize rate limiter

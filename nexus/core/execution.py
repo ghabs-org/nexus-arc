@@ -76,7 +76,7 @@ class ExecutionEngine:
         """
         Sync agent instructions to the workspace skill directory.
 
-        This enables Gemini-style workspace skills to be automatically
+        This enables workspace skills to be automatically
         updated from the agent definition.
         """
         if not workspace_dir or not instructions:

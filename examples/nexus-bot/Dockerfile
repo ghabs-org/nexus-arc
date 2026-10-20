@@ -29,12 +29,11 @@ RUN apt-get update \
 
 # Install Node.js 24 + AI CLIs used by Nexus runtime checks.
 ARG COPILOT_NPM_PACKAGE="@github/copilot"
-ARG GEMINI_NPM_PACKAGE="@google/gemini-cli"
 ARG CODEX_NPM_PACKAGE="@openai/codex"
 ARG CLAUDE_NPM_PACKAGE="@anthropic-ai/claude-code"
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g "$COPILOT_NPM_PACKAGE" "$GEMINI_NPM_PACKAGE" "$CODEX_NPM_PACKAGE" "$CLAUDE_NPM_PACKAGE" \
+    && npm install -g "$COPILOT_NPM_PACKAGE" "$CODEX_NPM_PACKAGE" "$CLAUDE_NPM_PACKAGE" \
     && npm cache clean --force
 
 WORKDIR /app

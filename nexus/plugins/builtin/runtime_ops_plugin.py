@@ -17,7 +17,7 @@ class RuntimeOpsPlugin:
         self.config = config or {}
         # Match all supported agent CLIs by default so runtime checks remain
         # accurate regardless of selected provider.
-        self.process_name = self.config.get("process_name", "copilot|codex|gemini")
+        self.process_name = self.config.get("process_name", "copilot|codex")
         self.pgrep_timeout = int(self.config.get("pgrep_timeout", 5))
         self.kill_timeout = int(self.config.get("kill_timeout", 5))
         self._pgrep_path = shutil.which("pgrep")

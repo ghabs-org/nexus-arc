@@ -446,14 +446,13 @@ fi
 # Agent CLI Tools
 echo -e "\n--- ${step_num}. Agent CLI Tools ---"
 ((step_num++))
-echo "Which CLI tools do you want to install? Note: Copilot, Gemini, Codex, and Claude require 'npm'."
-cli_choices=("GitHub CLI" "GitLab CLI" "Copilot CLI" "Gemini CLI" "Codex CLI" "Claude Code" "Ollama")
+echo "Which CLI tools do you want to install? Note: Copilot, Codex, and Claude require 'npm'."
+cli_choices=("GitHub CLI" "GitLab CLI" "Copilot CLI" "Codex CLI" "Claude Code" "Ollama")
 selected_clis=$(prompt_multi_choice "Select tools to install" "${cli_choices[@]}")
 
 install_gh=0
 install_glab=0
 install_copilot=0
-install_gemini=0
 install_codex=0
 install_claude=0
 install_ollama=0
@@ -463,24 +462,22 @@ for s in $selected_clis; do
         1) install_gh=1 ;;
         2) install_glab=1 ;;
         3) install_copilot=1 ;;
-        4) install_gemini=1 ;;
-        5) install_codex=1 ;;
-        6) install_claude=1 ;;
-        7) install_ollama=1 ;;
+        4) install_codex=1 ;;
+        5) install_claude=1 ;;
+        6) install_ollama=1 ;;
     esac
 done
 
 if [ -n "$selected_clis" ]; then
     echo -e "\n--- Installing Agent CLI Tools ---"
     
-    if [ "$install_copilot" -eq 1 ] || [ "$install_gemini" -eq 1 ] || [ "$install_codex" -eq 1 ] || [ "$install_claude" -eq 1 ]; then
+    if [ "$install_copilot" -eq 1 ] || [ "$install_codex" -eq 1 ] || [ "$install_claude" -eq 1 ]; then
         if ! command -v npm &> /dev/null; then
-            echo "⚠️ 'npm' is not installed. Skipping Copilot/Gemini/Codex/Claude installation."
+            echo "⚠️ 'npm' is not installed. Skipping Copilot/Codex/Claude installation."
         else
             CODEX_NPM_PACKAGE="${NEXUS_CODEX_NPM_PACKAGE:-@openai/codex@0.113.0}"
             npm_packages=""
             [ "$install_copilot" -eq 1 ] && npm_packages="$npm_packages @github/copilot"
-            [ "$install_gemini" -eq 1 ] && npm_packages="$npm_packages @google/gemini-cli"
             [ "$install_codex" -eq 1 ] && npm_packages="$npm_packages $CODEX_NPM_PACKAGE"
             [ "$install_claude" -eq 1 ] && npm_packages="$npm_packages @anthropic-ai/claude-code"
             npm install -g $npm_packages

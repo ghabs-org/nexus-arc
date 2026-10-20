@@ -36,7 +36,6 @@ _PROVIDERS = (
     ("claude-code", "Claude Code", "claude", "cli", "claude auth login"),
     ("agy", "Google Antigravity", "agy", "cli", "agy"),
     ("copilot", "GitHub Copilot", "copilot", "cli", "copilot login"),
-    ("gemini", "Gemini CLI", "gemini", "cli", "gemini"),
     ("opencode", "OpenCode", "opencode", "cli", "opencode auth login"),
     ("openai", "OpenAI API", "OPENAI_API_KEY", "api", "Set OPENAI_API_KEY before launch"),
     ("claude", "Anthropic API", "ANTHROPIC_API_KEY", "api", "Set ANTHROPIC_API_KEY before launch"),

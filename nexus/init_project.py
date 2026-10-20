@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-PROVIDERS = ("opencode", "copilot", "gemini", "codex", "claude", "openai")
+PROVIDERS = ("opencode", "copilot", "codex", "claude", "openai")
 STORAGES = ("file", "postgres", "redis")
 GIT_PLATFORMS = ("github", "gitlab")
 

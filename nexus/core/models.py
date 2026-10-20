@@ -105,7 +105,7 @@ class Agent:
     name: str
     display_name: str
     description: str
-    provider_preference: str | None = None  # "openai", "copilot", "gemini", etc.
+    provider_preference: str | None = None  # "openai", "copilot", etc.
     timeout: int = 600  # seconds
     max_retries: int = 3
     allowed_tools: list[str] = field(default_factory=list)  # Restricted sandbox tools, if any

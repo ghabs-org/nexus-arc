@@ -28,11 +28,6 @@ async def _provider_availability() -> list[dict[str, Any]]:
     except Exception as exc:
         logger.debug("CopilotCLIProvider init failed: %s", exc)
     try:
-        from nexus.adapters.ai.gemini_provider import GeminiCLIProvider
-        entries["gemini"] = GeminiCLIProvider
-    except Exception as exc:
-        logger.debug("GeminiCLIProvider init failed: %s", exc)
-    try:
         from nexus.adapters.ai.codex_provider import CodexCLIProvider
         entries["codex"] = CodexCLIProvider
     except Exception as exc:

@@ -34,7 +34,7 @@ def test_audit_log_forwards_user_id_to_storage(monkeypatch):
     AuditStore.audit_log(
         42,
         "AGENT_LAUNCHED",
-        "Launched gemini agent",
+        "Launched claude agent",
         user_id="nexus-user-42",
     )
 

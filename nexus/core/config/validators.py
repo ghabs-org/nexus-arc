@@ -10,7 +10,6 @@ from nexus.core.provider_preferences import parse_tool_preference
 
 class _AIProviderEnum(Enum):
     COPILOT = "copilot"
-    GEMINI = "gemini"
     CODEX = "codex"
     CLAUDE = "claude"
     OLLAMA = "ollama"

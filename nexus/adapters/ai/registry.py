@@ -32,7 +32,7 @@ class AgentRegistry:
 
     def __init__(self, agents_dir: Path | None = None):
         self._agents_dir = agents_dir
-        # Maps agent_type -> provider name (e.g. "copilot" | "gemini")
+        # Maps agent_type -> provider name (e.g. "copilot" | "codex")
         self._provider_map: dict[str, str] = {}
         # Maps agent_type -> explicit model (spec.model), when pinned
         self._model_map: dict[str, str] = {}

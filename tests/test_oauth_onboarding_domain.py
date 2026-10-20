@@ -132,39 +132,6 @@ def test_import_openclaw_local_codex_account_credentials(monkeypatch, tmp_path):
     assert captured["codex_account_enabled"] is True
 
 
-def test_import_openclaw_local_gemini_account_credentials(monkeypatch, tmp_path):
-    import nexus.core.auth.oauth_onboarding_domain as auth_mod
-
-    source_path = tmp_path / "gemini-oauth.json"
-    source_payload = {
-        "access_token": "gemini-access-token-1234567890",
-        "refresh_token": "gemini-refresh-token-1234567890",
-    }
-    source_path.write_text(json.dumps(source_payload), encoding="utf-8")
-
-    captured: dict[str, object] = {}
-    monkeypatch.setenv("NEXUS_RUNTIME_MODE", "openclaw")
-    monkeypatch.setenv("NEXUS_RUNTIME_DIR", str(tmp_path / "runtime"))
-    monkeypatch.setenv("NEXUS_OPENCLAW_GEMINI_AUTH_PATH", str(source_path))
-    monkeypatch.setattr(auth_mod, "upsert_ai_provider_keys", lambda **kwargs: captured.update(kwargs))
-
-    result = auth_mod.import_openclaw_local_provider_credentials(
-        nexus_id="nexus-gemini-user",
-        provider="gemini",
-    )
-
-    user_copy = tmp_path / "runtime" / "auth" / "home" / "nexus-gemini-user" / ".gemini" / "oauth_creds.json"
-    provider_copy = tmp_path / "runtime" / "auth" / "gemini" / "nexus-gemini-user" / "oauth_creds.json"
-    settings_path = tmp_path / "runtime" / "auth" / "home" / "nexus-gemini-user" / ".gemini" / "settings.json"
-    assert result["imported"] is True
-    assert result["state"] == "imported"
-    assert json.loads(user_copy.read_text(encoding="utf-8")) == source_payload
-    assert json.loads(provider_copy.read_text(encoding="utf-8")) == source_payload
-    assert settings_path.exists()
-    assert captured["nexus_id"] == "nexus-gemini-user"
-    assert captured["gemini_account_enabled"] is True
-
-
 def test_import_openclaw_local_copilot_token(monkeypatch, tmp_path):
     import nexus.core.auth.oauth_onboarding_domain as auth_mod
 
@@ -439,15 +406,9 @@ def test_start_provider_account_login_launches_codex_device_auth(monkeypatch, tm
     assert result["provider"] == "codex"
 
 
-def test_start_provider_account_login_launches_gemini_and_claude(monkeypatch, tmp_path):
+def test_start_provider_account_login_launches_claude(monkeypatch, tmp_path):
     import nexus.core.auth.oauth_onboarding_domain as auth_mod
 
-    gemini_session = SimpleNamespace(
-        session_id="session-device-gemini",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="oauth_done",
-        nexus_id="nexus-device-gemini",
-    )
     claude_session = SimpleNamespace(
         session_id="session-device-claude",
         expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
@@ -455,15 +416,12 @@ def test_start_provider_account_login_launches_gemini_and_claude(monkeypatch, tm
         nexus_id="nexus-device-claude",
     )
     session_by_id = {
-        gemini_session.session_id: gemini_session,
         claude_session.session_id: claude_session,
     }
 
     monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
     monkeypatch.setattr(auth_mod, "get_auth_session", lambda sid: session_by_id.get(sid))
     monkeypatch.setenv("NEXUS_RUNTIME_DIR", str(tmp_path))
-    monkeypatch.setenv("GEMINI_CLI_PATH", "gemini")
-    monkeypatch.setenv("NEXUS_GEMINI_ACCOUNT_CONNECT_USE_PTY", "0")
     monkeypatch.setenv("CLAUDE_CLI_PATH", "claude")
 
     calls: list[dict[str, object]] = []
@@ -483,90 +441,20 @@ def test_start_provider_account_login_launches_gemini_and_claude(monkeypatch, tm
         auth_mod._DEVICE_AUTH_JOBS.clear()
     monkeypatch.setattr(auth_mod.subprocess, "Popen", _fake_popen)
 
-    gemini_result = auth_mod.start_provider_account_login(
-        session_id=gemini_session.session_id,
-        provider="gemini",
-    )
     claude_result = auth_mod.start_provider_account_login(
         session_id=claude_session.session_id,
         provider="claude",
     )
 
-    assert gemini_result["started"] is True
-    assert gemini_result["state"] == "starting"
-    assert gemini_result["provider"] == "gemini"
-    assert calls[0]["cmd"] == ["gemini", "--debug"]
-    assert str(calls[0]["env"].get("GEMINI_HOME", "")).endswith("/auth/gemini/nexus-device-gemini")
-    assert str(calls[0]["env"].get("GEMINI_CLI_HOME", "")).endswith("/auth/home/nexus-device-gemini")
-    assert str(calls[0]["env"].get("HOME", "")).endswith("/auth/home/nexus-device-gemini")
-    assert calls[0]["env"].get("NO_BROWSER") == "true"
     assert calls[0]["stdin"] == auth_mod.subprocess.PIPE
-    gemini_settings = (
-        tmp_path
-        / "auth"
-        / "home"
-        / "nexus-device-gemini"
-        / ".gemini"
-        / "settings.json"
-    )
-    assert gemini_settings.exists()
-    gemini_settings_payload = json.loads(gemini_settings.read_text(encoding="utf-8"))
-    assert gemini_settings_payload["security"]["auth"]["selectedType"] == "oauth-personal"
-    assert gemini_settings_payload["security"]["folderTrust"]["enabled"] is False
-    assert gemini_settings_payload["selectedAuthType"] == "oauth-personal"
 
     assert claude_result["started"] is True
     assert claude_result["state"] == "starting"
     assert claude_result["provider"] == "claude"
-    assert calls[1]["cmd"] == ["claude", "auth", "login"]
-    assert str(calls[1]["env"].get("CLAUDE_HOME", "")).endswith("/auth/claude/nexus-device-claude")
-    assert str(calls[1]["env"].get("HOME", "")).endswith("/auth/home/nexus-device-claude")
+    assert calls[0]["cmd"] == ["claude", "auth", "login"]
+    assert str(calls[0]["env"].get("CLAUDE_HOME", "")).endswith("/auth/claude/nexus-device-claude")
+    assert str(calls[0]["env"].get("HOME", "")).endswith("/auth/home/nexus-device-claude")
     # `claude auth login` reads the code claude.com shows after approval.
-    assert calls[1]["stdin"] == auth_mod.subprocess.PIPE
-
-
-def test_start_provider_account_login_wraps_gemini_with_script_tty_by_default(monkeypatch, tmp_path):
-    import nexus.core.auth.oauth_onboarding_domain as auth_mod
-
-    session = SimpleNamespace(
-        session_id="session-device-gemini-pty",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="oauth_done",
-        nexus_id="nexus-device-gemini-pty",
-    )
-    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
-    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
-    monkeypatch.setenv("NEXUS_RUNTIME_DIR", str(tmp_path))
-    monkeypatch.setenv("GEMINI_CLI_PATH", "gemini")
-    monkeypatch.delenv("NEXUS_GEMINI_ACCOUNT_CONNECT_USE_PTY", raising=False)
-    monkeypatch.setattr(auth_mod.shutil, "which", lambda name: "/usr/bin/script" if name == "script" else None)
-
-    calls: list[dict[str, object]] = []
-
-    class _Proc:
-        pid = 6262
-
-        @staticmethod
-        def poll():
-            return None
-
-    def _fake_popen(cmd, cwd, env, stdin, stdout, stderr, text):
-        calls.append({"cmd": cmd, "cwd": cwd, "env": env, "stdin": stdin})
-        return _Proc()
-
-    with auth_mod._DEVICE_AUTH_LOCK:
-        auth_mod._DEVICE_AUTH_JOBS.clear()
-    monkeypatch.setattr(auth_mod.subprocess, "Popen", _fake_popen)
-
-    result = auth_mod.start_provider_account_login(
-        session_id=session.session_id,
-        provider="gemini",
-    )
-
-    assert result["started"] is True
-    assert result["provider"] == "gemini"
-    assert calls
-    assert calls[0]["cmd"] == ["/usr/bin/script", "-q", "-e", "-c", "gemini --debug", "/dev/null"]
     assert calls[0]["stdin"] == auth_mod.subprocess.PIPE
 
 
@@ -647,15 +535,9 @@ def test_get_provider_account_login_status_marks_connected_on_success(monkeypatc
     assert calls["use_codex_account"] is True
 
 
-def test_get_provider_account_login_status_marks_connected_for_gemini_and_claude(monkeypatch, tmp_path):
+def test_get_provider_account_login_status_marks_connected_for_claude(monkeypatch, tmp_path):
     import nexus.core.auth.oauth_onboarding_domain as auth_mod
 
-    gemini_session = SimpleNamespace(
-        session_id="session-status-gemini",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="oauth_done",
-        nexus_id="nexus-status-gemini",
-    )
     claude_session = SimpleNamespace(
         session_id="session-status-claude",
         expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
@@ -663,7 +545,6 @@ def test_get_provider_account_login_status_marks_connected_for_gemini_and_claude
         nexus_id="nexus-status-claude",
     )
     session_by_id = {
-        gemini_session.session_id: gemini_session,
         claude_session.session_id: claude_session,
     }
 
@@ -677,13 +558,10 @@ def test_get_provider_account_login_status_marks_connected_for_gemini_and_claude
         auth_mod,
         "get_setup_status",
         lambda nexus_id: {
-            "gemini_account_enabled": str(nexus_id).endswith("gemini"),
             "claude_account_enabled": str(nexus_id).endswith("claude"),
         },
     )
 
-    gemini_log = tmp_path / "gemini_device.log"
-    gemini_log.write_text("Open https://example.com/device and enter code G123-4567\n", encoding="utf-8")
     claude_log = tmp_path / "claude_device.log"
     claude_log.write_text("Visit https://example.com/verify and code CLD12345\n", encoding="utf-8")
 
@@ -693,14 +571,6 @@ def test_get_provider_account_login_status_marks_connected_for_gemini_and_claude
             return 0
 
     with auth_mod._DEVICE_AUTH_LOCK:
-        auth_mod._DEVICE_AUTH_JOBS[auth_mod._device_job_key(session_id=gemini_session.session_id, provider="gemini")] = {
-            "provider": "gemini",
-            "session_id": gemini_session.session_id,
-            "nexus_id": gemini_session.nexus_id,
-            "process": _DoneProc(),
-            "log_path": str(gemini_log),
-            "log_file": None,
-        }
         auth_mod._DEVICE_AUTH_JOBS[auth_mod._device_job_key(session_id=claude_session.session_id, provider="claude")] = {
             "provider": "claude",
             "session_id": claude_session.session_id,
@@ -710,26 +580,17 @@ def test_get_provider_account_login_status_marks_connected_for_gemini_and_claude
             "log_file": None,
         }
 
-    gemini_result = auth_mod.get_provider_account_login_status(
-        session_id=gemini_session.session_id,
-        provider="gemini",
-    )
     claude_result = auth_mod.get_provider_account_login_status(
         session_id=claude_session.session_id,
         provider="claude",
     )
 
-    assert gemini_result["state"] == "connected"
-    assert gemini_result["connected"] is True
-    assert gemini_result["provider"] == "gemini"
-    assert calls[0]["session_id"] == gemini_session.session_id
-    assert calls[0]["use_gemini_account"] is True
 
     assert claude_result["state"] == "connected"
     assert claude_result["connected"] is True
     assert claude_result["provider"] == "claude"
-    assert calls[1]["session_id"] == claude_session.session_id
-    assert calls[1]["use_claude_account"] is True
+    assert calls[0]["session_id"] == claude_session.session_id
+    assert calls[0]["use_claude_account"] is True
 
 
 def test_get_provider_account_login_status_marks_codex_rate_limited(monkeypatch, tmp_path):
@@ -774,17 +635,11 @@ def test_get_provider_account_login_status_marks_codex_rate_limited(monkeypatch,
     assert "rate-limited" in str(result["message"]).lower()
 
 
-def test_get_provider_account_login_status_marks_interactive_required_for_gemini_and_claude(
+def test_get_provider_account_login_status_marks_interactive_required_for_claude(
     monkeypatch, tmp_path
 ):
     import nexus.core.auth.oauth_onboarding_domain as auth_mod
 
-    gemini_session = SimpleNamespace(
-        session_id="session-interactive-gemini",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="oauth_done",
-        nexus_id="nexus-interactive-gemini",
-    )
     claude_session = SimpleNamespace(
         session_id="session-interactive-claude",
         expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
@@ -792,7 +647,6 @@ def test_get_provider_account_login_status_marks_interactive_required_for_gemini
         nexus_id="nexus-interactive-claude",
     )
     session_by_id = {
-        gemini_session.session_id: gemini_session,
         claude_session.session_id: claude_session,
     }
     monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
@@ -802,19 +656,10 @@ def test_get_provider_account_login_status_marks_interactive_required_for_gemini
         auth_mod,
         "get_setup_status",
         lambda _nid: {
-            "gemini_account_enabled": False,
             "claude_account_enabled": False,
         },
     )
 
-    gemini_log = tmp_path / "gemini_interactive.log"
-    gemini_log.write_text(
-        (
-            "Please set an Auth method in /var/lib/nexus/auth/home/uuid/.gemini/settings.json "
-            "or specify one of the following environment variables before running: GEMINI_API_KEY\n"
-        ),
-        encoding="utf-8",
-    )
     claude_log = tmp_path / "claude_interactive.log"
     claude_log.write_text("Not logged in · Please run /login\n", encoding="utf-8")
 
@@ -824,14 +669,6 @@ def test_get_provider_account_login_status_marks_interactive_required_for_gemini
             return 1
 
     with auth_mod._DEVICE_AUTH_LOCK:
-        auth_mod._DEVICE_AUTH_JOBS[auth_mod._device_job_key(session_id=gemini_session.session_id, provider="gemini")] = {
-            "provider": "gemini",
-            "session_id": gemini_session.session_id,
-            "nexus_id": gemini_session.nexus_id,
-            "process": _FailedProc(),
-            "log_path": str(gemini_log),
-            "log_file": None,
-        }
         auth_mod._DEVICE_AUTH_JOBS[auth_mod._device_job_key(session_id=claude_session.session_id, provider="claude")] = {
             "provider": "claude",
             "session_id": claude_session.session_id,
@@ -841,17 +678,11 @@ def test_get_provider_account_login_status_marks_interactive_required_for_gemini
             "log_file": None,
         }
 
-    gemini_result = auth_mod.get_provider_account_login_status(
-        session_id=gemini_session.session_id,
-        provider="gemini",
-    )
     claude_result = auth_mod.get_provider_account_login_status(
         session_id=claude_session.session_id,
         provider="claude",
     )
 
-    assert gemini_result["state"] == "interactive_required"
-    assert "did not start account login" in str(gemini_result["message"]).lower()
     assert claude_result["state"] == "interactive_required"
     assert "not authenticated" in str(claude_result["message"]).lower()
 
@@ -860,19 +691,19 @@ def test_get_provider_account_login_status_emits_failure_output_to_logs(monkeypa
     import nexus.core.auth.oauth_onboarding_domain as auth_mod
 
     session = SimpleNamespace(
-        session_id="session-log-tail-gemini",
+        session_id="session-log-tail-claude",
         expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
         status="oauth_done",
-        nexus_id="nexus-log-tail-gemini",
+        nexus_id="nexus-log-tail-claude",
     )
     monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
     monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
     monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
-    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nid: {"gemini_account_enabled": False})
+    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nid: {"claude_account_enabled": False})
 
-    log_path = tmp_path / "gemini_failure.log"
+    log_path = tmp_path / "claude_failure.log"
     log_path.write_text(
-        "Please set an Auth method in /tmp/.gemini/settings.json before running.\n",
+        "Error: authentication failed.\n",
         encoding="utf-8",
     )
 
@@ -881,10 +712,10 @@ def test_get_provider_account_login_status_emits_failure_output_to_logs(monkeypa
         def poll():
             return 1
 
-    key = auth_mod._device_job_key(session_id=session.session_id, provider="gemini")
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="claude")
     with auth_mod._DEVICE_AUTH_LOCK:
         auth_mod._DEVICE_AUTH_JOBS[key] = {
-            "provider": "gemini",
+            "provider": "claude",
             "session_id": session.session_id,
             "nexus_id": session.nexus_id,
             "process": _FailedProc(),
@@ -895,236 +726,29 @@ def test_get_provider_account_login_status_emits_failure_output_to_logs(monkeypa
     log_calls: list[tuple[str, tuple[object, ...]]] = []
     monkeypatch.setattr(auth_mod.logger, "error", lambda msg, *args: log_calls.append((msg, args)))
 
-    result = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="gemini")
+    result = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="claude")
 
-    assert result["state"] == "interactive_required"
+    assert result["state"] == "failed"
     assert log_calls
     assert "output_tail" in str(log_calls[0][0])
-    assert any("settings.json" in str(arg) for arg in log_calls[0][1])
+    assert any("authentication failed" in str(arg) for arg in log_calls[0][1])
 
 
-def test_relay_provider_account_login_callback_replays_localhost_callback(monkeypatch):
+def test_submit_provider_account_login_code_writes_to_running_claude_job(monkeypatch, tmp_path):
     import nexus.core.auth.oauth_onboarding_domain as auth_mod
 
     session = SimpleNamespace(
-        session_id="session-relay-gemini",
+        session_id="session-claude-submit-code",
         expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
         status="completed",
-        nexus_id="nexus-relay-gemini",
+        nexus_id="nexus-claude-submit-code",
     )
     monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
     monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
     monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
-    monkeypatch.setattr(
-        auth_mod,
-        "get_provider_account_login_status",
-        lambda session_id, provider: {
-            "exists": True,
-            "session_id": session_id,
-            "session_ref": f"lsr_{session_id}",
-            "provider": provider,
-            "state": "pending",
-            "message": "pending",
-        },
-    )
+    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nid: {"claude_account_enabled": False})
 
-    calls: dict[str, object] = {}
-
-    class _RelayResponse:
-        status_code = 200
-
-    def _fake_get(url, timeout, allow_redirects):
-        calls["url"] = url
-        calls["timeout"] = timeout
-        calls["allow_redirects"] = allow_redirects
-        return _RelayResponse()
-
-    monkeypatch.setattr(auth_mod.requests, "get", _fake_get)
-
-    class _RunningProc:
-        @staticmethod
-        def poll():
-            return None
-
-    key = auth_mod._device_job_key(session_id=session.session_id, provider="gemini")
-    with auth_mod._DEVICE_AUTH_LOCK:
-        auth_mod._DEVICE_AUTH_JOBS[key] = {
-            "provider": "gemini",
-            "session_id": session.session_id,
-            "nexus_id": session.nexus_id,
-            "process": _RunningProc(),
-            "log_path": "",
-            "log_file": None,
-        }
-
-    result = auth_mod.relay_provider_account_login_callback(
-        session_id=session.session_id,
-        provider="gemini",
-        callback_url="http://localhost:41725/oauth2callback?code=abc&state=xyz",
-    )
-
-    assert result["relayed"] is True
-    assert result["relay_http_status"] == 200
-    assert result["state"] == "pending"
-    assert calls["url"] == "http://localhost:41725/oauth2callback?code=abc&state=xyz"
-    assert calls["allow_redirects"] is False
-
-
-def test_relay_provider_account_login_callback_rejects_non_localhost_url(monkeypatch):
-    import nexus.core.auth.oauth_onboarding_domain as auth_mod
-
-    session = SimpleNamespace(
-        session_id="session-relay-invalid",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="completed",
-        nexus_id="nexus-relay-invalid",
-    )
-    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
-    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
-    monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
-
-    result = auth_mod.relay_provider_account_login_callback(
-        session_id=session.session_id,
-        provider="gemini",
-        callback_url="https://evil.example/oauth2callback?code=abc",
-    )
-
-    assert result["relayed"] is False
-    assert result["state"] == "invalid_callback_url"
-
-
-def test_get_provider_account_login_status_marks_pending_requires_gemini_code(monkeypatch, tmp_path):
-    import nexus.core.auth.oauth_onboarding_domain as auth_mod
-
-    session = SimpleNamespace(
-        session_id="session-gemini-code-prompt",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="completed",
-        nexus_id="nexus-gemini-code-prompt",
-    )
-    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
-    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
-    monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
-    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nid: {"gemini_account_enabled": False})
-
-    log_path = tmp_path / "gemini_pending.log"
-    log_path.write_text(
-        (
-            "Please visit the following URL to authorize the application:\n"
-            "https://accounts.google.com/o/oauth2/v2/auth?foo=bar\n"
-            "Enter the authorization code:\n"
-        ),
-        encoding="utf-8",
-    )
-
-    class _RunningProc:
-        @staticmethod
-        def poll():
-            return None
-
-    key = auth_mod._device_job_key(session_id=session.session_id, provider="gemini")
-    with auth_mod._DEVICE_AUTH_LOCK:
-        auth_mod._DEVICE_AUTH_JOBS[key] = {
-            "provider": "gemini",
-            "session_id": session.session_id,
-            "nexus_id": session.nexus_id,
-            "process": _RunningProc(),
-            "log_path": str(log_path),
-            "log_file": None,
-        }
-
-    result = auth_mod.get_provider_account_login_status(
-        session_id=session.session_id,
-        provider="gemini",
-    )
-
-    assert result["state"] == "pending"
-    assert result["requires_code"] is True
-    assert "accounts.google.com" in str(result["verify_url"])
-    assert "authorization code" in str(result["message"]).lower()
-
-
-def test_get_provider_account_login_status_autoconnects_gemini_existing_login(monkeypatch, tmp_path):
-    import nexus.core.auth.oauth_onboarding_domain as auth_mod
-
-    session = SimpleNamespace(
-        session_id="session-gemini-existing-login",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="completed",
-        nexus_id="nexus-gemini-existing-login",
-    )
-    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
-    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
-    monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
-
-    persisted: dict[str, object] = {"saved": False}
-
-    def _fake_get_setup_status(_nid: str):
-        return {"gemini_account_enabled": bool(persisted["saved"])}
-
-    def _fake_store(**kwargs):
-        assert kwargs["session_id"] == session.session_id
-        assert kwargs["use_gemini_account"] is True
-        persisted["saved"] = True
-
-    monkeypatch.setattr(auth_mod, "get_setup_status", _fake_get_setup_status)
-    monkeypatch.setattr(auth_mod, "store_ai_provider_keys", _fake_store)
-
-    log_path = tmp_path / "gemini_existing.log"
-    log_path.write_text(
-        "Logged in with Google: demo@example.com /auth\n",
-        encoding="utf-8",
-    )
-
-    class _RunningProc:
-        def __init__(self):
-            self.terminated = False
-
-        @staticmethod
-        def poll():
-            return None
-
-        def terminate(self):
-            self.terminated = True
-
-    proc = _RunningProc()
-    key = auth_mod._device_job_key(session_id=session.session_id, provider="gemini")
-    with auth_mod._DEVICE_AUTH_LOCK:
-        auth_mod._DEVICE_AUTH_JOBS[key] = {
-            "provider": "gemini",
-            "session_id": session.session_id,
-            "nexus_id": session.nexus_id,
-            "process": proc,
-            "log_path": str(log_path),
-            "log_file": None,
-        }
-
-    result = auth_mod.get_provider_account_login_status(
-        session_id=session.session_id,
-        provider="gemini",
-    )
-
-    assert proc.terminated is True
-    assert result["state"] == "connected"
-    assert result["connected"] is True
-    assert "already authenticated" in str(result["message"]).lower()
-
-
-def test_submit_provider_account_login_code_writes_to_running_gemini_job(monkeypatch, tmp_path):
-    import nexus.core.auth.oauth_onboarding_domain as auth_mod
-
-    session = SimpleNamespace(
-        session_id="session-gemini-submit-code",
-        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
-        status="completed",
-        nexus_id="nexus-gemini-submit-code",
-    )
-    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
-    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
-    monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
-    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nid: {"gemini_account_enabled": False})
-
-    log_path = tmp_path / "gemini_submit.log"
+    log_path = tmp_path / "claude_submit.log"
     log_path.write_text(
         "Enter the authorization code:\nhttps://accounts.google.com/o/oauth2/v2/auth?foo=bar\n",
         encoding="utf-8",
@@ -1149,10 +773,10 @@ def test_submit_provider_account_login_code_writes_to_running_gemini_job(monkeyp
             return None
 
     proc = _RunningProc()
-    key = auth_mod._device_job_key(session_id=session.session_id, provider="gemini")
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="claude")
     with auth_mod._DEVICE_AUTH_LOCK:
         auth_mod._DEVICE_AUTH_JOBS[key] = {
-            "provider": "gemini",
+            "provider": "claude",
             "session_id": session.session_id,
             "nexus_id": session.nexus_id,
             "process": proc,
@@ -1162,7 +786,7 @@ def test_submit_provider_account_login_code_writes_to_running_gemini_job(monkeyp
 
     result = auth_mod.submit_provider_account_login_code(
         session_id=session.session_id,
-        provider="gemini",
+        provider="claude",
         authorization_code="4/0AX4XfWg-example",
     )
 
@@ -1230,12 +854,12 @@ def test_start_provider_account_login_for_nexus_uses_latest_session(monkeypatch)
 
     result = auth_mod.start_provider_account_login_for_nexus(
         nexus_id="nexus-ready-1",
-        provider="gemini",
+        provider="claude",
     )
 
     assert result["started"] is True
     assert result["session_id"] == "session-ready-1"
-    assert result["provider"] == "gemini"
+    assert result["provider"] == "claude"
     assert result["state"] == "pending"
     assert result["verify_url"] == "https://verify.example"
     assert result["user_code"] == "ABCD-1234"
@@ -1361,7 +985,7 @@ def test_start_provider_account_login_runs_agy_tui_in_wide_pty_with_own_home(mon
     assert cmd[0] == "/usr/bin/script" and cmd[-1] == "/dev/null"
     assert "stty cols 4096" in cmd[-2] and cmd[-2].endswith("exec /opt/agy/agy")
     agy_home = str(tmp_path / "auth" / "agy" / session.nexus_id)
-    # Antigravity writes $HOME/.gemini, so it must not share the Gemini CLI home.
+    # Antigravity writes $HOME/.gemini, so it must use a private per-user home.
     assert calls[0]["env"]["HOME"] == agy_home
     assert calls[0]["env"]["AGY_HOME"] == agy_home
     assert calls[0]["stdin"] == auth_mod.subprocess.PIPE
@@ -1507,7 +1131,7 @@ def test_agy_signed_in_asks_the_cli_with_the_user_home(monkeypatch, tmp_path):
     def _run(cmd, env, cwd, stdin, capture_output, text, timeout):
         seen.append({"cmd": cmd, "home": env["HOME"]})
         out = "Fetching available models...\n" + (
-            "gemini-3-pro\n" if len(seen) == 1 else "Error: Please sign in to view available models."
+            "claude-3-pro\n" if len(seen) == 1 else "Error: Please sign in to view available models."
         )
         return SimpleNamespace(returncode=0, stdout=out, stderr="")
 

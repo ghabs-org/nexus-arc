@@ -21,7 +21,7 @@ process per state directory. SQL mode supports multiple controllers/workers.
 | --- | --- |
 | Codex | Official `codex` CLI and its local sign-in |
 | Claude Code | Official `claude` CLI and its local sign-in |
-| Copilot, Gemini CLI, OpenCode | Their installed official/local CLI configuration |
+| Copilot, Codex CLI, OpenCode | Their installed official/local CLI configuration |
 | OpenAI API | `OPENAI_API_KEY`, `nexus-arc[openai]` |
 | Anthropic API | `ANTHROPIC_API_KEY`, `nexus-arc[anthropic]` |
 

@@ -16,7 +16,7 @@ This guide covers three runtime modes for Nexus ARC installations:
 - A Telegram Bot Token and User ID only if you plan to enable Telegram
 - A GitHub **or** GitLab Personal Access Token (for issue integration)
 - A Discord Bot Token only if you plan to enable Discord
-- At least one AI provider CLI installed (`copilot`, `gemini`, `codex`, or `claude`)
+- At least one AI provider CLI installed (`copilot`, `codex`, or `claude`)
 
 > **Note:** Nexus supports both **GitHub** and **GitLab** as first-class VCS platforms.
 > Each project can independently target either platform via `git_platform` in `project_config.yaml`.
@@ -55,7 +55,7 @@ If you install the native bot package, six commands become available:
 
 ## 2. Configure (Interactive Setup)
 
-The easiest way to configure the bot, generate the `.env` file, and install external CLIs (like Copilot, Gemini, Ollama,
+The easiest way to configure the bot, generate the `.env` file, and install external CLIs (like Copilot, Ollama,
 etc.) is to use our interactive setup wizard:
 
 ```bash
@@ -96,7 +96,7 @@ Everything runs on the local filesystem. No database, no Redis.
 | Workflow orchestration & auto-chaining                   | ✅      |
 | GitHub issue integration (issues, PRs, comments, labels) | ✅      |
 | GitLab issue integration (issues, MRs, comments, labels) | ✅      |
-| Agent execution (Copilot, Gemini, Codex, Claude)         | ✅      |
+| Agent execution (Copilot, Codex, Claude)         | ✅      |
 | Inbox task queue (file-based)                            | ✅      |
 | Workflow state persistence (file-based)                  | ✅      |
 | Webhook processing                                       | ✅      |

@@ -7,7 +7,7 @@ example uses these plugins to wire up Telegram, GitHub, and AI integrations with
 
 | Kind                   | Purpose                 | Example                             |
 |------------------------|-------------------------|-------------------------------------|
-| `ai_provider`          | AI execution backends   | Copilot CLI, Gemini CLI, OpenAI API |
+| `ai_provider`          | AI execution backends   | Copilot CLI, Codex CLI, OpenAI API |
 | `git_platform`         | Git hosting integration | GitHub, GitLab, Bitbucket           |
 | `notification_channel` | User notifications      | Telegram, Slack, Discord            |
 | `storage_backend`      | State persistence       | File, PostgreSQL, Redis             |

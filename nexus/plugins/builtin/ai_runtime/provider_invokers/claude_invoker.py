@@ -78,7 +78,7 @@ def invoke_claude_cli(
             output_label="claude",
         )
 
-        # Simple startup probe (similar to Gemini/Copilot)
+        # Simple startup probe (similar to Copilot)
         exit_code = None
         deadline = time.time() + 3.0
         while time.time() < deadline:

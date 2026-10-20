@@ -1719,7 +1719,7 @@ def _ensure_agent_definition(
 
     if not yaml_path:
         normalized = str(agent_type or "").strip().lower()
-        provider_names = {"copilot", "gemini", "claude", "codex", "cursor", "opencode", "pi"}
+        provider_names = {"copilot", "claude", "codex", "cursor", "opencode", "pi"}
         if normalized in provider_names:
             logger.warning(
                 "Skipping agent YAML lookup for provider-like agent_type '%s'; treating it as a runtime provider label",
@@ -1911,7 +1911,7 @@ def invoke_ai_agent(
         task_content: Task description
         continuation: If True, this is a continuation of previous work
         continuation_prompt: Custom prompt for continuation
-        preferred_tool: If provided, prefer this tool (e.g. 'gemini', 'claude'); otherwise use best available (default: None)
+        preferred_tool: If provided, prefer this tool (e.g. 'codex', 'claude'); otherwise use best available (default: None)
         agent_type: Agent type to route to (triage, design, analysis, etc.)
         project_name: Project name for resolving workflow definition
 

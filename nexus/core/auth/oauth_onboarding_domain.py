@@ -123,40 +123,34 @@ def _oauth_callback_url(provider: str) -> str:
 _SESSION_REF_PREFIX = "lsr_"
 _DEVICE_AUTH_JOBS: dict[str, dict[str, Any]] = {}
 _DEVICE_AUTH_LOCK = threading.Lock()
-_SUPPORTED_PROVIDER_ACCOUNT_CONNECTORS = ("codex", "gemini", "claude", "agy")
+_SUPPORTED_PROVIDER_ACCOUNT_CONNECTORS = ("codex", "claude", "agy")
 _PROVIDER_ACCOUNT_CONNECT_LABELS = {
     "codex": "Codex",
-    "gemini": "Gemini",
     "claude": "Claude",
     "agy": "Antigravity",
 }
 _PROVIDER_ACCOUNT_CONNECT_TOGGLE_FIELDS = {
     "codex": "use_codex_account",
-    "gemini": "use_gemini_account",
     "claude": "use_claude_account",
     "agy": "use_agy_account",
 }
 _PROVIDER_ACCOUNT_CONNECT_HOME_ENV = {
     "codex": "CODEX_HOME",
-    "gemini": "GEMINI_HOME",
     "claude": "CLAUDE_HOME",
     "agy": "AGY_HOME",
 }
 _PROVIDER_ACCOUNT_CONNECT_CLI_ENV = {
     "codex": "CODEX_CLI_PATH",
-    "gemini": "GEMINI_CLI_PATH",
     "claude": "CLAUDE_CLI_PATH",
     "agy": "AGY_CLI_PATH",
 }
 _PROVIDER_ACCOUNT_CONNECT_ARGS_ENV = {
     "codex": "NEXUS_CODEX_ACCOUNT_CONNECT_ARGS",
-    "gemini": "NEXUS_GEMINI_ACCOUNT_CONNECT_ARGS",
     "claude": "NEXUS_CLAUDE_ACCOUNT_CONNECT_ARGS",
     "agy": "NEXUS_AGY_ACCOUNT_CONNECT_ARGS",
 }
 _PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS = {
     "codex": "login --device-auth",
-    "gemini": "--debug",
     "claude": "auth login",
     # Antigravity has no login subcommand; it signs in from its interactive TUI.
     "agy": "",
@@ -255,46 +249,6 @@ def _get_nested_str(payload: dict[str, Any], path: tuple[str, ...]) -> str:
     return str(cursor or "").strip()
 
 
-def _prepare_provider_runtime_state(*, provider: str, user_home: str) -> None:
-    provider_name = str(provider or "").strip().lower()
-    if provider_name != "gemini":
-        return
-    selected_auth = str(os.getenv("NEXUS_GEMINI_SELECTED_AUTH_TYPE", "oauth-personal")).strip()
-    if not selected_auth:
-        return
-    raw_folder_trust = str(os.getenv("NEXUS_GEMINI_FOLDER_TRUST_ENABLED", "false")).strip().lower()
-    folder_trust_enabled = raw_folder_trust in {"1", "true", "yes", "on"}
-    settings_path = os.path.join(user_home, ".gemini", "settings.json")
-    settings = _read_json_file(settings_path)
-    current_security_auth = _get_nested_str(settings, ("security", "auth", "selectedType"))
-    current_legacy_auth = str(settings.get("selectedAuthType") or "").strip()
-    security = settings.get("security")
-    security_map = security if isinstance(security, dict) else {}
-    folder_trust_map = security_map.get("folderTrust")
-    current_folder_trust = (
-        bool(folder_trust_map.get("enabled"))
-        if isinstance(folder_trust_map, dict)
-        else None
-    )
-    if (
-        current_security_auth == selected_auth
-        and current_legacy_auth == selected_auth
-        and current_folder_trust is folder_trust_enabled
-    ):
-        return
-    _set_nested_value(settings, ("security", "auth", "selectedType"), selected_auth)
-    _set_nested_value(settings, ("security", "folderTrust", "enabled"), folder_trust_enabled)
-    # Keep legacy key for older Gemini CLI builds that still read selectedAuthType.
-    settings["selectedAuthType"] = selected_auth
-    _write_json_file(settings_path, settings)
-    logger.info(
-        "[provider-connect] prepared gemini settings path=%s selectedType=%s folderTrustEnabled=%s",
-        settings_path,
-        selected_auth,
-        folder_trust_enabled,
-    )
-
-
 def _runtime_mode() -> str:
     return normalize_runtime_mode(os.getenv("NEXUS_RUNTIME_MODE", "standalone"))
 
@@ -377,58 +331,6 @@ def _import_local_codex_account(*, nexus_id: str) -> dict[str, Any]:
         state="imported",
         imported=True,
         message="Imported saved Codex account credentials into the Nexus runtime.",
-        source_path=source_path,
-    )
-
-
-def _import_local_gemini_account(*, nexus_id: str) -> dict[str, Any]:
-    source_path = _resolve_local_credential_path(
-        env_name="NEXUS_OPENCLAW_GEMINI_AUTH_PATH",
-        default_path="~/.gemini/oauth_creds.json",
-    )
-    if not os.path.isfile(source_path):
-        return _imported_provider_response(
-            provider="gemini",
-            state="not_found",
-            imported=False,
-            message=f"No saved Gemini auth file was found at {source_path}.",
-            source_path=source_path,
-        )
-    payload = _read_json_file(source_path)
-    access_token = _get_nested_str(payload, ("access_token",))
-    refresh_token = _get_nested_str(payload, ("refresh_token",))
-    if not (access_token or refresh_token):
-        return _imported_provider_response(
-            provider="gemini",
-            state="invalid",
-            imported=False,
-            message="Saved Gemini auth file is present but does not contain reusable OAuth tokens.",
-            source_path=source_path,
-        )
-
-    user_home = _provider_user_runtime_home(nexus_id=nexus_id)
-    provider_home = _provider_runtime_home(provider="gemini", nexus_id=nexus_id)
-    _ensure_private_dir(user_home)
-    _ensure_private_dir(provider_home)
-    _copy_private_file(
-        source_path=source_path,
-        target_path=os.path.join(user_home, ".gemini", "oauth_creds.json"),
-    )
-    _copy_private_file(
-        source_path=source_path,
-        target_path=os.path.join(provider_home, "oauth_creds.json"),
-    )
-    _prepare_provider_runtime_state(provider="gemini", user_home=user_home)
-    upsert_ai_provider_keys(
-        nexus_id=str(nexus_id),
-        gemini_account_enabled=True,
-        key_version=_key_version(),
-    )
-    return _imported_provider_response(
-        provider="gemini",
-        state="imported",
-        imported=True,
-        message="Imported saved Gemini account credentials into the Nexus runtime.",
         source_path=source_path,
     )
 
@@ -574,8 +476,6 @@ def import_openclaw_local_provider_credentials(*, nexus_id: str, provider: str) 
 
     if provider_name == "codex":
         importer = _import_local_codex_account
-    elif provider_name == "gemini":
-        importer = _import_local_gemini_account
     elif provider_name == "claude":
         importer = _import_local_claude_account
     elif provider_name == "copilot":
@@ -709,18 +609,7 @@ def _requires_manual_auth_code(*, provider: str, log_text: str) -> bool:
     if provider_name == "claude":
         # `claude auth login` prints the URL, then reads the code claude.com shows.
         return "paste code here" in _strip_terminal_control_sequences(log_text).lower()
-    if provider_name != "gemini":
-        return False
-    normalized = _strip_terminal_control_sequences(log_text).lower()
-    return (
-        "enter the authorization code" in normalized
-        or "authorization code:" in normalized
-    )
-
-
-def _gemini_has_logged_in_identity(log_text: str) -> bool:
-    normalized = _strip_terminal_control_sequences(log_text).lower()
-    return "logged in with google:" in normalized
+    return False
 
 
 def _log_tail(path: str, *, max_chars: int = 3000) -> str:
@@ -776,32 +665,6 @@ def _classify_provider_account_login_failure(*, provider: str, log_text: str) ->
             ),
         )
 
-    if provider_name == "gemini" and (
-        "please set an auth method" in normalized
-        or ".gemini/settings.json" in normalized
-        or "gemini_api_key" in normalized
-        or "google_genai_use_vertexai" in normalized
-        or "google_genai_use_gca" in normalized
-    ):
-        return (
-            "interactive_required",
-            (
-                "Gemini CLI did not start account login for this workspace runtime. "
-                "Retry Connect Gemini Account and complete browser confirmation."
-                + (f" Last output: {last_line}" if last_line else "")
-            ),
-        )
-
-    if provider_name == "gemini" and "no input provided via stdin" in normalized:
-        return (
-            "failed",
-            (
-                "Gemini login did not start in interactive mode. "
-                "Retry Connect Gemini Account."
-                + (f" Last output: {last_line}" if last_line else "")
-            ),
-        )
-
     if provider_name == "claude" and (
         "not logged in" in normalized
         or "please run /login" in normalized
@@ -847,14 +710,9 @@ def _normalize_provider_auth_code(raw_code: str) -> str:
     return code
 
 
-def _gemini_should_use_pty_wrapper() -> bool:
-    raw_value = str(os.getenv("NEXUS_GEMINI_ACCOUNT_CONNECT_USE_PTY", "true")).strip().lower()
-    return raw_value in {"1", "true", "yes", "on"}
-
-
 _AGY_SIGNIN_CHECK_INTERVAL_SECONDS = 5
 # Logins that read a code pasted from the provider's web page on stdin.
-_CODE_ENTRY_PROVIDERS = {"gemini", "agy", "claude"}
+_CODE_ENTRY_PROVIDERS = {"agy", "claude"}
 # Logins without a device code: hyphenated runs in their OAuth client_id are not one.
 _NO_DEVICE_CODE_PROVIDERS = {"agy", "claude"}
 _AGY_OAUTH_URL_PREFIX = "https://accounts.google.com/o/oauth2/auth?"
@@ -1803,20 +1661,6 @@ def _validate_codex_api_key_with_codex_cli_login(api_key: str) -> tuple[bool, st
     return False, f"Codex CLI login validation failed: {reason}"
 
 
-def _validate_gemini_api_key_with_provider(api_key: str) -> tuple[bool, str]:
-    should_validate = str(os.getenv("NEXUS_AUTH_VALIDATE_GEMINI_KEY", "false")).strip().lower()
-    if should_validate not in {"1", "true", "yes", "on"}:
-        return True, ""
-    response = requests.get(
-        "https://generativelanguage.googleapis.com/v1beta/models",
-        params={"key": api_key},
-        timeout=10,
-    )
-    if response.status_code == 200:
-        return True, ""
-    return False, f"Gemini key validation failed ({response.status_code})"
-
-
 def _validate_claude_api_key_with_provider(api_key: str) -> tuple[bool, str]:
     should_validate = str(os.getenv("NEXUS_AUTH_VALIDATE_CLAUDE_KEY", "false")).strip().lower()
     if should_validate not in {"1", "true", "yes", "on"}:
@@ -1843,12 +1687,10 @@ def store_ai_provider_keys(
     *,
     session_id: str,
     codex_api_key: str | None = None,
-    gemini_api_key: str | None = None,
     claude_api_key: str | None = None,
     copilot_github_token: str | None = None,
     allow_copilot: bool = False,
     use_codex_account: bool | None = None,
-    use_gemini_account: bool | None = None,
     use_claude_account: bool | None = None,
     use_copilot_account: bool | None = None,
     use_agy_account: bool | None = None,
@@ -1864,11 +1706,9 @@ def store_ai_provider_keys(
         raise ValueError("OAuth step is not complete yet")
 
     codex_provided = codex_api_key is not None
-    gemini_provided = gemini_api_key is not None
     claude_provided = claude_api_key is not None
     copilot_provided = copilot_github_token is not None
     codex_candidate = str(codex_api_key or "").strip()
-    gemini_candidate = str(gemini_api_key or "").strip()
     claude_candidate = str(claude_api_key or "").strip()
     copilot_candidate = str(copilot_github_token or "").strip()
     record = get_user_credentials(session_record.nexus_id)
@@ -1876,7 +1716,6 @@ def store_ai_provider_keys(
         record
         and (
             record.codex_api_key_enc
-            or record.gemini_api_key_enc
             or record.claude_api_key_enc
         )
     )
@@ -1884,9 +1723,6 @@ def store_ai_provider_keys(
     has_stored_copilot_token = bool(record and record.copilot_github_token_enc)
     codex_account_enabled = bool(use_codex_account) if use_codex_account is not None else bool(
         record and getattr(record, "codex_account_enabled", False)
-    )
-    gemini_account_enabled = bool(use_gemini_account) if use_gemini_account is not None else bool(
-        record and getattr(record, "gemini_account_enabled", False)
     )
     claude_account_enabled = bool(use_claude_account) if use_claude_account is not None else bool(
         record and getattr(record, "claude_account_enabled", False)
@@ -1899,7 +1735,6 @@ def store_ai_provider_keys(
     )
     account_selected = bool(
         codex_account_enabled
-        or gemini_account_enabled
         or claude_account_enabled
         or copilot_account_enabled
         or agy_account_enabled
@@ -1915,7 +1750,7 @@ def store_ai_provider_keys(
             "Copilot account mode requires linked GitHub OAuth. Run `/login github` first."
         )
 
-    if not codex_candidate and not gemini_candidate and not claude_candidate and allow_copilot:
+    if not codex_candidate and not claude_candidate and allow_copilot:
         copilot_available = bool(
             has_github_for_copilot
             or has_stored_copilot_token
@@ -1929,7 +1764,6 @@ def store_ai_provider_keys(
             )
 
     codex_encrypted: str | None = None
-    gemini_encrypted: str | None = None
     claude_encrypted: str | None = None
     copilot_encrypted: str | None = None
 
@@ -1946,15 +1780,6 @@ def store_ai_provider_keys(
             raise ValueError(error_message or "Invalid Codex API key")
         codex_encrypted = encrypt_secret(codex_candidate, key_version=_key_version())
 
-    if gemini_provided and not gemini_candidate:
-        gemini_encrypted = ""
-    elif gemini_candidate:
-        if len(gemini_candidate) < 16:
-            raise ValueError("Gemini API key is too short")
-        valid, error_message = _validate_gemini_api_key_with_provider(gemini_candidate)
-        if not valid:
-            raise ValueError(error_message or "Invalid Gemini API key")
-        gemini_encrypted = encrypt_secret(gemini_candidate, key_version=_key_version())
 
     if claude_provided and not claude_candidate:
         claude_encrypted = ""
@@ -1976,11 +1801,9 @@ def store_ai_provider_keys(
     upsert_ai_provider_keys(
         nexus_id=session_record.nexus_id,
         codex_api_key_enc=codex_encrypted,
-        gemini_api_key_enc=gemini_encrypted,
         claude_api_key_enc=claude_encrypted,
         copilot_github_token_enc=copilot_encrypted,
         codex_account_enabled=codex_account_enabled,
-        gemini_account_enabled=gemini_account_enabled,
         claude_account_enabled=claude_account_enabled,
         copilot_account_enabled=copilot_account_enabled,
         agy_account_enabled=agy_account_enabled,
@@ -2018,14 +1841,6 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
     provider_name = _normalize_provider_account_connector(provider)
     provider_label = _provider_account_label(provider_name)
     login_cmd = _provider_account_login_command(provider_name)
-    if provider_name == "gemini" and _gemini_should_use_pty_wrapper():
-        wrapped = _wrap_command_with_script_tty(login_cmd)
-        if wrapped != login_cmd:
-            login_cmd = wrapped
-        else:
-            logger.warning(
-                "[provider-connect] gemini pty wrapper unavailable; continuing without pseudo-tty"
-            )
     if provider_name == "agy":
         login_cmd = _agy_login_command(login_cmd)
     provider_home_env = str(_PROVIDER_ACCOUNT_CONNECT_HOME_ENV.get(provider_name) or "").strip()
@@ -2036,7 +1851,6 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
     _ensure_private_dir(provider_home)
     _ensure_private_dir(os.path.join(provider_home, "log"))
     _ensure_private_dir(os.path.join(provider_home, "memories"))
-    _prepare_provider_runtime_state(provider=provider_name, user_home=user_home)
     log_dir = os.path.join(provider_home, "device-auth")
     _ensure_private_dir(log_dir)
     timestamp = _now_utc().strftime("%Y%m%d_%H%M%S")
@@ -2093,18 +1907,13 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
         env = {**os.environ, "HOME": user_home}
         if provider_home_env:
             env[provider_home_env] = provider_home
-        if provider_name == "gemini":
-            # Force browser URL output in server-side environments where opening a local browser is impossible.
-            env.setdefault("NO_BROWSER", "true")
-            # Gemini CLI variants resolve config from GEMINI_CLI_HOME while older builds use GEMINI_HOME/HOME.
-            env.setdefault("GEMINI_CLI_HOME", user_home)
         if provider_name == "agy":
-            # Antigravity keeps login and state in $HOME/.gemini; isolate it from Gemini CLI.
+            # Antigravity keeps login and state in $HOME/.gemini under its own per-user home.
             env["HOME"] = provider_home
             env.setdefault("NO_BROWSER", "true")
         process_stdin: int | Any = subprocess.DEVNULL
         if provider_name in _CODE_ENTRY_PROVIDERS:
-            # Gemini asks for an authorization code on stdin after browser confirmation.
+            # These CLIs read the code their sign-in page shows on stdin.
             process_stdin = subprocess.PIPE
         try:
             process = subprocess.Popen(
@@ -2265,20 +2074,6 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
                 _DEVICE_AUTH_JOBS.pop(job_key, None)
 
         if exit_code is None:
-            if provider_name == "gemini" and not verify_url and _gemini_has_logged_in_identity(log_text):
-                force_connect_via_existing_login = True
-                if getattr(process, "terminate", None):
-                    try:
-                        process.terminate()
-                    except Exception:
-                        pass
-                log_file = job.get("log_file")
-                if log_file is not None:
-                    try:
-                        log_file.close()
-                    except Exception:
-                        pass
-                _DEVICE_AUTH_JOBS.pop(job_key, None)
 
             if not force_connect_via_existing_login:
                 status_line = _truncate_for_log(_last_log_line(log_text, ""), limit=220)
@@ -2421,102 +2216,6 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
     }
 
 
-def relay_provider_account_login_callback(
-    *,
-    session_id: str,
-    provider: str,
-    callback_url: str,
-) -> dict[str, Any]:
-    resolved_session_id = resolve_login_session_id(session_id)
-    session_record = get_auth_session(str(resolved_session_id))
-    if not session_record:
-        return {"relayed": False, "state": "invalid_session", "message": "Invalid session"}
-
-    provider_name = _normalize_provider_account_connector(provider)
-    if provider_name != "gemini":
-        return {
-            "relayed": False,
-            "session_id": session_record.session_id,
-            "session_ref": format_login_session_ref(session_record.session_id),
-            "provider": provider_name,
-            "state": "unsupported_provider",
-            "message": "Callback relay is currently supported only for Gemini.",
-        }
-
-    try:
-        safe_callback_url = _validate_local_callback_url(callback_url)
-    except ValueError as exc:
-        return {
-            "relayed": False,
-            "session_id": session_record.session_id,
-            "session_ref": format_login_session_ref(session_record.session_id),
-            "provider": provider_name,
-            "state": "invalid_callback_url",
-            "message": str(exc),
-        }
-
-    job_key = _device_job_key(session_id=str(session_record.session_id), provider=provider_name)
-    with _DEVICE_AUTH_LOCK:
-        job = _DEVICE_AUTH_JOBS.get(job_key)
-        process = job.get("process") if isinstance(job, dict) else None
-        is_running = bool(getattr(process, "poll", None) and process.poll() is None)
-    if not is_running:
-        idle_status = get_provider_account_login_status(
-            session_id=session_record.session_id,
-            provider=provider_name,
-        )
-        idle_status["relayed"] = False
-        if str(idle_status.get("state") or "").strip().lower() == "idle":
-            idle_status["state"] = "no_active_job"
-            idle_status["message"] = "No active Gemini login job. Click Connect Gemini Account first."
-        return idle_status
-
-    timeout_raw = str(os.getenv("NEXUS_PROVIDER_CALLBACK_RELAY_TIMEOUT_SECONDS", "12")).strip()
-    try:
-        timeout_seconds = max(2, min(30, int(timeout_raw)))
-    except ValueError:
-        timeout_seconds = 12
-
-    try:
-        relay_response = requests.get(
-            safe_callback_url,
-            timeout=timeout_seconds,
-            allow_redirects=False,
-        )
-        logger.info(
-            "[provider-connect] relay-callback provider=%s session=%s callback=%s http_status=%s",
-            provider_name,
-            session_record.session_id,
-            safe_callback_url,
-            relay_response.status_code,
-        )
-    except Exception as exc:
-        logger.error(
-            "[provider-connect] relay-callback failed provider=%s session=%s callback=%s error=%s",
-            provider_name,
-            session_record.session_id,
-            safe_callback_url,
-            exc,
-        )
-        pending_status = get_provider_account_login_status(
-            session_id=session_record.session_id,
-            provider=provider_name,
-        )
-        pending_status["relayed"] = False
-        pending_status["state"] = "callback_relay_failed"
-        pending_status["message"] = f"Failed to relay callback URL to Gemini CLI: {exc}"
-        return pending_status
-
-    status = get_provider_account_login_status(session_id=session_record.session_id, provider=provider_name)
-    status["relayed"] = True
-    status["relay_http_status"] = int(relay_response.status_code)
-    if str(status.get("state") or "").strip().lower() in {"starting", "pending"}:
-        status["message"] = (
-            "Gemini callback URL relayed. Waiting for Gemini login confirmation..."
-        )
-    return status
-
-
 def submit_provider_account_login_code(
     *,
     session_id: str,
@@ -2536,7 +2235,7 @@ def submit_provider_account_login_code(
             "session_ref": format_login_session_ref(session_record.session_id),
             "provider": provider_name,
             "state": "unsupported_provider",
-            "message": "Authorization-code submission is supported for Gemini, Antigravity and Claude.",
+            "message": "Authorization-code submission is supported for Antigravity and Claude.",
         }
     provider_label = _provider_account_label(provider_name)
 
@@ -2556,7 +2255,9 @@ def submit_provider_account_login_code(
         idle_status["submitted"] = False
         if str(idle_status.get("state") or "").strip().lower() == "idle":
             idle_status["state"] = "no_active_job"
-            idle_status["message"] = "No active Gemini login job. Click Connect Gemini Account first."
+            idle_status["message"] = (
+                f"No active {provider_label} login job. Click Connect {provider_label} first."
+            )
         return idle_status
 
     if not (getattr(process, "poll", None) and process.poll() is None):

@@ -257,7 +257,6 @@ class NexusTeamPolicy:
             "claude-code": "ANTHROPIC_API_KEY",
             "openai": "OPENAI_API_KEY",
             "claude": "ANTHROPIC_API_KEY",
-            "gemini": "GEMINI_API_KEY",
             "copilot": "COPILOT_GITHUB_TOKEN",
         }
         if (
@@ -282,7 +281,6 @@ class NexusTeamPolicy:
             "claude-code": "ANTHROPIC_API_KEY",
             "openai": "OPENAI_API_KEY",
             "claude": "ANTHROPIC_API_KEY",
-            "gemini": "GEMINI_API_KEY",
             "copilot": "COPILOT_GITHUB_TOKEN",
         }
         result = []

@@ -5,8 +5,8 @@ from nexus.core.config.validators import validate_project_config
 
 def test_validate_project_config_rejects_invalid_tool_pref_shape():
     payload = {
-        "model_profiles": {"small": {"gemini": "gemini-2.0-flash"}},
-        "ai_tool_preferences": {"triage": "gemini"},
+        "model_profiles": {"small": {"claude": "claude-sonnet"}},
+        "ai_tool_preferences": {"triage": "claude"},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     with pytest.raises(ValueError):
@@ -15,8 +15,8 @@ def test_validate_project_config_rejects_invalid_tool_pref_shape():
 
 def test_validate_project_config_rejects_unknown_profile_reference():
     payload = {
-        "model_profiles": {"small": {"gemini": "gemini-2.0-flash"}},
-        "ai_tool_preferences": {"writer": {"provider": "gemini", "profile": "large"}},
+        "model_profiles": {"small": {"claude": "claude-sonnet"}},
+        "ai_tool_preferences": {"writer": {"provider": "claude", "profile": "large"}},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     with pytest.raises(ValueError):
@@ -25,9 +25,9 @@ def test_validate_project_config_rejects_unknown_profile_reference():
 
 def test_validate_project_config_rejects_invalid_profile_priority_provider():
     payload = {
-        "model_profiles": {"fast": {"gemini": "gemini-2.0-flash"}},
+        "model_profiles": {"fast": {"claude": "claude-sonnet"}},
         "profile_provider_priority": {"fast": ["invalid-provider"]},
-        "ai_tool_preferences": {"writer": {"provider": "gemini", "profile": "fast"}},
+        "ai_tool_preferences": {"writer": {"provider": "claude", "profile": "fast"}},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     with pytest.raises(ValueError):

@@ -15,6 +15,32 @@ def _ready_session_payload(session_id: str) -> dict:
     }
 
 
+def test_retired_provider_callback_relay_is_removed():
+    import webhook_server
+
+    response = webhook_server.app.test_client().post(
+        "/auth/provider-connect/relay-callback",
+        json={"provider": "gemini", "session_id": "old-session", "callback_url": "http://localhost:1234/"},
+    )
+    assert response.status_code == 404
+
+
+def test_retired_provider_cannot_start_account_login(monkeypatch):
+    import webhook_server
+
+    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
+    from nexus.core.auth import oauth_onboarding_domain as auth
+    from datetime import datetime, UTC, timedelta
+    monkeypatch.setattr(auth, "get_auth_session", lambda _sid: SimpleNamespace(
+        session_id="session", status="completed", expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    ))
+    response = webhook_server.app.test_client().post(
+        "/auth/provider-connect/start", json={"provider": "gemini", "session_id": "session"},
+    )
+    assert response.status_code == 400
+    assert "Unsupported provider" in response.get_json()["message"]
+
+
 def test_index_renders_dedicated_login_page_when_auth_enabled(monkeypatch):
     import webhook_server
 
@@ -247,37 +273,6 @@ def test_provider_connect_pending_popup_page_is_gone(monkeypatch):
     assert response.status_code in {404, 405}
 
 
-def test_provider_connect_relay_callback_route_returns_service_payload(monkeypatch):
-    import webhook_server
-
-    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
-    monkeypatch.setattr(
-        webhook_server,
-        "_svc_relay_provider_account_login_callback",
-        lambda session_id, provider, callback_url: {
-            "relayed": True,
-            "session_id": session_id,
-            "provider": provider,
-            "state": "pending",
-            "message": f"Relayed {callback_url}",
-        },
-    )
-
-    client = webhook_server.app.test_client()
-    response = client.post(
-        "/auth/provider-connect/relay-callback",
-        json={
-            "session_id": "sess-3",
-            "provider": "gemini",
-            "callback_url": "http://localhost:41725/oauth2callback?code=abc",
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.get_json()
-    assert payload["status"] == "ok"
-    assert payload["relayed"] is True
-    assert payload["provider"] == "gemini"
 
 
 def test_provider_connect_submit_code_route_returns_service_payload(monkeypatch):
@@ -301,7 +296,7 @@ def test_provider_connect_submit_code_route_returns_service_payload(monkeypatch)
         "/auth/provider-connect/submit-code",
         json={
             "session_id": "sess-4",
-            "provider": "gemini",
+            "provider": "claude",
             "authorization_code": "4/0AX4XfWg-example",
         },
     )
@@ -310,7 +305,7 @@ def test_provider_connect_submit_code_route_returns_service_payload(monkeypatch)
     payload = response.get_json()
     assert payload["status"] == "ok"
     assert payload["submitted"] is True
-    assert payload["provider"] == "gemini"
+    assert payload["provider"] == "claude"
 
 
 def test_provider_connect_setup_form_renders_account_rows_with_copy_and_paste():
@@ -323,10 +318,8 @@ def test_provider_connect_setup_form_renders_account_rows_with_copy_and_paste():
         show_copilot_option=True,
         copilot_token_set=False,
         codex_key_set=False,
-        gemini_key_set=False,
         claude_key_set=False,
         codex_account_enabled=False,
-        gemini_account_enabled=False,
         claude_account_enabled=True,
         copilot_account_enabled=False,
         existing_keys_note="note",
@@ -334,13 +327,13 @@ def test_provider_connect_setup_form_renders_account_rows_with_copy_and_paste():
         identity_rows=[("GitHub", "<strong>Ghabs95</strong>")],
     )
 
-    for key, name in (("claude", "Claude"), ("codex", "Codex"), ("agy", "Antigravity"), ("gemini", "Gemini")):
+    for key, name in (("claude", "Claude"), ("codex", "Codex"), ("agy", "Antigravity")):
         assert f'id="account-{key}"' in rendered
         assert f"startProviderConnect('{key}')" in rendered
         assert f'name="use_{key}_account"' in rendered
         assert f">{name}</div>" in rendered
     # Code-entry providers get a code box with a Paste button; Codex shows a device code instead.
-    for key in ("claude", "agy", "gemini"):
+    for key in ("claude", "agy"):
         assert f'id="{key}_authorization_code"' in rendered
         assert f'data-paste="{key}_authorization_code"' in rendered
         assert f"submitProviderAuthCode('{key}')" in rendered
@@ -354,7 +347,7 @@ def test_provider_connect_setup_form_renders_account_rows_with_copy_and_paste():
     assert 'data-paste="claude_api_key"' in rendered
     # The script talks to the same endpoints and never builds JS from page data.
     for endpoint in ("/auth/provider-connect/start", "/auth/provider-connect/status",
-                     "/auth/provider-connect/submit-code", "/auth/provider-connect/relay-callback"):
+                     "/auth/provider-connect/submit-code"):
         assert endpoint in rendered
     assert '<script type="application/json" id="setup-data">{"session": "lsr_session-123"}</script>' in rendered
     assert "navigator.clipboard.readText" in rendered and "navigator.clipboard.writeText" in rendered
@@ -370,17 +363,15 @@ def test_provider_connect_setup_form_hides_api_keys_in_account_mode():
         show_copilot_option=True,
         copilot_token_set=False,
         codex_key_set=False,
-        gemini_key_set=False,
         claude_key_set=False,
         codex_account_enabled=False,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         existing_keys_note="note",
     )
 
     assert 'id="keys-h"' not in rendered
-    for field in ("codex_api_key", "gemini_api_key", "claude_api_key", "copilot_github_token"):
+    for field in ("codex_api_key", "claude_api_key", "copilot_github_token"):
         assert f'name="{field}"' not in rendered
     assert 'id="accounts-h"' in rendered
 
@@ -593,10 +584,8 @@ def test_provider_connect_setup_form_offers_antigravity_code_flow():
         show_copilot_option=True,
         copilot_token_set=False,
         codex_key_set=False,
-        gemini_key_set=False,
         claude_key_set=False,
         codex_account_enabled=False,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         existing_keys_note="note",
@@ -655,7 +644,7 @@ def test_auth_setup_reopens_account_page_for_finished_session(monkeypatch):
 
     assert response.status_code == 200
     assert "<h1>Account setup</h1>" in body
-    assert "Signed in as Ghabs95 · 1 of 4 AI accounts connected" in body
+    assert "Signed in as Ghabs95 · 1 of 3 AI accounts connected" in body
     assert 'id="account-agy"' in body and "nexus" in body
     assert f"lsr_{'a' * 32}" in body
     assert webhook_server._WEB_SESSION_COOKIE_NAME in (response.headers.get("Set-Cookie") or "")

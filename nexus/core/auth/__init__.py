@@ -20,7 +20,6 @@ __all__ = [
     "get_session_and_setup_status",
     "get_setup_status",
     "has_project_access",
-    "relay_provider_account_login_callback",
     "submit_provider_account_login_code",
     "register_onboarding_message",
     "refresh_stale_access_grants",

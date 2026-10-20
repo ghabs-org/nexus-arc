@@ -368,7 +368,7 @@ async def test_routing_validate_explains_nexus_repo_split(operator_service: Brid
                 "git_branches": {"default": "develop"},
                 "ai_tool_preferences": {"developer": {"profile": "reasoning", "provider": "codex"}},
                 "model_profiles": {"reasoning": {"codex": "gpt-5.4"}},
-                "profile_provider_priority": {"reasoning": ["codex", "gemini"]},
+                "profile_provider_priority": {"reasoning": ["codex", "claude"]},
             }
         }, "ghabs-org/nexus"),
     )

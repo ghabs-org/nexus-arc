@@ -92,7 +92,7 @@ class AgentRuntime(ABC):
                 "pid": int,
                 "timestamp": float,   # unix timestamp of launch
                 "agent_type": str,
-                "tool": str,          # "copilot" | "gemini" | …
+                "tool": str,          # "copilot" | "codex" | …
             }
         """
 
@@ -659,7 +659,7 @@ class ProcessOrchestrator:
         log_files = glob.glob(log_pattern, recursive=True)
 
         for log_file in log_files:
-            match = re.search(r"(?:copilot|gemini|codex)_(\d+)_\d{8}_", os.path.basename(log_file))
+            match = re.search(r"(?:copilot|codex)_(\d+)_\d{8}_", os.path.basename(log_file))
             if not match:
                 continue
             issue_num = match.group(1)
@@ -687,7 +687,7 @@ class ProcessOrchestrator:
                     f
                     for f in log_files
                     if re.search(
-                        rf"(?:copilot|gemini|codex)_{issue_num}_\d{{8}}_",
+                        rf"(?:copilot|codex)_{issue_num}_\d{{8}}_",
                         os.path.basename(f),
                     )
                 ],

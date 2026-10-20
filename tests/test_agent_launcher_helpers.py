@@ -79,6 +79,7 @@ def test_resolve_requester_token_for_issue_falls_back_to_issue_url(monkeypatch):
     from nexus.core.runtime import agent_launcher
 
     monkeypatch.setattr(agent_launcher, "auth_enabled", lambda: True)
+    monkeypatch.setattr(agent_launcher, "requester_scoped_execution_enabled", lambda: True)
     monkeypatch.setattr(agent_launcher, "get_issue_requester", lambda *_a, **_k: None)
     monkeypatch.setattr(agent_launcher, "get_issue_requester_by_url", lambda _url: "user-123")
     monkeypatch.setattr(
@@ -177,7 +178,7 @@ def test_invoke_ai_agent_sanitizes_deprecated_helper_scripts(monkeypatch, tmp_pa
 
     class _Orchestrator:
         def invoke_agent(self, **kwargs):  # noqa: ANN003
-            return 1234, "gemini"
+            return 1234, "claude"
 
     monkeypatch.setattr(agent_launcher, "_get_launch_policy_plugin", lambda: None)
     monkeypatch.setattr(agent_launcher, "_resolve_workflow_path", lambda _project: None)
@@ -214,7 +215,7 @@ def test_invoke_ai_agent_sanitizes_deprecated_helper_scripts(monkeypatch, tmp_pa
     )
 
     assert pid == 1234
-    assert tool == "gemini"
+    assert tool == "claude"
     assert sanitized.get("path") == str(tmp_path)
 
 
@@ -296,7 +297,7 @@ def test_invoke_ai_agent_skips_worktree_provision_for_triage(monkeypatch, tmp_pa
 
     class _Orchestrator:
         def invoke_agent(self, **kwargs):  # noqa: ANN003
-            return 3210, "gemini"
+            return 3210, "claude"
 
     monkeypatch.setattr(agent_launcher, "_get_launch_policy_plugin", lambda: None)
     monkeypatch.setattr(agent_launcher, "_resolve_workflow_path", lambda _project: None)
@@ -329,7 +330,7 @@ def test_invoke_ai_agent_skips_worktree_provision_for_triage(monkeypatch, tmp_pa
     )
 
     assert pid == 3210
-    assert tool == "gemini"
+    assert tool == "claude"
     assert calls["provisioned"] == 0
 
 
@@ -340,7 +341,7 @@ def test_invoke_ai_agent_honors_step_worktree_override_for_triage(monkeypatch, t
 
     class _Orchestrator:
         def invoke_agent(self, **kwargs):  # noqa: ANN003
-            return 7654, "gemini"
+            return 7654, "claude"
 
     monkeypatch.setattr(agent_launcher, "_get_launch_policy_plugin", lambda: None)
     monkeypatch.setattr(agent_launcher, "_resolve_workflow_path", lambda _project: None)
@@ -377,7 +378,7 @@ def test_invoke_ai_agent_honors_step_worktree_override_for_triage(monkeypatch, t
     )
 
     assert pid == 7654
-    assert tool == "gemini"
+    assert tool == "claude"
     assert calls["provisioned"] == 1
 
 
@@ -396,7 +397,7 @@ def test_invoke_ai_agent_provisions_project_repos_with_repo_specific_base_branch
     class _Orchestrator:
         def invoke_agent(self, **kwargs):  # noqa: ANN003
             captured["workspace_dir"] = str(kwargs.get("workspace_dir"))
-            return 9911, "gemini"
+            return 9911, "claude"
 
     monkeypatch.setattr(agent_launcher, "_get_launch_policy_plugin", lambda: None)
     monkeypatch.setattr(agent_launcher, "_resolve_workflow_path", lambda _project: None)
@@ -461,7 +462,7 @@ def test_invoke_ai_agent_provisions_project_repos_with_repo_specific_base_branch
     )
 
     assert pid == 9911
-    assert tool == "gemini"
+    assert tool == "claude"
     assert len(provision_calls) == 2
     assert any(call[0] == str(cosmos_dir) and call[2] == "origin/develop" for call in provision_calls)
     assert any(call[0] == str(workflow_dir) and call[2] == "origin/main" for call in provision_calls)
@@ -481,6 +482,7 @@ def test_invoke_ai_agent_rejects_explicit_requester_mismatch(monkeypatch, tmp_pa
     monkeypatch.setattr(agent_launcher, "_ensure_agent_definition", lambda *_a, **_k: True)
     monkeypatch.setattr(agent_launcher, "get_orchestrator", lambda _cfg: _Orchestrator())
     monkeypatch.setattr(agent_launcher, "auth_enabled", lambda: True)
+    monkeypatch.setattr(agent_launcher, "requester_scoped_execution_enabled", lambda: True)
     monkeypatch.setattr(
         agent_launcher,
         "_lookup_bound_issue_requester_nexus_id",
@@ -517,6 +519,7 @@ def test_invoke_ai_agent_rejects_when_issue_not_bound_in_auth_mode(monkeypatch, 
     monkeypatch.setattr(agent_launcher, "_ensure_agent_definition", lambda *_a, **_k: True)
     monkeypatch.setattr(agent_launcher, "get_orchestrator", lambda _cfg: _Orchestrator())
     monkeypatch.setattr(agent_launcher, "auth_enabled", lambda: True)
+    monkeypatch.setattr(agent_launcher, "requester_scoped_execution_enabled", lambda: True)
     monkeypatch.setattr(
         agent_launcher,
         "_lookup_bound_issue_requester_nexus_id",
@@ -593,14 +596,14 @@ def test_launch_next_agent_merges_persisted_and_runtime_exclusions(monkeypatch, 
         issue_number="113",
         next_agent="developer",
         trigger_source="dead-agent-retry",
-        exclude_tools=["gemini"],
+        exclude_tools=["claude"],
         repo_override="acme-org/sample-repo",
         requester_nexus_id="nexus-113",
     )
 
     assert pid == 4242
     assert tool == "claude"
-    assert captured.get("exclude_tools") == ["codex", "copilot", "gemini"]
+    assert captured.get("exclude_tools") == ["codex", "copilot", "claude"]
     assert captured.get("requester_nexus_id") == "nexus-113"
 
 
@@ -715,7 +718,7 @@ def test_recover_completion_from_agent_log_persists_payload(monkeypatch, tmp_pat
 
     from nexus.core.runtime import agent_launcher
 
-    log_file = tmp_path / "gemini_1_20260310_115119.log"
+    log_file = tmp_path / "claude_1_20260310_115119.log"
     log_file.write_text(
         (
             "```bash\n"
@@ -790,7 +793,7 @@ def test_recover_completion_from_agent_log_persists_payload(monkeypatch, tmp_pat
         agent_type="triage",
         workspace_dir=str(tmp_path),
         project_key="example-org",
-        tool_name="gemini",
+        tool_name="claude",
         log_path=str(log_file),
         issue_url="https://gitlab.com/example-org/example-project/-/issues/1",
     )
@@ -816,7 +819,7 @@ def test_recover_completion_from_agent_log_normalizes_double_escaped_comment_mar
 
     from nexus.core.runtime import agent_launcher
 
-    log_file = tmp_path / "gemini_1_20260310_115119.log"
+    log_file = tmp_path / "claude_1_20260310_115119.log"
     log_file.write_text(
         (
             "```bash\n"
@@ -883,7 +886,7 @@ def test_recover_completion_from_agent_log_normalizes_double_escaped_comment_mar
         agent_type="triage",
         workspace_dir=str(tmp_path),
         project_key="example-org",
-        tool_name="gemini",
+        tool_name="claude",
         log_path=str(log_file),
         issue_url="https://gitlab.com/example-org/example-project/-/issues/1",
     )
@@ -904,7 +907,7 @@ def test_recover_completion_from_agent_log_skips_duplicate_comment(monkeypatch, 
 
     from nexus.core.runtime import agent_launcher
 
-    log_file = tmp_path / "gemini_1_20260310_115119.log"
+    log_file = tmp_path / "claude_1_20260310_115119.log"
     log_file.write_text(
         (
             "```bash\n"
@@ -979,7 +982,7 @@ def test_recover_completion_from_agent_log_skips_duplicate_comment(monkeypatch, 
         agent_type="triage",
         workspace_dir=str(tmp_path),
         project_key="example-org",
-        tool_name="gemini",
+        tool_name="claude",
         log_path=str(log_file),
         issue_url="https://gitlab.com/example-org/example-project/-/issues/1",
     )

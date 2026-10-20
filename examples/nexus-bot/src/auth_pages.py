@@ -244,14 +244,8 @@ PROVIDERS = (
         "sub": "Google Antigravity CLI · your Google account",
         "code_hint": "After Google sign-in, antigravity.google shows a code. Paste it here.",
     },
-    {
-        "key": "gemini",
-        "name": "Gemini",
-        "sub": "Gemini CLI · your Google account",
-        "code_hint": "After Google sign-in, paste the authorization code here.",
-    },
 )
-CODE_PROVIDERS = {"claude", "agy", "gemini"}
+CODE_PROVIDERS = {"claude", "agy"}
 
 
 def _api_key_field(name: str, label: str, placeholder: str, saved: bool) -> str:
@@ -297,17 +291,6 @@ def _account_row(provider: dict, enabled: bool) -> str:
           </div>
           <small>{escape(provider["code_hint"])}</small>
         </div>"""
-    callback_block = ""
-    if key == "gemini":
-        callback_block = """
-        <div data-callback-step hidden>
-          <label class="field" for="gemini_callback_url">Localhost address (only if Google redirected to localhost)</label>
-          <div class="joined">
-            <input id="gemini_callback_url" type="text" class="mono" placeholder="http://localhost:41725/oauth2callback?..." spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" />
-            <button type="button" class="btn" data-paste="gemini_callback_url">Paste</button>
-            <button type="button" class="btn" onclick="relayProviderCallback('gemini')">Send</button>
-          </div>
-        </div>"""
     return f"""
     <li class="account" id="account-{key}" data-provider="{key}">
       <div class="account-head">
@@ -331,7 +314,7 @@ def _account_row(provider: dict, enabled: bool) -> str:
             <div class="value code" data-device-code></div>
             <button type="button" class="btn" data-copy-device>Copy</button>
           </div>
-        </div>{code_block}{callback_block}
+        </div>{code_block}
         <div class="status-line" data-status role="status" aria-live="polite"></div>
       </div>
     </li>"""
@@ -345,7 +328,6 @@ def render_setup_form(
     show_copilot_option: bool,
     copilot_token_set: bool,
     codex_key_set: bool,
-    gemini_key_set: bool,
     claude_key_set: bool,
     account_flags: dict[str, bool],
     copilot_account_enabled: bool,
@@ -374,7 +356,7 @@ def render_setup_form(
     rows = "".join(_account_row(p, bool(account_flags.get(p["key"]))) for p in PROVIDERS)
     accounts = f"""
   <section class="setting" aria-labelledby="accounts-h">
-    <div class="label"><h2 id="accounts-h">AI accounts</h2><p>Agents run on your own subscriptions. Connect an account once; Studio and the bots reuse it. Switch off <em>Use</em> to stop using an account without disconnecting it.</p><p>Claude, Antigravity and Gemini finish on their own site with a code: copy it there, then paste it into that account's row here. Codex shows a code to enter on its sign-in page instead.</p></div>
+    <div class="label"><h2 id="accounts-h">AI accounts</h2><p>Agents run on your own subscriptions. Connect an account once; Studio and the bots reuse it. Switch off <em>Use</em> to stop using an account without disconnecting it.</p><p>Claude and Antigravity finish on their own site with a code: copy it there, then paste it into that account's row here. Codex shows a code to enter on its sign-in page instead.</p></div>
     <div class="panel"><ul class="accounts">{rows}</ul></div>
   </section>"""
 
@@ -397,7 +379,6 @@ def render_setup_form(
     <div class="panel fields">
       {_api_key_field("claude_api_key", "Anthropic API key", "sk-ant-…", claude_key_set)}
       {_api_key_field("codex_api_key", "OpenAI API key", "sk-…", codex_key_set)}
-      {_api_key_field("gemini_api_key", "Gemini API key", "AIza…", gemini_key_set)}
       {_api_key_field("copilot_github_token", "Copilot token", "ghp_…", copilot_token_set)}
     </div>
   </section>"""
@@ -425,7 +406,7 @@ SETUP_JS = r"""
   var DATA = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
   var TERMINAL = ["connected", "failed", "connected_but_not_saved", "rate_limited",
     "interactive_required", "unsupported_provider", "invalid_session", "no_active_job", "idle"];
-  var NAMES = { claude: "Claude", codex: "Codex", agy: "Antigravity", gemini: "Gemini" };
+  var NAMES = { claude: "Claude", codex: "Codex", agy: "Antigravity" };
   var polls = {};
 
   function row(p) { return document.getElementById("account-" + p); }
@@ -505,12 +486,7 @@ SETUP_JS = r"""
     if (dc) dc.textContent = code;
     show(p, "[data-device-step]", !!code && state !== "connected");
     show(p, "[data-code-step]", !!payload.requires_code && state !== "connected");
-    if (p === "gemini") {
-      var hint = payload.callback_url_hint || "";
-      var cb = document.getElementById("gemini_callback_url");
-      if (hint && cb && !cb.value) cb.value = hint;
-      show(p, "[data-callback-step]", state !== "connected" && (!!hint || /localhost/i.test(payload.message || "")));
-    }
+
     if (state === "connected") {
       setPill(p, "ok", "Connected");
       var t = part(p, 'input[type="checkbox"]'); if (t) t.checked = true;
@@ -563,18 +539,6 @@ SETUP_JS = r"""
     }).then(function (r) { return r.json(); })
       .then(function (payload) { if (input) input.value = ""; render(p, payload); poll(p); })
       .catch(function () { setStatus(p, "Could not send the code. Try again.", true); });
-  };
-
-  window.relayProviderCallback = function (p) {
-    var input = document.getElementById(p + "_callback_url");
-    var url = input ? String(input.value || "").trim() : "";
-    if (!url) { setStatus(p, "Paste the localhost address first.", true); return; }
-    fetch("/auth/provider-connect/relay-callback", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: p, session_id: DATA.session, callback_url: url })
-    }).then(function (r) { return r.json(); })
-      .then(function (payload) { render(p, payload); poll(p); })
-      .catch(function () { setStatus(p, "Could not send the address. Try again.", true); });
   };
 
   // A sign-in started from Telegram or Discord shows up here: attach to running jobs.

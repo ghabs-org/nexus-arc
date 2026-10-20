@@ -408,13 +408,12 @@ ai_tool_preferences:
     print(f"\n--- {step_num}. Agent CLI Tools ---")
     step_num += 1
     print("Which CLI tools do you want to automatically install?")
-    print("Note: Copilot, Gemini, Codex, and Claude require 'npm' to be installed.")
+    print("Note: Copilot, Codex, and Claude require 'npm' to be installed.")
 
     cli_options = [
         "GitHub CLI (gh)",
         "GitLab CLI (glab)",
         "GitHub Copilot CLI",
-        "Google Gemini CLI",
         "OpenAI Codex CLI",
         "Anthropic Claude Code",
         "Ollama",
@@ -427,10 +426,9 @@ ai_tool_preferences:
         install_gh = 1 in selected_clis
         install_glab = 2 in selected_clis
         install_copilot = 3 in selected_clis
-        install_gemini = 4 in selected_clis
-        install_codex = 5 in selected_clis
-        install_claude = 6 in selected_clis
-        install_ollama = 7 in selected_clis
+        install_codex = 4 in selected_clis
+        install_claude = 5 in selected_clis
+        install_ollama = 6 in selected_clis
 
         # NPM-based installs
         npm_packages = []
@@ -440,8 +438,6 @@ ai_tool_preferences:
         )
         if install_copilot:
             npm_packages.append("@github/copilot")
-        if install_gemini:
-            npm_packages.append("@google/gemini-cli")
         if install_codex:
             npm_packages.append(codex_npm_package)
         if install_claude:
@@ -450,7 +446,7 @@ ai_tool_preferences:
         if npm_packages:
             if not shutil.which("npm"):
                 print(
-                    "⚠️ 'npm' is not installed. Skipping Copilot/Gemini/Codex/Claude CLI installation."
+                    "⚠️ 'npm' is not installed. Skipping Copilot/Codex/Claude CLI installation."
                 )
             else:
                 run_command(["npm", "install", "-g"] + npm_packages, shell=sys.platform == "nt")

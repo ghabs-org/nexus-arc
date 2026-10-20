@@ -58,7 +58,7 @@ All configuration lives in environment variables (loaded from `.env`) and `confi
 
 ## Project Config (`project_config.yaml`)
 
-AI tool preference provider values support `copilot`, `gemini`, `codex`, and `claude`.
+AI tool preference provider values support `copilot`, `codex`, and `claude`.
 This applies to:
 
 - `model_profiles.<profile>.<provider>`
@@ -100,7 +100,7 @@ model_profiles:
   balanced:
     claude: "claude-sonnet-4"
 profile_provider_priority:
-  balanced: [ "claude", "codex", "gemini", "copilot" ]
+  balanced: [ "claude", "codex", "copilot" ]
 ai_tool_preferences:
   writer:
     provider: "claude"

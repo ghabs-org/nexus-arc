@@ -130,9 +130,6 @@ from nexus.core.auth import (
     refresh_stale_access_grants as _svc_refresh_stale_access_grants,
 )
 from nexus.core.auth import (
-    relay_provider_account_login_callback as _svc_relay_provider_account_login_callback,
-)
-from nexus.core.auth import (
     resolve_login_session_id as _svc_resolve_login_session_id,
 )
 from nexus.core.auth import (
@@ -847,10 +844,8 @@ def _render_ai_key_form(
     show_copilot_option: bool,
     copilot_token_set: bool,
     codex_key_set: bool,
-    gemini_key_set: bool,
     claude_key_set: bool,
     codex_account_enabled: bool,
-    gemini_account_enabled: bool,
     claude_account_enabled: bool,
     copilot_account_enabled: bool,
     existing_keys_note: str,
@@ -865,13 +860,11 @@ def _render_ai_key_form(
         show_copilot_option=show_copilot_option,
         copilot_token_set=copilot_token_set,
         codex_key_set=codex_key_set,
-        gemini_key_set=gemini_key_set,
         claude_key_set=claude_key_set,
         account_flags={
             "claude": claude_account_enabled,
             "codex": codex_account_enabled,
             "agy": agy_account_enabled,
-            "gemini": gemini_account_enabled,
         },
         copilot_account_enabled=copilot_account_enabled,
         existing_keys_note=existing_keys_note,
@@ -880,8 +873,8 @@ def _render_ai_key_form(
     )
 
 
-_AI_ACCOUNT_KEYS = ("claude", "codex", "agy", "gemini")
-_AI_ACCOUNT_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity", "gemini": "Gemini"}
+_AI_ACCOUNT_KEYS = ("claude", "codex", "agy")
+_AI_ACCOUNT_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity"}
 
 
 def _setup_missing_items(setup: dict) -> list[str]:
@@ -962,10 +955,8 @@ def _render_account_setup_page(
         show_copilot_option=show_copilot_option,
         copilot_token_set=bool(setup.get("copilot_token_set")),
         codex_key_set=bool(setup.get("codex_key_set")),
-        gemini_key_set=bool(setup.get("gemini_key_set")),
         claude_key_set=bool(setup.get("claude_key_set")),
         codex_account_enabled=bool(setup.get("codex_account_enabled")),
-        gemini_account_enabled=bool(setup.get("gemini_account_enabled")),
         claude_account_enabled=bool(setup.get("claude_account_enabled")),
         copilot_account_enabled=bool(setup.get("copilot_account_enabled")),
         agy_account_enabled=bool(setup.get("agy_account_enabled")),
@@ -1382,9 +1373,6 @@ def auth_ai_keys():
     payload = payload if isinstance(payload, dict) else {}
     session_id = str(request.form.get("session_id") or payload.get("session_id") or "").strip()
     codex_api_key = str(request.form.get("codex_api_key") or payload.get("codex_api_key") or "").strip()
-    gemini_api_key = str(
-        request.form.get("gemini_api_key") or payload.get("gemini_api_key") or ""
-    ).strip()
     claude_api_key = str(
         request.form.get("claude_api_key") or payload.get("claude_api_key") or ""
     ).strip()
@@ -1407,14 +1395,6 @@ def auth_ai_keys():
         use_codex_account = raw_use_codex_account
     elif raw_use_codex_account is not None:
         use_codex_account = str(raw_use_codex_account).strip().lower() in {"1", "true", "yes", "on"}
-    raw_use_gemini_account = request.form.get("use_gemini_account")
-    if raw_use_gemini_account is None:
-        raw_use_gemini_account = payload.get("use_gemini_account")
-    use_gemini_account = None
-    if isinstance(raw_use_gemini_account, bool):
-        use_gemini_account = raw_use_gemini_account
-    elif raw_use_gemini_account is not None:
-        use_gemini_account = str(raw_use_gemini_account).strip().lower() in {"1", "true", "yes", "on"}
     raw_use_claude_account = request.form.get("use_claude_account")
     if raw_use_claude_account is None:
         raw_use_claude_account = payload.get("use_claude_account")
@@ -1442,9 +1422,6 @@ def auth_ai_keys():
     codex_supplied = ("codex_api_key" in request.form) or (
         isinstance(payload, dict) and "codex_api_key" in payload
     )
-    gemini_supplied = ("gemini_api_key" in request.form) or (
-        isinstance(payload, dict) and "gemini_api_key" in payload
-    )
     claude_supplied = ("claude_api_key" in request.form) or (
         isinstance(payload, dict) and "claude_api_key" in payload
     )
@@ -1454,7 +1431,7 @@ def auth_ai_keys():
     api_keys_allowed = _allow_api_keys_in_web_setup()
     if (
         not api_keys_allowed
-        and (codex_supplied or gemini_supplied or claude_supplied or copilot_token_supplied)
+        and (codex_supplied or claude_supplied or copilot_token_supplied)
     ):
         return _render_auth_message(
             "Credential error",
@@ -1474,12 +1451,10 @@ def auth_ai_keys():
         result = _svc_store_ai_provider_keys(
             session_id=session_id,
             codex_api_key=(codex_api_key if codex_supplied else None),
-            gemini_api_key=(gemini_api_key if gemini_supplied else None),
             claude_api_key=(claude_api_key if claude_supplied else None),
             copilot_github_token=(copilot_github_token if copilot_token_supplied else None),
             allow_copilot=use_copilot,
             use_codex_account=use_codex_account,
-            use_gemini_account=use_gemini_account,
             use_claude_account=use_claude_account,
             use_copilot_account=use_copilot_account,
             use_agy_account=use_agy_account,
@@ -1569,30 +1544,6 @@ def auth_provider_connect_status():
     return jsonify({"status": "ok", **result}), 200
 
 
-@app.route("/auth/provider-connect/relay-callback", methods=["POST"])
-def auth_provider_connect_relay_callback():
-    if not NEXUS_AUTH_ENABLED:
-        return jsonify({"status": "disabled", "message": "Auth onboarding is disabled."}), 404
-    payload = request.get_json(silent=True) if request.is_json else {}
-    payload = payload if isinstance(payload, dict) else {}
-    session_id = str(payload.get("session_id") or request.form.get("session_id") or "").strip()
-    provider = str(payload.get("provider") or request.form.get("provider") or "gemini").strip().lower()
-    callback_url = str(payload.get("callback_url") or request.form.get("callback_url") or "").strip()
-    if not session_id:
-        return jsonify({"status": "error", "message": "session_id is required"}), 400
-    if not callback_url:
-        return jsonify({"status": "error", "message": "callback_url is required"}), 400
-    try:
-        result = _svc_relay_provider_account_login_callback(
-            session_id=session_id,
-            provider=provider,
-            callback_url=callback_url,
-        )
-    except Exception as exc:
-        return jsonify({"status": "error", "message": str(exc), "provider": provider}), 400
-    return jsonify({"status": "ok", **result}), 200
-
-
 @app.route("/auth/provider-connect/submit-code", methods=["POST"])
 def auth_provider_connect_submit_code():
     if not NEXUS_AUTH_ENABLED:
@@ -1600,7 +1551,7 @@ def auth_provider_connect_submit_code():
     payload = request.get_json(silent=True) if request.is_json else {}
     payload = payload if isinstance(payload, dict) else {}
     session_id = str(payload.get("session_id") or request.form.get("session_id") or "").strip()
-    provider = str(payload.get("provider") or request.form.get("provider") or "gemini").strip().lower()
+    provider = str(payload.get("provider") or request.form.get("provider") or "claude").strip().lower()
     authorization_code = str(
         payload.get("authorization_code") or request.form.get("authorization_code") or ""
     ).strip()

@@ -208,8 +208,8 @@ Searchable forever in Git ✅
      ▼          ▼
 ┌─────────┐  ┌──────────┐
 │Git API  │  │ AI APIs  │
-│Issues   │  │Copilot/Gemini│
-│PRs      │  │Gemini    │
+│Issues   │  │Copilot   │
+│PRs      │  │Codex     │
 │Comments │  │Copilot   │
 └─────────┘  └──────────┘
      │

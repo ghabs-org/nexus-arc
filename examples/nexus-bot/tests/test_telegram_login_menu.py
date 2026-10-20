@@ -44,7 +44,6 @@ def test_login_without_arguments_shows_provider_menu_when_git_is_linked(monkeypa
         "login:claude",
         "login:codex",
         "login:agy",
-        "login:gemini",
     ]
     assert "Connect Antigravity" in [b.text for b in buttons]
     assert buttons[-1].url == "https://nexus.example.test/auth/setup?session=lsr_ref"

@@ -90,12 +90,10 @@ class AuthManager:
         *,
         session_id: str,
         codex_api_key: str | None = None,
-        gemini_api_key: str | None = None,
         claude_api_key: str | None = None,
         copilot_github_token: str | None = None,
         allow_copilot: bool = False,
         use_codex_account: bool | None = None,
-        use_gemini_account: bool | None = None,
         use_claude_account: bool | None = None,
         use_copilot_account: bool | None = None,
         use_agy_account: bool | None = None,
@@ -103,12 +101,10 @@ class AuthManager:
         return _auth_sessions.store_ai_provider_keys(
             session_id=session_id,
             codex_api_key=codex_api_key,
-            gemini_api_key=gemini_api_key,
             claude_api_key=claude_api_key,
             copilot_github_token=copilot_github_token,
             allow_copilot=allow_copilot,
             use_codex_account=use_codex_account,
-            use_gemini_account=use_gemini_account,
             use_claude_account=use_claude_account,
             use_copilot_account=use_copilot_account,
             use_agy_account=use_agy_account,
@@ -139,19 +135,6 @@ class AuthManager:
 
     def get_provider_account_login_status(self, *, session_id: str, provider: str) -> dict[str, Any]:
         return _auth_sessions.get_provider_account_login_status(session_id=session_id, provider=provider)
-
-    def relay_provider_account_login_callback(
-        self,
-        *,
-        session_id: str,
-        provider: str,
-        callback_url: str,
-    ) -> dict[str, Any]:
-        return _auth_sessions.relay_provider_account_login_callback(
-            session_id=session_id,
-            provider=provider,
-            callback_url=callback_url,
-        )
 
     def submit_provider_account_login_code(
         self,
@@ -270,12 +253,10 @@ def store_ai_provider_keys(
     *,
     session_id: str,
     codex_api_key: str | None = None,
-    gemini_api_key: str | None = None,
     claude_api_key: str | None = None,
     copilot_github_token: str | None = None,
     allow_copilot: bool = False,
     use_codex_account: bool | None = None,
-    use_gemini_account: bool | None = None,
     use_claude_account: bool | None = None,
     use_copilot_account: bool | None = None,
     use_agy_account: bool | None = None,
@@ -283,12 +264,10 @@ def store_ai_provider_keys(
     return auth_manager.store_ai_provider_keys(
         session_id=session_id,
         codex_api_key=codex_api_key,
-        gemini_api_key=gemini_api_key,
         claude_api_key=claude_api_key,
         copilot_github_token=copilot_github_token,
         allow_copilot=allow_copilot,
         use_codex_account=use_codex_account,
-        use_gemini_account=use_gemini_account,
         use_claude_account=use_claude_account,
         use_copilot_account=use_copilot_account,
         use_agy_account=use_agy_account,
@@ -323,19 +302,6 @@ def import_openclaw_local_provider_credentials(
 
 def get_provider_account_login_status(*, session_id: str, provider: str) -> dict[str, Any]:
     return auth_manager.get_provider_account_login_status(session_id=session_id, provider=provider)
-
-
-def relay_provider_account_login_callback(
-    *,
-    session_id: str,
-    provider: str,
-    callback_url: str,
-) -> dict[str, Any]:
-    return auth_manager.relay_provider_account_login_callback(
-        session_id=session_id,
-        provider=provider,
-        callback_url=callback_url,
-    )
 
 
 def submit_provider_account_login_code(

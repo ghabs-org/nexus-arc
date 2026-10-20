@@ -2259,13 +2259,12 @@ async def help_command(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="login", description="Link GitHub/GitLab and configure provider auth (keys or account)")
-@app_commands.describe(provider="Provider (github, gitlab, codex, gemini, claude, copilot)")
+@app_commands.describe(provider="Provider (github, gitlab, codex, claude, copilot)")
 @app_commands.choices(
     provider=[
         app_commands.Choice(name="GitLab", value="gitlab"),
         app_commands.Choice(name="GitHub", value="github"),
         app_commands.Choice(name="Codex Account", value="codex"),
-        app_commands.Choice(name="Gemini Account", value="gemini"),
         app_commands.Choice(name="Claude Account", value="claude"),
         app_commands.Choice(name="Antigravity Account", value="agy"),
         app_commands.Choice(name="Copilot Account", value="copilot"),
@@ -2291,12 +2290,12 @@ async def login_command(
     selected_provider = str(provider.value if provider else "").strip().lower()
     account_provider_target = (
         selected_provider
-        if selected_provider in {"codex", "gemini", "claude", "copilot", "agy"}
+        if selected_provider in {"codex", "claude", "copilot", "agy"}
         else ""
     )
     user = _get_or_create_discord_user(interaction.user)
 
-    if account_provider_target in {"codex", "gemini", "claude", "copilot", "agy"}:
+    if account_provider_target in {"codex", "claude", "copilot", "agy"}:
         imported = _svc_import_openclaw_local_provider_credentials(
             nexus_id=str(user.nexus_id),
             provider=account_provider_target,
@@ -2353,7 +2352,7 @@ async def login_command(
         )
         return
 
-    if account_provider_target in {"codex", "gemini", "claude", "agy"}:
+    if account_provider_target in {"codex", "claude", "agy"}:
         try:
             provider_login = _svc_start_provider_account_login_for_nexus(
                 nexus_id=str(user.nexus_id),
@@ -2468,7 +2467,7 @@ async def login_command(
 
     if selected_provider and not account_provider_target and selected_provider not in {"github", "gitlab", "linkedin", "x", "meta", "instagram"}:
         await interaction.response.send_message(
-            "⚠️ Invalid provider. Use github, gitlab, linkedin, x, meta, codex, gemini, claude, or copilot.",
+            "⚠️ Invalid provider. Use github, gitlab, linkedin, x, meta, codex, claude, or copilot.",
             ephemeral=True,
         )
         return
@@ -2485,7 +2484,7 @@ async def login_command(
     setup_step = (
         f"3. In setup, enable **{account_provider_target.title()} account login** (and Save Setup)\n"
         if account_provider_target
-        else "3. Save provider setup: API keys and/or account login toggles for Codex, Gemini, Claude, Copilot\n"
+        else "3. Save provider setup: API keys and/or account login toggles for Codex, Claude, Copilot\n"
     )
     if account_provider_target == "copilot":
         setup_step = (
@@ -2559,10 +2558,8 @@ async def setup_status_command(interaction: discord.Interaction):
         f"- Meta page ID: `{status.get('meta_page_id') or 'n/a'}`",
         f"- Instagram account ID: `{status.get('meta_ig_account_id') or 'n/a'}`",
         f"- Codex key set: {'✅' if status.get('codex_key_set') else '❌'}",
-        f"- Gemini key set: {'✅' if status.get('gemini_key_set') else '❌'}",
         f"- Claude key set: {'✅' if status.get('claude_key_set') else '❌'}",
         f"- Codex account login enabled: {'✅' if status.get('codex_account_enabled') else '❌'}",
-        f"- Gemini account login enabled: {'✅' if status.get('gemini_account_enabled') else '❌'}",
         f"- Claude account login enabled: {'✅' if status.get('claude_account_enabled') else '❌'}",
         f"- Copilot account mode enabled: {'✅' if status.get('copilot_account_enabled') else '❌'}",
         f"- Copilot ready (GitHub OAuth or Copilot Token): {'✅' if status.get('copilot_ready') else '❌'}",

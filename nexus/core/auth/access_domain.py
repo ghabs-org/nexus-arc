@@ -701,10 +701,8 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
             "instagram_linked": False,
             "git_provider_linked": False,
             "codex_key_set": False,
-            "gemini_key_set": False,
             "claude_key_set": False,
             "codex_account_enabled": False,
-            "gemini_account_enabled": False,
             "claude_account_enabled": False,
             "copilot_account_enabled": False,
             "agy_account_enabled": False,
@@ -729,22 +727,19 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
     instagram_linked = bool(record and record.meta_ig_account_id)
     git_provider_linked = bool(github_linked or gitlab_linked)
     codex_key_set = bool(record and record.codex_api_key_enc)
-    gemini_key_set = bool(record and record.gemini_api_key_enc)
     claude_key_set = bool(record and record.claude_api_key_enc)
     copilot_token_set = bool(record and record.copilot_github_token_enc)
     codex_account_enabled = bool(record and getattr(record, "codex_account_enabled", False))
-    gemini_account_enabled = bool(record and getattr(record, "gemini_account_enabled", False))
     claude_account_enabled = bool(record and getattr(record, "claude_account_enabled", False))
     copilot_account_enabled = bool(record and getattr(record, "copilot_account_enabled", False))
     agy_account_enabled = bool(record and getattr(record, "agy_account_enabled", False))
-    ai_provider_key_set = bool(codex_key_set or gemini_key_set or claude_key_set)
+    ai_provider_key_set = bool(codex_key_set or claude_key_set)
     # Copilot is available with linked GitHub OAuth or an explicit Copilot GitHub token.
     copilot_ready = bool(github_linked or copilot_token_set or (account_mode_enabled and copilot_account_enabled))
     account_provider_ready = bool(
         account_mode_enabled
         and (
             codex_account_enabled
-            or gemini_account_enabled
             or claude_account_enabled
             or copilot_account_enabled
             or agy_account_enabled
@@ -770,10 +765,8 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
         "instagram_linked": instagram_linked,
         "git_provider_linked": git_provider_linked,
         "codex_key_set": codex_key_set,
-        "gemini_key_set": gemini_key_set,
         "claude_key_set": claude_key_set,
         "codex_account_enabled": codex_account_enabled,
-        "gemini_account_enabled": gemini_account_enabled,
         "claude_account_enabled": claude_account_enabled,
         "copilot_account_enabled": copilot_account_enabled,
         "agy_account_enabled": agy_account_enabled,
@@ -818,7 +811,7 @@ def has_setup_ready_user_for_project(project_key: str) -> bool:
             gitlab_linked = bool(record.gitlab_token_enc and record.gitlab_username)
             git_provider_linked = bool(github_linked or gitlab_linked)
             ai_provider_key_set = bool(
-                record.codex_api_key_enc or record.gemini_api_key_enc or record.claude_api_key_enc
+                record.codex_api_key_enc or record.claude_api_key_enc
             )
             copilot_ready = bool(
                 github_linked
@@ -829,7 +822,6 @@ def has_setup_ready_user_for_project(project_key: str) -> bool:
                 account_mode_enabled
                 and (
                     bool(getattr(record, "codex_account_enabled", False))
-                    or bool(getattr(record, "gemini_account_enabled", False))
                     or bool(getattr(record, "claude_account_enabled", False))
                     or bool(getattr(record, "copilot_account_enabled", False))
                     or bool(getattr(record, "agy_account_enabled", False))
@@ -1044,6 +1036,9 @@ def prepare_execution_env(
         if str(key).strip() and value is not None
     }
 
+    for retired_key in ("GEMINI_API_KEY", "GEMINI_HOME", "GEMINI_CLI_HOME"):
+        prepared_env.pop(retired_key, None)
+
     if "GITLAB_TOKEN" not in prepared_env and "GITHUB_TOKEN" in prepared_env:
         prepared_env["GITLAB_TOKEN"] = prepared_env["GITHUB_TOKEN"]
 
@@ -1062,18 +1057,21 @@ def prepare_execution_env(
     account_auth_providers = [
         item.strip()
         for item in str(prepared_env.get("NEXUS_ACCOUNT_AUTH_PROVIDERS", "") or "").split(",")
-        if item.strip()
+        if item.strip() in {"codex", "claude", "copilot", "agy"}
     ]
+    if account_auth_providers:
+        prepared_env["NEXUS_ACCOUNT_AUTH_PROVIDERS"] = ",".join(account_auth_providers)
+    else:
+        prepared_env.pop("NEXUS_ACCOUNT_AUTH_PROVIDERS", None)
     ai_key_present = (
         bool(str(prepared_env.get("OPENAI_API_KEY") or "").strip())
-        or bool(str(prepared_env.get("GEMINI_API_KEY") or "").strip())
         or bool(str(prepared_env.get("ANTHROPIC_API_KEY") or "").strip())
         or bool(str(prepared_env.get("CLAUDE_API_KEY") or "").strip())
     )
     if normalized_purpose == "agent_run" and not ai_key_present and not account_auth_providers:
         return (
             {},
-            "Missing AI provider credentials (Codex/OpenAI, Gemini, Claude, GitHub for Copilot, "
+            "Missing AI provider credentials (Codex/OpenAI, Claude, GitHub for Copilot, "
             "or account-based provider login via `/login`).",
         )
 
@@ -1081,11 +1079,9 @@ def prepare_execution_env(
     user_home_root = os.path.join(auth_root, "home")
     user_home = os.path.join(user_home_root, str(nexus_id))
     codex_root = os.path.join(auth_root, "codex")
-    gemini_root = os.path.join(auth_root, "gemini")
     claude_root = os.path.join(auth_root, "claude")
     agy_root = os.path.join(auth_root, "agy")
     codex_home = os.path.join(codex_root, str(nexus_id))
-    gemini_home = os.path.join(gemini_root, str(nexus_id))
     claude_home = os.path.join(claude_root, str(nexus_id))
     agy_home = os.path.join(agy_root, str(nexus_id))
     for path in (
@@ -1093,11 +1089,9 @@ def prepare_execution_env(
         user_home_root,
         user_home,
         codex_root,
-        gemini_root,
         claude_root,
         agy_root,
         codex_home,
-        gemini_home,
         claude_home,
         agy_home,
     ):
@@ -1106,7 +1100,6 @@ def prepare_execution_env(
             return {}, dir_err
     prepared_env["HOME"] = user_home
     prepared_env["CODEX_HOME"] = codex_home
-    prepared_env["GEMINI_HOME"] = gemini_home
     prepared_env["CLAUDE_HOME"] = claude_home
     # Antigravity CLI keeps login and state under $HOME/.gemini; agy runs use AGY_HOME as HOME.
     prepared_env["AGY_HOME"] = agy_home
@@ -1161,12 +1154,6 @@ def build_execution_env(
         except Exception:
             return {}, "Stored Codex API key could not be decrypted."
 
-    if record.gemini_api_key_enc:
-        try:
-            env["GEMINI_API_KEY"] = decrypt_secret(record.gemini_api_key_enc)
-        except Exception:
-            return {}, "Stored Gemini API key could not be decrypted."
-
     if record.claude_api_key_enc:
         try:
             claude_key = decrypt_secret(record.claude_api_key_enc)
@@ -1180,8 +1167,6 @@ def build_execution_env(
     if account_mode_enabled:
         if bool(getattr(record, "codex_account_enabled", False)):
             account_auth_providers.append("codex")
-        if bool(getattr(record, "gemini_account_enabled", False)):
-            account_auth_providers.append("gemini")
         if bool(getattr(record, "claude_account_enabled", False)):
             account_auth_providers.append("claude")
         if bool(getattr(record, "copilot_account_enabled", False)):

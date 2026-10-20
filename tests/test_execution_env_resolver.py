@@ -58,7 +58,8 @@ def test_prepare_execution_env_gives_agy_its_own_home(monkeypatch):
     assert error is None
     # Antigravity keeps login/state in $HOME/.gemini: separate from Gemini CLI's home.
     assert env["AGY_HOME"] == "/tmp/nexus-test-runtime/auth/agy/nexus-alice"
-    assert env["AGY_HOME"] != env["GEMINI_HOME"] and env["AGY_HOME"] != env["HOME"]
+    assert "GEMINI_HOME" not in env
+    assert env["AGY_HOME"] != env["HOME"]
     assert env["AGY_HOME"] in created
 
 

@@ -33,7 +33,7 @@
 ### 3. Open & Pluggable
 
 - Apache 2.0 license (corporate-friendly)
-- Works with any AI provider (Copilot, Gemini, soon Claude and Codex)
+- Works with any AI provider (Copilot, Claude and Codex)
 - Pluggable storage (File, PostgreSQL, Redis, S3)
 - Multi-platform (GitHub, GitLab, Bitbucket)
 
@@ -206,7 +206,7 @@ development workflow. Open source (Apache 2.0)."**
 queries. Nexus ARC takes a different approach: every agent action creates a permanent artifact in your Git platform.
 Issues track decisions, comments preserve reasoning, PRs link to implementations. The result is complete traceability
 integrated with your existing development workflow. Battle-tested reliability features (retry, timeout, fallback) ensure
-production readiness. Works with any AI provider (Copilot, Gemini, soon Claude and Codex). Apache 2.0 licensed."**
+production readiness. Works with any AI provider (Copilot, Claude and Codex). Apache 2.0 licensed."**
 
 ---
 
@@ -247,7 +247,7 @@ development workflow.
 
 - ✅ Git-native workflows (issues, PRs, comments)
 - ✅ Production reliability (retry, timeout, fallback)
-- ✅ Multi-provider AI (Copilot, Gemini, soon Claude and Codex)
+- ✅ Multi-provider AI (Copilot, Claude and Codex)
 - ✅ Pluggable architecture (storage, platforms, notifications)
 - ✅ Apache 2.0 license (corporate-friendly)
 

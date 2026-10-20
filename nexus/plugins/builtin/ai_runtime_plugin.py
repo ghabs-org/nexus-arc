@@ -1,4 +1,4 @@
-"""Built-in plugin: AI runtime orchestration for Copilot/Gemini/Codex/Claude CLIs."""
+"""Built-in plugin: AI runtime orchestration for Copilot/Codex/Claude/OpenCode/Ollama CLIs."""
 
 import logging
 import os
@@ -26,12 +26,10 @@ from nexus.plugins.builtin.ai_runtime.fallback_policy import (
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.agent_invokers import (
     invoke_copilot_agent_cli as invoke_copilot_agent_cli_impl,
-    invoke_gemini_agent_cli as invoke_gemini_agent_cli_impl,
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.analysis_invokers import (
     run_copilot_analysis_cli as run_copilot_analysis_cli_impl,
     run_codex_analysis_cli as run_codex_analysis_cli_impl,
-    run_gemini_analysis_cli as run_gemini_analysis_cli_impl,
     run_claude_analysis_cli as run_claude_analysis_cli_impl,
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.claude_invoker import (
@@ -51,7 +49,6 @@ from nexus.plugins.builtin.ai_runtime.provider_invokers.opencode_invoker import 
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.transcription_invokers import (
     transcribe_with_copilot_cli as transcribe_with_copilot_cli_impl,
-    transcribe_with_gemini_cli as transcribe_with_gemini_cli_impl,
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.whisper_invoker import (
     transcribe_with_local_whisper as transcribe_with_local_whisper_impl,
@@ -80,7 +77,6 @@ class AIProvider(Enum):
     """AI provider enumeration."""
 
     COPILOT = "copilot"
-    GEMINI = "gemini"
     CODEX = "codex"
     CLAUDE = "claude"
     OLLAMA = "ollama"
@@ -114,8 +110,6 @@ class AIOrchestrator:
         self._rate_limits: dict[str, dict[str, Any]] = {}
         self.config = config or {}
         self.copilot_cli_path = self.config.get("copilot_cli_path", "copilot")
-        self.gemini_cli_path = self.config.get("gemini_cli_path", "gemini")
-        self.gemini_model = str(self.config.get("gemini_model", "")).strip()
         self.codex_cli_path = self.config.get("codex_cli_path", "codex")
         self.codex_model = str(self.config.get("codex_model", "")).strip()
         self.claude_cli_path = self.config.get("claude_cli_path", "claude")
@@ -230,7 +224,6 @@ class AIOrchestrator:
         return supports_analysis_impl(
             tool,
             supported_tools=[
-                AIProvider.GEMINI,
                 AIProvider.COPILOT,
                 AIProvider.CODEX,
                 AIProvider.CLAUDE,
@@ -453,7 +446,6 @@ class AIOrchestrator:
 
         if normalized in {"fast", "flash", "small", "low"}:
             return [
-                AIProvider.GEMINI,
                 AIProvider.COPILOT,
                 AIProvider.CLAUDE,
                 AIProvider.CODEX,
@@ -464,12 +456,10 @@ class AIOrchestrator:
                 AIProvider.CLAUDE,
                 AIProvider.CODEX,
                 AIProvider.COPILOT,
-                AIProvider.GEMINI,
                 AIProvider.OLLAMA,
             ]
         return [
             AIProvider.COPILOT,
-            AIProvider.GEMINI,
             AIProvider.CLAUDE,
             AIProvider.CODEX,
             AIProvider.OLLAMA,
@@ -650,9 +640,7 @@ class AIOrchestrator:
             del self._rate_limits[tool.value]
 
         try:
-            if tool == AIProvider.GEMINI:
-                path = self.gemini_cli_path
-            elif tool == AIProvider.CODEX:
+            if tool == AIProvider.CODEX:
                 path = self.codex_cli_path
             elif tool == AIProvider.CLAUDE:
                 path = self.claude_cli_path
@@ -750,7 +738,6 @@ class AIOrchestrator:
             unique_tools=self._unique_tools,
             supports_analysis=self._supports_analysis,
             default_tools=[
-                AIProvider.GEMINI,
                 AIProvider.COPILOT,
                 AIProvider.CLAUDE,
                 AIProvider.CODEX,
@@ -784,7 +771,7 @@ class AIOrchestrator:
             ),
             fallback_order_from_preferences_fn=self._fallback_order_from_preferences,
             unique_tools=self._unique_tools,
-            supported_providers=[AIProvider.GEMINI, AIProvider.COPILOT, AIProvider.OLLAMA],
+            supported_providers=[AIProvider.COPILOT, AIProvider.OLLAMA],
             warn_unsupported_mapped_provider=lambda provider, agent: logger.warning(
                 "Ignoring unsupported transcription provider '%s' for mapped agent '%s'; "
                 "falling back to TRANSCRIPT_PROVIDER",
@@ -799,7 +786,6 @@ class AIOrchestrator:
         return run_analysis_with_provider_impl(
             tool=tool,
             providers_map={
-                AIProvider.GEMINI: self._run_gemini_cli_analysis,
                 AIProvider.COPILOT: self._run_copilot_analysis,
                 AIProvider.CODEX: self._run_codex_analysis,
                 AIProvider.CLAUDE: self._run_claude_analysis,
@@ -890,19 +876,6 @@ class AIOrchestrator:
                 base_dir,
                 agent_name=agent_name,
                 project_name=project_name,
-                model_override=model_override,
-                issue_num=issue_num,
-                log_subdir=log_subdir,
-                env=env,
-                execution_mode=execution_mode,
-                execution_mode_config=execution_mode_config,
-            )
-        if tool == AIProvider.GEMINI:
-            return self._invoke_gemini_agent(
-                agent_prompt,
-                workspace_dir,
-                agents_dir,
-                base_dir,
                 model_override=model_override,
                 issue_num=issue_num,
                 log_subdir=log_subdir,
@@ -1019,7 +992,7 @@ class AIOrchestrator:
     ) -> tuple[int | None, AIProvider]:
         """Try each available tool in priority order, skipping any in *exclude_tools*.
 
-        *exclude_tools* is a list of tool value strings (e.g. ["gemini"]) that should
+        *exclude_tools* is a list of tool value strings (e.g. ["copilot"]) that should
         be skipped entirely — used by the retry path so a crashed tool is not retried.
         Adding a new provider only requires extending AIProvider + _invoke_tool.
         """
@@ -1109,38 +1082,6 @@ class AIOrchestrator:
             workspace_dir=workspace_dir,
             agents_dir=agents_dir,
             base_dir=base_dir,
-            issue_num=issue_num,
-            log_subdir=log_subdir,
-            env=env,
-            execution_mode=execution_mode,
-            execution_mode_config=execution_mode_config,
-        )
-
-    def _invoke_gemini_agent(
-        self,
-        agent_prompt: str,
-        workspace_dir: str,
-        agents_dir: str,
-        base_dir: str,
-        model_override: str = "",
-        issue_num: str | None = None,
-        log_subdir: str | None = None,
-        env: dict[str, str] | None = None,
-        execution_mode: str | None = None,
-        execution_mode_config: Mapping[str, Any] | None = None,
-    ) -> int | None:
-        return invoke_gemini_agent_cli_impl(
-            check_tool_available=self.check_tool_available,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path=self.gemini_cli_path,
-            gemini_model=model_override or self.gemini_model,
-            get_tasks_logs_dir=self.get_tasks_logs_dir,
-            tool_unavailable_error=ToolUnavailableError,
-            rate_limited_error=RateLimitedError,
-            logger=logger,
-            agent_prompt=agent_prompt,
-            workspace_dir=workspace_dir,
-            agents_dir=agents_dir,
             issue_num=issue_num,
             log_subdir=log_subdir,
             env=env,
@@ -1278,7 +1219,6 @@ class AIOrchestrator:
             audio_file_path=audio_file_path,
             transcribers_map={
                 "whisper": self._transcribe_with_whisper_api,
-                "gemini": self._transcribe_with_gemini_cli,
                 "copilot": self._transcribe_with_copilot_cli,
                 "ollama": self._transcribe_with_ollama_cli,
             },
@@ -1289,7 +1229,6 @@ class AIOrchestrator:
                 context=context,
             ),
             provider_to_tool={
-                "gemini": AIProvider.GEMINI,
                 "copilot": AIProvider.COPILOT,
                 "ollama": AIProvider.OLLAMA,
             },
@@ -1323,20 +1262,6 @@ class AIOrchestrator:
     @staticmethod
     def _is_non_transcription_artifact(text: str, audio_file_path: str) -> bool:
         return is_non_transcription_artifact_impl(text, audio_file_path)
-
-    def _transcribe_with_gemini_cli(self, audio_file_path: str) -> str | None:
-        return transcribe_with_gemini_cli_impl(
-            check_tool_available=self.check_tool_available,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path=self.gemini_cli_path,
-            strip_cli_tool_output=self._strip_cli_tool_output,
-            is_non_transcription_artifact=self._is_non_transcription_artifact,
-            tool_unavailable_error=ToolUnavailableError,
-            rate_limited_error=RateLimitedError,
-            logger=logger,
-            audio_file_path=audio_file_path,
-            timeout=self.transcription_timeout,
-        )
 
     def _transcribe_with_copilot_cli(self, audio_file_path: str) -> str | None:
         return transcribe_with_copilot_cli_impl(
@@ -1376,11 +1301,6 @@ class AIOrchestrator:
             project_name=project_name,
         )
         model_overrides = {
-            "gemini": self._resolve_model_for_tool(
-                tool=AIProvider.GEMINI,
-                agent_name=mapped_agent or None,
-                project_name=project_name,
-            ),
             "copilot": self._resolve_model_for_tool(
                 tool=AIProvider.COPILOT,
                 agent_name=mapped_agent or None,
@@ -1433,7 +1353,6 @@ class AIOrchestrator:
         analysis_kwargs = dict(kwargs)
         analysis_kwargs.setdefault("prompt_max_chars", self.ai_prompt_max_chars)
         analysis_kwargs.setdefault("summary_max_chars", self.ai_context_summary_max_chars)
-        analysis_kwargs["_gemini_model_override"] = model_overrides["gemini"]
         analysis_kwargs["_copilot_model_override"] = model_overrides["copilot"]
         analysis_kwargs["_codex_model_override"] = model_overrides["codex"]
         analysis_kwargs["_claude_model_override"] = model_overrides["claude"]
@@ -1585,28 +1504,6 @@ class AIOrchestrator:
             system_operations=system_operations,
         )
         return mapped_agent
-
-    def _run_gemini_cli_analysis(self, text: str, task: str, **kwargs) -> dict[str, Any]:
-        gemini_model = str(kwargs.get("_gemini_model_override") or "").strip() or self.gemini_model
-        provider_env = kwargs.get("_provider_env")
-        analysis_cwd = kwargs.get("_analysis_cwd")
-        prompt_kwargs = {k: v for k, v in kwargs.items() if not str(k).startswith("_")}
-        return run_gemini_analysis_cli_impl(
-            check_tool_available=self.check_tool_available,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path=self.gemini_cli_path,
-            gemini_model=gemini_model,
-            build_analysis_prompt=self._build_analysis_prompt,
-            parse_analysis_result=self._parse_analysis_result,
-            tool_unavailable_error=ToolUnavailableError,
-            rate_limited_error=RateLimitedError,
-            text=text,
-            task=task,
-            timeout=self.analysis_timeout,
-            kwargs=prompt_kwargs,
-            env=provider_env if isinstance(provider_env, dict) else None,
-            cwd=analysis_cwd if isinstance(analysis_cwd, str) and analysis_cwd.strip() else None,
-        )
 
     def _run_copilot_analysis(self, text: str, task: str, **kwargs) -> dict[str, Any]:
         timeout = (
@@ -1811,5 +1708,5 @@ def register_plugins(registry) -> None:
         name="ai-runtime-orchestrator",
         version="0.1.0",
         factory=lambda config: AIOrchestrator(config),
-        description="Copilot/Gemini/Codex/Ollama orchestration with fallback and cooldown handling",
+        description="Copilot/Codex/Claude/OpenCode/Ollama orchestration with fallback and cooldown handling",
     )

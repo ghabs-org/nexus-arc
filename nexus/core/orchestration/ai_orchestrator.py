@@ -32,8 +32,6 @@ def get_orchestrator(config: Any | None = None) -> AIOrchestrator:
         elif hasattr(config, "get"):
             keys = (
                 "copilot_cli_path",
-                "gemini_cli_path",
-                "gemini_model",
                 "codex_cli_path",
                 "codex_model",
                 "claude_cli_path",

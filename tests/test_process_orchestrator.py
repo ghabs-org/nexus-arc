@@ -859,21 +859,21 @@ class TestDetectDeadAgents:
         """The crashed tool must be in exclude_tools on the retry launch."""
         runtime = StubRuntime(retry=True)
         runtime.tracker = {
-            "70": self._entry(pid=7070, agent_type="developer", tool="gemini", age_seconds=7200)
+            "70": self._entry(pid=7070, agent_type="developer", tool="claude", age_seconds=7200)
         }
         orc = _orchestrator(runtime, stuck_threshold=60)
 
         with patch.object(runtime, "is_pid_alive", return_value=False):
             orc.detect_dead_agents()
 
-        assert runtime.launched[0]["exclude_tools"] == ["gemini"]
+        assert runtime.launched[0]["exclude_tools"] == ["claude"]
 
     def test_dead_agent_retry_merges_existing_exclusions(self):
         """Retry must carry forward persisted exclusions, then append crashed tool."""
         runtime = StubRuntime(retry=True)
         runtime.tracker = {
             "74": {
-                **self._entry(pid=7474, agent_type="developer", tool="gemini", age_seconds=7200),
+                **self._entry(pid=7474, agent_type="developer", tool="claude", age_seconds=7200),
                 "exclude_tools": ["codex", "copilot"],
             }
         }
@@ -882,7 +882,7 @@ class TestDetectDeadAgents:
         with patch.object(runtime, "is_pid_alive", return_value=False):
             orc.detect_dead_agents()
 
-        assert runtime.launched[0]["exclude_tools"] == ["codex", "copilot", "gemini"]
+        assert runtime.launched[0]["exclude_tools"] == ["codex", "copilot", "claude"]
 
     def test_workflow_ineligible_dead_agent_skips_retry_and_cleans_tracker(self):
         """Dead-agent retries are skipped when workflow no longer expects that agent."""
@@ -1071,7 +1071,7 @@ class TestCheckStuckAgents:
         """Orphan retries must preserve existing exclusions from tracker state."""
         log_dir = tmp_path / ".nexus" / "tasks" / "job1" / "logs"
         log_dir.mkdir(parents=True)
-        log_file = log_dir / "gemini_46_20260101_120000.log"
+        log_file = log_dir / "codex_46_20260101_120000.log"
         log_file.write_text("stale output")
         old_time = time.time() - 120
         os.utime(log_file, (old_time, old_time))
@@ -1081,8 +1081,8 @@ class TestCheckStuckAgents:
             "46": {
                 "timestamp": time.time() - 120,
                 "agent_type": "debug",
-                "tool": "gemini",
-                "exclude_tools": ["codex", "copilot"],
+                "tool": "codex",
+                "exclude_tools": ["claude", "copilot"],
             }
         }
         runtime._running_agents["46"] = "debug"
@@ -1094,7 +1094,7 @@ class TestCheckStuckAgents:
         assert any(
             launch["issue"] == "46"
             and launch["trigger"] == "orphan-timeout-retry"
-            and launch["exclude_tools"] == ["codex", "copilot", "gemini"]
+            and launch["exclude_tools"] == ["claude", "copilot", "codex"]
             for launch in runtime.launched
         )
 
@@ -1121,7 +1121,7 @@ class TestCheckStuckAgents:
         """Timeout retries must preserve existing exclusions from tracker state."""
         log_dir = tmp_path / ".nexus" / "tasks" / "job1" / "logs"
         log_dir.mkdir(parents=True)
-        log_file = log_dir / "gemini_47_20260101_120000.log"
+        log_file = log_dir / "codex_47_20260101_120000.log"
         log_file.write_text("stale output")
         old_time = time.time() - 120
         os.utime(log_file, (old_time, old_time))
@@ -1132,8 +1132,8 @@ class TestCheckStuckAgents:
                 "pid": 4747,
                 "timestamp": time.time() - 120,
                 "agent_type": "developer",
-                "tool": "gemini",
-                "exclude_tools": ["codex", "copilot"],
+                "tool": "codex",
+                "exclude_tools": ["claude", "copilot"],
             }
         }
         runtime._running_agents["47"] = "developer"
@@ -1149,6 +1149,6 @@ class TestCheckStuckAgents:
         assert any(
             launch["issue"] == "47"
             and launch["trigger"] == "timeout-retry"
-            and launch["exclude_tools"] == ["codex", "copilot", "gemini"]
+            and launch["exclude_tools"] == ["claude", "copilot", "codex"]
             for launch in runtime.launched
         )

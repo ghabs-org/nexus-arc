@@ -109,7 +109,7 @@ def _classify_identity(name: Any, *, kind: str | None = None) -> dict[str, Any]:
     if not raw:
         reasons.append('missing_identity')
     else:
-        bot_markers = ('[bot]', '-bot', '_bot', ' bot', 'openclaw', 'codex', 'claude', 'gemini', 'copilot')
+        bot_markers = ('[bot]', '-bot', '_bot', ' bot', 'openclaw', 'codex', 'claude', 'copilot')
         if kind == 'active_agent' and raw:
             actor_type = 'bot'
             reasons.append('workflow_active_agent')

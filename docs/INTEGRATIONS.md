@@ -38,7 +38,7 @@ ai:
 | `git` | `github`, `gitlab` | API transport default; `cli` opt-in |
 | `notifications` | `slack`, `discord`, `openclaw` | Telegram chat goes through the interactive plugin, not a channel |
 | `interactive_clients` | `telegram-interactive-http`, `discord-interactive-http` | two-way chat surfaces for the bot |
-| `ai` | `opencode`, `copilot`, `gemini`, `codex`, `claude`, `openai` | opencode needs no API key |
+| `ai` | `opencode`, `copilot`, `codex`, `claude`, `openai` | opencode needs no API key |
 | `transcription` | `whisper` | local STT |
 | `transport` | `memory`, `mqtt` | event bus; `NEXUS_TRANSPORT`, `MQTT_HOST` |
 | `gateway` | ABC + echo/telegram adapters | one file per chat transport |

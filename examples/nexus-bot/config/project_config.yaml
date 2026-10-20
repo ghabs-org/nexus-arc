@@ -27,7 +27,7 @@ merge_queue:
 # Global model profiles and AI tool preferences.
 # model_profiles define concrete model IDs per provider for each profile.
 # ai_tool_preferences map agent_type -> {profile, provider}.
-# provider can be: copilot, gemini, codex, claude, ollama, opencode, auto.
+# provider can be: copilot, codex, claude, ollama, opencode, auto.
 # opencode uses the local OpenCode CLI account auth (free tiers work, no API key).
 #
 # Architecture:
@@ -38,37 +38,35 @@ merge_queue:
 #
 # Example:
 # model_profiles:
-#   fast: {copilot: gpt-4o-mini, gemini: gemini-2.0-flash}
+#   fast: {copilot: gpt-4o-mini}
 # ai_tool_preferences:
 #   triage: {profile: fast, provider: auto}
 model_profiles:
   fast:
     copilot: gpt-4o-mini
-    gemini: gemini-2.0-flash
     codex: gpt-5-mini
     opencode: opencode/muse-spark-1.3-contributor-free
   reasoning:
     copilot: gpt-5.3-codex
-    gemini: gemini-2.5-pro
     codex: gpt-5.3-codex
     opencode: opencode/muse-spark-1.3-contributor-free
 
 # Optional: profile-specific provider order used when provider=auto
 profile_provider_priority:
-  fast: [ opencode, gemini, copilot, codex ]
-  reasoning: [ opencode, codex, copilot, gemini ]
+  fast: [ opencode, copilot, codex ]
+  reasoning: [ opencode, codex, copilot ]
 
 ai_tool_preferences:
   triage: { profile: fast, provider: auto }
-  designer: { profile: fast, provider: gemini }
+  designer: { profile: fast, provider: auto }
   debug: { profile: fast, provider: copilot }
   developer: { profile: reasoning, provider: codex }
   reviewer: { profile: fast, provider: copilot }
   compliance: { profile: fast, provider: copilot }
   deployer: { profile: fast, provider: copilot }
-  docs: { profile: fast, provider: gemini }
-  writer: { profile: fast, provider: gemini }
-  finalizer: { profile: fast, provider: gemini }
+  docs: { profile: fast, provider: auto }
+  writer: { profile: fast, provider: auto }
+  finalizer: { profile: fast, provider: auto }
 
 # Optional: execution-mode specific CLI overrides.
 # /plan-created issues carry execution_mode=planning through the full workflow,
@@ -150,24 +148,22 @@ nexus:
   model_profiles:
     fast:
       copilot: gpt-4o-mini
-      gemini: gemini-2.0-flash
       codex: gpt-5-mini
       opencode: opencode/muse-spark-1.3-contributor-free
     reasoning:
       copilot: gpt-5.3-codex
-      gemini: gemini-2.5-pro
       codex: gpt-5.3-codex
       opencode: opencode/muse-spark-1.3-contributor-free
   profile_provider_priority:
-    fast: [ opencode, gemini, copilot, codex ]
-    reasoning: [ opencode, codex, copilot, gemini ]
+    fast: [ opencode, copilot, codex ]
+    reasoning: [ opencode, codex, copilot ]
   ai_tool_preferences:
     triage: { profile: fast, provider: auto }
-    designer: { profile: fast, provider: gemini }
+    designer: { profile: fast, provider: auto }
     debug: { profile: fast, provider: copilot }
     developer: { profile: reasoning, provider: codex }
     reviewer: { profile: fast, provider: copilot }
     compliance: { profile: fast, provider: copilot }
     deployer: { profile: fast, provider: copilot }
-    writer: { profile: fast, provider: gemini }
-    finalizer: { profile: fast, provider: gemini }
+    writer: { profile: fast, provider: auto }
+    finalizer: { profile: fast, provider: auto }

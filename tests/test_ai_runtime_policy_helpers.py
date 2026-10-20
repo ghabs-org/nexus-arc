@@ -18,12 +18,10 @@ from nexus.plugins.builtin.ai_runtime.fallback_policy import (
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.agent_invokers import (
     invoke_copilot_agent_cli,
-    invoke_gemini_agent_cli,
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.analysis_invokers import (
     run_copilot_analysis_cli,
     run_codex_analysis_cli,
-    run_gemini_analysis_cli,
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.codex_invoker import invoke_codex_cli
 from nexus.plugins.builtin.ai_runtime.provider_invokers.subprocess_utils import (
@@ -31,7 +29,6 @@ from nexus.plugins.builtin.ai_runtime.provider_invokers.subprocess_utils import 
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.transcription_invokers import (
     transcribe_with_copilot_cli,
-    transcribe_with_gemini_cli,
 )
 from nexus.plugins.builtin.ai_runtime.provider_invokers.whisper_invoker import (
     transcribe_with_local_whisper,
@@ -63,19 +60,19 @@ def _noop_rate_limit(tool, exc: Exception, context: str) -> None:
 
 def test_fallback_order_from_preferences_dedupes_and_parses():
     prefs = {
-        "triage": {"provider": "gemini", "profile": "small"},
+        "triage": {"provider": "claude", "profile": "small"},
         "designer": {"provider": "copilot", "profile": "large"},
-        "writer": {"provider": "gemini", "profile": "small"},
+        "writer": {"provider": "claude", "profile": "small"},
         "x": {"provider": "unknown", "profile": "small"},
     }
     order = fallback_order_from_preferences(
         resolved_tool_preferences=prefs,
         parse_provider=lambda v: {
-            "gemini": AIProvider.GEMINI,
+            "claude": AIProvider.CLAUDE,
             "copilot": AIProvider.COPILOT,
         }.get(v.get("provider")),
     )
-    assert order == [AIProvider.GEMINI, AIProvider.COPILOT]
+    assert order == [AIProvider.CLAUDE, AIProvider.COPILOT]
 
 
 def test_agent_invoke_service_extract_issue_number():
@@ -105,14 +102,14 @@ def test_resolve_analysis_tool_order_prefers_mapped_agent_and_filters():
         default_chat_agent_type="triage",
         resolve_issue_override_agent=lambda **kwargs: kwargs["mapped_agent"],
         get_primary_tool=lambda agent, project: (
-            AIProvider.COPILOT if agent == "designer" else AIProvider.GEMINI
+            AIProvider.COPILOT if agent == "designer" else AIProvider.CLAUDE
         ),
-        fallback_order_from_preferences_fn=lambda project: [AIProvider.GEMINI, AIProvider.COPILOT],
+        fallback_order_from_preferences_fn=lambda project: [AIProvider.CLAUDE, AIProvider.COPILOT],
         unique_tools=lambda items: list(dict.fromkeys(items)),
-        supports_analysis=lambda tool: tool in {AIProvider.GEMINI, AIProvider.COPILOT},
-        default_tools=[AIProvider.GEMINI, AIProvider.COPILOT],
+        supports_analysis=lambda tool: tool in {AIProvider.CLAUDE, AIProvider.COPILOT},
+        default_tools=[AIProvider.CLAUDE, AIProvider.COPILOT],
     )
-    assert order == [AIProvider.COPILOT, AIProvider.GEMINI]
+    assert order == [AIProvider.COPILOT, AIProvider.CLAUDE]
 
 
 def test_resolve_analysis_tool_order_chat_uses_default_chat_agent():
@@ -125,12 +122,12 @@ def test_resolve_analysis_tool_order_chat_uses_default_chat_agent():
         default_chat_agent_type="designer",
         resolve_issue_override_agent=lambda **kwargs: kwargs["mapped_agent"],
         get_primary_tool=lambda agent, project: (
-            AIProvider.COPILOT if agent == "designer" else AIProvider.GEMINI
+            AIProvider.COPILOT if agent == "designer" else AIProvider.CLAUDE
         ),
-        fallback_order_from_preferences_fn=lambda project: [AIProvider.GEMINI, AIProvider.COPILOT],
+        fallback_order_from_preferences_fn=lambda project: [AIProvider.CLAUDE, AIProvider.COPILOT],
         unique_tools=lambda items: list(dict.fromkeys(items)),
         supports_analysis=lambda tool: True,
-        default_tools=[AIProvider.GEMINI, AIProvider.COPILOT],
+        default_tools=[AIProvider.CLAUDE, AIProvider.COPILOT],
     )
     assert order == [AIProvider.COPILOT]
 
@@ -145,13 +142,13 @@ def test_resolve_analysis_tool_order_appends_builtin_fallbacks_after_preferences
         default_chat_agent_type="designer",
         resolve_issue_override_agent=lambda **kwargs: kwargs["mapped_agent"],
         get_primary_tool=lambda agent, project: (
-            AIProvider.COPILOT if agent == "designer" else AIProvider.GEMINI
+            AIProvider.COPILOT if agent == "designer" else AIProvider.CLAUDE
         ),
-        fallback_order_from_preferences_fn=lambda project: [AIProvider.GEMINI, AIProvider.COPILOT],
+        fallback_order_from_preferences_fn=lambda project: [AIProvider.CLAUDE, AIProvider.COPILOT],
         unique_tools=lambda items: list(dict.fromkeys(items)),
         supports_analysis=lambda tool: tool != AIProvider.OLLAMA,
         default_tools=[
-            AIProvider.GEMINI,
+            AIProvider.CLAUDE,
             AIProvider.COPILOT,
             AIProvider.CLAUDE,
             AIProvider.CODEX,
@@ -160,7 +157,6 @@ def test_resolve_analysis_tool_order_appends_builtin_fallbacks_after_preferences
     )
     assert order == [
         AIProvider.COPILOT,
-        AIProvider.GEMINI,
         AIProvider.CLAUDE,
         AIProvider.CODEX,
     ]
@@ -171,13 +167,13 @@ def test_resolve_transcription_attempts_uses_mapped_agent_primary():
         project_name="nexus",
         system_operations={"transcribe_audio": "triage"},
         fallback_enabled=True,
-        fallback_provider="gemini",
+        fallback_provider="claude",
         get_primary_tool=lambda agent, project: AIProvider.COPILOT,
-        fallback_order_from_preferences_fn=lambda project: [AIProvider.GEMINI, AIProvider.COPILOT],
+        fallback_order_from_preferences_fn=lambda project: [AIProvider.CLAUDE, AIProvider.COPILOT],
         unique_tools=lambda items: list(dict.fromkeys(items)),
-        supported_providers=[AIProvider.GEMINI, AIProvider.COPILOT],
+        supported_providers=[AIProvider.CLAUDE, AIProvider.COPILOT],
     )
-    assert attempts == ["copilot", "gemini"]
+    assert attempts == ["copilot", "claude"]
 
 
 def test_resolve_transcription_attempts_falls_back_to_primary_modes():
@@ -186,10 +182,10 @@ def test_resolve_transcription_attempts_falls_back_to_primary_modes():
         system_operations={},
         fallback_enabled=False,
         fallback_provider="whisper",
-        get_primary_tool=lambda agent, project: AIProvider.GEMINI,
+        get_primary_tool=lambda agent, project: AIProvider.CLAUDE,
         fallback_order_from_preferences_fn=lambda project: [],
         unique_tools=lambda items: items,
-        supported_providers=[AIProvider.GEMINI, AIProvider.COPILOT],
+        supported_providers=[AIProvider.CLAUDE, AIProvider.COPILOT],
     ) == ["whisper"]
 
 
@@ -202,7 +198,7 @@ def test_transcription_filters_and_whisper_model_normalization():
 
 def test_provider_registry_helpers():
     assert (
-        parse_provider({"provider": "gemini", "profile": "small"}, AIProvider) == AIProvider.GEMINI
+        parse_provider({"provider": "claude", "profile": "small"}, AIProvider) == AIProvider.CLAUDE
     )
     assert (
         parse_provider({"provider": "copilot", "profile": "large"}, AIProvider)
@@ -211,35 +207,35 @@ def test_provider_registry_helpers():
     assert parse_provider({"provider": "codex", "profile": "large"}, AIProvider) == AIProvider.CODEX
     assert parse_provider("unknown", AIProvider) is None
     assert parse_provider({"provider": "auto", "profile": "small"}, AIProvider) is None
-    parsed = parse_tool_preference({"provider": "gemini", "profile": "small"}, AIProvider)
+    parsed = parse_tool_preference({"provider": "claude", "profile": "small"}, AIProvider)
     assert parsed.valid is True
-    assert parsed.provider == AIProvider.GEMINI
+    assert parsed.provider == AIProvider.CLAUDE
     assert parsed.profile == "small"
     assert (
         supports_analysis(
-            AIProvider.GEMINI,
-            supported_tools=[AIProvider.GEMINI, AIProvider.COPILOT],
+            AIProvider.CLAUDE,
+            supported_tools=[AIProvider.CLAUDE, AIProvider.COPILOT],
         )
         is True
     )
     assert (
         supports_analysis(
             AIProvider.CODEX,
-            supported_tools=[AIProvider.GEMINI, AIProvider.COPILOT],
+            supported_tools=[AIProvider.CLAUDE, AIProvider.COPILOT],
         )
         is False
     )
-    assert unique_tools([AIProvider.GEMINI, AIProvider.COPILOT, AIProvider.GEMINI]) == [
-        AIProvider.GEMINI,
+    assert unique_tools([AIProvider.CLAUDE, AIProvider.COPILOT, AIProvider.CLAUDE]) == [
+        AIProvider.CLAUDE,
         AIProvider.COPILOT,
     ]
 
 
 def test_run_analysis_with_provider_dispatch():
     result = run_analysis_with_provider(
-        tool=AIProvider.GEMINI,
+        tool=AIProvider.CLAUDE,
         providers_map={
-            AIProvider.GEMINI: lambda text, task, **kwargs: {"tool": "gemini"},
+            AIProvider.CLAUDE: lambda text, task, **kwargs: {"tool": "claude"},
             AIProvider.COPILOT: lambda text, task, **kwargs: {"tool": "copilot"},
         },
         text="x",
@@ -247,7 +243,7 @@ def test_run_analysis_with_provider_dispatch():
         kwargs={},
         tool_unavailable_error=RuntimeError,
     )
-    assert result == {"tool": "gemini"}
+    assert result == {"tool": "claude"}
 
 
 def test_run_analysis_attempts_falls_back_and_defaults():
@@ -266,12 +262,12 @@ def test_run_analysis_attempts_falls_back_and_defaults():
         def error(self, msg, *args):
             logs.append(("error", (msg, *args)))
 
-    attempts = [AIProvider.GEMINI, AIProvider.COPILOT]
+    attempts = [AIProvider.CLAUDE, AIProvider.COPILOT]
     seen = {"calls": 0}
 
     def _invoke(tool, text, task, kwargs):
         seen["calls"] += 1
-        if tool == AIProvider.GEMINI:
+        if tool == AIProvider.CLAUDE:
             raise _RateLimit("429")
         return {"ok": True, "tool": tool.value}
 
@@ -289,10 +285,10 @@ def test_run_analysis_attempts_falls_back_and_defaults():
         logger=_Logger(),
     )
     assert out == {"ok": True, "tool": "copilot"}
-    assert ("rate", ("gemini", "analysis:classify")) in logs
+    assert ("rate", ("claude", "analysis:classify")) in logs
 
     out_default = run_analysis_attempts(
-        tool_order=[AIProvider.GEMINI],
+        tool_order=[AIProvider.CLAUDE],
         text="hello",
         task="chat",
         kwargs={},
@@ -356,59 +352,6 @@ def test_detect_intent_prompt_disambiguates_single_integration_from_ideation():
     assert 'prefer "feature_ideation": false' in prompt
 
 
-def test_gemini_analysis_invoker_rate_limit_and_timeout(monkeypatch):
-    import nexus.plugins.builtin.ai_runtime.provider_invokers.analysis_invokers as invokers_mod
-
-    class _RateLimited(Exception):
-        pass
-
-    class _Result:
-        returncode = 1
-        stderr = "quota exceeded"
-        stdout = ""
-
-    monkeypatch.setattr(invokers_mod.subprocess, "run", lambda *args, **kwargs: _Result())
-    try:
-        run_gemini_analysis_cli(
-            check_tool_available=lambda provider: True,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path="gemini",
-            gemini_model="gemini-2.0-flash",
-            build_analysis_prompt=lambda text, task, **kwargs: "prompt",
-            parse_analysis_result=lambda output, task: {"ok": True},
-            tool_unavailable_error=RuntimeError,
-            rate_limited_error=_RateLimited,
-            text="x",
-            task="classify",
-            timeout=5,
-            kwargs={},
-        )
-        assert False, "expected rate-limit error"
-    except _RateLimited:
-        pass
-
-    def _raise_timeout(*args, **kwargs):
-        raise invokers_mod.subprocess.TimeoutExpired(cmd="gemini", timeout=5)
-
-    monkeypatch.setattr(invokers_mod.subprocess, "run", _raise_timeout)
-    try:
-        run_gemini_analysis_cli(
-            check_tool_available=lambda provider: True,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path="gemini",
-            gemini_model="",
-            build_analysis_prompt=lambda text, task, **kwargs: "prompt",
-            parse_analysis_result=lambda output, task: {"ok": True},
-            tool_unavailable_error=RuntimeError,
-            rate_limited_error=_RateLimited,
-            text="x",
-            task="classify",
-            timeout=5,
-            kwargs={},
-        )
-        assert False, "expected timeout error"
-    except Exception as exc:
-        assert "timed out" in str(exc)
 
 
 def test_copilot_analysis_invoker_success_and_unavailable(monkeypatch):
@@ -509,8 +452,8 @@ def test_wrap_timeout_error_helper_message():
     import subprocess
 
     exc = subprocess.TimeoutExpired(cmd="tool", timeout=9)
-    wrapped = wrap_timeout_error(exc, provider_name="Gemini", timeout=9)
-    assert "Gemini analysis timed out (>9s)" in str(wrapped)
+    wrapped = wrap_timeout_error(exc, provider_name="Claude", timeout=9)
+    assert "Claude analysis timed out (>9s)" in str(wrapped)
 
 
 def test_codex_invoker_unavailable_and_success(monkeypatch, tmp_path):
@@ -1275,62 +1218,6 @@ def test_copilot_agent_invoker_immediate_exit_rate_limit(monkeypatch, tmp_path):
         assert "rate limit" in str(exc).lower() or "quota" in str(exc).lower()
 
 
-def test_gemini_agent_invoker_immediate_exit_rate_limit(monkeypatch, tmp_path):
-    import nexus.plugins.builtin.ai_runtime.provider_invokers.agent_invokers as agent_mod
-
-    class _Logger:
-        def info(self, *args, **kwargs):
-            pass
-
-        def error(self, *args, **kwargs):
-            pass
-
-    class _RateLimited(Exception):
-        pass
-
-    monkeypatch.setattr(agent_mod.time, "strftime", lambda fmt: "20260101_120000")
-
-    class _Proc:
-        pid = 123
-        stdout = io.StringIO("RateLimitExceeded: 429\n")
-
-        def poll(self):
-            return 1
-
-    def _fake_popen(cmd, cwd, stdin, stdout, stderr, env, text, bufsize):
-        return _Proc()
-
-    monkeypatch.setattr(agent_mod.subprocess, "Popen", _fake_popen)
-    monkeypatch.setattr(
-        agent_mod,
-        "_start_output_tee",
-        lambda **kwargs: agent_mod._stream_process_output(
-            stream=kwargs["process"].stdout,
-            log_path=kwargs["log_path"],
-            logger=kwargs["logger"],
-            output_label=kwargs["output_label"],
-        ),
-    )
-    monkeypatch.setattr(agent_mod.time, "sleep", lambda seconds: None)
-
-    try:
-        invoke_gemini_agent_cli(
-            check_tool_available=lambda provider: True,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path="gemini",
-            gemini_model="",
-            get_tasks_logs_dir=lambda workspace, subdir: str(tmp_path / "logs"),
-            tool_unavailable_error=RuntimeError,
-            rate_limited_error=_RateLimited,
-            logger=_Logger(),
-            agent_prompt="run agent",
-            workspace_dir=str(tmp_path / "repo"),
-            agents_dir=str(tmp_path / "repo" / "agents"),
-            issue_num="11",
-        )
-        assert False, "expected rate-limited immediate-exit error"
-    except _RateLimited as exc:
-        assert "rate limit" in str(exc).lower()
 
 
 def test_agent_output_tee_writes_log_and_emits_lines(tmp_path):
@@ -1402,64 +1289,6 @@ def test_agent_lifecycle_logging_redacts_prompt_and_logs_exit(monkeypatch):
     assert "[agent:copilot] exit pid=321 code=0" in logger.messages
 
 
-def test_gemini_transcription_invoker_rate_limit_and_artifact(monkeypatch, tmp_path):
-    import nexus.plugins.builtin.ai_runtime.provider_invokers.transcription_invokers as tx_mod
-
-    audio = tmp_path / "note.ogg"
-    audio.write_text("x")
-
-    class _Logger:
-        def info(self, *args, **kwargs):
-            pass
-
-    class _RateLimited(Exception):
-        pass
-
-    class _ResultRate:
-        returncode = 1
-        stderr = "quota exceeded"
-        stdout = ""
-
-    monkeypatch.setattr(tx_mod.subprocess, "run", lambda *args, **kwargs: _ResultRate())
-    try:
-        transcribe_with_gemini_cli(
-            check_tool_available=lambda provider: True,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path="gemini",
-            strip_cli_tool_output=lambda t: t,
-            is_non_transcription_artifact=lambda text, path: False,
-            tool_unavailable_error=RuntimeError,
-            rate_limited_error=_RateLimited,
-            logger=_Logger(),
-            audio_file_path=str(audio),
-            timeout=5,
-        )
-        assert False, "expected rate limit"
-    except _RateLimited:
-        pass
-
-    class _ResultOk:
-        returncode = 0
-        stderr = ""
-        stdout = "artifact"
-
-    monkeypatch.setattr(tx_mod.subprocess, "run", lambda *args, **kwargs: _ResultOk())
-    try:
-        transcribe_with_gemini_cli(
-            check_tool_available=lambda provider: True,
-            gemini_provider=AIProvider.GEMINI,
-            gemini_cli_path="gemini",
-            strip_cli_tool_output=lambda t: t,
-            is_non_transcription_artifact=lambda text, path: True,
-            tool_unavailable_error=RuntimeError,
-            rate_limited_error=_RateLimited,
-            logger=_Logger(),
-            audio_file_path=str(audio),
-            timeout=5,
-        )
-        assert False, "expected artifact rejection"
-    except Exception as exc:
-        assert "non-transcription" in str(exc)
 
 
 def test_copilot_transcription_invoker_stages_and_returns_text(monkeypatch, tmp_path):
@@ -1588,11 +1417,11 @@ def test_run_transcription_attempts_fallback_and_rate_limit_recording():
             events.append(("error", (msg, *args)))
 
     out = run_transcription_attempts(
-        attempts=["gemini", "copilot"],
+        attempts=["claude", "copilot"],
         audio_file_path="/tmp/audio.ogg",
         transcribers_map={
             "whisper": lambda p: "unused",
-            "gemini": lambda p: (_ for _ in ()).throw(_RateLimited("429")),
+            "claude": lambda p: (_ for _ in ()).throw(_RateLimited("429")),
             "copilot": lambda p: "hello",
         },
         rate_limited_error_type=_RateLimited,
@@ -1600,26 +1429,26 @@ def test_run_transcription_attempts_fallback_and_rate_limit_recording():
             ("rate", (tool, context))
         ),
         provider_to_tool={
-            "gemini": "gemini-provider",
+            "claude": "claude-provider",
             "copilot": "copilot-provider",
         },
         logger=_Logger(),
     )
     assert out == "hello"
-    assert ("rate", ("gemini-provider", "transcribe")) in events
+    assert ("rate", ("claude-provider", "transcribe")) in events
 
     out_none = run_transcription_attempts(
         attempts=["whisper"],
         audio_file_path="/tmp/audio.ogg",
         transcribers_map={
             "whisper": lambda p: (_ for _ in ()).throw(Exception("fail")),
-            "gemini": lambda p: None,
+            "claude": lambda p: None,
             "copilot": lambda p: None,
         },
         rate_limited_error_type=_RateLimited,
         record_rate_limit_with_context=_noop_rate_limit,
         provider_to_tool={
-            "gemini": "gemini-provider",
+            "claude": "claude-provider",
             "copilot": "copilot-provider",
         },
         logger=_Logger(),
@@ -1632,7 +1461,7 @@ def test_invoke_agent_with_fallback_handles_exclusion_rate_limit_and_success():
         def __init__(self, value):
             self.value = value
 
-    gemini = _Tool("gemini")
+    claude = _Tool("claude")
     copilot = _Tool("copilot")
     codex = _Tool("codex")
     events: list[tuple[str, tuple]] = []
@@ -1655,7 +1484,7 @@ def test_invoke_agent_with_fallback_handles_exclusion_rate_limit_and_success():
 
     def _invoke(tool, issue_num):
         assert issue_num == "83"
-        if tool is gemini:
+        if tool is claude:
             raise _RateLimited("429")
         if tool is copilot:
             return None
@@ -1664,7 +1493,7 @@ def test_invoke_agent_with_fallback_handles_exclusion_rate_limit_and_success():
     pid, tool = invoke_agent_with_fallback(
         issue_url="https://github.com/o/r/issues/83",
         exclude_tools=[],
-        get_tool_order=lambda: [gemini, copilot, codex],
+        get_tool_order=lambda: [claude, copilot, codex],
         check_tool_available=lambda t: True,
         invoke_tool=_invoke,
         record_rate_limit_with_context=lambda tool, exc, context: events.append(
@@ -1677,7 +1506,7 @@ def test_invoke_agent_with_fallback_handles_exclusion_rate_limit_and_success():
     )
     assert pid == 1234
     assert tool is codex
-    assert ("rate", ("gemini", "invoke_agent")) in events
+    assert ("rate", ("claude", "invoke_agent")) in events
 
 
 def test_invoke_agent_with_fallback_all_excluded_raises():
@@ -1701,8 +1530,8 @@ def test_invoke_agent_with_fallback_all_excluded_raises():
     try:
         invoke_agent_with_fallback(
             issue_url=None,
-            exclude_tools=["gemini"],
-            get_tool_order=lambda: [_Tool("gemini")],
+            exclude_tools=["claude"],
+            get_tool_order=lambda: [_Tool("claude")],
             check_tool_available=lambda t: True,
             invoke_tool=lambda tool, issue_num: 1,
             record_rate_limit_with_context=_noop_rate_limit,

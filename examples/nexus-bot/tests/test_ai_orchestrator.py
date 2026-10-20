@@ -20,12 +20,12 @@ def test_refine_description_default_keeps_original_text(monkeypatch):
     monkeypatch.setattr(orchestrator, "get_fallback_tool", lambda _primary: AIProvider.COPILOT)
 
     def _raise_rate_limit(*_args, **_kwargs):
-        raise RateLimitedError("gemini quota")
+        raise RateLimitedError("claude quota")
 
     def _raise_timeout(*_args, **_kwargs):
         raise Exception("Copilot analysis timed out")
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _raise_rate_limit)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _raise_rate_limit)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _raise_timeout)
 
     source_text = "Preserve this exact fallback text"
@@ -79,4 +79,4 @@ def test_check_tool_available_requires_successful_version_exit(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _fake_run)
     orchestrator._tool_available.clear()
 
-    assert orchestrator.check_tool_available(AIProvider.GEMINI) is False
+    assert orchestrator.check_tool_available(AIProvider.CODEX) is False

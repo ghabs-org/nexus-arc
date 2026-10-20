@@ -114,7 +114,7 @@ Examples:
 │  Inbox Processor       │ ← Hardcoded logic
 │  - Hardcoded projects  │
 │  - GitHub only         │
-│  - Copilot/Gemini only │
+│  - Copilot/Codex only │
 └──────┬─────────────────┘
        │
        ▼
@@ -175,7 +175,7 @@ Examples:
 │  │Copilot  │  OpenAI  │  Anthropic   │  │
 │  │  CLI    │   API    │    API       │  │
 │  ├─────────┼──────────┼──────────────┤  │
-│  │ Gemini  │  Local   │   Custom     │  │
+│  │ Codex   │  Local   │   Custom     │  │
 │  │  CLI    │  Models  │   Provider   │  │
 │  └─────────┴──────────┴──────────────┘  │
 └─────────┬───────────────────────────────┘
@@ -199,7 +199,7 @@ Examples:
 - ✅ **Multi-channel input**: Telegram, Slack, Webhook, CLI
 - ✅ **Storage flexibility**: File → Postgres → Redis as you grow
 - ✅ **Git platform agnostic**: GitHub, GitLab, Bitbucket
-- ✅ **AI provider choice**: Copilot, Gemini, soon Claude and Codex
+- ✅ **AI provider choice**: Copilot, Claude and Codex
 - ✅ **Testable**: Mock any adapter
 - ✅ **Reusable**: Ship as library, deploy anywhere
 - ✅ **Horizontally scalable**: Distributed workflows
@@ -361,7 +361,7 @@ class AIProvider(ABC):
 - `CopilotCLIProvider` - GitHub Copilot CLI
 - `OpenAIProvider` - GPT-4 API (Coming soon)
 - `AnthropicProvider` - Claude API (Coming soon)
-- `GeminiCLIProvider` - Google Gemini CLI
+- `CodexCLIProvider` - OpenAI Codex CLI
 - `LocalModelProvider` - Ollama, LM Studio
 
 ### 4. NotificationChannel

@@ -621,7 +621,7 @@ def _permission_denied_message(user_id: int, *, action: str = "execute") -> str:
         missing.append("Git provider login (GitHub or GitLab)")
     if not setup.get("ai_provider_ready"):
         missing.append(
-            "AI provider credentials (Codex/OpenAI, Gemini, Claude, or GitHub for Copilot)"
+            "AI provider credentials (Codex/OpenAI, Claude, or GitHub for Copilot)"
         )
     if not setup.get("org_verified"):
         missing.append("allowed org/group membership")
@@ -1686,10 +1686,10 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-_ACCOUNT_LOGIN_PROVIDERS = ("claude", "codex", "agy", "gemini")
-_ACCOUNT_LOGIN_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity", "gemini": "Gemini"}
+_ACCOUNT_LOGIN_PROVIDERS = ("claude", "codex", "agy")
+_ACCOUNT_LOGIN_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity"}
 # Providers whose sign-in ends with a code that is pasted on the account page.
-_ACCOUNT_LOGIN_CODE_HOSTS = {"claude": "claude.com", "agy": "antigravity.google", "gemini": "Google"}
+_ACCOUNT_LOGIN_CODE_HOSTS = {"claude": "claude.com", "agy": "antigravity.google"}
 
 
 def _account_setup_url(session_ref: str) -> str:
@@ -1816,7 +1816,6 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     requested_provider = str((context.args[0] if context.args else "") or "").strip().lower()
     provider_aliases = {
         "codex-account": "codex",
-        "gemini-account": "gemini",
         "claude-account": "claude",
         "copilot-account": "copilot",
         "agy-account": "agy",
@@ -1825,7 +1824,7 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     requested_provider = provider_aliases.get(requested_provider, requested_provider)
     account_provider_target = (
         requested_provider
-        if requested_provider in {"codex", "gemini", "claude", "copilot", "agy"}
+        if requested_provider in {"codex", "claude", "copilot", "agy"}
         else ""
     )
     github_oauth_ready = bool(NEXUS_GITHUB_CLIENT_ID and NEXUS_GITHUB_CLIENT_SECRET)
@@ -1912,7 +1911,7 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if requested_provider and not account_provider_target and requested_provider not in {"github", "gitlab"}:
         await update.effective_message.reply_text(
-            "⚠️ Invalid provider. Use `/login github`, `/login gitlab`, `/login codex`, `/login gemini`, `/login claude`, or `/login copilot`.",
+            "⚠️ Invalid provider. Use `/login github`, `/login gitlab`, `/login codex`, `/login claude`, or `/login copilot`.",
             parse_mode="Markdown",
         )
         return
@@ -1929,7 +1928,7 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     setup_step = (
         f"3. In setup, enable {account_provider_target.title()} account login, then Save Setup\n"
         if account_provider_target
-        else "3. Save provider setup: API keys and/or account login toggles for Codex, Gemini, Claude, Copilot\n"
+        else "3. Save provider setup: API keys and/or account login toggles for Codex, Claude, Copilot\n"
     )
     if account_provider_target == "copilot":
         setup_step = (
@@ -1976,10 +1975,8 @@ async def setup_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         f"- GitHub login: `{status.get('github_login') or 'n/a'}`",
         f"- GitLab username: `{status.get('gitlab_username') or 'n/a'}`",
         f"- Codex key set: {'✅' if status.get('codex_key_set') else '❌'}",
-        f"- Gemini key set: {'✅' if status.get('gemini_key_set') else '❌'}",
         f"- Claude key set: {'✅' if status.get('claude_key_set') else '❌'}",
         f"- Codex account login enabled: {'✅' if status.get('codex_account_enabled') else '❌'}",
-        f"- Gemini account login enabled: {'✅' if status.get('gemini_account_enabled') else '❌'}",
         f"- Claude account login enabled: {'✅' if status.get('claude_account_enabled') else '❌'}",
         f"- Copilot account mode enabled: {'✅' if status.get('copilot_account_enabled') else '❌'}",
         f"- Copilot ready (GitHub OAuth or Copilot Token): {'✅' if status.get('copilot_ready') else '❌'}",
@@ -2191,7 +2188,7 @@ async def type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# --- 3. SAVING THE TASK (Uses Gemini only if Voice) ---
+# --- 3. SAVING THE TASK (Transcribes voice when needed) ---
 async def save_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = int(getattr(update.effective_user, "id", 0) or 0)
     if not check_permission_for_action(user_id, action="execute"):

@@ -17,7 +17,7 @@ from nexus.adapters.ai.base import EFFORT_LEVELS, ExecutionContext
 from nexus.adapters.registry import AdapterRegistry
 
 BUILD_PROVIDERS = ("codex", "claude-code", "agy", "openai", "claude")
-AGENT_PROVIDERS = (*BUILD_PROVIDERS, "copilot", "gemini", "opencode")
+AGENT_PROVIDERS = (*BUILD_PROVIDERS, "copilot", "opencode")
 
 
 def build_provider(name: str):

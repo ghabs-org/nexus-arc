@@ -46,7 +46,7 @@ class ExecutionContext:
 
 
 class AIProvider(ABC):
-    """Abstract interface for AI providers (Copilot, Gemini, etc.)."""
+    """Abstract interface for AI providers (Copilot, Codex, Claude, etc.)."""
 
     @abstractmethod
     async def execute_agent(self, context: ExecutionContext) -> AgentResult:
@@ -84,5 +84,5 @@ class AIProvider(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Provider name (e.g., 'openai', 'copilot', 'gemini')."""
+        """Provider name (e.g., 'openai', 'copilot', 'agy')."""
         pass

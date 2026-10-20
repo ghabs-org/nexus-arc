@@ -309,7 +309,7 @@ def test_no_test_before_save_no_saved_build_refinement(app):
         service.start_run(
             {"kind": "build", "task": "Change", "build_id": draft["id"], "revision": 1}
         )
-    with pytest.raises(ValueError, match="Choose Codex"):
+    with pytest.raises(ValueError, match="Unknown provider"):
         service.start_run({"kind": "build", "task": "Change", "provider": "gemini"})
 
 

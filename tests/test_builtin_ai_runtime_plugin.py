@@ -20,12 +20,12 @@ def test_refine_description_default_keeps_original_text(monkeypatch):
     monkeypatch.setattr(orchestrator, "get_fallback_tool", lambda _primary: AIProvider.COPILOT)
 
     def _raise_rate_limit(*_args, **_kwargs):
-        raise RateLimitedError("gemini quota")
+        raise RateLimitedError("claude quota")
 
     def _raise_timeout(*_args, **_kwargs):
         raise Exception("Copilot analysis timed out")
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _raise_rate_limit)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _raise_rate_limit)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _raise_timeout)
 
     source_text = "Preserve this exact fallback text"
@@ -39,7 +39,7 @@ def test_analysis_uses_operation_agent_mapping_for_primary_tool(monkeypatch):
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "claude", "profile": "small"},
             },
             "system_operations": {
                 "default": "triage",
@@ -47,23 +47,23 @@ def test_analysis_uses_operation_agent_mapping_for_primary_tool(monkeypatch):
             },
         }
     )
-    called = {"gemini": 0, "copilot": 0}
+    called = {"claude": 0, "copilot": 0}
 
-    def _gemini(*_args, **_kwargs):
-        called["gemini"] += 1
-        return {"text": "refined by gemini"}
+    def _claude(*_args, **_kwargs):
+        called["claude"] += 1
+        return {"text": "refined by claude"}
 
     def _copilot(*_args, **_kwargs):
         called["copilot"] += 1
         return {"text": "refined by copilot"}
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
 
     result = orchestrator.run_text_to_speech_analysis("input", task="refine_description")
 
-    assert result["text"] == "refined by gemini"
-    assert called["gemini"] == 1
+    assert result["text"] == "refined by claude"
+    assert called["claude"] == 1
     assert called["copilot"] == 0
 
 
@@ -72,7 +72,7 @@ def test_analysis_fallback_order_comes_from_tool_preferences(monkeypatch):
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "claude", "profile": "small"},
             },
             "system_operations": {
                 "default": "triage",
@@ -85,17 +85,17 @@ def test_analysis_fallback_order_comes_from_tool_preferences(monkeypatch):
         call_order.append("copilot")
         raise Exception("copilot failed")
 
-    def _gemini(*_args, **_kwargs):
-        call_order.append("gemini")
+    def _claude(*_args, **_kwargs):
+        call_order.append("claude")
         return {"project": "nexus", "type": "feature", "task_name": "ok"}
 
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
 
     result = orchestrator.run_text_to_speech_analysis("input", task="classify")
 
     assert result["task_name"] == "ok"
-    assert call_order == ["copilot", "gemini"]
+    assert call_order == ["copilot", "claude"]
 
 
 def test_refine_description_bug_report_prefers_triage_over_designer(monkeypatch):
@@ -103,7 +103,7 @@ def test_refine_description_bug_report_prefers_triage_over_designer(monkeypatch)
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "claude", "profile": "small"},
             },
             "system_operations": {
                 "default": "triage",
@@ -116,17 +116,17 @@ def test_refine_description_bug_report_prefers_triage_over_designer(monkeypatch)
             },
         }
     )
-    called = {"gemini": 0, "copilot": 0}
+    called = {"claude": 0, "copilot": 0}
 
-    def _gemini(*_args, **_kwargs):
-        called["gemini"] += 1
+    def _claude(*_args, **_kwargs):
+        called["claude"] += 1
         return {"text": "designer output"}
 
     def _copilot(*_args, **_kwargs):
         called["copilot"] += 1
         return {"text": "triage output"}
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
 
     result = orchestrator.run_text_to_speech_analysis(
@@ -136,7 +136,7 @@ def test_refine_description_bug_report_prefers_triage_over_designer(monkeypatch)
 
     assert result["text"] == "triage output"
     assert called["copilot"] == 1
-    assert called["gemini"] == 0
+    assert called["claude"] == 0
 
 
 def test_refine_description_bug_report_without_issue_override_keeps_mapped_agent(monkeypatch):
@@ -144,7 +144,7 @@ def test_refine_description_bug_report_without_issue_override_keeps_mapped_agent
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "claude", "profile": "small"},
             },
             "system_operations": {
                 "default": "triage",
@@ -152,17 +152,17 @@ def test_refine_description_bug_report_without_issue_override_keeps_mapped_agent
             },
         }
     )
-    called = {"gemini": 0, "copilot": 0}
+    called = {"claude": 0, "copilot": 0}
 
-    def _gemini(*_args, **_kwargs):
-        called["gemini"] += 1
+    def _claude(*_args, **_kwargs):
+        called["claude"] += 1
         return {"text": "designer output"}
 
     def _copilot(*_args, **_kwargs):
         called["copilot"] += 1
         return {"text": "triage output"}
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
 
     result = orchestrator.run_text_to_speech_analysis(
@@ -171,7 +171,7 @@ def test_refine_description_bug_report_without_issue_override_keeps_mapped_agent
     )
 
     assert result["text"] == "designer output"
-    assert called["gemini"] == 1
+    assert called["claude"] == 1
     assert called["copilot"] == 0
 
 
@@ -180,7 +180,7 @@ def test_chat_defaults_to_project_chat_agent(monkeypatch):
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "claude", "profile": "small"},
             },
             "system_operations": {
                 "default": "triage",
@@ -190,17 +190,17 @@ def test_chat_defaults_to_project_chat_agent(monkeypatch):
             ),
         }
     )
-    called = {"gemini": 0, "copilot": 0}
+    called = {"claude": 0, "copilot": 0}
 
-    def _gemini(*_args, **_kwargs):
-        called["gemini"] += 1
+    def _claude(*_args, **_kwargs):
+        called["claude"] += 1
         return {"text": "designer response"}
 
     def _copilot(*_args, **_kwargs):
         called["copilot"] += 1
         return {"text": "triage response"}
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
+    monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
 
     result = orchestrator.run_text_to_speech_analysis(
@@ -210,7 +210,7 @@ def test_chat_defaults_to_project_chat_agent(monkeypatch):
     )
 
     assert result["text"] == "designer response"
-    assert called["gemini"] == 1
+    assert called["claude"] == 1
     assert called["copilot"] == 0
 
 
@@ -219,17 +219,13 @@ def test_chat_falls_through_full_provider_chain_and_returns_honest_default(monke
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "claude", "profile": "small"},
             },
             "system_operations": {"default": "triage"},
             "chat_agent_types_resolver": lambda project: ["designer"],
         }
     )
     call_order: list[str] = []
-
-    def _gemini(*_args, **_kwargs):
-        call_order.append("gemini")
-        raise Exception("gemini auth missing")
 
     def _copilot(*_args, **_kwargs):
         call_order.append("copilot")
@@ -251,7 +247,6 @@ def test_chat_falls_through_full_provider_chain_and_returns_honest_default(monke
         call_order.append("opencode")
         raise Exception("opencode unavailable")
 
-    monkeypatch.setattr(orchestrator, "_run_gemini_cli_analysis", _gemini)
     monkeypatch.setattr(orchestrator, "_run_copilot_analysis", _copilot)
     monkeypatch.setattr(orchestrator, "_run_claude_analysis", _claude)
     monkeypatch.setattr(orchestrator, "_run_codex_analysis", _codex)
@@ -264,9 +259,9 @@ def test_chat_falls_through_full_provider_chain_and_returns_honest_default(monke
         project_name="nexus",
     )
 
-    assert call_order == ["gemini", "copilot", "claude", "codex", "ollama", "opencode"]
+    assert call_order == ["claude", "copilot", "codex", "ollama", "opencode"]
     assert "couldn't generate a reply right now" in result["text"].lower()
-    assert "gemini, copilot, claude, codex, ollama, opencode" in result["text"].lower()
+    assert "claude, copilot, codex, ollama, opencode" in result["text"].lower()
     assert "last error: opencode unavailable" in result["text"].lower()
 
 
@@ -382,52 +377,8 @@ def test_analysis_without_project_workspace_does_not_pass_string_none_cwd(monkey
     assert captured["cwd"] is None
 
 
-def test_gemini_analysis_uses_analysis_timeout(monkeypatch):
-    orchestrator = AIOrchestrator({"analysis_timeout": 47})
-    captured = {"timeout": None}
-
-    monkeypatch.setattr(orchestrator, "check_tool_available", lambda _tool: True)
-
-    def _fake_run(*_args, **kwargs):
-        captured["timeout"] = kwargs.get("timeout")
-        return _FakeCompletedProcess('{"project": "nexus", "type": "feature", "task_name": "abc"}')
-
-    monkeypatch.setattr(subprocess, "run", _fake_run)
-
-    result = orchestrator._run_gemini_cli_analysis("input", "classify")
-
-    assert captured["timeout"] == 47
-    assert result["project"] == "nexus"
 
 
-def test_gemini_agent_launch_uses_configured_model(monkeypatch, tmp_path):
-    orchestrator = AIOrchestrator({"gemini_model": "gemini-3-pro"})
-    captured = {"cmd": None}
-
-    monkeypatch.setattr(orchestrator, "check_tool_available", lambda _tool: True)
-    monkeypatch.setattr("time.sleep", lambda _seconds: None)
-
-    class _FakePopen:
-        def __init__(self, cmd, **_kwargs):
-            captured["cmd"] = cmd
-            self.pid = 12345
-
-        def poll(self):
-            return None
-
-    monkeypatch.setattr(subprocess, "Popen", _FakePopen)
-
-    pid = orchestrator._invoke_gemini_agent(
-        agent_prompt="hello",
-        workspace_dir=str(tmp_path),
-        agents_dir=str(tmp_path),
-        base_dir=str(tmp_path),
-        issue_num="55",
-    )
-
-    assert pid == 12345
-    assert "--model" in captured["cmd"]
-    assert "gemini-3-pro" in captured["cmd"]
 
 
 def test_invoke_tool_passes_execution_mode_to_provider(monkeypatch, tmp_path):
@@ -586,22 +537,6 @@ def test_detects_common_transcription_refusal_markers():
     assert AIOrchestrator._is_transcription_refusal("ship issue 53 fix now") is False
 
 
-def test_gemini_file_reference_echo_is_rejected(monkeypatch):
-    orchestrator = AIOrchestrator()
-
-    monkeypatch.setattr(orchestrator, "check_tool_available", lambda _tool: True)
-    monkeypatch.setattr("os.path.exists", lambda _path: True)
-
-    def _fake_run(*_args, **_kwargs):
-        return _FakeCompletedProcess("File: temp_voice.ogg")
-
-    monkeypatch.setattr(subprocess, "run", _fake_run)
-
-    try:
-        orchestrator._transcribe_with_gemini_cli("temp_voice.ogg")
-        raise AssertionError("Expected file-reference echo to be rejected")
-    except Exception as exc:
-        assert "non-transcription content" in str(exc)
 
 
 def test_copilot_tool_debug_output_is_rejected(monkeypatch):
@@ -651,54 +586,55 @@ def test_copilot_transcription_uses_add_dir(monkeypatch):
     assert "--add-file" not in captured["cmd"]
 
 
-def test_transcript_provider_env_uses_gemini_by_default(monkeypatch):
+def test_transcript_provider_env_uses_copilot_by_default(monkeypatch):
+    monkeypatch.delenv("TRANSCRIPT_PROVIDER", raising=False)
     orchestrator = AIOrchestrator()
-    called = {"copilot": False, "gemini": False}
+    called = {"copilot": False, "ollama": False}
 
     def _copilot(_path):
         called["copilot"] = True
         return "transcribed"
 
-    def _gemini(_path):
-        called["gemini"] = True
+    def _ollama(_path):
+        called["ollama"] = True
         return "transcribed"
 
     monkeypatch.setattr(orchestrator, "_transcribe_with_copilot_cli", _copilot)
-    monkeypatch.setattr(orchestrator, "_transcribe_with_gemini_cli", _gemini)
+    monkeypatch.setattr(orchestrator, "_transcribe_with_ollama_cli", _ollama)
 
     result = orchestrator.transcribe_audio("temp_voice.ogg")
 
     assert result == "transcribed"
-    assert called["copilot"] is False
-    assert called["gemini"] is True
+    assert called["copilot"] is True
+    assert called["ollama"] is False
 
 
 def test_transcript_provider_uses_whisper_when_configured(monkeypatch):
     monkeypatch.setenv("TRANSCRIPT_PROVIDER", "whisper")
     orchestrator = AIOrchestrator({"fallback_enabled": False})
-    called = {"whisper": False, "gemini": False, "copilot": False}
+    called = {"whisper": False, "ollama": False, "copilot": False}
 
     def _whisper(_path):
         called["whisper"] = True
         return "spoken text"
 
-    def _gemini(_path):
-        called["gemini"] = True
-        return "gemini"
+    def _ollama(_path):
+        called["ollama"] = True
+        return "ollama"
 
     def _copilot(_path):
         called["copilot"] = True
         return "copilot"
 
     monkeypatch.setattr(orchestrator, "_transcribe_with_whisper_api", _whisper)
-    monkeypatch.setattr(orchestrator, "_transcribe_with_gemini_cli", _gemini)
+    monkeypatch.setattr(orchestrator, "_transcribe_with_ollama_cli", _ollama)
     monkeypatch.setattr(orchestrator, "_transcribe_with_copilot_cli", _copilot)
 
     result = orchestrator.transcribe_audio("temp_voice.ogg")
 
     assert result == "spoken text"
     assert called["whisper"] is True
-    assert called["gemini"] is False
+    assert called["ollama"] is False
     assert called["copilot"] is False
 
 
@@ -723,36 +659,36 @@ def test_transcription_timeout_respects_config(monkeypatch):
 
 
 def test_transcription_operation_mapping_overrides_transcript_provider(monkeypatch):
-    monkeypatch.setenv("TRANSCRIPT_PROVIDER", "gemini")
+    monkeypatch.setenv("TRANSCRIPT_PROVIDER", "ollama")
     orchestrator = AIOrchestrator(
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "ollama", "profile": "small"},
             },
             "system_operations": {
                 "transcribe_audio": "triage",
             },
         }
     )
-    called = {"copilot": 0, "gemini": 0}
+    called = {"copilot": 0, "ollama": 0}
 
     def _copilot(_path):
         called["copilot"] += 1
         return "copilot transcript"
 
-    def _gemini(_path):
-        called["gemini"] += 1
-        return "gemini transcript"
+    def _ollama(_path):
+        called["ollama"] += 1
+        return "ollama transcript"
 
     monkeypatch.setattr(orchestrator, "_transcribe_with_copilot_cli", _copilot)
-    monkeypatch.setattr(orchestrator, "_transcribe_with_gemini_cli", _gemini)
+    monkeypatch.setattr(orchestrator, "_transcribe_with_ollama_cli", _ollama)
 
     result = orchestrator.transcribe_audio("temp_voice.ogg")
 
     assert result == "copilot transcript"
     assert called["copilot"] == 1
-    assert called["gemini"] == 0
+    assert called["ollama"] == 0
 
 
 def test_transcription_operation_mapping_uses_global_fallback_order(monkeypatch):
@@ -760,7 +696,7 @@ def test_transcription_operation_mapping_uses_global_fallback_order(monkeypatch)
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "small"},
-                "designer": {"provider": "gemini", "profile": "small"},
+                "designer": {"provider": "ollama", "profile": "small"},
             },
             "system_operations": {
                 "transcribe_audio": "triage",
@@ -774,17 +710,17 @@ def test_transcription_operation_mapping_uses_global_fallback_order(monkeypatch)
         call_order.append("copilot")
         raise Exception("copilot failed")
 
-    def _gemini(_path):
-        call_order.append("gemini")
-        return "gemini transcript"
+    def _ollama(_path):
+        call_order.append("ollama")
+        return "ollama transcript"
 
     monkeypatch.setattr(orchestrator, "_transcribe_with_copilot_cli", _copilot)
-    monkeypatch.setattr(orchestrator, "_transcribe_with_gemini_cli", _gemini)
+    monkeypatch.setattr(orchestrator, "_transcribe_with_ollama_cli", _ollama)
 
     result = orchestrator.transcribe_audio("temp_voice.ogg")
 
-    assert result == "gemini transcript"
-    assert call_order == ["copilot", "gemini"]
+    assert result == "ollama transcript"
+    assert call_order == ["copilot", "ollama"]
 
 
 def test_primary_tool_parses_model_wrapped_preferences():
@@ -792,12 +728,12 @@ def test_primary_tool_parses_model_wrapped_preferences():
         {
             "tool_preferences": {
                 "triage": {"provider": "copilot", "profile": "large"},
-                "writer": {"provider": "gemini", "profile": "small"},
+                "writer": {"provider": "claude", "profile": "small"},
             }
         }
     )
     assert orchestrator.get_primary_tool("triage") == AIProvider.COPILOT
-    assert orchestrator.get_primary_tool("writer") == AIProvider.GEMINI
+    assert orchestrator.get_primary_tool("writer") == AIProvider.CLAUDE
 
 
 def test_copilot_model_override_is_capability_gated(monkeypatch, tmp_path):
@@ -921,7 +857,7 @@ def test_auto_provider_fast_profile_prefers_available_provider(monkeypatch):
             "tool_preferences": {"triage": {"provider": "auto", "profile": "fast"}},
             "model_profiles": {
                 "fast": {
-                    "gemini": "gemini-2.0-flash",
+                    "claude": "claude-sonnet",
                     "copilot": "gpt-4o-mini",
                 }
             },
@@ -931,7 +867,7 @@ def test_auto_provider_fast_profile_prefers_available_provider(monkeypatch):
     monkeypatch.setattr(
         orchestrator,
         "check_tool_available",
-        lambda tool: tool != AIProvider.GEMINI,
+        lambda tool: tool != AIProvider.CLAUDE,
     )
     assert orchestrator.get_primary_tool("triage") == AIProvider.COPILOT
 
@@ -960,15 +896,15 @@ def test_custom_profile_provider_priority_overrides_default_order(monkeypatch):
             "tool_preferences": {"triage": {"provider": "auto", "profile": "fast"}},
             "model_profiles": {
                 "fast": {
-                    "gemini": "gemini-2.0-flash",
+                    "claude": "claude-sonnet",
                     "copilot": "gpt-4o-mini",
                     "codex": "gpt-5-mini",
                 }
             },
-            "profile_provider_priority": {"fast": ["codex", "copilot", "gemini"]},
+            "profile_provider_priority": {"fast": ["codex", "copilot", "claude"]},
         }
     )
 
     monkeypatch.setattr(orchestrator, "check_tool_available", lambda _tool: True)
     order = orchestrator._get_tool_order(agent_name="triage", project_name=None)
-    assert order == [AIProvider.CODEX, AIProvider.COPILOT, AIProvider.GEMINI]
+    assert order == [AIProvider.CODEX, AIProvider.COPILOT, AIProvider.CLAUDE]

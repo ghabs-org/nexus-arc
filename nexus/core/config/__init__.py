@@ -607,8 +607,6 @@ def _get_orchestrator_config():
             "copilot_model": os.getenv("COPILOT_MODEL", "").strip(),
             "copilot_supports_model": os.getenv("COPILOT_SUPPORTS_MODEL", "false").lower()
             == "true",
-            "gemini_cli_path": os.getenv("GEMINI_CLI_PATH", "gemini"),
-            "gemini_model": os.getenv("GEMINI_MODEL", "").strip(),
             "codex_cli_path": os.getenv("CODEX_CLI_PATH", "codex"),
             "codex_model": os.getenv("CODEX_MODEL", "").strip(),
             "claude_cli_path": os.getenv("CLAUDE_CLI_PATH", "claude"),

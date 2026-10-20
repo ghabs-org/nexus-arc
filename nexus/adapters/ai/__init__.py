@@ -5,7 +5,6 @@ from nexus.adapters.ai.claude_code_provider import ClaudeCodeProvider
 from nexus.adapters.ai.claude_provider import ClaudeProvider
 from nexus.adapters.ai.codex_provider import CodexCLIProvider
 from nexus.adapters.ai.copilot_provider import CopilotCLIProvider
-from nexus.adapters.ai.gemini_provider import GeminiCLIProvider
 from nexus.adapters.ai.opencode_provider import OpenCodeProvider
 from nexus.adapters.ai.openai_provider import OpenAIProvider
 from nexus.adapters.ai.registry import AgentRegistry
@@ -17,7 +16,6 @@ __all__ = [
     "ExecutionContext",
     "CodexCLIProvider",
     "CopilotCLIProvider",
-    "GeminiCLIProvider",
     "OpenCodeProvider",
     "OpenAIProvider",
     "AgentRegistry",

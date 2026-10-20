@@ -8,6 +8,14 @@ from nexus.core.auth import credential_store as store_svc
 from nexus.core.auth import oauth_onboarding_domain as auth_svc
 
 
+def _credential_record(**values):
+    from dataclasses import fields, MISSING
+
+    defaults = {field.name: None for field in fields(store_svc.CredentialRecord) if field.default is MISSING}
+    defaults.update(values)
+    return store_svc.CredentialRecord(**defaults)
+
+
 def test_login_session_ref_roundtrip():
     session_id = "0123456789abcdef0123456789abcdef"
     session_ref = auth_svc.format_login_session_ref(session_id)
@@ -78,7 +86,6 @@ def test_store_ai_provider_keys_accepts_claude_only(monkeypatch):
         "get_user_credentials",
         lambda _nid: SimpleNamespace(
             codex_api_key_enc=None,
-            gemini_api_key_enc=None,
             claude_api_key_enc=None,
             copilot_github_token_enc=None,
             github_token_enc=None,
@@ -99,7 +106,6 @@ def test_store_ai_provider_keys_accepts_claude_only(monkeypatch):
     assert result["ready"] is True
     assert captured["nexus_id"] == "nexus-1"
     assert captured["codex_api_key_enc"] is None
-    assert captured["gemini_api_key_enc"] is None
     assert str(captured["claude_api_key_enc"]).startswith("enc:sk-ant-")
 
 
@@ -117,7 +123,6 @@ def test_store_ai_provider_keys_rejects_copilot_without_linked_github(monkeypatc
         "get_user_credentials",
         lambda _nid: SimpleNamespace(
             codex_api_key_enc=None,
-            gemini_api_key_enc=None,
             claude_api_key_enc=None,
             copilot_github_token_enc=None,
             github_token_enc=None,
@@ -148,13 +153,11 @@ def test_store_ai_provider_keys_accepts_cli_account_toggles(monkeypatch):
         "get_user_credentials",
         lambda _nid: SimpleNamespace(
             codex_api_key_enc=None,
-            gemini_api_key_enc=None,
             claude_api_key_enc=None,
             copilot_github_token_enc=None,
             github_token_enc="enc-gh",
             github_login="gh-user",
             codex_account_enabled=False,
-            gemini_account_enabled=False,
             claude_account_enabled=False,
             copilot_account_enabled=False,
         ),
@@ -166,14 +169,12 @@ def test_store_ai_provider_keys_accepts_cli_account_toggles(monkeypatch):
     result = auth_svc.store_ai_provider_keys(
         session_id="session-account",
         use_codex_account=True,
-        use_gemini_account=True,
         use_claude_account=True,
         use_copilot_account=True,
     )
 
     assert result["ready"] is True
     assert captured["codex_account_enabled"] is True
-    assert captured["gemini_account_enabled"] is True
     assert captured["claude_account_enabled"] is True
     assert captured["copilot_account_enabled"] is True
 
@@ -238,7 +239,7 @@ def test_get_setup_status_counts_claude_key_for_readiness(monkeypatch):
     monkeypatch.setenv("NEXUS_AUTH_ENABLED", "true")
     monkeypatch.setattr(access_svc, "maybe_sync_user_project_access", lambda _nid: True)
 
-    record = store_svc.CredentialRecord(
+    record = _credential_record(
         nexus_id="nexus-3",
         auth_provider="gitlab",
         github_user_id=None,
@@ -252,11 +253,9 @@ def test_get_setup_status_counts_claude_key_for_readiness(monkeypatch):
         gitlab_refresh_token_enc=None,
         gitlab_token_expires_at=None,
         codex_api_key_enc=None,
-        gemini_api_key_enc=None,
         claude_api_key_enc="enc-claude",
         copilot_github_token_enc=None,
         codex_account_enabled=False,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         org_verified=True,
@@ -283,7 +282,7 @@ def test_get_setup_status_counts_cli_account_for_readiness(monkeypatch):
     monkeypatch.setenv("NEXUS_CLI_AUTH_MODE", "account")
     monkeypatch.setattr(access_svc, "maybe_sync_user_project_access", lambda _nid: True)
 
-    record = store_svc.CredentialRecord(
+    record = _credential_record(
         nexus_id="nexus-account-status",
         auth_provider="gitlab",
         github_user_id=None,
@@ -297,11 +296,9 @@ def test_get_setup_status_counts_cli_account_for_readiness(monkeypatch):
         gitlab_refresh_token_enc=None,
         gitlab_token_expires_at=None,
         codex_api_key_enc=None,
-        gemini_api_key_enc=None,
         claude_api_key_enc=None,
         copilot_github_token_enc=None,
         codex_account_enabled=True,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         org_verified=True,
@@ -329,7 +326,7 @@ def test_build_execution_env_refreshes_expired_gitlab_token_and_injects_claude(m
     monkeypatch.setenv("NEXUS_GITLAB_CLIENT_ID", "client-id")
     monkeypatch.setenv("NEXUS_GITLAB_CLIENT_SECRET", "client-secret")
 
-    record = store_svc.CredentialRecord(
+    record = _credential_record(
         nexus_id="nexus-4",
         auth_provider="gitlab",
         github_user_id=None,
@@ -343,11 +340,9 @@ def test_build_execution_env_refreshes_expired_gitlab_token_and_injects_claude(m
         gitlab_refresh_token_enc="enc-old-refresh",
         gitlab_token_expires_at=datetime.now(tz=UTC) - timedelta(seconds=5),
         codex_api_key_enc=None,
-        gemini_api_key_enc=None,
         claude_api_key_enc="enc-claude",
         copilot_github_token_enc=None,
         codex_account_enabled=False,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         org_verified=True,
@@ -408,7 +403,7 @@ def test_build_execution_env_allows_cli_account_without_api_keys(monkeypatch):
     monkeypatch.setenv("NEXUS_AUTH_ENABLED", "true")
     monkeypatch.setenv("NEXUS_CLI_AUTH_MODE", "account")
 
-    record = store_svc.CredentialRecord(
+    record = _credential_record(
         nexus_id="nexus-acc-env",
         auth_provider="gitlab",
         github_user_id=None,
@@ -422,11 +417,9 @@ def test_build_execution_env_allows_cli_account_without_api_keys(monkeypatch):
         gitlab_refresh_token_enc=None,
         gitlab_token_expires_at=None,
         codex_api_key_enc=None,
-        gemini_api_key_enc=None,
         claude_api_key_enc=None,
         copilot_github_token_enc=None,
         codex_account_enabled=True,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         org_verified=True,
@@ -445,7 +438,7 @@ def test_build_execution_env_allows_cli_account_without_api_keys(monkeypatch):
     assert env["NEXUS_ACCOUNT_AUTH_PROVIDERS"] == "codex"
     assert str(env.get("HOME", "")).endswith("/auth/home/nexus-acc-env")
     assert str(env.get("CODEX_HOME", "")).endswith("/auth/codex/nexus-acc-env")
-    assert str(env.get("GEMINI_HOME", "")).endswith("/auth/gemini/nexus-acc-env")
+    assert "GEMINI_HOME" not in env
     assert str(env.get("CLAUDE_HOME", "")).endswith("/auth/claude/nexus-acc-env")
 
 
@@ -453,7 +446,7 @@ def test_build_execution_env_rejects_insecure_codex_home_owner(monkeypatch):
     monkeypatch.setenv("NEXUS_AUTH_ENABLED", "true")
     monkeypatch.setenv("NEXUS_CLI_AUTH_MODE", "account")
 
-    record = store_svc.CredentialRecord(
+    record = _credential_record(
         nexus_id="nexus-acc-owner",
         auth_provider="gitlab",
         github_user_id=None,
@@ -467,11 +460,9 @@ def test_build_execution_env_rejects_insecure_codex_home_owner(monkeypatch):
         gitlab_refresh_token_enc=None,
         gitlab_token_expires_at=None,
         codex_api_key_enc=None,
-        gemini_api_key_enc=None,
         claude_api_key_enc=None,
         copilot_github_token_enc=None,
         codex_account_enabled=True,
-        gemini_account_enabled=False,
         claude_account_enabled=False,
         copilot_account_enabled=False,
         org_verified=True,
@@ -592,7 +583,7 @@ def test_compute_project_grants_users_only_and_team_user_intersection():
 
     # In team + in user allowlist -> allowed.
     grants_alice = access_svc.compute_project_grants_for_github_acl(
-        team_slugs={"ghabs95/nexus-team"},
+        team_slugs={"ghabs-org/nexus-team"},
         github_login="alice",
         project_config=config,
     )
@@ -600,7 +591,7 @@ def test_compute_project_grants_users_only_and_team_user_intersection():
 
     # In team but not in explicit user allowlist -> denied.
     grants_charlie = access_svc.compute_project_grants_for_github_acl(
-        team_slugs={"ghabs95/nexus-team"},
+        team_slugs={"ghabs-org/nexus-team"},
         github_login="charlie",
         project_config=config,
     )

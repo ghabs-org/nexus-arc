@@ -158,7 +158,7 @@ async def _get_ai_provider(config: dict | None) -> Any:
 
     Priority:
     1. config["ai_provider_factory"] callable (explicit injection)
-    2. Auto-discover from registered Nexus adapters (Claude > Copilot > Gemini > OpenCode)
+    2. Auto-discover from registered Nexus adapters (Claude > Copilot > OpenCode)
 
     Constructors are cheap but don't check CLI/env availability — we call
     check_availability() to verify before returning. Returns None if no
@@ -189,12 +189,6 @@ async def _get_ai_provider(config: dict | None) -> Any:
         candidates.append(CopilotCLIProvider())
     except Exception as exc:
         logger.debug("CopilotCLIProvider init failed: %s", exc)
-
-    try:
-        from nexus.adapters.ai.gemini_provider import GeminiCLIProvider
-        candidates.append(GeminiCLIProvider())
-    except Exception as exc:
-        logger.debug("GeminiCLIProvider init failed: %s", exc)
 
     try:
         from nexus.adapters.ai.opencode_provider import OpenCodeProvider

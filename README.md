@@ -189,19 +189,22 @@ history = await engine.get_audit_log(workflow_id)
 Intelligent routing with automatic fallback:
 
 ```python
-from nexus.adapters.ai import CopilotCLI, OpenAIProvider, GeminiCLI
+from nexus.adapters.ai import CopilotCLIProvider, ClaudeProvider, CodexCLIProvider
+from nexus.core.orchestrator import AIOrchestrator
 
 orchestrator = AIOrchestrator(
     providers=[
-        CopilotCLI(preference="code_generation"),
-        AnthropicProvider(preference="reasoning", model="claude-3"), # Coming soon
-        GeminiCLI(preference="fast_analysis"),
+        CopilotCLIProvider(),
+        ClaudeProvider(),
+        CodexCLIProvider(),
     ],
     fallback_enabled=True
 )
 
 # Automatically picks best provider & falls back if rate-limited
-result = await orchestrator.execute(agent="Architect", context=ctx)
+result = await orchestrator.execute(
+    agent_name="Architect", prompt="Review the design", workspace="."
+)
 ```
 
 ### 🔌 Pluggable Adapters
@@ -480,7 +483,7 @@ mypy nexus/     # Type check
 - [x] Core workflow engine
 - [x] File, Postgres, Redis storage
 - [x] GitHub, GitLab git platforms
-- [x] Copilot CLI, Gemini CLI, OpenAI providers
+- [x] Copilot CLI, Codex CLI, OpenAI providers
 - [x] Telegram, Slack notifiers
 
 ### v0.2 (Next)
