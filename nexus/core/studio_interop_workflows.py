@@ -82,7 +82,7 @@ def needs_compatibility(source):
     )
 
 
-class SAMWorkflowCompiler:
+class InteropWorkflowCompiler:
     def __init__(self, bridge):
         self.bridge = bridge
         self.issue, self.fields, self.attempt = bridge.issue, bridge.fields, bridge.attempt

@@ -505,10 +505,10 @@ class StudioSAMConfiguration:
         return item
 
     def workflow(self, source, path, name):
-        from nexus.core.studio_interop_workflows import SAMWorkflowCompiler, needs_compatibility
+        from nexus.core.studio_interop_workflows import InteropWorkflowCompiler, needs_compatibility
 
         if needs_compatibility(source):
-            return SAMWorkflowCompiler(self).compile(source, path, name)
+            return InteropWorkflowCompiler(self).compile(source, path, name)
         allowed = {
             "agent_name",
             "agent_type",

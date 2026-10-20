@@ -62,7 +62,7 @@ This extends the version-2 graph's existing scoped handler bodies; no persisted
 record rewrite or frontend dependency is needed. New multi-node exit graphs need
 the updated backend. The example consumer and required local HTTP, routing,
 file/SQLite restart, cancellation and uncertain-effect tests cover this profile.
-They do not establish independent equivalence with a running SAM installation.
+They do not establish independent equivalence with an external reference installation.
 
 ## Image evidence across scopes
 
@@ -84,6 +84,6 @@ selected API model and its billing before explicitly running the installed
 workflow in Studio. The extended integration example also exercises this path
 against the existing local Postman decision peer.
 
-This locally verifies the supported owned-artifact profile. Broader SAM artifact
-URI namespaces, source settings and independent SAM/provider acceptance remain
+This locally verifies the supported owned-artifact profile. Broader imported artifact
+URI namespaces, source settings and independent external/provider acceptance remain
 separate limitations. Existing Studio servers need restart to load the change.

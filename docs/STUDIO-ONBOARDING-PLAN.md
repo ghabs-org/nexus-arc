@@ -5,7 +5,7 @@ Requested: 20 October 2026.
 Placement: reusable Studio framework UI (`nexus/core/studio_onboarding.py`, `nexus/core/studio_workbench.py`, `nexus/studio_static/index.html`, `nexus/studio_static/studio.css`, `nexus/studio_static/experience.js`), with the `examples/nexus-bot/src/studio_experience.py` consumer.
 
 This is a user-requested addition to the roadmap. It does not change the frozen
-SAM feature inventory, baseline, catalog identities or existing acceptance counts.
+parity feature inventory, baseline, catalog identities or existing acceptance counts.
 
 ## Delivery order
 

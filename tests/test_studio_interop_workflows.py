@@ -303,7 +303,7 @@ def test_unsupported_expression_is_rejected_before_execution(source):
         parse_condition(source)
 
 
-def test_extended_sam_conditions_and_indexed_references_roundtrip(studio):
+def test_extended_interop_conditions_and_indexed_references_roundtrip(studio):
     from nexus.core.studio_interop_conditions import evaluate_condition
 
     context = {
