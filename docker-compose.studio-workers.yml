@@ -1,0 +1,21 @@
+# Opt-in override: let hosted Studio run subscription CLIs (Codex, Claude Code)
+# in the pinned runner_image configured in the team config.
+#   docker compose --env-file <compose.env> \
+#     -f docker-compose.studio.yml -f docker-compose.studio-workers.yml up -d --build
+#
+# SECURITY: the Docker socket gives Studio root-equivalent control of the host.
+# Use only on a dedicated host (see deploy/studio/README.md).
+#
+# Studio passes bind-mount sources (per-user CLI homes, scratch dirs under
+# TMPDIR) to the host daemon, so those paths are mounted at identical paths:
+#   - ${NEXUS_RUNTIME_DIR}/auth: per-user homes prepared by Nexus account setup
+#   - ${NEXUS_STUDIO_DATA_DIR}: already mounted at /var/lib/nexus-studio, so the
+#     data dir must be /var/lib/nexus-studio on the host as well.
+# NEXUS_DOCKER_GID: GID owning /var/run/docker.sock (getent group docker).
+services:
+  studio:
+    group_add:
+      - "${NEXUS_DOCKER_GID:?set NEXUS_DOCKER_GID}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth

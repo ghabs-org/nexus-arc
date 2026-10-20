@@ -39,7 +39,9 @@ image/account setup in [the shared deployment guide](README.md), then add its
 reviewed `runner_image` digest to the personal configuration. The service needs
 access to that dedicated worker runtime. Omitting it keeps hosted CLI execution
 unavailable; configured API providers remain usable. Hosting with one owner does
-not silently relax the existing CLI isolation policy.
+not silently relax the existing CLI isolation policy. With the Docker deployment,
+add `docker-compose.studio-workers.yml` to give the container the Docker socket and
+the per-user account homes at their host paths.
 
 ## Validate before relying on it
 
