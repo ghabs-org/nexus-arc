@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 execution_identity = contextvars.ContextVar("studio_execution_identity", default=None)
 NATIVE = {
+    "teams",
     "github",
     "gitlab",
     "telegram",
@@ -83,6 +84,10 @@ def https_url(value):
 
 def validate_connection(data):
     kind = data["type"]
+    if kind == "teams":
+        from nexus.core.studio_teams import validate_teams
+
+        return validate_teams(data)
     from nexus.core.studio_enterprise import KINDS, validate_enterprise
 
     if kind in KINDS:
@@ -118,6 +123,8 @@ def validate_connection(data):
         transport = data.get("transport", "stdio")
         if transport not in {"stdio", "sse", "streamable-http"}:
             raise ValueError("Choose stdio, sse or streamable-http MCP transport")
+        if transport == "stdio" and data.get("auth", {}).get("type") == "oauth":
+            raise ValueError("Delegated OAuth supports remote MCP connectors only")
         if transport != "stdio":
             from nexus.core.studio_remote import validate_remote
 
@@ -353,6 +360,18 @@ class StudioConnections:
         try:
             from nexus.core.studio_enterprise import KINDS
 
+            if data["type"] == "teams":
+                from nexus.core.studio_teams import call_teams
+
+                return await asyncio.to_thread(
+                    call_teams,
+                    self.studio,
+                    data,
+                    actor,
+                    action,
+                    arguments,
+                    self.enterprise.request_client,
+                )
             if data["type"] in KINDS:
                 return await asyncio.to_thread(self.enterprise.call, data, actor, action, arguments)
             if data["type"] == "openapi":
@@ -380,7 +399,9 @@ class StudioConnections:
                     return await remote_mcp(
                         remote_request_url(self.studio, data, actor),
                         data["transport"],
-                        headers=remote_headers(self.studio, data, actor),
+                        headers=await asyncio.to_thread(
+                            remote_headers, self.studio, data, actor, connector_id=identity
+                        ),
                         tool=None if action == "discover" else payload.get("tool"),
                         arguments=arguments,
                     )

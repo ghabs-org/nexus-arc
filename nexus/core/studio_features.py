@@ -9,6 +9,17 @@ class StudioFeatures:
 
     def get(self, parts, query, actor):
         studio = self.studio
+        if len(parts) == 3 and parts[0] == "external-runs" and parts[2] == "callbacks":
+            return studio.external.callbacks.status(parts[1], actor)
+        if len(parts) == 3 and parts[0] == "entrypoints" and parts[2] == "a2a-deliveries":
+            return studio.a2a.push.health(
+                parts[1],
+                actor,
+                limit=int(query.get("limit", ["50"])[0]),
+                after=query.get("after", [None])[0],
+            )
+        if len(parts) == 3 and parts[0] == "connectors" and parts[2] == "oauth":
+            return studio.oauth.status(parts[1], actor)
         if len(parts) == 3 and parts[0] == "builds" and parts[2] == "lifecycle":
             return studio.resource_lifecycle.inspect_build(parts[1], actor)
         if parts == ["workflow-policy"]:
@@ -110,6 +121,10 @@ class StudioFeatures:
         raise FileNotFoundError("Studio feature route not found")
 
     def post(self, parts, data, actor):
+        if len(parts) == 4 and parts[0] == "external-runs" and parts[2:] == ["callbacks", "revoke"]:
+            return 200, self.studio.external.callbacks.revoke(parts[1], actor)
+        if len(parts) == 4 and parts[0] == "connectors" and parts[2:] == ["oauth", "disconnect"]:
+            return 200, self.studio.oauth.disconnect(parts[1], actor)
         studio = self.studio
         if len(parts) == 3 and parts[0] == "builds" and parts[2] == "review":
             return 200, studio.builder.review(parts[1], data, actor)

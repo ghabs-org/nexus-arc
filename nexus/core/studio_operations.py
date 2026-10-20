@@ -124,6 +124,12 @@ class StudioOperations:
             if type(a2a) is not bool or (a2a and data.get("type", "webhook") != "webhook"):
                 raise ValueError("A2A exposure is a boolean available only for bearer webhooks")
             result["a2a_enabled"] = a2a
+            if "a2a_push" in data:
+                from nexus.core.studio_a2a_push import settings
+
+                if not a2a:
+                    raise ValueError("Enable A2A before configuring callback destinations")
+                result["a2a_push"] = settings(data["a2a_push"])
             mcp = data.get("mcp_enabled", False)
             if type(mcp) is not bool or (mcp and data.get("type", "webhook") != "webhook"):
                 raise ValueError("MCP exposure is a boolean available only for bearer webhooks")
@@ -323,10 +329,9 @@ class StudioOperations:
                 raise ValueError("Private/local HTTP requires explicitly allowing private networks")
         headers = {"Accept": "application/json, text/plain", "User-Agent": "NexusStudio/1"}
         if data["token_env"]:
-            token = os.getenv(data["token_env"])
-            if not token:
-                raise ValueError("Connector token environment variable is not configured")
-            headers["Authorization"] = "Bearer " + token
+            from nexus.core.studio_remote import remote_headers
+
+            headers.update(remote_headers(self.studio, data, actor))
 
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
@@ -467,6 +472,8 @@ class StudioOperations:
                 try:
                     self.tick()
                     self.studio.messaging.tick()
+                    self.studio.a2a.push.tick()
+                    self.studio.external.callbacks.tick()
                 except Exception as exc:
                     self.studio._write(
                         self.studio._path("schedule-state", "scheduler"),

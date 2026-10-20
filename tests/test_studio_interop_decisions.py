@@ -153,7 +153,9 @@ def test_multiquestion_direct_default_and_handoff_only_run_selected_branch(
         assert exported["valid"], exported
         assert exported["bundle"]["bindings"]["decisions"] == {"triage": BINDING}
         assert (
-            studio.configuration.convert_interop({"documents": [exported["bundle"]]}, None)["document"]
+            studio.configuration.convert_interop({"documents": [exported["bundle"]]}, None)[
+                "document"
+            ]
             == native
         )
     finally:
@@ -755,3 +757,42 @@ def test_shared_decision_credentials_owner_and_project_scope(team, monkeypatch):
             )
         )
     assert len(calls) == 1
+
+
+def test_mapped_decision_routes_stay_inside_each_item(tmp_path):
+    calls = []
+
+    async def record(label):
+        calls.append(label)
+        return label
+
+    def decide(state, questions, **kwargs):
+        return answers(state["ticket"])
+
+    tool_registry.register("interop:decision-record", record, "Synthetic mapped decision")
+    studio = StudioService(tmp_path, workbench_options={"decision_client": decide})
+    try:
+        workflow = source()
+        workflow["nodes"][0]["input"] = {"ticket": "{{_map_item}}"}
+        for node in workflow["nodes"][1:]:
+            node["input"] = {"label": "{{_map_item}}"}
+        workflow["nodes"].insert(
+            0,
+            {
+                "id": "each",
+                "type": "map",
+                "node": "triage",
+                "items": ["billing", "technical"],
+                "concurrency_limit": 2,
+            },
+        )
+        workflow["output_mapping"] = {"results": "{{each.output}}"}
+        native = install(studio, workflow)
+        graph = native["definitions"][0]["document"]["graph"]
+        assert [node["id"] for node in graph["nodes"]] == ["each"]
+        result = json.loads(run(studio, "decide", {})["output"])
+        assert [item["selected_branch"] for item in result["results"]] == ["billing", "technical"]
+        assert sorted(calls) == ["billing", "technical"]
+    finally:
+        studio.close()
+        tool_registry.unregister("interop:decision-record", func=record)

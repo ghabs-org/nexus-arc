@@ -103,12 +103,17 @@ def validate_decision(config):
             "on_provider_error",
             "timeout_seconds",
             "max_state_bytes",
+            "max_images",
+            "max_image_bytes",
         }
         or config.get("format") != FORMAT
     ):
         raise ValueError("Invalid typed decision configuration")
     validate_binding({"backend": config.get("backend"), "model": config.get("model")})
     validate_questions(config.get("questions"))
+    from nexus.core.studio_decision_images import limits
+
+    limits(config)
     if not finite(config.get("timeout_seconds", 10), 1, 300):
         raise ValueError("Decision call timeout must be 1–300 seconds")
     if (
@@ -254,7 +259,7 @@ class StudioTypedDecisions:
     def __init__(self, jobs):
         self.jobs, self.studio = jobs, jobs.studio
 
-    async def execute(self, config, state, payload, run_id, record_id):
+    async def execute(self, config, state, payload, run_id, record_id, *, images=None):
         from nexus.adapters.decisions.jev import ask_strict
 
         validate_decision(config)
@@ -263,10 +268,11 @@ class StudioTypedDecisions:
         if self.studio.team:
             self.studio.team.assert_execution(payload.get("requester_nexus_id"))
         owner = self.jobs.workbench.owner(actor)
+        digest_input = [config, state, owner]
+        if images or payload.get("_decision_image_revisions"):
+            digest_input.extend([images, payload.get("_decision_image_revisions", {})])
         digest = hashlib.sha256(
-            json.dumps(
-                [config, state, owner], sort_keys=True, ensure_ascii=False, allow_nan=False
-            ).encode()
+            json.dumps(digest_input, sort_keys=True, ensure_ascii=False, allow_nan=False).encode()
         ).hexdigest()
         record_path = self.studio._path("decisions", record_id)
         if record_path.exists():
@@ -284,6 +290,9 @@ class StudioTypedDecisions:
                 "max_state_bytes", 131072
             ):
                 raise DecisionCallError("input_too_large")
+            from nexus.core.studio_decision_images import prepare
+
+            image_urls = prepare(self.studio, images or [], config, payload, actor, run_id=run_id)
             if config["backend"] == "openai":
                 from nexus.adapters.decisions.openai import ask_strict as ask_native
             else:
@@ -311,9 +320,15 @@ class StudioTypedDecisions:
                 > 65536
             ):
                 raise DecisionCallError("input_too_large")
+            if image_urls:
+                kwargs["image_urls"] = image_urls
             timeout = config.get("timeout_seconds", 10)
 
             async def invoke():
+                if self.studio.team:
+                    self.studio.team.assert_execution(payload.get("requester_nexus_id"))
+                if self.studio.run(run_id).get("cancel_requested"):
+                    raise asyncio.CancelledError
                 response = await asyncio.to_thread(
                     client, state, questions, **kwargs, timeout=timeout
                 )

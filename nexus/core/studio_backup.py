@@ -21,7 +21,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 FORMAT = "nexus-studio-backup/v1"
-EXCLUDED = {"mcp-homes", "speech-inputs", "speech-input-owners"}
+EXCLUDED = {
+    "mcp-homes",
+    "speech-inputs",
+    "speech-input-owners",
+    "delegated-credentials",
+    "oauth-requests",
+    "a2a-push",
+    "external-callbacks",
+}
 MAX_FILES = 100000
 MAX_BYTES = 8 * 1024**3
 
@@ -187,6 +195,8 @@ def create_snapshot(root, destination, *, state_dir=None, quiesced=False, sql_st
                     )
                 ).mappings()
                 for row in rows:
+                    if row["collection"].split("/")[0] in EXCLUDED:
+                        continue
                     relative = _relative(row["collection"] + "/" + row["identity"] + ".json")
                     _json(staged / "state" / relative, row["body"])
                 jobs = [
@@ -325,6 +335,12 @@ def restore_snapshot(source, destination):
         staged.mkdir(mode=0o700)
         for item in manifest["files"]:
             relative = _relative(item["path"])
+            if (
+                relative.parts[0] == "state"
+                and len(relative.parts) > 1
+                and relative.parts[1] in EXCLUDED
+            ):
+                continue
             if relative.parts[0] in {"state", "project"}:
                 _copy_file(source / relative, staged / relative)
         for directory in ("project", "state"):

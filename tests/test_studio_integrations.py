@@ -42,7 +42,8 @@ def test_discovery_does_not_import_adapters_or_resolve_secrets(monkeypatch):
         "gcs",
         "azure",
     } <= names.keys()
-    assert len(items) == len(names) == 19
+    assert len(items) == len(names) == 20
+    assert names["teams"]["studio_support"] == "studio"
     assert names["github"]["status"] == "Ready to configure"
     assert names["github"]["studio_support"] == "studio"
     assert names["http"]["status"] == "Ready to configure"

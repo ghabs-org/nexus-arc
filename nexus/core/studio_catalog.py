@@ -307,7 +307,11 @@ class StudioCatalog:
                 {"id": identity, "revision": self.get("artifacts", identity)["revision"]}
                 for identity in payload["artifact_ids"]
             ]
-        context = self.context(payload, require_active=True)
+        # Remote attachments travel as pinned binary parts, not text extraction.
+        context = self.context(
+            {**payload, "artifact_ids": []} if payload.get("kind") == "external" else payload,
+            require_active=True,
+        )
         for resource in references:
             context += f"\nReferenced agent {resource['id']}:\n" + str(
                 resource["document"].get("spec", {}).get("purpose", "")

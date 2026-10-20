@@ -84,3 +84,8 @@ components:
               code: {type: string}
               message: {type: string}
         document: {type: object, nullable: true}
+# Collection routing extension: body switch/decision targets and their dependent
+# join nodes compile into a bounded nested graph, preserving first-match routing,
+# per-item scope, retries, approvals and checkpoint paths. The collection returns
+# its named root body's output. Body-internal references use local node outputs;
+# references outside the body capture only acknowledged upstream outputs.

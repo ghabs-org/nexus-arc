@@ -4,7 +4,8 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync('nexus/studio_static/features.js','utf8');
 const context=vm.createContext({Set,Object,Array,JSON});
-vm.runInContext(source.slice(source.indexOf('function openAPIHealthOptions(')),context);
+const healthStart=source.indexOf('function openAPIHealthOptions(');
+vm.runInContext(source.slice(healthStart,source.indexOf('\n}\n',healthStart)+3),context);
 const options=(spec,selected)=>JSON.parse(JSON.stringify(context.openAPIHealthOptions(spec,selected)));
 
 test('health options require selected safe methods without required inputs',()=>{
@@ -40,4 +41,9 @@ test('connector form preserves explicit health selection',()=>{
 
 test('old connectors gain no health selection until explicitly configured',()=>{
  assert.equal(Object.hasOwn(formResult(''),'health_operation'),false);
+});
+
+test('local parameter references and operation overrides match server health rules',()=>{
+ const spec={components:{parameters:{required:{name:'mode',in:'query',required:true}}},paths:{'/health':{parameters:[{$ref:'#/components/parameters/required'}],get:{operationId:'check'}},'/override':{parameters:[{$ref:'#/components/parameters/required'}],get:{operationId:'override',parameters:[{name:'mode',in:'query',required:false}]}}}};
+ assert.deepEqual(options(spec,['check','override']),[{id:'override',label:'GET /override'}]);
 });

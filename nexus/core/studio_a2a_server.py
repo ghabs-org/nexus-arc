@@ -1,4 +1,4 @@
-"""Opt-in A2A JSON-RPC text gateway for explicitly exposed bearer entrypoints.
+"""Opt-in A2A gateway for explicitly exposed bearer entrypoints.
 
 Bearer callers run as the entrypoint creator. They cannot approve paused gates.
 Task mappings and message deduplication share Studio's transactional state.
@@ -12,6 +12,7 @@ import hashlib
 import json
 import time
 
+from nexus.core.studio_a2a_content import OUTPUT_MODES, artifacts, validate_modes
 from nexus.core.studio_catalog import _text
 
 
@@ -25,6 +26,9 @@ class StudioA2AServer:
     def __init__(self, studio):
         self.studio = studio
         self.grpc_servers = {}
+        from nexus.core.studio_a2a_push import StudioA2APush
+
+        self.push = StudioA2APush(studio)
 
     def authorize(self, identity, bearer):
         record = self.studio.catalog.get("entrypoints", identity)
@@ -47,8 +51,8 @@ class StudioA2AServer:
                 "application/json",
                 "application/pdf",
             ],
-            "defaultOutputModes": ["text/plain"],
-            "capabilities": {"streaming": True, "pushNotifications": False},
+            "defaultOutputModes": list(OUTPUT_MODES),
+            "capabilities": {"streaming": True, "pushNotifications": self.push.enabled(record)},
             "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"}},
             "security": [{"bearer": []}],
             "skills": [
@@ -108,6 +112,8 @@ class StudioA2AServer:
             ) != entrypoint.get("owner_id"):
                 raise FileNotFoundError
             run = self.studio.run(identity)
+            if run.get("owner_id") != entrypoint.get("owner_id"):
+                raise FileNotFoundError
         except FileNotFoundError:
             raise A2AError(-32001, "Task not found") from None
         state = {
@@ -129,15 +135,9 @@ class StudioA2AServer:
         }
         if version == "0.3":
             result["kind"] = "task"
-        if run.get("output"):
-            result["artifacts"] = [
-                {
-                    "artifactId": identity + "-output",
-                    "parts": [
-                        {"text": run["output"], **({"kind": "text"} if version == "0.3" else {})}
-                    ],
-                }
-            ]
+        output = artifacts(self.studio, run, entrypoint, version)
+        if output:
+            result["artifacts"] = output
         if run.get("error") or run["status"] == "waiting":
             result["status"]["message"] = {
                 "messageId": identity + "-status",
@@ -189,7 +189,7 @@ class StudioA2AServer:
                 raise A2AError(-32602, "Each message part must have one content type")
             if isinstance(part.get("text"), str):
                 texts.append(part["text"])
-            elif isinstance(part.get("data"), (dict, list)):
+            elif "data" in part and (version == "1.0" or isinstance(part["data"], (dict, list))):
                 structured.append(part["data"])
             elif isinstance(part.get("file"), dict) and version == "0.3":
                 file = part["file"]
@@ -202,8 +202,31 @@ class StudioA2AServer:
                 files.append((part.get("filename", "attachment.bin"), part["raw"]))
             else:
                 raise A2AError(-32005, "Unsupported message part")
-        if len(files) > 5 or len(json.dumps(structured)) > 64000:
+        try:
+            structured_size = len(json.dumps(structured, allow_nan=False).encode())
+        except (ValueError, TypeError, OverflowError, RecursionError):
+            raise A2AError(-32602, "Structured input must contain finite JSON values") from None
+        if len(files) > 5 or structured_size > 64000:
             raise A2AError(-32602, "Use up to five files and 64 KiB of structured data")
+        # Validate every attachment before creating any records or queuing work.
+        total = 0
+        for filename, encoded in files:
+            if (
+                not isinstance(filename, str)
+                or not 1 <= len(filename) <= 200
+                or filename in {".", ".."}
+                or any(char in filename for char in ("/", "\\"))
+                or any(ord(char) < 32 for char in filename)
+                or len(encoded) > 4 * ((16 * 1024 * 1024 + 2) // 3)
+            ):
+                raise A2AError(-32602, "Invalid inline filename or file exceeds 16 MiB")
+            try:
+                content = base64.b64decode(encoded, validate=True)
+            except (ValueError, binascii.Error):
+                raise A2AError(-32602, "Invalid inline file encoding") from None
+            total += len(content)
+            if len(content) > 16 * 1024 * 1024 or total > 32 * 1024 * 1024:
+                raise A2AError(-32602, "Inline files exceed 16 MiB each or 32 MiB combined")
         text = _text(
             "\n".join(texts)
             or (json.dumps(structured[0]) if structured else "Analyze the supplied files"),
@@ -220,10 +243,13 @@ class StudioA2AServer:
                 saved = self.studio._read(path)
                 if saved["digest"] != digest:
                     raise A2AError(-32602, "Message ID already used with different content")
+                self.task(record, saved["run_id"], version)
                 return saved["run_id"]
             continuation_id = message.get("taskId")
             if continuation_id:
-                self.task(record, continuation_id, version)
+                previous = self.task(record, continuation_id, version)
+                if message.get("contextId") and message["contextId"] != previous["contextId"]:
+                    raise A2AError(-32602, "Continuation context must match its task")
                 run = self.studio.run(continuation_id)
                 pending = run.get("awaiting_input", [])
                 if run["status"] != "waiting" or not pending or files:
@@ -238,12 +264,6 @@ class StudioA2AServer:
                 return run["id"]
             artifact_ids = []
             for index, (filename, encoded) in enumerate(files):
-                try:
-                    content = base64.b64decode(encoded, validate=True)
-                except (ValueError, binascii.Error) as exc:
-                    raise A2AError(-32602, "Invalid inline file encoding") from exc
-                if len(content) > 16 * 1024 * 1024:
-                    raise A2AError(-32602, "Inline file exceeds 16 MiB")
                 artifact_id = "a2a-" + key[:48] + "-" + str(index)
                 artifact_path = self.studio.catalog._path("artifacts", artifact_id)
                 if not artifact_path.exists():
@@ -293,6 +313,10 @@ class StudioA2AServer:
                 "CancelTask": "cancel",
                 "ListTasks": "list",
                 "GetExtendedAgentCard": "card",
+                "CreateTaskPushNotificationConfig": "push-create",
+                "GetTaskPushNotificationConfig": "push-get",
+                "ListTaskPushNotificationConfigs": "push-list",
+                "DeleteTaskPushNotificationConfig": "push-delete",
             }
             if version == "1.0"
             else {
@@ -302,6 +326,10 @@ class StudioA2AServer:
                 "tasks/resubscribe": "subscribe",
                 "tasks/cancel": "cancel",
                 "agent/getAuthenticatedExtendedCard": "card",
+                "tasks/pushNotificationConfig/set": "push-create",
+                "tasks/pushNotificationConfig/get": "push-get",
+                "tasks/pushNotificationConfig/list": "push-list",
+                "tasks/pushNotificationConfig/delete": "push-delete",
             }
         )
         operation = methods.get(method)
@@ -315,6 +343,8 @@ class StudioA2AServer:
         """One task service for JSON-RPC, REST and the MCP gateway."""
         if not isinstance(params, dict):
             raise A2AError(-32602, "Parameters must be an object")
+        if operation.startswith("push-"):
+            return self.push.invoke(record, operation, params, version), False
         history = params.get("historyLength", 0)
         if type(history) is not int or not 0 <= history <= 100:
             raise A2AError(-32602, "History length must be between 0 and 100")
@@ -348,17 +378,38 @@ class StudioA2AServer:
                 "totalSize": len(tasks),
             }, False
         if operation in {"send", "stream"}:
-            config = params.get("configuration") or {}
+            config = params.get("configuration", {})
             if not isinstance(config, dict):
                 raise A2AError(-32602, "Configuration must be an object")
             flag = "returnImmediately" if version == "1.0" else "blocking"
             if flag in config and type(config[flag]) is not bool:
                 raise A2AError(-32602, "Execution mode must be a boolean")
-            if any(mode != "text/plain" for mode in config.get("acceptedOutputModes", [])):
-                raise A2AError(-32005, "Only text/plain output is supported")
-            if "pushNotificationConfig" in config or "taskPushNotificationConfig" in config:
-                raise A2AError(-32003, "Push notifications are not offered")
-            identity = self.send(record, params, version)
+            validate_modes(config)
+            push_field = (
+                "taskPushNotificationConfig" if version == "1.0" else "pushNotificationConfig"
+            )
+            wrong_field = (
+                "pushNotificationConfig" if version == "1.0" else "taskPushNotificationConfig"
+            )
+            if wrong_field in config:
+                raise A2AError(
+                    -32003, "Use the push configuration field for the selected A2A version"
+                )
+            push_config = (
+                self.push.validate(record, config[push_field], version, sending=True)
+                if push_field in config
+                else None
+            )
+            # Queue task and callback registration in the same SQL transaction.
+            with self.studio.lock:
+                identity = self.send(record, params, version)
+                if push_config:
+                    push_config["id"] = (
+                        config[push_field].get("id")
+                        or "message-"
+                        + hashlib.sha256(params["message"]["messageId"].encode()).hexdigest()[:48]
+                    )
+                    self.push.create(record, identity, push_config, version)
         else:
             identity = _text(params.get("id"), "Task ID", 96)
         task = self.task(record, identity, version, history)

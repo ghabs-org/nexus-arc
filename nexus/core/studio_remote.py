@@ -30,6 +30,10 @@ def validate_remote(data):
     if parsed.scheme != "https" and not private:
         raise ValueError("Remote services require HTTPS; private HTTP needs explicit allowance")
     auth = data.get("auth", {})
+    if isinstance(auth, dict) and auth.get("type") == "oauth":
+        from nexus.core.studio_oauth_client import configuration
+
+        return {"url": url.rstrip("/"), "allow_private": private, "auth": configuration(auth, data)}
     if not isinstance(auth, dict) or set(auth) - {
         "type",
         "token_env",
@@ -80,7 +84,11 @@ def validate_destination(url, allow_private=False):
             raise ValueError("Private destination requires explicit owner allowance")
 
 
-def remote_headers(studio, data, identity):
+def remote_headers(studio, data, identity, *, connector_id=None):
+    if data.get("auth", {}).get("type") == "oauth":
+        if not connector_id:
+            raise PermissionError("Delegated OAuth requires a saved MCP connector")
+        return studio.oauth.headers(connector_id, identity, expected=data)
     values = os.environ
     if studio.team:
         studio.team.assert_execution(identity)

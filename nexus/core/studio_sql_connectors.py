@@ -8,6 +8,34 @@ import re
 DIALECTS = {"postgresql", "mysql", "mariadb", "mssql", "oracle"}
 
 
+DRIVERS = {
+    "postgresql": "psycopg2",
+    "mysql": "pymysql",
+    "mariadb": "pymysql",
+    "mssql": "pymssql",
+    "oracle": "oracledb",
+}
+
+
+def driver_options(url):
+    backend = url.get_backend_name()
+    driver = DRIVERS[backend]
+    if "+" in url.drivername and url.drivername.split("+", 1)[1] != driver:
+        raise ValueError("Choose the supported SQL driver for bounded connection/query timeouts")
+    url = url.set(drivername=backend + "+" + driver)
+    options = {
+        "postgresql": {
+            "connect_timeout": 5,
+            "options": "-c statement_timeout=15000 -c lock_timeout=15000",
+        },
+        "mysql": {"connect_timeout": 5, "read_timeout": 15, "write_timeout": 15},
+        "mariadb": {"connect_timeout": 5, "read_timeout": 15, "write_timeout": 15},
+        "mssql": {"login_timeout": 5, "timeout": 15},
+        "oracle": {"tcp_connect_timeout": 5},
+    }[backend]
+    return url, options
+
+
 def validate_read_query(query):
     # SELECT INTO can create objects or export files, even though SELECT is its
     # first token. Do not treat it or server/remote execution as a read action.
@@ -84,6 +112,7 @@ class StudioSQLConnections:
         url = sa.engine.make_url(dsn)
         if url.get_backend_name() != data["dialect"]:
             raise ValueError("Connection dialect does not match configured database")
+        url, connect_args = driver_options(url)
         key = hashlib.sha256(json.dumps([identity, data, dsn], sort_keys=True).encode()).hexdigest()
         with self.studio.lock:
             if key not in self.pools:
@@ -92,6 +121,7 @@ class StudioSQLConnections:
                     old.dispose()
                 self.pools[key] = sa.create_engine(
                     url,
+                    connect_args=connect_args,
                     pool_pre_ping=True,
                     pool_size=2,
                     max_overflow=2,
@@ -101,6 +131,14 @@ class StudioSQLConnections:
             engine = self.pools[key]
         try:
             with engine.connect() as connection:
+                if data["dialect"] == "oracle":
+                    connection.connection.driver_connection.call_timeout = 15000
+                elif data["dialect"] == "mysql":
+                    connection.exec_driver_sql("SET SESSION MAX_EXECUTION_TIME = 15000")
+                    connection.commit()
+                elif data["dialect"] == "mariadb":
+                    connection.exec_driver_sql("SET SESSION max_statement_time = 15")
+                    connection.commit()
                 if action == "inspect_schema":
                     inspector = sa.inspect(connection)
                     names = inspector.get_table_names()[:100]

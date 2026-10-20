@@ -12,6 +12,7 @@ class StudioA2AGRPC:
             import grpc
             from a2a.types import a2a_pb2 as messages
             from a2a.types import a2a_pb2_grpc as service
+            from google.protobuf.empty_pb2 import Empty
             from google.protobuf.json_format import MessageToDict, ParseDict
             from google.rpc import error_details_pb2, status_pb2
         except ImportError:
@@ -60,10 +61,6 @@ class StudioA2AGRPC:
                 params = MessageToDict(request)
                 if params.get("tenant") not in {None, "", entrypoint_id}:
                     raise A2AError(-32004, "This listener serves one configured entrypoint")
-                if operation == "push":
-                    raise A2AError(
-                        -32003, "Push notifications are not offered; use task subscriptions"
-                    )
                 origin = studio.team.public_url if studio.team else "http://localhost"
                 result, streaming = studio.a2a.invoke(
                     record,
@@ -120,13 +117,16 @@ class StudioA2AGRPC:
             "ListTasks": ("list", messages.ListTasksResponse),
             "CancelTask": ("cancel", messages.Task),
             "GetExtendedAgentCard": ("card", messages.AgentCard),
-            "CreateTaskPushNotificationConfig": ("push", messages.TaskPushNotificationConfig),
-            "GetTaskPushNotificationConfig": ("push", messages.TaskPushNotificationConfig),
+            "CreateTaskPushNotificationConfig": (
+                "push-create",
+                messages.TaskPushNotificationConfig,
+            ),
+            "GetTaskPushNotificationConfig": ("push-get", messages.TaskPushNotificationConfig),
             "ListTaskPushNotificationConfigs": (
-                "push",
+                "push-list",
                 messages.ListTaskPushNotificationConfigsResponse,
             ),
-            "DeleteTaskPushNotificationConfig": ("push", None),
+            "DeleteTaskPushNotificationConfig": ("push-delete", Empty),
         }
         for name, (operation, output) in bindings.items():
             setattr(handlers, name, unary(operation, output))

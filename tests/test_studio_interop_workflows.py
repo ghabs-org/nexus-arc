@@ -696,3 +696,93 @@ def test_loop_inside_map_keeps_each_item_index_and_iteration_scoped(studio):
         ]
     finally:
         tool_registry.unregister("interop:inspect", func=inspect)
+
+
+def test_map_switch_body_routes_and_joins_once_per_item(studio):
+    calls = []
+
+    async def record(label):
+        calls.append(label)
+        return label
+
+    tool_registry.register("interop:body-record", record, "Synthetic collection branches")
+    try:
+        source = {
+            "agent_name": "mapped-switch",
+            "agent_type": "workflow",
+            "tools": [{"tool_type": "builtin", "tool_name": "record"}],
+            "nodes": [
+                {
+                    "id": "each",
+                    "type": "map",
+                    "node": "select",
+                    "items": ["first", "second"],
+                    "concurrency_limit": 2,
+                },
+                {
+                    "id": "select",
+                    "type": "switch",
+                    "cases": [{"condition": "'{{_map_item}}' == 'first'", "node": "first"}],
+                    "default": "second",
+                },
+                {
+                    "id": "first",
+                    "type": "tool",
+                    "tool_name": "record",
+                    "depends_on": ["select"],
+                    "input": {"label": "first"},
+                },
+                {
+                    "id": "second",
+                    "type": "tool",
+                    "tool_name": "record",
+                    "depends_on": ["select"],
+                    "input": {"label": "second"},
+                },
+                {
+                    "id": "joined",
+                    "type": "tool",
+                    "tool_name": "record",
+                    "depends_on": ["first", "second"],
+                    "input": {
+                        "label": {
+                            "concat": [
+                                "joined:",
+                                {"coalesce": ["{{first.output}}", "{{second.output}}"]},
+                            ]
+                        }
+                    },
+                },
+            ],
+            "output_mapping": {"results": "{{each.output}}"},
+        }
+        native = apply(studio, source, {"record": "interop:body-record"})
+        result = json.loads(run(studio, "mapped-switch", {})["output"])
+        assert [item["selected_branch"] for item in result["results"]] == ["first", "second"]
+        assert sorted(calls) == ["first", "joined:first", "joined:second", "second"]
+        exported = studio.configuration.export_interop({"document": native}, None)
+        assert exported["valid"]
+        assert (
+            studio.configuration.convert_interop({"documents": [exported["bundle"]]}, None)[
+                "document"
+            ]
+            == native
+        )
+    finally:
+        tool_registry.unregister("interop:body-record")
+
+
+@pytest.mark.parametrize("target", [[], {}, 7])
+def test_collection_switch_malformed_targets_report_preflight(studio, target):
+    source = {
+        "agent_name": "bad-body-switch",
+        "agent_type": "workflow",
+        "nodes": [
+            {"id": "each", "type": "map", "node": "select", "items": [1]},
+            {"id": "select", "type": "switch", "cases": [{"condition": "true", "node": target}]},
+        ],
+        "output_mapping": {"results": "{{each.output}}"},
+    }
+    report = studio.configuration.convert_interop({"documents": [source]}, None)
+    assert not report["valid"] and report["document"] is None
+    assert not studio.records("runs") and not studio.records("configuration-plans")

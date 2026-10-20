@@ -36,9 +36,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+studio-oauth = ["mcp>=1.0", "httpx>=0.27", "cryptography>=42.0"]
 studio-grpc = ["a2a-sdk[grpc]==1.1.5"]
+studio-a2a-push = ["httpx>=0.27", "cryptography>=42.0"]
 studio-research = ["yfinance>=0.2.65,<2"]
 studio-enterprise = ["boto3>=1.35", "pymongo>=4.9,<5"]
+studio-images = ["Pillow>=11.0"]
 studio-connectors = ["sqlalchemy>=2.0", "psycopg2-binary>=2.9", "pymysql>=1.1", "pymssql>=2.3", "oracledb>=2.0", "jsonschema>=4.22", "referencing>=0.35"]
 documents = ["pypdf>=5.0"]
 telegram = [

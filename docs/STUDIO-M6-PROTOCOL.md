@@ -1,5 +1,9 @@
 # Shared A2A task bindings
 
+Update, 20 October 2026: rich gateway outputs and opt-in authenticated callback
+delivery now share all three bindings. See [setup, limits and recovery](STUDIO-M6-A2A-RESULTS.md).
+Earlier text-only/push-unavailable checkpoint descriptions below are historical.
+
 The HTTP+JSON binding is available at `/api/a2a/{entrypoint}/rest`. It uses the
 same task service and persisted mappings as JSON-RPC 0.3/1.0 and the MCP gateway.
 Entrypoints must already be explicitly enabled and authorized with their existing
@@ -115,3 +119,8 @@ streaming, unsupported push, continuation approval protection, SQLite restart an
 shutdown, including blocked sends and subscriptions that release without cancelling tasks. These ten tests are reported separately from required regressions;
 missing optional prerequisites are not hidden as pytest skips. Real TLS/remote-VM
 operation remains live validation pending.
+
+Subsequent account checkpoint: delegated MCP OAuth/OIDC and the three-transport
+authentication/recovery matrix now have scoped local acceptance. This supersedes
+the earlier OAuth gap above; other M6 requirements remain open. See
+[setup, migration and client limits](STUDIO-M6-OAUTH.md).

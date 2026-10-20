@@ -57,11 +57,11 @@ def make_studio_handler(service: StudioService, token: str):
         def log_message(self, *args):
             pass
 
-        def send_payload(self, status, data):
+        def send_payload(self, status, data, *, headers=None):
             body = json.dumps(data, ensure_ascii=False).encode()
-            self.send_bytes(status, body, "application/json; charset=utf-8")
+            self.send_bytes(status, body, "application/json; charset=utf-8", headers=headers)
 
-        def send_bytes(self, status, body, content_type):
+        def send_bytes(self, status, body, content_type, *, headers=None):
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
@@ -84,6 +84,9 @@ def make_studio_handler(service: StudioService, token: str):
                 )
                 + "; base-uri 'none'; object-src 'none'",
             )
+            self.send_header("Referrer-Policy", "no-referrer")
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             self.wfile.write(body)
 
@@ -301,6 +304,15 @@ def make_studio_handler(service: StudioService, token: str):
                             "error": "Nexus sign-in and project access required",
                             "login_url": service.team.login_url,
                         },
+                    )
+                if route == "/api/studio/oauth/callback":
+                    return self.send_payload(
+                        200,
+                        service.oauth.callback(
+                            parse_qs(urlparse(self.path).query, keep_blank_values=True),
+                            self.headers.get("Cookie"),
+                            self.actor,
+                        ),
                     )
                 if route in _ASSETS:
                     name, mime = _ASSETS[route]
@@ -588,6 +600,24 @@ def make_studio_handler(service: StudioService, token: str):
                 return self.handle_a2a(route)
             if route.startswith("/api/mcp/"):
                 return self.handle_mcp(route)
+            if len(parts) == 3 and parts[:2] == ["api", "a2a-callbacks"]:
+                try:
+                    if self.headers.get_content_type() != "application/json":
+                        return self.send_payload(415, {"error": "Expected JSON"})
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= 24 * 1024 * 1024:
+                        return self.send_payload(413, {"error": "Callback exceeds size limit"})
+                    result = service.external.callbacks.receive(
+                        parts[2],
+                        self.headers.get("Authorization", ""),
+                        json.loads(self.rfile.read(length)),
+                        self.headers.get("X-Nexus-Delivery-ID"),
+                    )
+                    return self.send_payload(202, result)
+                except PermissionError:
+                    return self.send_payload(403, {"error": "Invalid callback credential"})
+                except (ValueError, TypeError, KeyError, RecursionError, FileNotFoundError):
+                    return self.send_payload(400, {"error": "Invalid callback notification"})
             webhook = len(parts) == 3 and parts[:2] == ["api", "webhooks"]
             if len(parts) == 3 and parts[:2] == ["api", "channel-events"]:
                 try:
@@ -687,6 +717,18 @@ def make_studio_handler(service: StudioService, token: str):
                     return self.send_payload(
                         202, service.operations.trigger_entrypoint(parts[2], payload)
                     )
+                if (
+                    len(parts) == 6
+                    and parts[:3] == ["api", "studio", "connectors"]
+                    and parts[4:] == ["oauth", "start"]
+                ):
+                    origin = (
+                        service.team.public_url
+                        if service.team
+                        else "http://" + self.headers["Host"]
+                    )
+                    result, cookie = service.oauth.start(parts[3], self.actor, origin)
+                    return self.send_payload(200, result, headers={"Set-Cookie": cookie})
                 if parts[:2] == ["api", "studio"]:
                     status, result = service.features.post(parts[2:], payload, self.actor)
                     return self.send_payload(status, result)
@@ -743,7 +785,15 @@ def make_studio_handler(service: StudioService, token: str):
                         202, service.graph.resume(parts[2], payload.get("decision"))
                     )
                 if route == "/api/runs":
-                    return self.send_payload(202, service.start_run(payload))
+                    return self.send_payload(
+                        202,
+                        service.start_run(
+                            payload,
+                            callback_origin=service.team.public_url
+                            if service.team
+                            else f"http://{self.headers.get('Host')}",
+                        ),
+                    )
                 self.send_payload(404, {"error": "Not found"})
             except PermissionError as exc:
                 self.send_payload(403, {"error": str(exc)})

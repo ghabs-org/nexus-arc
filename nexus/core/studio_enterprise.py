@@ -173,14 +173,30 @@ class StudioEnterprise:
                 limit = arguments.get("limit", 5)
                 if type(limit) is not int or not 1 <= limit <= 20:
                     raise ValueError("Retrieve 1–20 results")
+                token = arguments.get("next_token")
+                if token is not None and (
+                    not isinstance(token, str) or not 1 <= len(token) <= 2048
+                ):
+                    raise ValueError("Knowledge page token must be text up to 2048 characters")
                 result = client.retrieve(
+                    **({"nextToken": token} if token else {}),
                     knowledgeBaseId=data["resource_id"],
                     retrievalQuery={"text": query},
                     retrievalConfiguration={
                         "vectorSearchConfiguration": {"numberOfResults": limit}
                     },
                 )
-                return bounded({"items": result.get("retrievalResults", []), "untrusted": True})
+                items, next_token = result.get("retrievalResults", []), result.get("nextToken")
+                if (
+                    not isinstance(items, list)
+                    or len(items) > limit
+                    or (
+                        next_token is not None
+                        and (not isinstance(next_token, str) or len(next_token) > 2048)
+                    )
+                ):
+                    raise ValueError("Knowledge provider returned an invalid bounded page")
+                return bounded({"items": items, "untrusted": True, "next_token": next_token})
             if data["type"] == "bedrock":
                 session = arguments.get("session_id") or uuid.uuid4().hex
                 if not isinstance(session, str) or not re.fullmatch(
@@ -308,7 +324,29 @@ class StudioEnterprise:
                 or any(type(v) is not int or v not in {0, 1} for v in projection.values())
             ):
                 raise ValueError("Projection maps field names to 0 or 1")
-            cursor = target.find(filters, projection).max_time_ms(10000).limit(limit).batch_size(10)
+            paginate = arguments.get("paginate", "after_id" in arguments)
+            if type(paginate) is not bool or "after_id" in arguments and not paginate:
+                raise ValueError("Enable MongoDB pagination explicitly when supplying a cursor")
+            if paginate:
+                from bson import ObjectId
+
+                after = arguments.get("after_id")
+                if after is not None and (
+                    not isinstance(after, str) or not re.fullmatch(r"[0-9a-fA-F]{24}", after)
+                ):
+                    raise ValueError("MongoDB page cursor must be a 24-character ObjectId")
+                if projection and projection.get("_id") == 0:
+                    raise ValueError("MongoDB pagination requires _id in the projection")
+                if after:
+                    filters = {"$and": [filters, {"_id": {"$gt": ObjectId(after)}}]}
+            cursor = (
+                target.find(filters, projection)
+                .max_time_ms(10000)
+                .limit(limit + int(paginate))
+                .batch_size(10)
+            )
+            if paginate:
+                cursor = cursor.sort("_id", 1)
             try:
                 items, size = [], 0
                 for row in cursor:
@@ -316,6 +354,19 @@ class StudioEnterprise:
                     if size > 256 * 1024:
                         raise ValueError("Connector response exceeds 256 KiB; narrow the query")
                     items.append(row)
+                if paginate:
+                    from bson import ObjectId
+
+                    if any(not isinstance(row.get("_id"), ObjectId) for row in items):
+                        raise ValueError("MongoDB pagination requires ObjectId document identities")
+                    more = len(items) > limit
+                    return bounded(
+                        {
+                            "items": items[:limit],
+                            "truncated": more,
+                            "next_after": str(items[limit - 1]["_id"]) if more else None,
+                        }
+                    )
                 return bounded({"items": items})
             finally:
                 cursor.close()

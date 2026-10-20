@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 from nexus.core.studio_catalog import _text
 from nexus.core.studio_connections import env_name
+from nexus.core.studio_external_content import RESPONSE_LIMIT, StudioExternalContent, binding
 from nexus.core.studio_graph import StudioPausedError
 
 
@@ -67,10 +68,59 @@ def validate_external(data):
 
 
 class StudioExternalAgents:
-    def __init__(self, studio, request_client=None, stream_client=None):
+    def __init__(self, studio, request_client=None, stream_client=None, callback_origin=None):
         self.studio = studio
         self.request_client = request_client
         self.stream_client = stream_client
+        self.content = StudioExternalContent(self)
+        from nexus.core.studio_external_callbacks import StudioExternalCallbacks
+
+        self.callbacks = StudioExternalCallbacks(self)
+        self.callback_origin = callback_origin
+
+    @staticmethod
+    def assert_binding(profile, record):
+        if record.get("profile_binding") and record["profile_binding"] != binding(profile):
+            raise ValueError(
+                "External connection changed; review the saved remote task before continuing"
+            )
+
+    def prepare_payload(self, payload):
+        return self.content.prepare(payload)
+
+    def publish_result(self, record, objects, profile, actor):
+        output, planned = self.content.plan(objects, profile, actor)
+        with self.studio.lock:
+            self.assert_binding(self.profile(profile["id"]), record)
+            run = self.studio.run(record["id"])
+            if run.get("cancel_requested"):
+                raise ValueError("Local remote-task monitoring was cancelled")
+            parts = self.content.publish(record["id"], planned, actor)
+            record.update(output=output, content_version=1, structured_content=parts)
+            self.studio._update_run(
+                record["id"], output=output, content_version=1, structured_content=parts
+            )
+        return output
+
+    def download(self, url, profile, actor, limit):
+        self.assert_binding(self.profile(profile["id"]), {"profile_binding": binding(profile)})
+        source, target = (
+            urlparse(profile["data"]["url"]),
+            urlparse(url if isinstance(url, str) else ""),
+        )
+        if (
+            not isinstance(url, str)
+            or len(url) > 2000
+            or (source.scheme, source.netloc) != (target.scheme, target.netloc)
+            or target.username
+            or target.password
+            or target.fragment
+        ):
+            raise ValueError("Remote artifact URLs must use the configured agent origin")
+        data = self.request(url, profile["data"], actor, binary_limit=min(limit, 16 * 1024 * 1024))
+        if not isinstance(data, bytes) or len(data) > min(limit, 16 * 1024 * 1024):
+            raise ValueError("Remote artifact download exceeds limits or returned invalid bytes")
+        return data
 
     def headers(self, data, actor):
         headers = {
@@ -87,12 +137,12 @@ class StudioExternalAgents:
             values = os.environ
         if data["token_env"]:
             token = values.get(data["token_env"])
-            if not token:
+            if not token or "\r" in token or "\n" in token:
                 raise ValueError("External-agent credential is not configured for your account")
             headers["Authorization"] = "Bearer " + token
         return headers
 
-    def request(self, url, data, actor, body=None):
+    def request(self, url, data, actor, body=None, *, binary_limit=None):
         # Validate every request, including endpoints obtained from remote cards.
         parsed = urlparse(url)
         if not data["allow_private"]:
@@ -102,6 +152,8 @@ class StudioExternalAgents:
                     "External agent resolves to a private network; configure that explicitly"
                 )
         headers = self.headers(data, actor)
+        if binary_limit is not None:
+            headers["Accept"] = "application/octet-stream"
         if self.request_client:
             return self.request_client(url, body, headers)
 
@@ -113,10 +165,21 @@ class StudioExternalAgents:
             url, data=json.dumps(body).encode() if body is not None else None, headers=headers
         )
         try:
-            with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
-                content = response.read(1024 * 1024 + 1)
-                if len(content) > 1024 * 1024:
-                    raise ValueError("External-agent response exceeds one MiB")
+            limit = (
+                binary_limit
+                if binary_limit is not None
+                else RESPONSE_LIMIT
+                if body is not None
+                else 1024 * 1024
+            )
+            with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(
+                request, timeout=30
+            ) as response:
+                content = response.read(limit + 1)
+                if len(content) > limit:
+                    raise ValueError("External-agent response exceeds configured limits")
+                if binary_limit is not None:
+                    return content
                 result = json.loads(content)
                 if not isinstance(result, dict):
                     raise ValueError("Expected an external-agent object")
@@ -132,8 +195,12 @@ class StudioExternalAgents:
             raise ValueError("External agent is disabled")
         return record
 
-    def discover(self, identity, actor):
-        record = self.profile(identity)
+    def discover(self, identity, actor, *, probe=False, expected_data=None):
+        record = (
+            self.studio.catalog.get("externalagents", identity) if probe else self.profile(identity)
+        )
+        if expected_data is not None and record["data"] != expected_data:
+            raise ValueError("External-agent connection changed before its check")
         data = record["data"]
         parsed = urlparse(data["url"])
         origin = f"{parsed.scheme}://{parsed.netloc}"
@@ -173,6 +240,14 @@ class StudioExternalAgents:
             raise ValueError(
                 "Agent card endpoint must use its configured origin without credentials"
             )
+        for field in ("defaultInputModes", "defaultOutputModes"):
+            modes = card.get(field)
+            if modes is not None and (
+                not isinstance(modes, list)
+                or len(modes) > 50
+                or any(not isinstance(mode, str) or len(mode) > 150 for mode in modes)
+            ):
+                raise ValueError("Remote agent card has invalid media modes")
         return {
             "id": identity,
             "name": str(card.get("name") or record["name"])[:200],
@@ -182,6 +257,9 @@ class StudioExternalAgents:
             "protocol_version": data["protocol_version"],
             "transport": "JSONRPC",
             "streaming": card.get("capabilities", {}).get("streaming") is True,
+            "push_notifications": card.get("capabilities", {}).get("pushNotifications") is True,
+            "input_modes": card.get("defaultInputModes"),
+            "output_modes": card.get("defaultOutputModes"),
         }
 
     def stream_rpc(self, profile, card, actor, method, params):
@@ -213,17 +291,19 @@ class StudioExternalAgents:
         request = urllib.request.Request(
             card["endpoint"], data=json.dumps(body).encode(), headers=headers
         )
-        with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(
+            request, timeout=30
+        ) as response:
             if response.headers.get_content_type() != "text/event-stream":
                 raise ValueError("Remote agent did not return an event stream")
             size, event = 0, []
             deadline = time.monotonic() + 300
             while time.monotonic() < deadline:
-                raw = response.readline(1024 * 1024 + 1)
+                raw = response.readline(RESPONSE_LIMIT + 1)
                 if not raw:
                     break
                 size += len(raw)
-                if len(raw) > 1024 * 1024 or size > 4 * 1024 * 1024:
+                if len(raw) > RESPONSE_LIMIT or size > 64 * 1024 * 1024:
                     raise ValueError("Remote stream exceeds response limits")
                 line = raw.decode("utf-8").rstrip("\r\n")
                 if line.startswith("data:"):
@@ -301,10 +381,22 @@ class StudioExternalAgents:
                             artifacts.append(value)
                 if not task:
                     raise ValueError("Stream must begin with a task or message")
+                if len(json.dumps(task).encode()) > RESPONSE_LIMIT:
+                    raise ValueError("Accumulated remote task exceeds response limits")
                 task_id = _text(task.get("id"), "Remote task ID", 200)
                 if record.get("task_id") and record["task_id"] != task_id:
                     raise ValueError("Remote stream changed task identity")
-                record.update(task_id=task_id, context_id=task.get("contextId"), status="streaming")
+                if (
+                    record.get("context_id")
+                    and "contextId" in task
+                    and task["contextId"] != record["context_id"]
+                ):
+                    raise ValueError("Remote stream changed task context")
+                record.update(
+                    task_id=task_id,
+                    context_id=task.get("contextId", record.get("context_id")),
+                    status="streaming",
+                )
                 self.studio._write(self.studio._path("external-runs", record["id"]), record)
                 output = "\n\n".join(self.text(item) for item in task.get("artifacts", []))
                 if len(output.encode()) > 262144:
@@ -374,6 +466,8 @@ class StudioExternalAgents:
     async def execute(self, run_id, payload):
         actor = payload.get("requester_nexus_id")
         profile = self.profile(payload["external_agent_id"])
+        if payload.get("external_binding") and payload["external_binding"] != binding(profile):
+            raise ValueError("External connection changed while queued; review before sending")
         card = await asyncio.to_thread(self.discover, profile["id"], actor)
         version = profile["data"]["protocol_version"]
         record = {
@@ -381,8 +475,9 @@ class StudioExternalAgents:
             "owner_id": actor,
             "agent_id": profile["id"],
             "card": card,
-            "status": "sending",
+            "status": "preparing",
             "message_id": uuid.uuid4().hex,
+            "profile_binding": binding(profile),
         }
         source = None
         if payload.get("external_resume_id"):
@@ -398,6 +493,7 @@ class StudioExternalAgents:
                 or source.get("status") != "continuation-queued"
             ):
                 raise ValueError("Remote continuation changed or belongs to another agent")
+            self.assert_binding(profile, source)
             record.update(
                 task_id=source["task_id"],
                 context_id=source.get("context_id"),
@@ -408,9 +504,7 @@ class StudioExternalAgents:
             message = {
                 "role": "ROLE_USER" if version == "1.0" else "user",
                 "messageId": record["message_id"],
-                "parts": [
-                    {"text": payload["task"], **({"kind": "text"} if version == "0.3" else {})}
-                ],
+                "parts": self.content.parts(payload, profile, card, actor),
             }
             if source:
                 message["taskId"] = source["task_id"]
@@ -423,6 +517,16 @@ class StudioExternalAgents:
                 raise ValueError(
                     "This agent does not advertise streaming; disable it in connection settings"
                 )
+            configuration = {"returnImmediately": True} if version == "1.0" else {"blocking": False}
+            if payload.get("external_callbacks"):
+                if not card["push_notifications"]:
+                    raise ValueError("This agent does not advertise callback notifications")
+                config = self.callbacks.create(record, payload["_callback_origin"])
+                configuration[
+                    "taskPushNotificationConfig" if version == "1.0" else "pushNotificationConfig"
+                ] = config
+            record["status"] = "sending"
+            self.studio._write(self.studio._path("external-runs", run_id), record)
             result = await asyncio.to_thread(
                 self.collect_stream if streaming else self.rpc,
                 profile,
@@ -433,9 +537,7 @@ class StudioExternalAgents:
                 else ("SendMessage" if version == "1.0" else "message/send"),
                 {
                     "message": message,
-                    "configuration": {"returnImmediately": True}
-                    if version == "1.0"
-                    else {"blocking": False},
+                    "configuration": configuration,
                 },
                 *([record] if streaming else []),
             )
@@ -451,9 +553,8 @@ class StudioExternalAgents:
                     else None
                 )
                 if task is None:
-                    output = self.text(result.get("message") if version == "1.0" else result)
-                    if not output:
-                        raise ValueError("Remote agent returned no readable message")
+                    message = result.get("message") if version == "1.0" else result
+                    output = self.publish_result(record, [message], profile, actor)
                     record.update(status="completed", output=output)
                     return output
                 state = (
@@ -463,21 +564,45 @@ class StudioExternalAgents:
                     .replace("_", "-")
                 )
                 task_id = _text(task.get("id"), "Remote task ID", 200)
-                record.update(task_id=task_id, status=state, context_id=task.get("contextId"))
+                if record.get("task_id") and record["task_id"] != task_id:
+                    raise ValueError("Remote response changed task identity")
+                if (
+                    record.get("context_id")
+                    and "contextId" in task
+                    and task["contextId"] != record["context_id"]
+                ):
+                    raise ValueError("Remote response changed task context")
+                if state not in {
+                    "submitted",
+                    "working",
+                    "completed",
+                    "input-required",
+                    "auth-required",
+                    "failed",
+                    "canceled",
+                    "cancelled",
+                    "rejected",
+                }:
+                    raise ValueError("Remote service returned an unknown task state")
+                record.update(
+                    task_id=task_id,
+                    status=state,
+                    context_id=task.get("contextId", record.get("context_id")),
+                )
                 self.studio._write(self.studio._path("external-runs", run_id), record)
                 self.studio._update_run(run_id, remote_task_id=task_id, remote_status=state)
                 if state == "completed":
-                    output = "\n\n".join(
-                        self.text(item) for item in task.get("artifacts", [])
-                    ) or self.text(task.get("status", {}).get("message"))
-                    if not output:
-                        output = "\n".join(
-                            self.text(item)
-                            for item in task.get("history", [])
-                            if item.get("role") in {"agent", "ROLE_AGENT"}
-                        )
-                    record["output"] = output
-                    return output or "Remote task completed without text artifacts"
+                    objects = task.get("artifacts", [])
+                    if not objects:
+                        objects = [
+                            item
+                            for item in [
+                                task.get("status", {}).get("message"),
+                                *task.get("history", []),
+                            ]
+                            if item and item.get("role") in {"agent", "ROLE_AGENT"}
+                        ]
+                    return self.publish_result(record, objects, profile, actor)
                 if state in {"input-required", "auth-required"}:
                     raise StudioPausedError("Remote agent requires input or account authorization")
                 if state in {"failed", "canceled", "cancelled", "rejected"}:
@@ -498,7 +623,9 @@ class StudioExternalAgents:
         except StudioPausedError:
             raise
         except BaseException:
-            if record["status"] not in {"failed", "canceled", "cancelled", "rejected"}:
+            if record["status"] == "preparing":
+                record["status"] = "rejected"
+            elif record["status"] not in {"failed", "canceled", "cancelled", "rejected"}:
                 record["status"] = "uncertain"
             raise
         finally:
@@ -514,6 +641,8 @@ class StudioExternalAgents:
                         source["id"],
                         status="completed",
                         output=record.get("output", "Remote continuation completed"),
+                        content_version=record.get("content_version", 1),
+                        structured_content=record.get("structured_content", []),
                     )
 
     def continue_task(self, identity, payload, actor):
@@ -521,6 +650,7 @@ class StudioExternalAgents:
         with self.studio.lock:
             path = self.studio._path("external-runs", identity)
             record = self.studio.workbench.visible(self.studio._read(path), actor, own=True)
+            self.assert_binding(self.profile(record["agent_id"]), record)
             if record["status"] not in {"input-required", "auth-required"} or not record.get(
                 "task_id"
             ):
@@ -536,6 +666,11 @@ class StudioExternalAgents:
                         "external_resume_id": identity,
                         "requester_nexus_id": self.studio.workbench.owner(actor),
                         "task": text,
+                        **{
+                            key: payload[key]
+                            for key in ("external_input", "artifact_ids", "artifact_refs")
+                            if key in payload
+                        },
                     }
                 )
             except BaseException:
@@ -543,7 +678,7 @@ class StudioExternalAgents:
                 self.studio._write(path, record)
                 raise
 
-    def refresh_task(self, identity, actor):
+    def refresh_task(self, identity, actor, *, callback=None):
         """Recover a known task after interruption without sending another message."""
         with self.studio.lock:
             path = self.studio._path("external-runs", identity)
@@ -556,6 +691,7 @@ class StudioExternalAgents:
                     "No acknowledged remote task ID. Inspect the remote service before retrying"
                 )
         profile = self.profile(record["agent_id"])
+        self.assert_binding(profile, record)
         version = profile["data"]["protocol_version"]
         task = self.rpc(
             profile,
@@ -566,6 +702,12 @@ class StudioExternalAgents:
         )
         if task.get("id") != record["task_id"]:
             raise ValueError("Remote task identity changed")
+        if (
+            record.get("context_id")
+            and "contextId" in task
+            and task["contextId"] != record["context_id"]
+        ):
+            raise ValueError("Remote task context changed")
         status = (
             str(task.get("status", {}).get("state", ""))
             .lower()
@@ -584,12 +726,25 @@ class StudioExternalAgents:
             "rejected",
         }:
             raise ValueError("Remote service returned an unknown task state")
-        output = "\n\n".join(self.text(item) for item in task.get("artifacts", []))
-        if len(output.encode()) > 262144:
-            raise ValueError("Remote output exceeds 256 KiB")
+        output, planned = self.content.plan(
+            task.get("artifacts", []), profile, self.studio.workbench.owner(actor)
+        )
         with self.studio.lock:
+            if callback:
+                grant = self.studio._read(self.callbacks.path(callback["id"]))
+                self.callbacks.check(grant, time.time())
+                run = self.studio.run(identity)
+                if (
+                    grant.get("flight") != callback.get("flight")
+                    or run.get("cancel_requested")
+                    or run["status"] in {"running", "queued", "cancelled"}
+                ):
+                    raise ValueError("Callback recovery no longer owns this task read")
             if self.studio._read(path) != before:
                 raise ValueError("Remote review state changed. Refresh it again")
+            self.assert_binding(self.profile(profile["id"]), record)
+            parts = self.content.publish(identity, planned, self.studio.workbench.owner(actor))
+            record.update(content_version=1, structured_content=parts)
             record.update(status=status, output=output)
             self.studio._write(path, record)
             if status == "completed":
@@ -598,6 +753,8 @@ class StudioExternalAgents:
                     status="completed",
                     output=output or "Remote task completed without text artifacts",
                     error=None,
+                    content_version=1,
+                    structured_content=parts,
                 )
             elif status in {"input-required", "auth-required"}:
                 self.studio._update_run(
@@ -618,6 +775,7 @@ class StudioExternalAgents:
         }:
             raise ValueError("This remote task cannot be canceled")
         profile = self.profile(record["agent_id"])
+        self.assert_binding(profile, record)
         method = "CancelTask" if profile["data"]["protocol_version"] == "1.0" else "tasks/cancel"
         outcome = self.rpc(
             profile,

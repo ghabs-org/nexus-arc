@@ -68,16 +68,17 @@ class StudioJobs:
                     raise ValueError("Choose a configured coordinator provider")
             _text(payload.get("task"), "Delegation task", 16000)
         elif kind == "external":
-            self.studio.external.profile(payload.get("external_agent_id"))
+            profile = self.studio.external.profile(payload.get("external_agent_id"))
             _text(payload.get("task"), "External agent task", 16000)
             if payload.get("external_resume_id"):
-                self.workbench.visible(
+                previous = self.workbench.visible(
                     self.studio._read(
                         self.studio._path("external-runs", payload["external_resume_id"])
                     ),
                     actor,
                     own=True,
                 )
+                self.studio.external.assert_binding(profile, previous)
         elif kind == "decision":
             _text(payload.get("task"), "Decision input", 16000)
             _text(payload.get("instructions"), "Decision instructions", 4000)

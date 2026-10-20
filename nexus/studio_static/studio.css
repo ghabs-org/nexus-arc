@@ -342,3 +342,6 @@ h1,h2,h3,.dialog-heading,.provider-row p,.callout{overflow-wrap:anywhere}
 #builder-lifecycle>*{min-width:0}
 #builder-lifecycle select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}
 #builder-lifecycle ul{padding-left:20px}
+
+.oauth-account{min-width:0}.oauth-account code,.oauth-account a{overflow-wrap:anywhere}.oauth-account .button-row{display:flex;flex-wrap:wrap;gap:8px}.oauth-account a{display:block;margin-top:12px;text-decoration:underline}
+.structured-content{min-width:0;overflow-wrap:anywhere}.structured-content pre{max-width:100%;overflow:auto;white-space:pre-wrap}#detail .library-row{min-width:0;overflow-wrap:anywhere}#detail .library-row>div{min-width:0}

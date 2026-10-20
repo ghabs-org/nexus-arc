@@ -91,7 +91,9 @@ def answers_from(body, questions):
     return metadata(result, body)
 
 
-def ask_strict(state, questions, model=None, api_key=None, timeout=20, endpoint=None):
+def ask_strict(
+    state, questions, model=None, api_key=None, timeout=20, endpoint=None, *, image_urls=None
+):
     """One configured account and model, with a bounded total transient retry budget."""
     model = model or DEFAULT_MODEL
     if (
@@ -113,6 +115,19 @@ def ask_strict(state, questions, model=None, api_key=None, timeout=20, endpoint=
         }
     except (ValueError, KeyError, TypeError):
         raise DecisionCallError("config") from None
+    from nexus.adapters.decisions.images import MAX_PAYLOAD, validate_images
+
+    images = validate_images(image_urls)
+    if images:
+        payload["input"] = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": payload["input"]},
+                    *[{"type": "input_image", "image_url": url} for url in images],
+                ],
+            }
+        ]
     deadline = time.monotonic() + timeout
     for attempt in range(3):
         remaining = deadline - time.monotonic()
@@ -120,7 +135,14 @@ def ask_strict(state, questions, model=None, api_key=None, timeout=20, endpoint=
             raise DecisionCallError("timeout")
         try:
             return answers_from(
-                request_json(endpoint or DECISIONS_URL, api_key, payload, remaining), questions
+                request_json(
+                    endpoint or DECISIONS_URL,
+                    api_key,
+                    payload,
+                    remaining,
+                    max_bytes=MAX_PAYLOAD if images else 65536,
+                ),
+                questions,
             )
         except DecisionCallError as error:
             delay = 0.1 * 2**attempt

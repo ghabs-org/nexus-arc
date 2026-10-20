@@ -55,7 +55,26 @@ def request_operation(method, path, query, body):
         raise A2AError(-32602, "Request must be an object")
     if method == "GET" and body:
         raise A2AError(-32602, "GET request bodies are not supported")
-    if path == "extendedAgentCard" and method == "GET":
+    push = re.fullmatch(
+        r"tasks/([A-Za-z0-9_-]{1,96})/pushNotificationConfigs(?:/([A-Za-z0-9_-]{1,96}))?", path
+    )
+    if push:
+        task, identifier = push.groups()
+        operation = {
+            ("POST", False): "push-create",
+            ("GET", False): "push-list",
+            ("GET", True): "push-get",
+            ("DELETE", True): "push-delete",
+        }.get((method, bool(identifier)))
+        if not operation:
+            raise A2AError(-32601, "Operation not found")
+        if ("taskId" in body and body["taskId"] != task) or (
+            identifier and "id" in body and body["id"] != identifier
+        ):
+            raise A2AError(-32602, "Push identifiers must match the URL")
+        body = {**body, "taskId": task, **({"id": identifier} if identifier else {})}
+        allowed = {"pageSize", "pageToken"} if operation == "push-list" else set()
+    elif path == "extendedAgentCard" and method == "GET":
         operation, allowed = "card", set()
     elif path in {"message:send", "message:stream"} and method == "POST":
         operation = "send" if path.endswith(":send") else "stream"
@@ -64,8 +83,6 @@ def request_operation(method, path, query, body):
         operation, allowed = "list", {"contextId", "status", "pageSize", "pageToken"}
     elif path.startswith("tasks/"):
         identity = path[6:]
-        if "/pushNotificationConfigs" in identity:
-            raise A2AError(-32003, "Push notifications are not offered; use task subscriptions")
         suffix = ""
         if ":" in identity:
             identity, suffix = identity.rsplit(":", 1)

@@ -4,8 +4,11 @@ Wire schema: official `a2a-sdk[grpc]==1.1.5`, `lf.a2a.v1.A2AService`.
 Uses generated protobuf messages and service registration, not JSON sent over a
 custom gRPC method. The same `StudioA2AServer.invoke` handles SendMessage,
 SendStreamingMessage, GetTask, ListTasks, CancelTask, SubscribeToTask and
-GetExtendedAgentCard. Push configuration operations return the canonical
-FAILED_PRECONDITION / PUSH_NOTIFICATION_NOT_SUPPORTED error after authorization.
+GetExtendedAgentCard. Typed JSON/file outputs and callback create/get/list/delete
+share the same task service. Push is opt-in with preapproved destinations,
+encryption and optional dependencies; otherwise operations return canonical
+FAILED_PRECONDITION / PUSH_NOTIFICATION_NOT_SUPPORTED after authorization.
+See ../../docs/STUDIO-M6-A2A-RESULTS.md for authentication and delivery semantics.
 
 Each explicitly started listener serves one existing entrypoint. Every request
 requires its bearer in gRPC `authorization` metadata and passes original-creator

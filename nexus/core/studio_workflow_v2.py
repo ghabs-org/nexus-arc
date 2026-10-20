@@ -162,6 +162,7 @@ class StudioWorkflowV2:
                 "position",
                 "result_mode",
                 "interop_body_id",
+                "images",
                 "when",
             }:
                 raise ValueError("Unsupported structured workflow node fields")
@@ -208,7 +209,9 @@ class StudioWorkflowV2:
             if "result_mode" in node and (
                 node["result_mode"] != "interop" or kind not in {"loop", "switch", "decision"}
             ):
-                raise ValueError("External result mode is supported for loop, switch and decision nodes")
+                raise ValueError(
+                    "External result mode is supported for loop, switch and decision nodes"
+                )
             if "interop_body_id" in node and (
                 kind != "loop"
                 or node.get("result_mode") != "interop"
@@ -288,6 +291,22 @@ class StudioWorkflowV2:
                 from nexus.core.studio_nodes import StudioNodeTypes
 
                 node.update(StudioNodeTypes(self.studio).validate(node, connections))
+            if "images" in node:
+                from nexus.core.studio_decision_images import capable
+                from nexus.core.studio_decision_images import limits as image_limits
+
+                if (
+                    kind != "decision"
+                    or not capable(node.get("decision", {}))
+                    or not isinstance(node["images"], list)
+                    or len(node["images"]) > 128
+                ):
+                    raise ValueError(
+                        "Images require an image-capable decision node and at most 128 entries"
+                    )
+                maximum, _ = image_limits(node["decision"])
+                if sum(isinstance(v, str) for v in node["images"]) > maximum:
+                    raise ValueError("Literal images exceed configured max_images")
             if kind in {"map", "loop"}:
                 node["body"] = self.validate(
                     node.get("body"),
@@ -414,7 +433,9 @@ class StudioWorkflowV2:
             for index, first in enumerate(controllers):
                 for second in controllers[index + 1 :]:
                     if first not in parents(second) and second not in parents(first):
-                        raise ValueError("Shared external loop bodies require dependency-ordered controllers")
+                        raise ValueError(
+                            "Shared external loop bodies require dependency-ordered controllers"
+                        )
         from nexus.core.studio_connections import READ_ACTIONS
 
         kinds = {node["id"]: node["kind"] for node in result["nodes"]}
@@ -431,7 +452,9 @@ class StudioWorkflowV2:
         if "interop_exit_handlers" in graph:
             handlers = result["interop_exit_handlers"]
             if not interop or not isinstance(handlers, list) or not 1 <= len(handlers) <= 4:
-                raise ValueError("External exit handlers require a bounded list and interop-template/v1")
+                raise ValueError(
+                    "External exit handlers require a bounded list and interop-template/v1"
+                )
             if graph.get("on_success") or graph.get("on_error"):
                 raise ValueError("Use external exit handlers or native outcome handlers, not both")
             phases, handler_ids = set(), set(identities)
@@ -550,7 +573,9 @@ class StudioWorkflowV2:
         cancellation = WorkflowCancellation(self.studio, run_id, state, persist)
 
         async def run_graph(graph, context, scope="root", depth=0):
-            if graph.get("mapping_language") == "interop-template/v1" and not graph.get("interop_body"):
+            if graph.get("mapping_language") == "interop-template/v1" and not graph.get(
+                "interop_body"
+            ):
                 context = {**context, "interop_input": context["input"], "interop_nodes": {}}
             cancellation.enter(graph, context, scope, depth)
             try:
@@ -707,7 +732,9 @@ class StudioWorkflowV2:
 
         async def run_graph_body(graph, context, scope, depth):
             context = {**context, "_mapping_language": graph.get("mapping_language")}
-            if graph.get("mapping_language") == "interop-template/v1" and not graph.get("interop_body"):
+            if graph.get("mapping_language") == "interop-template/v1" and not graph.get(
+                "interop_body"
+            ):
                 context.update(interop_input=context["input"], interop_nodes={})
             if depth >= limits["nesting_depth"]:
                 raise ValueError(f"Workflow nesting exceeds {limits['nesting_depth']} levels")
@@ -730,7 +757,9 @@ class StudioWorkflowV2:
                 if edge.get("choice"):
                     origin = next(n for n in graph["nodes"] if n["id"] == source)
                     config = origin.get("decision", {})
-                    field = "selected_branch" if origin.get("result_mode") == "interop" else "choice"
+                    field = (
+                        "selected_branch" if origin.get("result_mode") == "interop" else "choice"
+                    )
                     if config.get("format") == "nexus-typed-decision/v1":
                         field = (
                             "selected_branch"
@@ -760,9 +789,34 @@ class StudioWorkflowV2:
                         outputs[alias] = state["outputs"][scope + "/" + alias]
                     statuses[node["id"]] = "completed"
                     return
-                local = {**context, "nodes": outputs}
+                image_states = {
+                    **context.get("_image_node_states", {}),
+                    **{
+                        identity: {
+                            "status": status,
+                            "output": outputs.get(identity),
+                            "reason": state.get("skip_reasons", {}).get(scope + "/" + identity),
+                        }
+                        for identity, status in statuses.items()
+                    },
+                }
+                for controller in graph["nodes"]:
+                    alias = controller.get("interop_body_id")
+                    if alias and controller["id"] in image_states:
+                        image_states[alias] = {
+                            **image_states[controller["id"]],
+                            "output": outputs.get(alias),
+                        }
+                local = {**context, "nodes": outputs, "_image_node_states": image_states}
                 if "when" in node and not condition(node["when"], local):
                     state["nodes"][key] = statuses[node["id"]] = "skipped"
+                    reason = "pruned"
+                    if "interop_condition" in node["when"]:
+                        from nexus.core.studio_interop_conditions import evaluate_condition
+
+                        if evaluate_condition(node["when"]["interop_condition"], local).unresolved:
+                            reason = "unresolved"
+                    state.setdefault("skip_reasons", {})[key] = reason
                     self.studio.execution.record(
                         run_id, "branch", node_id=key, node_name=node["name"], status="skipped"
                     )
@@ -886,7 +940,10 @@ class StudioWorkflowV2:
                                             "input": value,
                                             "item": value,
                                             "index": index,
-                                            "interop_nodes": {**local.get("interop_nodes", {}), **outputs},
+                                            "interop_nodes": {
+                                                **local.get("interop_nodes", {}),
+                                                **outputs,
+                                            },
                                         },
                                         f"{key}/{index}",
                                         depth + 1,
@@ -998,6 +1055,7 @@ class StudioWorkflowV2:
                             and node["decision"].get("format") == "nexus-typed-decision/v1"
                         ):
                             from nexus.core.studio_decisions import StudioTypedDecisions
+                            from nexus.core.studio_workflow_artifacts import image_references
 
                             return await StudioTypedDecisions(self.studio.workbench.jobs).execute(
                                 node["decision"],
@@ -1005,6 +1063,9 @@ class StudioWorkflowV2:
                                 payload,
                                 run_id,
                                 run_id + "-typed-" + hashlib.sha256(key.encode()).hexdigest()[:24],
+                                images=image_references(
+                                    node.get("images", []), local, image_states, resolve
+                                ),
                             )
                         if kind == "agent":
                             prompt = node.get("prompt", "{task}")
@@ -1033,6 +1094,15 @@ class StudioWorkflowV2:
                             )
                             if not result.ok:
                                 raise ValueError(result.error or "Workflow tool failed")
+                            if graph.get("mapping_language") == "interop-template/v1":
+                                from nexus.core.studio_workflow_artifacts import tool_output
+
+                                return tool_output(
+                                    self.studio,
+                                    result.output,
+                                    run_id,
+                                    payload.get("requester_nexus_id"),
+                                )
                             return result.output
                         from nexus.core.studio_nodes import StudioNodeTypes
 
@@ -1220,6 +1290,11 @@ class StudioWorkflowV2:
                     if edges and (interop_route_blocked or not any(active(e) for e in edges)):
                         statuses[node["id"]] = "skipped"
                         key = scope + "/" + node["id"]
+                        from nexus.core.studio_workflow_artifacts import skipped_reason
+
+                        state.setdefault("skip_reasons", {})[key] = skipped_reason(
+                            graph, node["id"], edges, statuses, outputs, context, scope, state
+                        )
                         if state["nodes"].get(key) != "skipped":
                             state["nodes"][key] = "skipped"
                             self.studio.execution.record(
@@ -1252,8 +1327,22 @@ class StudioWorkflowV2:
             if self.studio.run(run_id).get("cancel_requested") and not self.studio.closing:
                 await cancellation.execute(run_graph)
             raise
-        self.studio._update_run(run_id, awaiting_approval=[])
-        return json.dumps(result, ensure_ascii=False, default=str)
+        output = json.dumps(result, ensure_ascii=False, default=str)
+        # Preserve the typed final value beside the existing plain-text output.
+        # Use the same bounded validator as provider results; never reinterpret
+        # arbitrary JSON keys as file references or publication instructions.
+        from types import SimpleNamespace
+
+        content = self.studio.conversations.content(
+            SimpleNamespace(
+                metadata={"structured_content": [{"type": "json", "data": json.loads(output)}]}
+            ),
+            state["payload"],
+        )
+        self.studio._update_run(
+            run_id, awaiting_approval=[], content_version=1, structured_content=content
+        )
+        return output
 
     def resume(self, run_id, decision):
         if decision not in {"approve", "reject"}:

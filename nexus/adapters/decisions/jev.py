@@ -210,7 +210,9 @@ def decide_choice(
     return result.choice, result.confidence, True
 
 
-def _ask_strict_once(state, questions, model=None, api_key=None, timeout=20, endpoint=None):
+def _ask_strict_once(
+    state, questions, model=None, api_key=None, timeout=20, endpoint=None, *, image_urls=None
+):
     """Bounded strict transport; existing ``ask`` keeps its fallback contract."""
     from nexus.adapters.decisions.errors import DecisionAnswers, DecisionCallError
     from nexus.adapters.decisions.http import metadata, request_json
@@ -219,15 +221,33 @@ def _ask_strict_once(state, questions, model=None, api_key=None, timeout=20, end
     if resolved is None:
         raise DecisionCallError("config")
     endpoint, key, resolved_model = resolved
+    from nexus.adapters.decisions.images import MAX_PAYLOAD, validate_images
+
+    images = validate_images(image_urls)
+    if images:
+        if resolved_model != "openai/gpt-6-luna-decisions" or endpoint != DECISIONS_URL:
+            raise DecisionCallError("config")
+        import json
+
+        state = [
+            state if isinstance(state, str) else json.dumps(state, allow_nan=False),
+            *[{"type": "image_url", "image_url": {"url": url}} for url in images],
+        ]
     body = request_json(
-        endpoint, key, {"model": resolved_model, "state": state, "questions": questions}, timeout
+        endpoint,
+        key,
+        {"model": resolved_model, "state": state, "questions": questions},
+        timeout,
+        max_bytes=MAX_PAYLOAD if images else 65536,
     )
     if not isinstance(body.get("answers"), dict):
         raise DecisionCallError("invalid_response")
     return metadata(DecisionAnswers(body["answers"]), body)
 
 
-def ask_strict(state, questions, model=None, api_key=None, timeout=20, endpoint=None):
+def ask_strict(
+    state, questions, model=None, api_key=None, timeout=20, endpoint=None, *, image_urls=None
+):
     """At most three transient attempts within one total call budget; no fallback."""
     import math
     import time
@@ -242,7 +262,9 @@ def ask_strict(state, questions, model=None, api_key=None, timeout=20, endpoint=
         if remaining <= 0:
             raise DecisionCallError("timeout")
         try:
-            return _ask_strict_once(state, questions, model, api_key, remaining, endpoint)
+            return _ask_strict_once(
+                state, questions, model, api_key, remaining, endpoint, image_urls=image_urls
+            )
         except DecisionCallError as error:
             delay = 0.1 * 2**attempt
             if (

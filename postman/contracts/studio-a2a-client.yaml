@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info:
+  title: Nexus external-agent rich task consumer
+  version: 1.0.0
+  description: Additive Studio API contract; remote wire format follows A2A 1.0/0.3 Part and Artifact. Existing text-only requests remain valid. Same-origin authenticated file URLs and inline files are imported as private, revision-pinned local artifacts. Cross-origin URLs, redirects, malformed parts and oversized content fail explicitly. Sends and continuations are never automatically replayed.
+paths:
+  /api/runs:
+    post:
+      description: External runs accept kind external, external_agent_id, task, optional external_input (any finite JSON value, 64000 encoded bytes) and up to five existing artifact_ids. Attachments pin revisions before queueing. Worker verifies connection binding, ownership, advertised input modes and bounded bytes before sending once. Result retains plain output plus structured_content and private file references.
+      responses:
+        '202': {description: Existing queued run shape}
+        '400': {description: Invalid input; rejected before queuing}
+        '403': {description: Connection or attachment ownership denied}
+  /api/workbench/externalagents/{run}/continue:
+    parameters:
+      - {name: run, in: path, required: true, schema: {type: string}}
+    post:
+      description: Accept task, optional external_input and artifact_ids using the same validators. Reuses remote task/context and cannot approve remote operator gates. Acknowledged task IDs are checked on every response; refresh recovers by GetTask only.
+      responses:
+        '202': {description: Queued continuation}
+  /api/studio/entrypoints/{id}/a2a-deliveries:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      description: Owner-scoped, read-only delivery health. Bounded limit 1–100 (default 50), opaque next cursor. Never returns callback credentials, tokens, URLs, encrypted envelopes or task payloads. Configuration changes and disabled entrypoints are reported without network probes or retries.
+      responses:
+        '200': {description: Versioned delivery status and pagination}
+        '403': {description: Another user's entrypoint}

@@ -35,6 +35,7 @@ SPECIFIC = {
     "loop": {"node", "condition", "max_iterations", "delay"},
     "switch": {"cases", "default"},
     "decision": {
+        "images",
         "questions",
         "route_on",
         "routes",
@@ -117,8 +118,10 @@ class SAMWorkflowCompiler:
         target, suffix = parts[1], "." + ".".join(parts[2:]) if len(parts) > 2 else ""
         if target == condition_body:
             return "result" + suffix, "node"
-        if target == scope.get("previous"):
+        if target == scope.get("previous") and scope.get("current") == target:
             return "previous" + suffix, "previous"
+        if target in scope.get("members", set()):
+            return "nodes." + target + suffix, "node"
         if scope.get("body"):
             return "interop_nodes." + target + suffix, "node"
         return path, "node"
@@ -170,7 +173,7 @@ class SAMWorkflowCompiler:
         return policy
 
     def node(self, identity, scope=None, chain=()):
-        scope = scope or {}
+        scope = {**(scope or {}), "current": identity}
         source, path = self.nodes[identity], self.paths[identity]
         kind = source.get("type")
         if identity in chain or len(chain) >= self.bridge.studio.workflow_limits["nesting_depth"]:
@@ -184,17 +187,18 @@ class SAMWorkflowCompiler:
             )
             return {"id": identity, "kind": "delay", "delay_seconds": 0}
         self.fields(source, COMMON | SPECIFIC[kind], path)
-        if scope.get("body") and kind == "switch":
-            self.issue(
-                path + "/type",
-                "unsupported_body_switch",
-                "Switch body routing requires an explicit nested workflow",
+        if (
+            scope.get("body")
+            and source.get("depends_on")
+            and any(
+                dependency not in scope.get("members", {identity})
+                for dependency in source.get("depends_on", [])
             )
-        if scope.get("body") and source.get("depends_on"):
+        ):
             self.issue(
                 path + "/depends_on",
                 "unsupported_body_dependency",
-                "An external body must be invoked through its collection controller",
+                "Declare external dependencies on the collection controller",
             )
         if kind in BASIC:
             projected = {
@@ -249,16 +253,7 @@ class SAMWorkflowCompiler:
                 child_scope["map"] = True
             else:
                 child_scope.update(loop=True, previous=body)
-            child = self.node(body, child_scope, (*chain, identity))
-            # A body keeps the original workflow input and captures completed outer outputs.
-            node["body"] = {
-                "version": 2,
-                "mapping_language": LANGUAGE,
-                "interop_body": True,
-                "nodes": [child],
-                # A pruned template has a nil result, preserving map position and loop state.
-                "output_mapping": self.value("{{" + body + ".output}}", {}, path + "/node"),
-            }
+            node["body"] = self.body_graph(body, child_scope, (*chain, identity))
             if kind == "map":
                 sources = [
                     key
@@ -267,7 +262,9 @@ class SAMWorkflowCompiler:
                 ]
                 if len(sources) != 1:
                     self.issue(
-                        path + "/items", "ambiguous_items", "Supply exactly one external items source"
+                        path + "/items",
+                        "ambiguous_items",
+                        "Supply exactly one external items source",
                     )
                     node["items"] = []
                 else:
@@ -330,12 +327,38 @@ class SAMWorkflowCompiler:
                 if key in source:
                     config[key] = source[key]
             self.attempt(path, lambda: validate_decision(config))
-            if scope.get("body") and any(config.get(k) for k in ("routes", "default", "escalate")):
-                self.issue(
-                    path,
-                    "unsupported_body_routing",
-                    "Decision routing in a collection requires an explicit nested workflow",
-                )
+            if "images" in source:
+                from nexus.core.studio_decision_images import capable, limits
+
+                entries = source["images"]
+                maximum, _ = limits(config)
+                if not capable(config):
+                    self.issue(
+                        path + "/images",
+                        "unsupported_image_model",
+                        "Select an explicitly image-capable decision model",
+                    )
+                if (
+                    not isinstance(entries, list)
+                    or len(entries) > 128
+                    or any(not isinstance(v, str) for v in entries)
+                ):
+                    self.issue(
+                        path + "/images",
+                        "invalid_images",
+                        "Use at most 128 artifact references or templates",
+                    )
+                elif sum("{{" not in v for v in entries) > maximum:
+                    self.issue(
+                        path + "/images",
+                        "image_limit",
+                        "Literal image entries exceed configured max_images",
+                    )
+                else:
+                    node["images"] = [
+                        self.value(v, scope, path + "/images/" + str(i))
+                        for i, v in enumerate(entries)
+                    ]
             node.update(decision=config, result_mode="interop")
         if kind == "switch":
             node["result_mode"] = "interop"
@@ -364,6 +387,144 @@ class SAMWorkflowCompiler:
                 )
             node["default"] = source.get("default", "")
         return node
+
+    def members(self, root):
+        if root not in self.nodes:
+            return set()
+        result = {root}
+        controllers = {
+            identity
+            for identity, node in self.nodes.items()
+            if node.get("type") in {"map", "loop"} and node.get("node") == root
+        }
+        changed = True
+        while changed:
+            changed = False
+            targets = set()
+            for identity in result:
+                source = self.nodes[identity]
+                if source.get("type") == "switch":
+                    cases = source.get("cases", [])
+                    candidates = [
+                        case.get("node", case.get("then"))
+                        for case in (cases if isinstance(cases, list) else [])
+                        if isinstance(case, dict)
+                    ] + [source.get("default")]
+                    targets.update(value for value in candidates if isinstance(value, str))
+                if source.get("type") == "decision":
+                    routes = source.get("routes", {})
+                    candidates = list(routes.values()) if isinstance(routes, dict) else []
+                    candidates += [source.get(key) for key in ("default", "escalate")]
+                    targets.update(value for value in candidates if isinstance(value, str))
+            for identity, source in self.nodes.items():
+                dependencies = source.get("depends_on", [])
+                if (
+                    identity not in result
+                    and identity not in controllers
+                    and (
+                        identity in targets
+                        or isinstance(dependencies, list)
+                        and any(
+                            isinstance(dependency, str) and dependency in result
+                            for dependency in dependencies
+                        )
+                    )
+                ):
+                    result.add(identity)
+                    changed = True
+        return result
+
+    def body_graph(self, root, scope, chain):
+        members = self.members(root)
+        scope = {**scope, "members": members, "body": True}
+        nodes = [
+            self.node(identity, scope, chain)
+            for identity in [root, *(key for key in self.nodes if key in members and key != root)]
+        ]
+        result = {
+            "version": 2,
+            "mapping_language": LANGUAGE,
+            "interop_body": True,
+            "nodes": nodes,
+            "edges": [],
+            "output_mapping": self.value("{{" + root + ".output}}", {}, self.paths[root]),
+        }
+        self.wire(result)
+        return result
+
+    def wire(self, result, handlers=()):
+        scope_ids = {node["id"] for node in result["nodes"]}
+        for node in result["nodes"]:
+            for dependency in (
+                node.get("depends_on", []) if isinstance(node.get("depends_on", []), list) else []
+            ):
+                if dependency in self.owners and dependency not in scope_ids:
+                    self.issue(
+                        self.paths[node["id"]] + "/depends_on",
+                        "body_dependency",
+                        "Depend on the controller, not its body node",
+                    )
+            if node["kind"] == "decision":
+                config = node["decision"]
+                routes = config.get("routes", {})
+                if not isinstance(routes, dict):
+                    continue
+                targets = list(routes.values()) + [
+                    config[k] for k in ("default", "escalate") if k in config
+                ]
+                for target in dict.fromkeys(t for t in targets if isinstance(t, str)):
+                    selected = self.nodes.get(target)
+                    if (
+                        not selected
+                        or target not in scope_ids
+                        or target == node["id"]
+                        or not isinstance(selected.get("depends_on", []), list)
+                        or node["id"] not in selected.get("depends_on", [])
+                    ):
+                        self.issue(
+                            self.paths[node["id"]],
+                            "invalid_target",
+                            "Decision targets must exist, be regular nodes and depend on their decision",
+                        )
+                    else:
+                        result["edges"].append(
+                            {"source": node["id"], "target": target, "choice": target}
+                        )
+                if config.get("escalate") and config.get("escalation_mode", "reroute") == "reroute":
+                    escalate = config["escalate"]
+                    for target in {
+                        t for t in [*routes.values(), config.get("default")] if isinstance(t, str)
+                    }:
+                        if target != escalate:
+                            result["edges"].append({"source": escalate, "target": target})
+            if node["kind"] == "switch":
+                targets = [c["value"] for c in node["cases"]] + (
+                    [node["default"]] if node["default"] else []
+                )
+                if any(not isinstance(target, str) for target in targets):
+                    self.issue(
+                        self.paths[node["id"]] + "/cases",
+                        "invalid_target",
+                        "Switch targets must name existing nodes",
+                    )
+                for target in dict.fromkeys(t for t in targets if isinstance(t, str)):
+                    selected = self.nodes.get(target)
+                    if (
+                        not selected
+                        or target not in scope_ids
+                        or target == node["id"]
+                        or not isinstance(selected.get("depends_on", []), list)
+                        or node["id"] not in selected.get("depends_on", [])
+                    ):
+                        self.issue(
+                            self.paths[node["id"]] + "/cases",
+                            "invalid_target",
+                            "Switch targets must exist and depend on their switch",
+                        )
+                    else:
+                        result["edges"].append(
+                            {"source": node["id"], "target": target, "choice": target}
+                        )
 
     def compile(self, source, path, name):
         self.source = self.fields(
@@ -409,7 +570,13 @@ class SAMWorkflowCompiler:
         if "decision" in self.source:
             block = self.fields(
                 self.source["decision"],
-                {"model_alias", "timeout_seconds", "max_state_bytes"},
+                {
+                    "model_alias",
+                    "timeout_seconds",
+                    "max_state_bytes",
+                    "max_images",
+                    "max_image_bytes",
+                },
                 path + "/decision",
             )
             alias = block.get("model_alias")
@@ -427,7 +594,11 @@ class SAMWorkflowCompiler:
                 binding = {"backend": "opencode", "model": "unbound"}
             self.decision_config = {
                 **binding,
-                **{k: v for k, v in block.items() if k in {"timeout_seconds", "max_state_bytes"}},
+                **{
+                    k: v
+                    for k, v in block.items()
+                    if k in {"timeout_seconds", "max_state_bytes", "max_images", "max_image_bytes"}
+                },
             }
         self.tools = self.bridge.tools(source.get("tools", []), path + "/tools")
         nodes = source.get("nodes", [])
@@ -485,6 +656,10 @@ class SAMWorkflowCompiler:
                             "ambiguous_body",
                             "Shared external loop bodies require dependency-ordered controllers",
                         )
+        for root, controller in list(self.owners.items()):
+            for member in self.members(root):
+                if member not in self.owners:
+                    self.owners[member] = controller
         exits = self.source.get("on_exit", {})
         if isinstance(exits, str):
             exits = {"always": exits}
@@ -527,6 +702,8 @@ class SAMWorkflowCompiler:
             if identity in reachable:
                 return
             reachable.add(identity)
+            if identity in self.owners:
+                reachable.update(self.members(identity))
             target = self.nodes[identity].get("node")
             if isinstance(target, str) and target in self.nodes:
                 visit(target)
@@ -554,78 +731,7 @@ class SAMWorkflowCompiler:
             self.issue(
                 self.paths[identity], "unreachable_body", "Body cycle or orphan cannot be compiled"
             )
-        for node in result["nodes"]:
-            for dependency in (
-                node.get("depends_on", []) if isinstance(node.get("depends_on", []), list) else []
-            ):
-                if dependency in self.owners:
-                    self.issue(
-                        self.paths[node["id"]] + "/depends_on",
-                        "body_dependency",
-                        "Depend on the controller, not its body node",
-                    )
-            if node["kind"] == "decision":
-                config = node["decision"]
-                routes = config.get("routes", {})
-                if not isinstance(routes, dict):
-                    continue
-                targets = list(routes.values()) + [
-                    config[k] for k in ("default", "escalate") if k in config
-                ]
-                for target in dict.fromkeys(t for t in targets if isinstance(t, str)):
-                    selected = self.nodes.get(target)
-                    if (
-                        not selected
-                        or target in self.owners
-                        or target in handlers
-                        or target == node["id"]
-                        or not isinstance(selected.get("depends_on", []), list)
-                        or node["id"] not in selected.get("depends_on", [])
-                    ):
-                        self.issue(
-                            self.paths[node["id"]],
-                            "invalid_target",
-                            "Decision targets must exist, be regular nodes and depend on their decision",
-                        )
-                    else:
-                        result["edges"].append(
-                            {"source": node["id"], "target": target, "choice": target}
-                        )
-                if config.get("escalate") and config.get("escalation_mode", "reroute") == "reroute":
-                    escalate = config["escalate"]
-                    for target in {
-                        t for t in [*routes.values(), config.get("default")] if isinstance(t, str)
-                    }:
-                        if target != escalate:
-                            result["edges"].append({"source": escalate, "target": target})
-            if node["kind"] == "switch":
-                targets = [c["value"] for c in node["cases"]] + (
-                    [node["default"]] if node["default"] else []
-                )
-                if any(not isinstance(target, str) for target in targets):
-                    self.issue(
-                        self.paths[node["id"]] + "/cases",
-                        "invalid_target",
-                        "Switch targets must name existing nodes",
-                    )
-                for target in dict.fromkeys(t for t in targets if isinstance(t, str)):
-                    selected = self.nodes.get(target)
-                    if (
-                        not selected
-                        or target in self.owners
-                        or target == node["id"]
-                        or not isinstance(selected.get("depends_on", []), list)
-                        or node["id"] not in selected.get("depends_on", [])
-                    ):
-                        self.issue(
-                            self.paths[node["id"]] + "/cases",
-                            "invalid_target",
-                            "Switch targets must exist and depend on their switch",
-                        )
-                    else:
-                        result["edges"].append(
-                            {"source": node["id"], "target": target, "choice": target}
-                        )
+        self.wire(result, handlers)
         for key in ("input_schema", "output_schema"):
             if key in source:
                 result[key] = source[key]

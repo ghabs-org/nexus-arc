@@ -54,7 +54,7 @@ def _identity(value: Any) -> str:
 
 
 class StudioService:
-    """Reusable local workspace operations; never stores provider credentials."""
+    """Workspace operations; delegated credentials use Nexus encryption and private state."""
 
     def __init__(
         self,
@@ -140,6 +140,9 @@ class StudioService:
         from nexus.core.studio_operations import StudioOperations
 
         self.connections = StudioConnections(self, **(connection_options or {}))
+        from nexus.core.studio_oauth import StudioOAuth
+
+        self.oauth = StudioOAuth(self)
         from nexus.core.studio_external import StudioExternalAgents
 
         self.external = StudioExternalAgents(self, **(external_options or {}))
@@ -639,11 +642,27 @@ class StudioService:
     def _delta(self, identity: str, text: str) -> None:
         self.conversations.delta(identity, text)
 
-    def start_run(self, payload: dict) -> dict:
+    def start_run(self, payload: dict, *, callback_origin=None) -> dict:
         """Queue an explicitly selected agent/chat/workflow/tool; no implicit provider fallback."""
         payload = dict(payload)
         payload.pop("_evaluation_case", None)
         payload.pop("_workflow_limits", None)
+        payload.pop("_callback_origin", None)
+        if type(payload.get("external_callbacks", False)) is not bool:
+            raise ValueError("Callback updates must be true or false")
+        if payload.get("external_callbacks"):
+            from nexus.core.studio_external_callbacks import origin
+
+            if payload.get("kind") != "external" or payload.get("external_resume_id"):
+                raise ValueError("Enable callbacks on the initial external task only")
+            payload["_callback_origin"] = origin(
+                self.team.public_url
+                if self.team
+                else callback_origin or self.external.callback_origin
+            )
+            from nexus.core.auth.delegated_credentials import seal
+
+            seal("external-callback-readiness", {})
         if payload.get("kind", "chat") == "chat" and payload.get("session_id"):
             previous_project = self.session(payload["session_id"]).get("knowledge_project_id")
             if previous_project:
@@ -668,6 +687,8 @@ class StudioService:
         }:
             self.workbench.jobs.prepare(payload)
         payload = self.catalog.expand(payload)
+        if payload.get("kind") == "external":
+            payload = self.external.prepare_payload(payload)
         payload = self.knowledge.prepare(payload)
         payload["agent_snapshots"] = self.versions.snapshots()
         kind = payload.get("kind", "chat")
@@ -718,6 +739,9 @@ class StudioService:
         from nexus.core.studio_agent_settings import pin_agents
 
         pin_agents(self, payload)
+        from nexus.core.studio_decision_images import pin as pin_decision_images
+
+        pin_decision_images(self, payload)
         if kind == "tool":
             from nexus.tools import tool_registry
 

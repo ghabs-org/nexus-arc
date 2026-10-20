@@ -10,8 +10,71 @@ from google.rpc import error_details_pb2, status_pb2
 from nexus.core.studio_a2a_grpc import StudioA2AGRPC
 from tests.test_studio_a2a_http import gateway as gateway
 from tests.test_studio_a2a_http import message
+from tests.test_studio_a2a_push import callback as callback
 
 META = (("authorization", "Bearer synthetic-rest-key-local-only-1234"),)
+
+
+@pytest.mark.parametrize("gateway", ["files", "sqlite"], indirect=True)
+def test_grpc_structured_files_and_callback_crud_share_rest_tasks(callback):
+    import base64
+
+    from google.protobuf.json_format import MessageToDict
+
+    from tests.test_studio_a2a_content import publish, save_file
+
+    studio, entry, http, config, observed, _, _, _ = callback
+    listener = StudioA2AGRPC(studio, entry["id"])
+    try:
+        with grpc.insecure_channel(listener.address) as channel:
+            client = service.A2AServiceStub(channel)
+            task = client.SendMessage(
+                ParseDict(message(), messages.SendMessageRequest()), metadata=META, timeout=10
+            ).task
+            artifact = save_file(studio)
+            publish(
+                studio,
+                task.id,
+                {"type": "json", "data": [None, 3, True]},
+                {"type": "artifact", "artifact_id": artifact["id"], "revision": 1},
+            )
+            rich = client.GetTask(messages.GetTaskRequest(id=task.id), metadata=META)
+            assert MessageToDict(rich.artifacts[1].parts[0])["data"] == [None, 3, True]
+            assert rich.artifacts[-1].parts[0].raw == b"original output"
+            assert (
+                http("/rest/tasks/" + task.id)[1]["artifacts"][-1]["parts"][0]["raw"]
+                == base64.b64encode(b"original output").decode()
+            )
+            saved = client.CreateTaskPushNotificationConfig(
+                ParseDict({**config, "taskId": task.id}, messages.TaskPushNotificationConfig()),
+                metadata=META,
+            )
+            assert saved.id == "receiver" and not saved.authentication.credentials
+            assert (
+                client.GetTaskPushNotificationConfig(
+                    messages.GetTaskPushNotificationConfigRequest(task_id=task.id, id="receiver"),
+                    metadata=META,
+                ).url
+                == config["url"]
+            )
+            assert (
+                len(
+                    client.ListTaskPushNotificationConfigs(
+                        messages.ListTaskPushNotificationConfigsRequest(task_id=task.id),
+                        metadata=META,
+                    ).configs
+                )
+                == 1
+            )
+            studio.a2a.push.tick(100)
+            assert observed[0][2]["task"]["id"] == task.id
+            client.DeleteTaskPushNotificationConfig(
+                messages.DeleteTaskPushNotificationConfigRequest(task_id=task.id, id="receiver"),
+                metadata=META,
+            )
+            assert not studio.records("a2a-push")
+    finally:
+        listener.close()
 
 
 @pytest.fixture

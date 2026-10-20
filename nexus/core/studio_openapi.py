@@ -4,6 +4,13 @@ import json
 import re
 from urllib.parse import quote
 
+from nexus.core.studio_openapi_schema import (
+    auth_matches,
+    local,
+    normalized_schema,
+    parameters,
+    serialize,
+)
 from nexus.core.studio_remote import (
     remote_headers,
     remote_request_url,
@@ -13,7 +20,9 @@ from nexus.core.studio_remote import (
 
 
 def operations(spec):
-    if not isinstance(spec, dict) or not str(spec.get("openapi", "")).startswith("3."):
+    if not isinstance(spec, dict) or not re.fullmatch(
+        r"3\.[01]\.\d+", str(spec.get("openapi", ""))
+    ):
         raise ValueError("Import an OpenAPI 3.x document")
     if len(json.dumps(spec)) > 512000:
         raise ValueError("OpenAPI definition exceeds 512000 characters")
@@ -27,27 +36,21 @@ def operations(spec):
             or "#" in path
         ):
             raise ValueError("OpenAPI paths must be relative paths without traversal")
-        if not isinstance(entry, dict) or "$ref" in entry:
-            raise ValueError("Resolve OpenAPI path references before import")
+        entry = local(spec, entry)
         for method, operation in entry.items():
             if method not in {"get", "post", "put", "patch", "delete", "head", "options"}:
                 continue
+            operation = local(spec, operation)
             identity = operation.get("operationId") or f"{method}:{path}"
             if identity in result:
                 raise ValueError("OpenAPI operation IDs must be unique")
-            params = entry.get("parameters", []) + operation.get("parameters", [])
-            if any(
-                not isinstance(p, dict) or p.get("in") not in {"path", "query", "header"}
-                for p in params
-            ):
-                raise ValueError(
-                    "Resolve parameter references; supported locations are path, query and header"
-                )
+            params = parameters(spec, entry, operation)
             result[identity] = {
                 "path": path,
                 "method": method.upper(),
                 "parameters": params,
-                "requestBody": operation.get("requestBody", {}),
+                "requestBody": local(spec, operation.get("requestBody", {})),
+                "security": operation.get("security", spec.get("security")),
                 "summary": str(operation.get("summary", ""))[:500],
             }
     if not 1 <= len(result) <= 200:
@@ -76,7 +79,7 @@ def validate_openapi(data):
     def refs(value):
         if isinstance(value, dict):
             for key in ("$ref", "$dynamicRef", "$recursiveRef"):
-                if key in value and not str(value[key]).startswith("#/components/"):
+                if key in value and not str(value[key]).startswith("#/"):
                     raise ValueError("Only local OpenAPI component references are supported")
             for v in value.values():
                 refs(v)
@@ -104,12 +107,24 @@ def validate_openapi(data):
             or not operation
             or operation["method"] not in {"GET", "HEAD", "OPTIONS"}
             or operation["requestBody"]
+            or re.search(r"\{[^}]+\}", operation["path"])
             or any(p.get("required") or p["in"] == "path" for p in operation["parameters"])
         ):
             raise ValueError(
                 "Choose a selected read-only health operation without required parameters or a request body"
             )
         result["health_operation"] = health
+    for name in selected:
+        operation = available[name]
+        auth_matches(spec, operation["security"], remote["auth"])
+        body = operation["requestBody"]
+        if body and (
+            not isinstance(body.get("content"), dict)
+            or set(body["content"]) != {"application/json"}
+        ):
+            raise ValueError(
+                "Selected operation body requires application/json; other media types need adaptation"
+            )
     return result
 
 
@@ -126,22 +141,36 @@ def call_openapi(studio, data, identity, action, arguments):
     if name not in data["operations"]:
         raise PermissionError("Operation is not enabled in this connector")
     operation = available[name]
+    auth_matches(data["spec"], operation["security"], data.get("auth", {}))
     if action == "read" and operation["method"] not in {"GET", "HEAD", "OPTIONS"}:
         raise PermissionError("Mutating operations require invoke and explicit approval")
     values = arguments.get("parameters", {})
     if not isinstance(values, dict):
         raise ValueError("OpenAPI parameters must be an object")
-    if set(values) - {p["name"] for p in operation["parameters"]}:
-        raise ValueError("Unknown operation parameter")
+    names = [p["name"] for p in operation["parameters"]]
+    keys = {p["in"] + ":" + p["name"] for p in operation["parameters"]}
+    keys.update(name for name in names if names.count(name) == 1)
+    if set(values) - keys:
+        raise ValueError(
+            "Unknown or ambiguous operation parameter; qualify duplicate names by location"
+        )
     headers, params, path = remote_headers(studio, data, identity), {}, operation["path"]
     for parameter in operation["parameters"]:
         key = parameter["name"]
-        if key not in values:
+        qualified = parameter["in"] + ":" + key
+        selected_key = qualified if qualified in values else key
+        if selected_key not in values:
             if parameter.get("required") or parameter["in"] == "path":
                 raise ValueError(f"Missing operation parameter: {key}")
             continue
-        value = values[key]
-        _validate(data["spec"], parameter.get("schema", {}), value)
+        if qualified in values and key in values:
+            raise ValueError("Supply each parameter once")
+        value = values[selected_key]
+        schema = parameter.get(
+            "schema", parameter.get("content", {}).get("application/json", {}).get("schema", {})
+        )
+        _validate(data["spec"], schema, value)
+        value = serialize(parameter, value)
         if parameter["in"] == "path":
             text = str(value)
             if text in {".", ".."} or "/" in text or "\\" in text:
@@ -150,10 +179,19 @@ def call_openapi(studio, data, identity, action, arguments):
         elif parameter["in"] == "query":
             if data.get("auth", {}).get("type") == "query" and key == data["auth"]["parameter"]:
                 raise ValueError("Operation cannot override its account credential parameter")
-            params[key] = value
+            entries = value if isinstance(value, dict) else {key: value}
+            for query_key, query_value in entries.items():
+                if (
+                    query_key in params
+                    or data.get("auth", {}).get("type") == "query"
+                    and query_key == data["auth"]["parameter"]
+                ):
+                    raise ValueError("Operation query parameters collide or override credentials")
+                params[query_key] = query_value
         else:
             if (
                 key.lower() in {"host", "authorization", "cookie", "connection", "content-length"}
+                or key.lower() in {h.lower() for h in headers}
                 or "\r" in str(value)
                 or "\n" in str(value)
             ):
@@ -219,9 +257,9 @@ def _validate(spec, schema, value):
         import jsonschema
     except ImportError as exc:
         raise ValueError("Install nexus-arc[studio-connectors] for OpenAPI validation") from exc
-    root = {"components": spec.get("components", {}), **schema}
-    if root.get("nullable") and isinstance(root.get("type"), str):
-        root["type"] = [root["type"], "null"]
+    root = normalized_schema(
+        {"components": spec.get("components", {}), **schema}, spec.get("openapi")
+    )
     try:
         jsonschema.Draft202012Validator(root).validate(value)
     except Exception as exc:

@@ -145,7 +145,9 @@ def test_cards_advertise_only_implemented_bindings_and_output_modes(gateway):
     assert {i["protocolBinding"] for i in card["supportedInterfaces"]} == {"JSONRPC", "HTTP+JSON"}
     assert all(i["protocolVersion"] == "1.0" for i in card["supportedInterfaces"])
     assert not card["capabilities"]["pushNotifications"]
-    assert card["defaultOutputModes"] == ["text/plain"]
+    assert {"text/plain", "application/json", "application/octet-stream"} <= set(
+        card["defaultOutputModes"]
+    )
     assert not any(mode.startswith("image/") for mode in card["defaultInputModes"])
 
 

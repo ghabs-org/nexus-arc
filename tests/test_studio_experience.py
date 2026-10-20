@@ -163,7 +163,11 @@ server.run(transport="stdio")
             call("alice", "broken")
         fresh = call("alice")
         assert fresh.split(":")[0] != first.split(":")[0] and fresh.endswith(":1")
-        time.sleep(0.8)
+        # Idle expiry starts SDK/process teardown; wait for completion rather
+        # than assuming teardown fits in 300 ms on a loaded machine.
+        deadline = time.monotonic() + 5
+        while pool.entries and time.monotonic() < deadline:
+            time.sleep(0.05)
         assert not pool.entries
     finally:
         pool.close()
@@ -414,6 +418,7 @@ def test_broken_remote_stream_reads_known_task_and_never_resends(tmp_path, ackno
         )
         if acknowledged:
             assert result["status"] == "completed" and result["output"] == "Recovered result"
+            assert app.records("external-runs")[0]["context_id"] == "context"
         else:
             assert result["status"] == "failed"
             assert app.records("external-runs")[0]["status"] == "uncertain"

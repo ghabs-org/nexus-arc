@@ -201,6 +201,12 @@ class StudioResourceLifecycle:
                 environment = {}
         missing = sorted(name for name in refs if not environment.get(name))
         issues = ["missing_credentials"] if missing else []
+        if kind == "connectors" and data.get("auth", {}).get("type") == "oauth":
+            try:
+                if not self.studio.oauth.status(value["id"], actor)["connected"]:
+                    issues.append("delegated_account_required")
+            except (PermissionError, ValueError):
+                issues.append("delegated_account_required")
         if execution_denied:
             issues.append("execution_access_revoked")
         provider = (

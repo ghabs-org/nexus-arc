@@ -6,15 +6,25 @@ from nexus.core.studio_configuration import digest
 
 
 def probe_action(key, value):
+    if key.startswith("externalagents:"):
+        return "agent_card"
     if not key.startswith("connectors:"):
         return None
     data = value.get("data", {})
     if data.get("type") == "openapi" and data.get("health_operation"):
         return "read" if "read" in data.get("actions", []) else None
-    action = {"sqlite": "select_one", "sql": "inspect_schema", "mcp": "discover"}.get(
-        data.get("type")
-    )
-    if data.get("type") != "sqlite" and action not in data.get("actions", []):
+    action = {
+        "sqlite": "select_one",
+        "http": "fetch",
+        "sql": "inspect_schema",
+        "mcp": "discover",
+        "github": "list_issues",
+        "gitlab": "list_issues",
+        "mongodb": "inspect_schema",
+        "powerbi": "read",
+        "teams": "status",
+    }.get(data.get("type"))
+    if data.get("type") not in {"sqlite", "http"} and action not in data.get("actions", []):
         return None
     return action
 
@@ -84,13 +94,21 @@ class StudioResourceHealth:
         # publication below rejects concurrent configuration/release changes as stale.
         status, reason = "passed", None
         try:
-            self.studio.operations.call_connector(
-                key.split(":", 1)[1],
-                arguments,
-                build.get("owner_id"),
-                probe=True,
-                expected_data=value["data"],
-            )
+            if action == "agent_card":
+                self.studio.external.discover(
+                    key.split(":", 1)[1],
+                    build.get("owner_id"),
+                    probe=True,
+                    expected_data=value["data"],
+                )
+            else:
+                self.studio.operations.call_connector(
+                    key.split(":", 1)[1],
+                    arguments,
+                    build.get("owner_id"),
+                    probe=True,
+                    expected_data=value["data"],
+                )
         except Exception:
             status, reason = "failed", "connectivity_check_failed"
         record = {

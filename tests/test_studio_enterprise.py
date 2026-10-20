@@ -238,3 +238,56 @@ def test_mongo_pool_readonly_scope_filter_and_write_confirmation(tmp_path, monke
         ) == 1
     finally:
         studio.close()
+
+
+def test_bedrock_knowledge_pagination_is_bounded_and_keeps_query_scope(tmp_path):
+    calls = []
+    response = {"retrievalResults": [{"content": {"text": "page"}}], "nextToken": "next-page"}
+
+    class Client:
+        def retrieve(self, **kwargs):
+            calls.append(kwargs)
+            return response
+
+    studio = StudioService(
+        tmp_path,
+        connection_options={
+            "enterprise_options": {"client_factories": {"bedrock": lambda data, identity: Client()}}
+        },
+    )
+    try:
+        record = studio.catalog.save(
+            "connectors",
+            {
+                "name": "Knowledge",
+                "data": {
+                    "type": "bedrock-kb",
+                    "region": "eu-west-1",
+                    "resource_id": "ABCDEFGHIJ",
+                    "enabled": True,
+                },
+            },
+        )
+
+        def query(**arguments):
+            return asyncio.run(
+                studio.connections.execute(
+                    record["id"],
+                    {"action": "query", "arguments": {"query": "policy", "limit": 1, **arguments}},
+                )
+            )
+
+        first = query()
+        assert first["next_token"] == "next-page"
+        query(next_token=first["next_token"])
+        assert "nextToken" not in calls[0]
+        assert calls[1] == {**calls[0], "nextToken": "next-page"}
+        for token in [[], "", "x" * 2049]:
+            with pytest.raises(ValueError):
+                query(next_token=token)
+        assert len(calls) == 2
+        response["retrievalResults"] *= 2
+        with pytest.raises(ValueError):
+            query()
+    finally:
+        studio.close()

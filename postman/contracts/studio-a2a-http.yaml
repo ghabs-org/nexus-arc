@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus A2A HTTP+JSON task binding
-  version: 1.0.0
-  description: A2A 1.0 HTTP+JSON binding over the existing task service. Base URL is /api/a2a/{entrypoint}/rest. JSON-RPC 0.3/1.0 paths remain unchanged. Same bearer creator identity, workspace ownership, deduplication, continuation, cancellation and polling records serve both bindings. Optional gRPC is advertised only for an explicitly running listener; push delivery is not offered. Canonical source https://a2a-protocol.org/latest/specification/ sections 5.4 and 11, inspected 2026-10-19.
+  version: 1.1.0
+  description: A2A 1.0 HTTP+JSON binding over the existing task service. Base URL is /api/a2a/{entrypoint}/rest. JSON-RPC 0.3/1.0 paths remain unchanged. Same bearer creator identity, workspace ownership, deduplication, continuation, cancellation, typed results and callback records serve all bindings. Optional gRPC is advertised only for a running listener. Push is advertised only with preapproved destinations and ready dependencies/encryption. Canonical source https://a2a-protocol.org/latest/specification/ sections 4.1, 4.3, 5.4 and 11, inspected 2026-10-20.
 servers:
   - url: /api/a2a/{entrypoint}/rest
     variables:
@@ -12,10 +12,11 @@ security:
 paths:
   /message:send:
     post:
-      description: Accept SendMessageRequest directly, no JSON-RPC envelope. Stable messageId deduplicates across both bindings. Existing owner-approved gates cannot be approved by bearer continuation.
+      description: Accept SendMessageRequest directly, no JSON-RPC envelope. Stable messageId deduplicates across bindings. Structured workflow/provider results use data parts, explicit pinned output artifacts use inline raw bytes with filename/mediaType. Input attachments are never implicitly returned. Text output remains available. acceptedOutputModes is a bounded list of supported MIME types; it is a preference, not a filter. Existing owner-approved gates cannot be approved by bearer continuation. All inline inputs are validated before persistence; continuation contextId must match its task.
       responses:
         '200': {description: SendMessageResponse containing task}
         '400': {description: Invalid argument, unsupported mode/version or disabled push request}
+        '500': {description: INVALID_AGENT_RESPONSE for unavailable or oversized output artifact}
         '403': {description: Entrypoint or creator execution access denied}
   /message:stream:
     post:
@@ -52,6 +53,28 @@ paths:
     get:
       responses:
         '200': {description: Authenticated card advertises JSONRPC/HTTP+JSON and an optional currently running gRPC listener}
+  /tasks/{taskId}/pushNotificationConfigs:
+    parameters:
+      - {name: taskId, in: path, required: true, schema: {type: string}}
+    post:
+      description: Opt-in only. Create TaskPushNotificationConfig using a preapproved exact destination URL and Bearer authentication. Credentials encrypted in private workspace state, omitted from responses/export/backup. Task ID in body must match path. Callback payload is StreamResponse task snapshot, also for legacy registration. Delivery uses three bounded attempts with stable X-Nexus-Delivery-ID; receiver must deduplicate. Snapshots coalesce transient states. Disabling entrypoint, changing target/owner/destination policy or deleting config stops future delivery. Already dispatched callbacks may complete.
+      responses:
+        '200': {description: Redacted TaskPushNotificationConfig}
+        '400': {description: Disabled push, invalid callback/authentication or mismatched task}
+    get:
+      responses:
+        '200': {description: Scoped paginated ListTaskPushNotificationConfigsResponse; credentials omitted}
+  /tasks/{taskId}/pushNotificationConfigs/{id}:
+    parameters:
+      - {name: taskId, in: path, required: true, schema: {type: string}}
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      responses:
+        '200': {description: Redacted TaskPushNotificationConfig}
+        '404': {description: Configuration not found in this task and entrypoint}
+    delete:
+      responses:
+        '200': {description: Empty object; stops subsequent dispatches}
 components:
   securitySchemes:
     bearer: {type: http, scheme: bearer}

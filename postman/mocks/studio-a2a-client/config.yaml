@@ -1,0 +1,10 @@
+version: 1
+name: Synthetic rich A2A JSON-RPC peer
+slug: studio-a2a-client
+protocol: http
+port: 49651
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

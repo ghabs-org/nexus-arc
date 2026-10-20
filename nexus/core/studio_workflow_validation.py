@@ -114,7 +114,17 @@ def validate_mappings(graph, roots):
     for node in graph["nodes"]:
         for key in ("input_schema", "output_schema"):
             schema_definition(node.get(key))
-        fields = ["input", "args", "kwargs", "arguments", "items", "cases", "default", "when"]
+        fields = [
+            "input",
+            "args",
+            "kwargs",
+            "arguments",
+            "items",
+            "cases",
+            "default",
+            "when",
+            "images",
+        ]
         for key in fields:
             if key in node:
                 check(node[key], ancestors[node["id"]])
@@ -125,7 +135,9 @@ def validate_mappings(graph, roots):
                     and aliases.get(path.split(".")[1], path.split(".")[1])
                     not in ancestors[node["id"]]
                 ):
-                    raise ValueError(f"External body capture requires an upstream dependency: {path}")
+                    raise ValueError(
+                        f"External body capture requires an upstream dependency: {path}"
+                    )
         if node["kind"] == "loop":
             deterministic_condition(node["condition"])
             if graph.get("mapping_language") == "interop-template/v1":

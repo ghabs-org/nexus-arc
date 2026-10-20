@@ -1,4 +1,13 @@
 "use strict";
+
+async function showA2ADeliveryHealth(identity,after=null,existing=[]){
+  const data=await featureApi(`entrypoints/${encodeURIComponent(identity)}/a2a-deliveries${after?`?after=${encodeURIComponent(after)}`:""}`),items=[...existing,...data.items];
+  const date=value=>typeof value==="number"?new Date(value*1000).toLocaleString():"Not recorded";
+  showDetail("Callback delivery health",`<p>${data.ready?"Callback prerequisites are ready. Delivery still requires a running scheduler and reachable receiver.":"Callback delivery is disabled or setup is incomplete."}</p><p>This view only reads status. Notifications can arrive more than once; receivers must deduplicate delivery IDs. Already dispatched notifications may complete after removal.</p>${items.length?items.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.config_id)}</h3><p>${escapeHtml(item.status)} · attempt ${item.attempt??"unknown"} of ${item.max_attempts}</p><p>Last attempt: ${escapeHtml(date(item.checked_at))}${item.next_due?` · Next eligible: ${escapeHtml(date(item.next_due))}`:""}</p><p>Task ${escapeHtml(item.task_id)}</p></div><button class="secondary" data-run="${escapeHtml(item.task_id)}">View task</button></article>`).join(""):"<p>No callbacks registered for this entrypoint.</p>"}<div class="card-actions"><button class="secondary" id="a2a-health-refresh">Refresh status</button>${data.next_cursor?'<button class="secondary" id="a2a-health-more">Load more</button>':""}</div><p class="form-error" role="alert" id="a2a-health-error"></p>`);
+  const refresh=$("a2a-health-refresh");refresh.onclick=async()=>{refresh.disabled=true;try{await showA2ADeliveryHealth(identity);}catch(error){$("a2a-health-error").textContent=error.message;}finally{refresh.disabled=false;}};
+  const more=$("a2a-health-more");if(more)more.onclick=async()=>{more.disabled=true;try{await showA2ADeliveryHealth(identity,data.next_cursor,items);}catch(error){$("a2a-health-error").textContent=error.message;more.disabled=false;}};
+}
+document.addEventListener("click",async event=>{const button=event.target.closest("[data-a2a-health]");if(!button)return;try{await showA2ADeliveryHealth(button.dataset.a2aHealth);}catch(error){notify(error.message);}});
 const featureApi=(path,data)=>api(`/api/studio/${path}`,data);
 function fieldsDialog(title,html,label="Save") {
   return new Promise(resolve=>{
@@ -127,7 +136,7 @@ api=async function(path,body){
 const originalOperationFields=operationFields;
 operationFields=function(item){
   const result=originalOperationFields(item);
-  if(library.kind==="entrypoints")return result+`<label class="check-label"><input type="checkbox" name="mcp_enabled" ${item?.data?.mcp_enabled?"checked":""}>Expose this bearer webhook as an MCP task gateway</label><p>Use /api/mcp/ENTRYPOINT_ID with the same bearer token. Only this target is exposed; approvals remain in Studio.</p>`;
+  if(library.kind==="entrypoints")return result+`<label class="check-label"><input type="checkbox" name="mcp_enabled" ${item?.data?.mcp_enabled?"checked":""}>Expose this bearer webhook as an MCP task gateway</label><p>Use /api/mcp/ENTRYPOINT_ID with the same bearer token. Only this target is exposed; approvals remain in Studio.</p><details><summary>A2A callback notifications</summary><label>Approved callback URLs (one per line)<textarea name="a2a_push_destinations" rows="3">${escapeHtml((item?.data?.a2a_push?.destinations||[]).join("\n"))}</textarea></label><label class="check-label"><input type="checkbox" name="a2a_push_private" ${item?.data?.a2a_push?.allow_private?"checked":""}>Allow explicitly listed private destinations</label><p>Enable A2A first. Blank list keeps callbacks off. Clients register Bearer credentials through the task API. HTTPS required; local HTTP allowed only on loopback with private allowance. Three delivery attempts; receivers must deduplicate delivery IDs. Credentials require server encryption setup.</p></details>`;
   if(library.kind!=="schedules")return result;
   const data=item?.data||{};
   return result+inputField("cron","Cron schedule (optional; overrides fixed interval)",data.cron||"")+inputField("timezone","Time zone",data.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC")+'<p>Example: 0 9 * * 1-5 runs weekdays at 09:00 in the selected time zone. Missing DST times are skipped; repeated times run once.</p><button type="button" class="secondary" id="cron-preview">Preview upcoming dates</button><p id="cron-preview-output"></p>';
@@ -140,7 +149,11 @@ operationFormData=function(form){
   }
   const data=originalOperationFormData(form);
   if(library.kind==="schedules")data.timezone=form.get("timezone")||"UTC";
-  if(library.kind==="entrypoints")data.mcp_enabled=form.has("mcp_enabled");
+  if(library.kind==="entrypoints"){
+    data.mcp_enabled=form.has("mcp_enabled");
+    const destinations=String(form.get("a2a_push_destinations")||"").split("\n").map(v=>v.trim()).filter(Boolean);
+    if(destinations.length)data.a2a_push={destinations,allow_private:form.has("a2a_push_private")};
+  }
   return data;
 };
 document.addEventListener("click",async event=>{if(event.target.id!=="cron-preview")return;try{const form=new FormData($("library-form"));const result=await featureApi("schedules/preview",{cron:form.get("cron"),timezone:form.get("timezone")});$("cron-preview-output").textContent=result.items.map(v=>new Date(v).toLocaleString(undefined,{timeZone:form.get("timezone")})).join(" · ");}catch(error){$("cron-preview-output").textContent=error.message;}});
@@ -264,6 +277,7 @@ function renderExecutionReplay(root,data,run){
 const basicRunDetail=updateRunDetail;
 updateRunDetail=function(run){
   basicRunDetail(run);if(state.detailRunId!==run.id||!$("run-output"))return;
+  if(typeof renderStructuredContent==="function")renderStructuredContent($("run-output"),(run.structured_content||[]).filter(part=>run.kind!=="external"||part.type!=="text"));
   let root=$("run-execution");if(!root){root=document.createElement("section");root.id="run-execution";$("run-output").after(root);}
   if(executionRequests.has(run.id)||(["running","queued"].includes(run.status)&&Date.now()-(executionTimes.get(run.id)||0)<1000))return;executionTimes.set(run.id,Date.now());
   const request=featureApi(`runs/${encodeURIComponent(run.id)}/execution`).then(data=>{if(state.detailRunId!==run.id||root!==$("run-execution"))return;const signature=JSON.stringify([data.timeline,data.states,run.status,run.cancel_requested,run.awaiting_input]);if(root.dataset.signature===signature)return;root.dataset.signature=signature;
@@ -327,7 +341,7 @@ document.addEventListener("click",async event=>{const button=event.target.closes
   if(button.dataset.integrationSetup)await configureIntegration(button.dataset.integrationSetup);
 }catch(error){notify(error.message);}});
 
-const enterpriseTypes={bedrock:"Amazon Bedrock Agent","bedrock-kb":"Amazon Bedrock knowledge base","bedrock-flow":"Amazon Bedrock Flow",mongodb:"MongoDB",nuclia:"Nuclia",powerbi:"Power BI"};
+const enterpriseTypes={teams:"Microsoft Teams",bedrock:"Amazon Bedrock Agent","bedrock-kb":"Amazon Bedrock knowledge base","bedrock-flow":"Amazon Bedrock Flow",mongodb:"MongoDB",nuclia:"Nuclia",powerbi:"Power BI"};
 const enterpriseEditor=openLibraryEditor;
 openLibraryEditor=async function(id,template){
   await enterpriseEditor(id,template);if(library.kind!=="connectors")return;
@@ -335,17 +349,17 @@ openLibraryEditor=async function(id,template){
   for(const [value,label] of Object.entries(enterpriseTypes)){const option=document.createElement("option");option.value=value;option.textContent=label;select.append(option);}
   const fields=document.createElement("div");fields.className="enterprise-fields";
   const field=(key,label,fallback="")=>inputField("enterprise_"+key,label,data[key]||fallback);
-  fields.innerHTML=`<fieldset data-enterprise="aws"><legend>Amazon Bedrock</legend>${field("region","AWS region","eu-west-1")}${field("resource_id","Agent, knowledge base or flow ID")}${field("alias_id","Agent or flow alias ID")}${field("access_key_env","AWS access-key environment reference","AWS_ACCESS_KEY_ID")}${field("secret_key_env","AWS secret-key environment reference","AWS_SECRET_ACCESS_KEY")}${field("session_token_env","AWS session-token reference (optional)")}${field("input_node","Flow input node","FlowInputNode")}${field("input_name","Flow output name","document")}<p>Knowledge retrieval is read-only. Agent and flow invocations require reviewed confirmation because they may run external actions.</p></fieldset><fieldset data-enterprise="mongodb"><legend>MongoDB</legend>${field("dsn_env","MongoDB URI environment reference")}${field("database","Database")}${inputField("enterprise_collections","Allowed collections (comma separated)",(data.collections||[]).join(", "))}<label><input name="enterprise_allow_writes" type="checkbox" ${data.allow_writes?"checked":""}>Allow reviewed single-document writes</label></fieldset><fieldset data-enterprise="nuclia"><legend>Nuclia knowledge</legend>${field("url","Nuclia service base URL")}${field("knowledge_box","Knowledge box ID")}<label><input type="checkbox" name="enterprise_private" ${data.allow_private?"checked":""}>Allow private Nuclia server</label></fieldset><fieldset data-enterprise="powerbi"><legend>Power BI</legend>${field("dataset_id","Dataset ID")}${field("workspace_id","Workspace ID (optional)")}<p>Read dataset metadata and execute DAX queries against this dataset.</p></fieldset><fieldset data-enterprise="account"><legend>Service account</legend>${field("token_env","Token environment reference")}</fieldset><fieldset data-enterprise="actions"><legend>Permissions</legend>${inputField("enterprise_actions","Enabled actions (comma separated)",(data.actions||[]).join(", "))}<p>Leave empty for the connector’s default actions. Credentials stay in Nexus account settings or server environment references. API billing belongs to the selected service account.</p></fieldset>`;
+  fields.innerHTML=`<fieldset data-enterprise="teams"><legend>Microsoft Teams channel</legend>${field("team_id","Team ID")}${field("channel_id","Channel ID")}<p>Use a delegated work/school Microsoft Graph account. Read actions: status, query. Reviewed writes: send, update_message. Token permissions and channel membership are required.</p></fieldset><fieldset data-enterprise="aws"><legend>Amazon Bedrock</legend>${field("region","AWS region","eu-west-1")}${field("resource_id","Agent, knowledge base or flow ID")}${field("alias_id","Agent or flow alias ID")}${field("access_key_env","AWS access-key environment reference","AWS_ACCESS_KEY_ID")}${field("secret_key_env","AWS secret-key environment reference","AWS_SECRET_ACCESS_KEY")}${field("session_token_env","AWS session-token reference (optional)")}${field("input_node","Flow input node","FlowInputNode")}${field("input_name","Flow output name","document")}<p>Knowledge retrieval is read-only. Agent and flow invocations require reviewed confirmation because they may run external actions.</p></fieldset><fieldset data-enterprise="mongodb"><legend>MongoDB</legend>${field("dsn_env","MongoDB URI environment reference")}${field("database","Database")}${inputField("enterprise_collections","Allowed collections (comma separated)",(data.collections||[]).join(", "))}<label><input name="enterprise_allow_writes" type="checkbox" ${data.allow_writes?"checked":""}>Allow reviewed single-document writes</label></fieldset><fieldset data-enterprise="nuclia"><legend>Nuclia knowledge</legend>${field("url","Nuclia service base URL")}${field("knowledge_box","Knowledge box ID")}<label><input type="checkbox" name="enterprise_private" ${data.allow_private?"checked":""}>Allow private Nuclia server</label></fieldset><fieldset data-enterprise="powerbi"><legend>Power BI</legend>${field("dataset_id","Dataset ID")}${field("workspace_id","Workspace ID (optional)")}<p>Read dataset metadata and execute DAX queries against this dataset.</p></fieldset><fieldset data-enterprise="account"><legend>Service account</legend>${field("token_env","Token environment reference")}</fieldset><fieldset data-enterprise="actions"><legend>Permissions</legend>${inputField("enterprise_actions","Enabled actions (comma separated)",(data.actions||[]).join(", "))}<p>Leave empty for the connector’s default actions. Credentials stay in Nexus account settings or server environment references. API billing belongs to the selected service account.</p></fieldset>`;
   $("library-fields").append(fields);
-  function sync(){const type=select.value;fields.querySelectorAll("[data-enterprise]").forEach(box=>{const key=box.dataset.enterprise;box.hidden=!(key===type||key==="aws"&&type.startsWith("bedrock")||key==="account"&&["nuclia","powerbi"].includes(type)||key==="actions"&&Object.hasOwn(enterpriseTypes,type));});
+  function sync(){const type=select.value;fields.querySelectorAll("[data-enterprise]").forEach(box=>{const key=box.dataset.enterprise;box.hidden=!(key===type||key==="aws"&&type.startsWith("bedrock")||key==="account"&&["nuclia","powerbi","teams"].includes(type)||key==="actions"&&Object.hasOwn(enterpriseTypes,type));});
     ["alias_id","input_node","input_name"].forEach(key=>{const show=key==="alias_id"?["bedrock","bedrock-flow"].includes(type):type==="bedrock-flow";fields.querySelector(`[name="enterprise_${key}"]`).closest("label").hidden=!show;});}
-  select.addEventListener("change",sync);if(Object.hasOwn(enterpriseTypes,data.type)){select.value=data.type;select.dispatchEvent(new Event("change",{bubbles:true}));}sync();
+  select.addEventListener("change",sync);const selectedType=data.type||template?.id||template?.target;if(Object.hasOwn(enterpriseTypes,selectedType)){select.value=selectedType;select.dispatchEvent(new Event("change",{bubbles:true}));}sync();
 };
 const enterpriseFormData=operationFormData;
 operationFormData=function(form){
   const type=form.get("connector_type");if(library.kind!=="connectors"||!Object.hasOwn(enterpriseTypes,type))return enterpriseFormData(form);
   const data={type,enabled:form.has("enabled")},read=key=>String(form.get("enterprise_"+key)||"").trim();
-  const keys=type.startsWith("bedrock")?["region","resource_id","access_key_env","secret_key_env","session_token_env",...(type!=="bedrock-kb"?["alias_id"]:[]),...(type==="bedrock-flow"?["input_node","input_name"]:[])]:type==="mongodb"?["dsn_env","database"]:type==="nuclia"?["url","knowledge_box","token_env"]:["dataset_id","workspace_id","token_env"];
+  const keys=type.startsWith("bedrock")?["region","resource_id","access_key_env","secret_key_env","session_token_env",...(type!=="bedrock-kb"?["alias_id"]:[]),...(type==="bedrock-flow"?["input_node","input_name"]:[])]:type==="mongodb"?["dsn_env","database"]:type==="nuclia"?["url","knowledge_box","token_env"]:type==="teams"?["team_id","channel_id","token_env"]:["dataset_id","workspace_id","token_env"];
   keys.forEach(key=>data[key]=read(key));
   if(type==="mongodb"){data.collections=read("collections").split(",").map(v=>v.trim()).filter(Boolean);data.allow_writes=form.has("enterprise_allow_writes");}
   if(type==="nuclia")data.allow_private=form.has("enterprise_private");
@@ -426,14 +440,47 @@ document.addEventListener("click",async event=>{const button=event.target.closes
 
 function openAPIHealthOptions(spec,selected){
  const enabled=new Set(selected),result=[];
- for(const [path,entry] of Object.entries(spec.paths||{})){
-  if(!entry||typeof entry!=="object")continue;
+ const local=(value,seen=[])=>{
+  if(!value||typeof value!=="object")return null;
+  if(!Object.hasOwn(value,"$ref"))return value;
+  const ref=value.$ref;if(typeof ref!=="string"||!ref.startsWith("#/")||seen.includes(ref)||seen.length>=20)return null;
+  let target=spec;for(const part of ref.slice(2).split("/")){const key=part.replaceAll("~1","/").replaceAll("~0","~");if(!target||!Object.hasOwn(target,key))return null;target=target[key];}
+  const resolved=local(target,[...seen,ref]);return resolved?{...resolved,...Object.fromEntries(Object.entries(value).filter(([key])=>key!=="$ref"))}:null;
+ };
+ for(const [path,value] of Object.entries(spec.paths||{})){
+  const entry=local(value);if(!entry||/\{[^}]+\}/.test(path))continue;
   for(const method of ["get","head","options"]){
-   const operation=entry[method];if(!operation||typeof operation!=="object")continue;
-   const id=operation.operationId||`${method}:${path}`;
-   const parameters=[...(entry.parameters||[]),...(operation.parameters||[])];
-   if(enabled.has(id)&&!operation.requestBody&&!parameters.some(p=>p.required||p.in==="path"))result.push({id,label:`${method.toUpperCase()} ${path}`});
+   const operation=local(entry[method]);if(!operation)continue;
+   const id=operation.operationId||`${method}:${path}`,parameters=new Map();let valid=true;
+   for(const group of [entry.parameters||[],operation.parameters||[]]){if(!Array.isArray(group)){valid=false;break;}for(const raw of group){const parameter=local(raw);if(!parameter){valid=false;break;}parameters.set(`${parameter.in}:${parameter.in==="header"?String(parameter.name).toLowerCase():parameter.name}`,parameter);}}
+   const body=operation.requestBody?local(operation.requestBody):null;
+   if(valid&&enabled.has(id)&&(!body||!Object.keys(body).length)&&![...parameters.values()].some(p=>p.required||p.in==="path"))result.push({id,label:`${method.toUpperCase()} ${path}`});
   }
  }
  return result;
 }
+
+// Delegated MCP accounts use the current Nexus identity; no token enters the form.
+const delegatedConnectorEditor=openLibraryEditor;
+openLibraryEditor=async function(id,template){
+  await delegatedConnectorEditor(id,template);if(library.kind!=="connectors")return;
+  const form=$("library-form"),data=library.editing?.data||{},auth=data.auth||{};
+  const option=document.createElement("option");option.value="oauth";option.textContent="Sign in with provider (OAuth)";form.elements.remote_auth.append(option);
+  if(auth.type==="oauth")form.elements.remote_auth.value="oauth";
+  const panel=document.createElement("fieldset");panel.className="oauth-account";panel.innerHTML=`<legend>Delegated account</legend><p>Register a client with your provider first. Callback address: <code>${escapeHtml(location.origin+"/api/studio/oauth/callback")}</code>. Account stays private to your Nexus user. API usage may be billed separately from coding subscriptions.</p>${inputField("oauth_issuer","Authorization issuer URL",auth.issuer||"")}${inputField("oauth_client","Registered client ID",auth.client_id||"")}${inputField("oauth_scopes","Requested scopes (separated by spaces)",(auth.scopes||[]).join(" "))}${inputField("oauth_resource","Resource URI (defaults to service URL)",auth.resource||"")}${inputField("oauth_secret","Client secret environment reference (optional)",auth.client_secret_env||"")}${inputField("oauth_origins","Additional endpoint origins (separated by spaces)",(auth.endpoint_origins||[]).join(" "))}<p data-oauth-status role="status">Save connector settings before signing in.</p>`;
+  $("library-fields").append(panel);
+  const sync=()=>{const remote=form.elements.connector_type.value==="mcp"&&form.elements.mcp_transport.value!=="stdio";option.disabled=!remote;panel.hidden=!remote||form.elements.remote_auth.value!=="oauth";for(const name of ["remote_token","remote_header","remote_parameter","remote_user","remote_password"])form.elements[name].closest("label").hidden=form.elements.remote_auth.value==="oauth";};
+  for(const field of [form.elements.connector_type,form.elements.mcp_transport,form.elements.remote_auth])field.addEventListener("change",sync);sync();
+  let changed=false;panel.addEventListener("input",()=>changed=true);for(const name of ["remote_url","remote_auth","mcp_transport","allow_private"])form.elements[name]?.addEventListener("change",()=>changed=true);
+  if(!id)return;
+  const status=panel.querySelector("[data-oauth-status]"),actions=document.createElement("div");actions.className="button-row";panel.append(actions);
+  const show=async()=>{const result=await featureApi(`connectors/${encodeURIComponent(id)}/oauth`);status.textContent=`Your account: ${result.status.replaceAll("_"," ")}.`;if(result.connected)panel.querySelector("[data-oauth-link]")?.remove();};
+  for(const [label,action] of [["Sign in","start"],["Refresh status","status"],["Disconnect my account","disconnect"]]){const button=document.createElement("button");button.type="button";button.textContent=label;actions.append(button);button.onclick=async()=>{button.disabled=true;try{if(action==="status")await show();else{if(action==="start"&&changed)throw new Error("Save settings and reopen this connector before signing in.");const result=await featureApi(`connectors/${encodeURIComponent(id)}/oauth/${action}`,{});panel.querySelector("[data-oauth-link]")?.remove();if(action==="start"){const link=document.createElement("a");link.dataset.oauthLink="true";link.href=result.authorization_url;link.target="_blank";link.rel="noopener noreferrer";link.textContent="Continue provider sign-in";panel.append(link);status.textContent="Sign-in ready. Follow link, then refresh status here.";}else await show();}}catch(error){status.textContent=error.message;}finally{button.disabled=false;}};}
+  if(auth.type==="oauth")try{await show();}catch(error){status.textContent=error.message;}
+};
+const delegatedConnectorFormData=operationFormData;
+operationFormData=function(form){
+  const data=delegatedConnectorFormData(form);
+  if(library.kind==="connectors"&&data.type==="mcp"&&data.transport!=="stdio"&&form.get("remote_auth")==="oauth")data.auth={type:"oauth",issuer:form.get("oauth_issuer"),client_id:form.get("oauth_client"),scopes:String(form.get("oauth_scopes")||"").trim().split(/\s+/).filter(Boolean),resource:form.get("oauth_resource")||undefined,client_secret_env:form.get("oauth_secret")||undefined,endpoint_origins:String(form.get("oauth_origins")||"").trim().split(/\s+/).filter(Boolean)};
+  return data;
+};
