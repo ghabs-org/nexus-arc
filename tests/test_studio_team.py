@@ -454,6 +454,97 @@ def test_shared_cli_never_mounts_workspace_or_passes_tokens_in_arguments(
     process.communicate.assert_awaited_once_with(b"private prompt")
 
 
+def test_shared_agy_runs_with_its_own_home_and_stream_json_input(tmp_path):
+    user_home = tmp_path / "user-home"
+    agy_home = tmp_path / "agy-home"
+    user_home.mkdir()
+    agy_home.mkdir()
+    environment = {
+        "HOME": str(user_home),
+        "AGY_HOME": str(agy_home),
+        "OPENAI_API_KEY": "alice-private-key",
+    }
+    process = MagicMock(returncode=0)
+    process.communicate = AsyncMock(
+        return_value=(
+            b'{"event":"result","result":{"status":"SUCCESS","response":"Safe response"}}\n',
+            b"",
+        )
+    )
+    cleanup = MagicMock(returncode=0)
+    cleanup.wait = AsyncMock(return_value=0)
+    with (
+        patch("nexus.core.studio_team.shutil.which", return_value="/usr/bin/docker"),
+        patch(
+            "nexus.core.studio_team.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=[process, cleanup]),
+        ) as spawn,
+    ):
+        result = asyncio.run(
+            ContainerCLIProvider(
+                "agy", environment, "trusted-worker@sha256:" + "a" * 64
+            ).execute_agent(
+                ExecutionContext(
+                    "test",
+                    "private prompt",
+                    tmp_path / "server-project",
+                    model_override="gemini-3-pro",
+                    effort="high",
+                )
+            )
+        )
+    assert result.success and result.output == "Safe response"
+    args = spawn.call_args_list[0].args
+    joined = " ".join(args)
+    assert str(tmp_path / "server-project") not in joined and "private prompt" not in joined
+    # Only the dedicated Antigravity home is mounted, as the container HOME.
+    assert f"type=bind,src={agy_home.resolve()},dst=/home/nexus" in args
+    assert str(user_home) not in joined
+    assert "alice-private-key" not in joined
+    assert "OPENAI_API_KEY" not in spawn.call_args_list[0].kwargs["env"]
+    worker = list(args[args.index("trusted-worker@sha256:" + "a" * 64) + 1 :])
+    assert worker[:6] == ["agy", "-p=", "--input-format", "stream-json", "--output-format", "stream-json"]
+    assert "--sandbox" in worker and "--disable-slash-commands" in worker
+    assert worker[worker.index("--model") + 1] == "gemini-3-pro"
+    assert worker[worker.index("--effort") + 1] == "high"
+    assert worker.count("--model") == 1 and worker.count("--effort") == 1
+    sent = process.communicate.await_args.args[0]
+    assert json.loads(sent) == {
+        "event": "user",
+        "message": {"role": "user", "content": "private prompt"},
+    }
+
+
+def test_agy_requires_account_login_and_worker_image(monkeypatch):
+    def policy(values, runner_image=None):
+        return NexusTeamPolicy(
+            project_key="sample",
+            public_url="https://studio.example.test",
+            login_url="https://studio.example.test/login?next=/",
+            bindings={"owner": "owner"},
+            manager=NexusIdentity(),
+            environment_resolver=lambda identity: (values, None),
+            runner_image=runner_image,
+        )
+
+    record = [{"id": "agy", "kind": "cli"}]
+    image = "trusted-worker@sha256:" + "a" * 64
+    monkeypatch.setattr("nexus.core.studio_team.shutil.which", lambda name: "/usr/bin/docker")
+    # An API key for another provider does not make agy usable.
+    no_account = policy({"OPENAI_API_KEY": "key"}, image)
+    with pytest.raises(PermissionError):
+        no_account.environment("owner", "agy")
+    assert no_account.providers(record, "owner")[0]["configured"] is False
+    with_account = policy({"NEXUS_ACCOUNT_AUTH_PROVIDERS": "claude,agy"}, image)
+    assert with_account.environment("owner", "agy")["NEXUS_ACCOUNT_AUTH_PROVIDERS"] == "claude,agy"
+    assert with_account.providers(record, "owner")[0]["configured"] is True
+    assert isinstance(
+        with_account.provider("agy", {"requester_nexus_id": "owner"}), ContainerCLIProvider
+    )
+    no_image = policy({"NEXUS_ACCOUNT_AUTH_PROVIDERS": "agy"})
+    assert no_image.providers(record, "owner")[0]["configured"] is False
+
+
 def test_evaluations_and_approval_runs_keep_creator_identity(team):
     service, policy, manager, request, calls = team
     status, suite = request(

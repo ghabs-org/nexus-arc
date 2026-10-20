@@ -707,6 +707,7 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
             "gemini_account_enabled": False,
             "claude_account_enabled": False,
             "copilot_account_enabled": False,
+            "agy_account_enabled": False,
             "account_provider_ready": False,
             "ai_provider_key_set": False,
             "copilot_ready": False,
@@ -735,6 +736,7 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
     gemini_account_enabled = bool(record and getattr(record, "gemini_account_enabled", False))
     claude_account_enabled = bool(record and getattr(record, "claude_account_enabled", False))
     copilot_account_enabled = bool(record and getattr(record, "copilot_account_enabled", False))
+    agy_account_enabled = bool(record and getattr(record, "agy_account_enabled", False))
     ai_provider_key_set = bool(codex_key_set or gemini_key_set or claude_key_set)
     # Copilot is available with linked GitHub OAuth or an explicit Copilot GitHub token.
     copilot_ready = bool(github_linked or copilot_token_set or (account_mode_enabled and copilot_account_enabled))
@@ -745,6 +747,7 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
             or gemini_account_enabled
             or claude_account_enabled
             or copilot_account_enabled
+            or agy_account_enabled
         )
     )
     ai_provider_ready = bool(ai_provider_key_set or copilot_ready or account_provider_ready)
@@ -773,6 +776,7 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
         "gemini_account_enabled": gemini_account_enabled,
         "claude_account_enabled": claude_account_enabled,
         "copilot_account_enabled": copilot_account_enabled,
+        "agy_account_enabled": agy_account_enabled,
         "account_provider_ready": account_provider_ready,
         "copilot_token_set": copilot_token_set,
         "ai_provider_key_set": ai_provider_key_set,
@@ -828,6 +832,7 @@ def has_setup_ready_user_for_project(project_key: str) -> bool:
                     or bool(getattr(record, "gemini_account_enabled", False))
                     or bool(getattr(record, "claude_account_enabled", False))
                     or bool(getattr(record, "copilot_account_enabled", False))
+                    or bool(getattr(record, "agy_account_enabled", False))
                 )
             )
             ai_provider_ready = bool(ai_provider_key_set or copilot_ready or account_provider_ready)
@@ -1078,9 +1083,11 @@ def prepare_execution_env(
     codex_root = os.path.join(auth_root, "codex")
     gemini_root = os.path.join(auth_root, "gemini")
     claude_root = os.path.join(auth_root, "claude")
+    agy_root = os.path.join(auth_root, "agy")
     codex_home = os.path.join(codex_root, str(nexus_id))
     gemini_home = os.path.join(gemini_root, str(nexus_id))
     claude_home = os.path.join(claude_root, str(nexus_id))
+    agy_home = os.path.join(agy_root, str(nexus_id))
     for path in (
         auth_root,
         user_home_root,
@@ -1088,9 +1095,11 @@ def prepare_execution_env(
         codex_root,
         gemini_root,
         claude_root,
+        agy_root,
         codex_home,
         gemini_home,
         claude_home,
+        agy_home,
     ):
         dir_err = _ensure_private_runtime_dir(path)
         if dir_err:
@@ -1099,6 +1108,8 @@ def prepare_execution_env(
     prepared_env["CODEX_HOME"] = codex_home
     prepared_env["GEMINI_HOME"] = gemini_home
     prepared_env["CLAUDE_HOME"] = claude_home
+    # Antigravity CLI keeps login and state under $HOME/.gemini; agy runs use AGY_HOME as HOME.
+    prepared_env["AGY_HOME"] = agy_home
     return prepared_env, None
 
 
@@ -1175,6 +1186,8 @@ def build_execution_env(
             account_auth_providers.append("claude")
         if bool(getattr(record, "copilot_account_enabled", False)):
             account_auth_providers.append("copilot")
+        if bool(getattr(record, "agy_account_enabled", False)):
+            account_auth_providers.append("agy")
     if account_auth_providers:
         env["NEXUS_ACCOUNT_AUTH_PROVIDERS"] = ",".join(account_auth_providers)
     from nexus.core.utils.logging_filters import omit_secret_keys

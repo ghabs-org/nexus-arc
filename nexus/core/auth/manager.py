@@ -98,6 +98,7 @@ class AuthManager:
         use_gemini_account: bool | None = None,
         use_claude_account: bool | None = None,
         use_copilot_account: bool | None = None,
+        use_agy_account: bool | None = None,
     ) -> dict[str, Any]:
         return _auth_sessions.store_ai_provider_keys(
             session_id=session_id,
@@ -110,6 +111,7 @@ class AuthManager:
             use_gemini_account=use_gemini_account,
             use_claude_account=use_claude_account,
             use_copilot_account=use_copilot_account,
+            use_agy_account=use_agy_account,
         )
 
     def get_session_and_setup_status(self, session_id: str) -> dict[str, Any]:
@@ -276,6 +278,7 @@ def store_ai_provider_keys(
     use_gemini_account: bool | None = None,
     use_claude_account: bool | None = None,
     use_copilot_account: bool | None = None,
+    use_agy_account: bool | None = None,
 ) -> dict[str, Any]:
     return auth_manager.store_ai_provider_keys(
         session_id=session_id,
@@ -288,6 +291,7 @@ def store_ai_provider_keys(
         use_gemini_account=use_gemini_account,
         use_claude_account=use_claude_account,
         use_copilot_account=use_copilot_account,
+        use_agy_account=use_agy_account,
     )
 
 

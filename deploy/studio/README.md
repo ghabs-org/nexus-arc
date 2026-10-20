@@ -27,6 +27,13 @@ project role bindings; it does not create another login database or OAuth client
      -t YOUR_REGISTRY/nexus-studio-worker:YOUR_VERSION .
    ```
 
+   To include Google Antigravity (`agy`), also pass `AGY_URL` and `AGY_SHA512`
+   from the official release manifest for the worker architecture, e.g.
+   `https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_arm64.json`
+   (the `url` and `sha512` fields; the URL is version-specific). Users connect
+   it with **Connect Antigravity Account** in Nexus account setup; set
+   `AGY_CLI_PATH` for that login service to the same pinned version.
+
    Publish through your normal image process, obtain its repository digest and
    put that exact `name@sha256:...` in `runner_image`. Pull it on the worker host
    before use; runs use `--pull never`. Validate the required CLI flags against

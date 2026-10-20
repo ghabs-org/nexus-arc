@@ -3,9 +3,21 @@ ARG NODE_IMAGE
 FROM ${NODE_IMAGE}
 ARG CODEX_VERSION
 ARG CLAUDE_CODE_VERSION
+# Optional Google Antigravity CLI: the versioned archive URL and SHA-512 from the
+# official release manifest (see deploy/studio/README.md). Empty skips agy.
+ARG AGY_URL=
+ARG AGY_SHA512=
 RUN test -n "$CODEX_VERSION" && test -n "$CLAUDE_CODE_VERSION" \
     && npm install --global "@openai/codex@${CODEX_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && npm cache clean --force
+RUN if [ -n "$AGY_URL" ]; then \
+      test -n "$AGY_SHA512" \
+      && node -e 'fetch(process.env.AGY_URL).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); }).then(b => require("fs").writeFileSync("/tmp/agy.tgz", Buffer.from(b)))' \
+      && echo "$AGY_SHA512  /tmp/agy.tgz" | sha512sum -c - \
+      && tar -xzf /tmp/agy.tgz -C /tmp antigravity \
+      && install -m 0755 /tmp/antigravity /usr/local/bin/agy \
+      && rm -f /tmp/agy.tgz /tmp/antigravity; \
+    fi
 ENV DISABLE_AUTOUPDATER=1
 WORKDIR /workspace
 # Studio supplies the numeric service UID and per-user mounts at invocation.

@@ -14,15 +14,25 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import uuid
 from datetime import UTC, datetime
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlparse
 
+from nexus.adapters.ai.agy_provider import (
+    agy_print_args,
+    agy_stream_input,
+    parse_agy_stream_output,
+)
+from nexus.adapters.ai.base import split_model_effort
 from nexus.core.models import AgentResult
 
 ROLES = {"viewer": 0, "operator": 1, "builder": 2, "owner": 3}
+# Subscription CLIs that run in the isolated runner_image. agy has no API-key mode.
+WORKER_CLIS = {"codex", "claude-code", "agy"}
+ACCOUNT_ONLY_PROVIDERS = {"agy"}
 
 
 class TeamAccessError(PermissionError):
@@ -252,7 +262,8 @@ class NexusTeamPolicy:
         }
         if (
             provider not in keys
-            or not values.get(keys[provider])
+            and provider not in ACCOUNT_ONLY_PROVIDERS
+            or not values.get(keys.get(provider, ""))
             and account_name not in allowed_accounts
         ):
             raise TeamAccessError("Selected provider is not configured for this Nexus user")
@@ -283,7 +294,7 @@ class NexusTeamPolicy:
             if item["kind"] == "cli":
                 ready = (
                     ready
-                    and name in {"codex", "claude-code"}
+                    and name in WORKER_CLIS
                     and bool(
                         self.runner_image
                         and re.fullmatch(r"[^\s]+@sha256:[a-f0-9]{64}", self.runner_image)
@@ -306,8 +317,10 @@ class NexusTeamPolicy:
             return AdapterRegistry().create_ai(
                 name, api_key=env["OPENAI_API_KEY" if name == "openai" else "ANTHROPIC_API_KEY"]
             )
-        if name not in {"codex", "claude-code"}:
-            raise ValueError("Shared subscription workers currently support Codex and Claude Code")
+        if name not in WORKER_CLIS:
+            raise ValueError(
+                "Shared subscription workers support Codex, Claude Code and Antigravity"
+            )
         return ContainerCLIProvider(name, env, self.runner_image, builder=builder)
 
 
@@ -330,7 +343,7 @@ class ContainerCLIProvider:
     async def execute_agent(self, context):
         if not await self.check_availability():
             raise ValueError("Isolated worker is unavailable")
-        if self.name not in {"codex", "claude-code"}:
+        if self.name not in WORKER_CLIS:
             raise ValueError("Unsupported shared CLI worker provider")
         docker = shutil.which("docker")
         if not docker:
@@ -367,8 +380,12 @@ class ContainerCLIProvider:
         mounts = {"HOME": "/home/nexus"}
         if self.name == "codex":
             mounts["CODEX_HOME"] = "/run/credentials/codex"
-        else:
+        elif self.name == "claude-code":
             mounts["CLAUDE_HOME"] = "/run/credentials/claude"
+        else:
+            # Antigravity keeps its login and state in $HOME/.gemini under the
+            # user's dedicated AGY_HOME, so that home becomes the container HOME.
+            mounts = {"AGY_HOME": "/home/nexus"}
         for key, destination in mounts.items():
             source = self.environment.get(key)
             if not source:
@@ -380,7 +397,11 @@ class ContainerCLIProvider:
             container_env[key] = destination
         # Existing Nexus login prepares HOME/.claude. Keep the official CLI's
         # normal location rather than redirecting it to the legacy CLAUDE_HOME.
-        secret_keys = {"codex": ["OPENAI_API_KEY"], "claude-code": ["ANTHROPIC_API_KEY"]}[self.name]
+        secret_keys = {
+            "codex": ["OPENAI_API_KEY"],
+            "claude-code": ["ANTHROPIC_API_KEY"],
+            "agy": [],
+        }[self.name]
         for key, value in container_env.items():
             command += ["--env", f"{key}={value}"]
         for key in secret_keys:
@@ -402,6 +423,11 @@ class ContainerCLIProvider:
                     "--sandbox",
                     "read-only",
                 ]
+            elif self.name == "agy":
+                model, effort = split_model_effort(context.model_override, context.effort)
+                timeout = int(context.timeout or 600)
+                # --sandbox restricts terminal tools; the workspace is an empty read-only dir.
+                command += ["agy", *agy_print_args(timeout, model, effort), "--sandbox"]
             else:
                 command += [
                     "claude",
@@ -417,9 +443,9 @@ class ContainerCLIProvider:
                     "--mcp-config",
                     '{"mcpServers":{}}',
                 ]
-            if context.model_override:
+            if context.model_override and self.name != "agy":
                 command += ["--model", context.model_override]
-            if context.effort:
+            if context.effort and self.name != "agy":
                 if self.name == "codex":
                     command += ["-c", f'model_reasoning_effort="{context.effort}"']
                 elif self.name == "claude-code":
@@ -435,9 +461,23 @@ class ContainerCLIProvider:
                     stderr=asyncio.subprocess.PIPE,
                     env=client_env,
                 )
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(context.prompt.encode()), timeout=context.timeout
+                prompt_bytes = (
+                    agy_stream_input(context.prompt)
+                    if self.name == "agy"
+                    else context.prompt.encode()
                 )
+                started = time.monotonic()
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(prompt_bytes), timeout=context.timeout
+                )
+                if self.name == "agy":
+                    return parse_agy_stream_output(
+                        stdout,
+                        process.returncode,
+                        stderr,
+                        time.monotonic() - started,
+                        model,
+                    )
                 text = stdout.decode(errors="replace")
                 success = process.returncode == 0
                 if self.name == "claude-code":

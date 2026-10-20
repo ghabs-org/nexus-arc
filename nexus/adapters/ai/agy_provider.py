@@ -17,6 +17,93 @@ logger = logging.getLogger(__name__)
 _AGY_PREFERRED_TASKS = {"reasoning", "analysis", "code_generation", "code_review"}
 
 
+def agy_print_args(timeout: int, model: str | None = None, effort: str | None = None) -> list[str]:
+    """Arguments after the binary for one stream-json print-mode turn."""
+    args = [
+        "-p=",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+        "--disable-slash-commands",
+        "--print-timeout",
+        f"{timeout}s",
+    ]
+    if model:
+        args.extend(["--model", model])
+    if effort:
+        args.extend(["--effort", effort])
+    return args
+
+
+def agy_stream_input(prompt: str) -> bytes:
+    """The stdin NDJSON line carrying one user turn."""
+    return (
+        json.dumps({"event": "user", "message": {"role": "user", "content": prompt}}) + "\n"
+    ).encode()
+
+
+def parse_agy_stream_output(
+    stdout: bytes,
+    returncode: int | None,
+    stderr: bytes,
+    elapsed: float,
+    model: str | None,
+    provider_name: str = "agy",
+) -> AgentResult:
+    """Turn agy stream-json output into an AgentResult (final `result` event wins)."""
+    res_payload: dict = {}
+    for raw_line in (stdout or b"").splitlines():
+        line = raw_line.strip()
+        if not line.startswith(b"{"):
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("event") == "result" and isinstance(event.get("result"), dict):
+            res_payload = event["result"]
+        elif event.get("type") == "result":
+            res_payload = event
+
+    status = str(res_payload.get("status") or "")
+    output = str(res_payload.get("response") or res_payload.get("result") or "")
+    is_error = bool(
+        returncode != 0
+        or res_payload.get("is_error")
+        or (status and status != "SUCCESS")
+        or not res_payload
+    )
+    if is_error:
+        err_msg = (
+            str(res_payload.get("error") or "")
+            or output
+            or (stderr or b"").decode(errors="replace").strip()
+            or f"agy exited {returncode}"
+        )
+        return AgentResult(
+            success=False,
+            output=output,
+            error=err_msg,
+            execution_time=elapsed,
+            provider_used=provider_name,
+        )
+    usage = res_payload.get("usage") or {}
+    return AgentResult(
+        success=True,
+        output=output,
+        execution_time=elapsed,
+        provider_used=provider_name,
+        metadata={
+            "model": model,
+            "usage": {
+                "input_tokens": usage.get("input_tokens", 0),
+                "output_tokens": usage.get("output_tokens", 0),
+            },
+        },
+    )
+
+
 class AntigravityProvider(AIProvider):
     """AI provider that delegates to the Google Antigravity CLI (`agy`) in print mode."""
 
@@ -72,22 +159,7 @@ class AntigravityProvider(AIProvider):
             context.model_override or self._model,
             context.effort or self._effort,
         )
-        cmd = [
-            self._binary,
-            "-p=",
-            "--input-format",
-            "stream-json",
-            "--output-format",
-            "stream-json",
-            "--disable-slash-commands",
-            "--print-timeout",
-            f"{timeout}s",
-        ]
-        if model:
-            cmd.extend(["--model", model])
-        if effort:
-            cmd.extend(["--effort", effort])
-        cmd.extend(self._extra_args)
+        cmd = [self._binary, *agy_print_args(timeout, model, effort), *self._extra_args]
         return cmd, model, effort
 
     def _failure(self, error: str, start: float) -> AgentResult:
@@ -107,56 +179,7 @@ class AntigravityProvider(AIProvider):
         elapsed: float,
         model: str | None,
     ) -> AgentResult:
-        res_payload: dict = {}
-        for raw_line in (stdout or b"").splitlines():
-            line = raw_line.strip()
-            if not line.startswith(b"{"):
-                continue
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue
-            if event.get("event") == "result" and isinstance(event.get("result"), dict):
-                res_payload = event["result"]
-            elif event.get("type") == "result":
-                res_payload = event
-
-        status = str(res_payload.get("status") or "")
-        output = str(res_payload.get("response") or res_payload.get("result") or "")
-        is_error = bool(
-            returncode != 0
-            or res_payload.get("is_error")
-            or (status and status != "SUCCESS")
-            or not res_payload
-        )
-        if is_error:
-            err_msg = (
-                str(res_payload.get("error") or "")
-                or output
-                or stderr.decode(errors="replace").strip()
-                or f"agy exited {returncode}"
-            )
-            return AgentResult(
-                success=False,
-                output=output,
-                error=err_msg,
-                execution_time=elapsed,
-                provider_used=self.name,
-            )
-        usage = res_payload.get("usage") or {}
-        return AgentResult(
-            success=True,
-            output=output,
-            execution_time=elapsed,
-            provider_used=self.name,
-            metadata={
-                "model": model,
-                "usage": {
-                    "input_tokens": usage.get("input_tokens", 0),
-                    "output_tokens": usage.get("output_tokens", 0),
-                },
-            },
-        )
+        return parse_agy_stream_output(stdout, returncode, stderr, elapsed, model, self.name)
 
     async def execute_agent(self, context: ExecutionContext) -> AgentResult:
         """Run the prompt through `agy -p= --input-format stream-json --output-format stream-json`."""
@@ -164,10 +187,7 @@ class AntigravityProvider(AIProvider):
         workspace = Path(context.workspace)
         workspace.mkdir(parents=True, exist_ok=True)
         cmd, model, _ = self._cmd(context)
-        payload = (
-            json.dumps({"event": "user", "message": {"role": "user", "content": context.prompt}})
-            + "\n"
-        ).encode()
+        payload = agy_stream_input(context.prompt)
 
         process = None
         try:

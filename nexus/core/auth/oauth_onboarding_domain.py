@@ -13,10 +13,11 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 
@@ -122,36 +123,43 @@ def _oauth_callback_url(provider: str) -> str:
 _SESSION_REF_PREFIX = "lsr_"
 _DEVICE_AUTH_JOBS: dict[str, dict[str, Any]] = {}
 _DEVICE_AUTH_LOCK = threading.Lock()
-_SUPPORTED_PROVIDER_ACCOUNT_CONNECTORS = ("codex", "gemini", "claude")
+_SUPPORTED_PROVIDER_ACCOUNT_CONNECTORS = ("codex", "gemini", "claude", "agy")
 _PROVIDER_ACCOUNT_CONNECT_LABELS = {
     "codex": "Codex",
     "gemini": "Gemini",
     "claude": "Claude",
+    "agy": "Antigravity",
 }
 _PROVIDER_ACCOUNT_CONNECT_TOGGLE_FIELDS = {
     "codex": "use_codex_account",
     "gemini": "use_gemini_account",
     "claude": "use_claude_account",
+    "agy": "use_agy_account",
 }
 _PROVIDER_ACCOUNT_CONNECT_HOME_ENV = {
     "codex": "CODEX_HOME",
     "gemini": "GEMINI_HOME",
     "claude": "CLAUDE_HOME",
+    "agy": "AGY_HOME",
 }
 _PROVIDER_ACCOUNT_CONNECT_CLI_ENV = {
     "codex": "CODEX_CLI_PATH",
     "gemini": "GEMINI_CLI_PATH",
     "claude": "CLAUDE_CLI_PATH",
+    "agy": "AGY_CLI_PATH",
 }
 _PROVIDER_ACCOUNT_CONNECT_ARGS_ENV = {
     "codex": "NEXUS_CODEX_ACCOUNT_CONNECT_ARGS",
     "gemini": "NEXUS_GEMINI_ACCOUNT_CONNECT_ARGS",
     "claude": "NEXUS_CLAUDE_ACCOUNT_CONNECT_ARGS",
+    "agy": "NEXUS_AGY_ACCOUNT_CONNECT_ARGS",
 }
 _PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS = {
     "codex": "login --device-auth",
     "gemini": "--debug",
     "claude": "auth login",
+    # Antigravity has no login subcommand; it signs in from its interactive TUI.
+    "agy": "",
 }
 _PROVIDER_ACCOUNT_CONNECT_FAILURE_STATES = {
     "failed",
@@ -696,6 +704,8 @@ def _parse_local_callback_url(raw_text: str) -> str:
 
 def _requires_manual_auth_code(*, provider: str, log_text: str) -> bool:
     provider_name = str(provider or "").strip().lower()
+    if provider_name == "agy":
+        return "accounts.google.com/o/oauth2" in _strip_terminal_control_sequences(log_text)
     if provider_name != "gemini":
         return False
     normalized = _strip_terminal_control_sequences(log_text).lower()
@@ -837,6 +847,58 @@ def _normalize_provider_auth_code(raw_code: str) -> str:
 def _gemini_should_use_pty_wrapper() -> bool:
     raw_value = str(os.getenv("NEXUS_GEMINI_ACCOUNT_CONNECT_USE_PTY", "true")).strip().lower()
     return raw_value in {"1", "true", "yes", "on"}
+
+
+_AGY_SIGNIN_CHECK_INTERVAL_SECONDS = 5
+_AGY_OAUTH_URL_PREFIX = "https://accounts.google.com/o/oauth2/auth?"
+
+
+def _parse_agy_oauth_url(raw_text: str) -> str:
+    """Return the last complete Google OAuth URL drawn by the Antigravity TUI.
+
+    The TUI redraws the URL with no separator between frames, so a generic URL
+    match would join two copies into one invalid link.
+    """
+    text = _strip_terminal_control_sequences(raw_text)
+    chunks = text.split(_AGY_OAUTH_URL_PREFIX)[1:]
+    for chunk in reversed(chunks):
+        match = re.match(r"[^]\s<>\")']+", chunk)
+        candidate = _AGY_OAUTH_URL_PREFIX + (match.group(0) if match else "")
+        query = parse_qs(urlparse(candidate).query)
+        if query.get("state") and query.get("redirect_uri") and query.get("client_id"):
+            return candidate
+    return ""
+
+
+def _agy_login_command(command: list[str]) -> list[str]:
+    """Run Antigravity's interactive sign-in under script(1).
+
+    The CLI signs in only from its TUI, which needs a terminal. A very wide
+    pseudo-terminal keeps the Google OAuth URL on one log line for parsing.
+    """
+    script_path = shutil.which("script")
+    if not command or not script_path:
+        return command
+    inner = "stty cols 4096 rows 50 2>/dev/null; exec " + shlex.join(command)
+    return [str(script_path), "-q", "-f", "-e", "-c", inner, "/dev/null"]
+
+
+def _agy_signed_in(*, cli_path: str, home: str) -> bool:
+    """Ask the Antigravity CLI itself: `agy models` lists models only once signed in."""
+    try:
+        result = subprocess.run(
+            [cli_path, "models"],
+            env={**os.environ, "HOME": home},
+            cwd=home,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except Exception:
+        return False
+    text = f"{result.stdout}\n{result.stderr}".lower()
+    return result.returncode == 0 and "sign in" not in text and "error:" not in text
 
 
 def _wrap_command_with_script_tty(command: list[str]) -> list[str]:
@@ -1782,6 +1844,7 @@ def store_ai_provider_keys(
     use_gemini_account: bool | None = None,
     use_claude_account: bool | None = None,
     use_copilot_account: bool | None = None,
+    use_agy_account: bool | None = None,
 ) -> dict[str, Any]:
     resolved_session_id = resolve_login_session_id(session_id)
     session_record = get_auth_session(str(resolved_session_id))
@@ -1824,8 +1887,15 @@ def store_ai_provider_keys(
     copilot_account_enabled = bool(use_copilot_account) if use_copilot_account is not None else bool(
         record and getattr(record, "copilot_account_enabled", False)
     )
+    agy_account_enabled = bool(use_agy_account) if use_agy_account is not None else bool(
+        record and getattr(record, "agy_account_enabled", False)
+    )
     account_selected = bool(
-        codex_account_enabled or gemini_account_enabled or claude_account_enabled or copilot_account_enabled
+        codex_account_enabled
+        or gemini_account_enabled
+        or claude_account_enabled
+        or copilot_account_enabled
+        or agy_account_enabled
     )
     if account_selected and not _cli_account_auth_mode_enabled():
         raise ValueError(
@@ -1906,6 +1976,7 @@ def store_ai_provider_keys(
         gemini_account_enabled=gemini_account_enabled,
         claude_account_enabled=claude_account_enabled,
         copilot_account_enabled=copilot_account_enabled,
+        agy_account_enabled=agy_account_enabled,
         key_version=_key_version(),
     )
 
@@ -1948,6 +2019,8 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
             logger.warning(
                 "[provider-connect] gemini pty wrapper unavailable; continuing without pseudo-tty"
             )
+    if provider_name == "agy":
+        login_cmd = _agy_login_command(login_cmd)
     provider_home_env = str(_PROVIDER_ACCOUNT_CONNECT_HOME_ENV.get(provider_name) or "").strip()
     provider_home = _provider_runtime_home(provider=provider_name, nexus_id=session_record.nexus_id)
     user_home = _provider_user_runtime_home(nexus_id=session_record.nexus_id)
@@ -1970,6 +2043,8 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
             if getattr(existing_proc, "poll", None) and existing_proc.poll() is None:
                 log_text = _log_tail(str(existing.get("log_path") or ""))
                 verify_url, user_code = _parse_device_auth_url_and_code(log_text)
+                if provider_name == "agy":
+                    verify_url, user_code = _parse_agy_oauth_url(log_text), ""
                 callback_url_hint = _parse_local_callback_url(log_text)
                 requires_code = _requires_manual_auth_code(provider=provider_name, log_text=log_text)
                 last_line = _truncate_for_log(_last_log_line(log_text, ""), limit=220)
@@ -2014,8 +2089,12 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
             env.setdefault("NO_BROWSER", "true")
             # Gemini CLI variants resolve config from GEMINI_CLI_HOME while older builds use GEMINI_HOME/HOME.
             env.setdefault("GEMINI_CLI_HOME", user_home)
+        if provider_name == "agy":
+            # Antigravity keeps login and state in $HOME/.gemini; isolate it from Gemini CLI.
+            env["HOME"] = provider_home
+            env.setdefault("NO_BROWSER", "true")
         process_stdin: int | Any = subprocess.DEVNULL
-        if provider_name == "gemini":
+        if provider_name in {"gemini", "agy"}:
             # Gemini asks for an authorization code on stdin after browser confirmation.
             process_stdin = subprocess.PIPE
         try:
@@ -2103,6 +2182,21 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
     connected_flag = bool(setup.get(provider_toggle_key))
     job_key = _device_job_key(session_id=session_record.session_id, provider=provider_name)
     force_connect_via_existing_login = False
+    agy_signed_in = False
+    if provider_name == "agy":
+        agy_home = ""
+        with _DEVICE_AUTH_LOCK:
+            agy_job = _DEVICE_AUTH_JOBS.get(job_key)
+            if isinstance(agy_job, dict) and (
+                time.monotonic() - float(agy_job.get("agy_checked_at") or 0)
+                >= _AGY_SIGNIN_CHECK_INTERVAL_SECONDS
+            ):
+                agy_job["agy_checked_at"] = time.monotonic()
+                agy_home = str(agy_job.get("provider_home") or "")
+        if agy_home:
+            agy_signed_in = _agy_signed_in(
+                cli_path=_provider_account_login_command("agy")[0], home=agy_home
+            )
 
     with _DEVICE_AUTH_LOCK:
         job = _DEVICE_AUTH_JOBS.get(job_key)
@@ -2126,6 +2220,40 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
         callback_url_hint = _parse_local_callback_url(log_text)
         requires_code = _requires_manual_auth_code(provider=provider_name, log_text=log_text)
         exit_code = process.poll() if getattr(process, "poll", None) else None
+        if provider_name == "agy":
+            verify_url = _parse_agy_oauth_url(log_text)
+            # No device code in this flow; digits-hyphen runs in the OAuth client_id are not one.
+            user_code = ""
+
+        if exit_code is None and provider_name == "agy":
+            stdin_handle = getattr(process, "stdin", None)
+            if (
+                not job.get("agy_method_selected")
+                and stdin_handle is not None
+                and "select login method"
+                in _strip_terminal_control_sequences(log_text).lower()
+            ):
+                # Accept the default "Google OAuth" option of the sign-in menu.
+                try:
+                    stdin_handle.write("\r")
+                    stdin_handle.flush()
+                    job["agy_method_selected"] = True
+                except Exception as exc:
+                    logger.warning("[provider-connect] agy menu selection failed: %s", exc)
+            if agy_signed_in:
+                force_connect_via_existing_login = True
+                if getattr(process, "terminate", None):
+                    try:
+                        process.terminate()
+                    except Exception:
+                        pass
+                log_file = job.get("log_file")
+                if log_file is not None:
+                    try:
+                        log_file.close()
+                    except Exception:
+                        pass
+                _DEVICE_AUTH_JOBS.pop(job_key, None)
 
         if exit_code is None:
             if provider_name == "gemini" and not verify_url and _gemini_has_logged_in_identity(log_text):
@@ -2166,7 +2294,7 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
                     "callback_url_hint": callback_url_hint,
                     "requires_code": requires_code,
                     "message": (
-                        "Gemini login is waiting for authorization code submission."
+                        f"{provider_label} login is waiting for authorization code submission."
                         if requires_code
                         else f"{provider_label} login is waiting for browser confirmation."
                     ),
@@ -2217,7 +2345,13 @@ def get_provider_account_login_status(*, session_id: str, provider: str) -> dict
             "message": f"{provider_label} account is already authenticated and has been connected.",
         }
 
-    if int(exit_code) == 0:
+    if int(exit_code) == 0 and (
+        provider_name != "agy"
+        or _agy_signed_in(
+            cli_path=_provider_account_login_command("agy")[0],
+            home=_provider_runtime_home(provider="agy", nexus_id=session_record.nexus_id),
+        )
+    ):
         try:
             store_ai_provider_keys(**{"session_id": session_record.session_id, store_toggle_field: True})
         except Exception as exc:
@@ -2386,15 +2520,16 @@ def submit_provider_account_login_code(
         return {"submitted": False, "state": "invalid_session", "message": "Invalid session"}
 
     provider_name = _normalize_provider_account_connector(provider)
-    if provider_name != "gemini":
+    if provider_name not in {"gemini", "agy"}:
         return {
             "submitted": False,
             "session_id": session_record.session_id,
             "session_ref": format_login_session_ref(session_record.session_id),
             "provider": provider_name,
             "state": "unsupported_provider",
-            "message": "Authorization-code submission is currently supported only for Gemini.",
+            "message": "Authorization-code submission is supported only for Gemini and Antigravity.",
         }
+    provider_label = _provider_account_label(provider_name)
 
     code_value = _normalize_provider_auth_code(authorization_code)
 
@@ -2423,7 +2558,7 @@ def submit_provider_account_login_code(
         completed_status["submitted"] = False
         if str(completed_status.get("state") or "").strip().lower() == "idle":
             completed_status["state"] = "no_active_job"
-            completed_status["message"] = "Gemini login process is no longer active."
+            completed_status["message"] = f"{provider_label} login process is no longer active."
         return completed_status
 
     stdin_handle = getattr(process, "stdin", None)
@@ -2434,11 +2569,15 @@ def submit_provider_account_login_code(
             "session_ref": format_login_session_ref(session_record.session_id),
             "provider": provider_name,
             "state": "stdin_unavailable",
-            "message": "Gemini login stdin is unavailable; restart Connect Gemini Account.",
+            "message": (
+                f"{provider_label} login stdin is unavailable; "
+                f"restart Connect {provider_label} Account."
+            ),
         }
 
     try:
-        stdin_handle.write(f"{code_value}\n")
+        # The Antigravity TUI runs in raw mode, where Enter is a carriage return.
+        stdin_handle.write(f"{code_value}\r" if provider_name == "agy" else f"{code_value}\n")
         stdin_handle.flush()
     except Exception as exc:
         logger.error(
@@ -2453,7 +2592,7 @@ def submit_provider_account_login_code(
             "session_ref": format_login_session_ref(session_record.session_id),
             "provider": provider_name,
             "state": "submit_failed",
-            "message": f"Failed to submit authorization code to Gemini CLI: {exc}",
+            "message": f"Failed to submit authorization code to {provider_label} CLI: {exc}",
         }
 
     logger.info(
@@ -2467,7 +2606,9 @@ def submit_provider_account_login_code(
     )
     status["submitted"] = True
     if str(status.get("state") or "").strip().lower() in {"starting", "pending"}:
-        status["message"] = "Authorization code submitted to Gemini CLI. Waiting for confirmation..."
+        status["message"] = (
+            f"Authorization code submitted to {provider_label} CLI. Waiting for confirmation..."
+        )
     return status
 
 

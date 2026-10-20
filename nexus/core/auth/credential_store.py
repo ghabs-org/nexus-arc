@@ -130,6 +130,9 @@ if _SA_AVAILABLE:
         copilot_account_enabled: sa.orm.Mapped[bool] = sa.orm.mapped_column(
             sa.Boolean, nullable=False, default=False
         )
+        agy_account_enabled: sa.orm.Mapped[bool] = sa.orm.mapped_column(
+            sa.Boolean, nullable=False, default=False
+        )
         org_verified: sa.orm.Mapped[bool] = sa.orm.mapped_column(sa.Boolean, nullable=False, default=False)
         org_verified_at: sa.orm.Mapped[datetime | None] = sa.orm.mapped_column(sa.DateTime(timezone=True))
         last_access_sync_at: sa.orm.Mapped[datetime | None] = sa.orm.mapped_column(
@@ -253,6 +256,7 @@ class CredentialRecord:
     org_verified_at: datetime | None
     last_access_sync_at: datetime | None
     key_version: int
+    agy_account_enabled: bool = False
 
 
 @dataclass
@@ -366,6 +370,8 @@ def _run_schema_migrations(engine: Any) -> None:
         "UPDATE nexus_user_credentials SET gemini_account_enabled = FALSE WHERE gemini_account_enabled IS NULL",
         "UPDATE nexus_user_credentials SET claude_account_enabled = FALSE WHERE claude_account_enabled IS NULL",
         "UPDATE nexus_user_credentials SET copilot_account_enabled = FALSE WHERE copilot_account_enabled IS NULL",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS agy_account_enabled BOOLEAN DEFAULT FALSE",
+        "UPDATE nexus_user_credentials SET agy_account_enabled = FALSE WHERE agy_account_enabled IS NULL",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS last_access_sync_at TIMESTAMPTZ",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS key_version INTEGER",
         "UPDATE nexus_user_credentials SET key_version = 1 WHERE key_version IS NULL OR key_version < 1",
@@ -488,6 +494,7 @@ def _row_to_credential(row: Any) -> CredentialRecord:
         gemini_account_enabled=bool(getattr(row, "gemini_account_enabled", False)),
         claude_account_enabled=bool(getattr(row, "claude_account_enabled", False)),
         copilot_account_enabled=bool(getattr(row, "copilot_account_enabled", False)),
+        agy_account_enabled=bool(getattr(row, "agy_account_enabled", False)),
         org_verified=bool(row.org_verified),
         org_verified_at=row.org_verified_at,
         last_access_sync_at=row.last_access_sync_at,
@@ -874,6 +881,7 @@ def upsert_ai_provider_keys(
     gemini_account_enabled: bool | None = None,
     claude_account_enabled: bool | None = None,
     copilot_account_enabled: bool | None = None,
+    agy_account_enabled: bool | None = None,
     key_version: int = 1,
 ) -> None:
     engine = _get_engine()
@@ -903,6 +911,8 @@ def upsert_ai_provider_keys(
             row.claude_account_enabled = bool(claude_account_enabled)
         if copilot_account_enabled is not None:
             row.copilot_account_enabled = bool(copilot_account_enabled)
+        if agy_account_enabled is not None:
+            row.agy_account_enabled = bool(agy_account_enabled)
         row.key_version = max(1, int(key_version or 1))
         row.updated_at = now
         session.commit()

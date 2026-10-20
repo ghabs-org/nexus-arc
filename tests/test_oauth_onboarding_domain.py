@@ -1288,3 +1288,251 @@ def test_start_provider_account_login_for_nexus_forces_started_false_on_failure(
 
     assert result["state"] == "failed"
     assert result["started"] is False
+
+
+_AGY_LOGIN_LOG = (
+    "Welcome to the Antigravity CLI. You are currently not signed in.\n"
+    "Select login method:\n> 1. Google OAuth\n  2. Use a Google Cloud project\n"
+    "Your browser should open automatically. If not:\n"
+    "https://accounts.google.com/o/oauth2/auth?access_type=offline"
+    "&client_id=1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+    "&redirect_uri=https%3A%2F%2Fantigravity.google%2Foauth-callback&response_type=code"
+    "&state=VyYliKbMfSV_sEFm4zKxdQ\n"
+)
+
+
+def _agy_session(name):
+    return SimpleNamespace(
+        session_id=f"session-{name}",
+        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
+        status="oauth_done",
+        nexus_id=f"nexus-{name}",
+    )
+
+
+class _AgyStdin:
+    def __init__(self):
+        self.writes: list[str] = []
+
+    def write(self, value):
+        self.writes.append(value)
+
+    def flush(self):
+        return None
+
+
+def _patch_agy_session(monkeypatch, auth_mod, session, setup=None):
+    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
+    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _sid: session)
+    monkeypatch.setattr(auth_mod, "format_login_session_ref", lambda sid: f"lsr_{sid}")
+    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nid: setup or {})
+
+
+def test_start_provider_account_login_runs_agy_tui_in_wide_pty_with_own_home(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("agy-start")
+    _patch_agy_session(monkeypatch, auth_mod, session)
+    monkeypatch.setenv("NEXUS_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("AGY_CLI_PATH", "/opt/agy/agy")
+    monkeypatch.setattr(auth_mod.shutil, "which", lambda name: "/usr/bin/script" if name == "script" else None)
+    calls: list[dict[str, object]] = []
+
+    class _Proc:
+        pid = 6161
+
+        @staticmethod
+        def poll():
+            return None
+
+    def _fake_popen(cmd, cwd, env, stdin, stdout, stderr, text):
+        calls.append({"cmd": cmd, "env": env, "stdin": stdin})
+        return _Proc()
+
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS.clear()
+    monkeypatch.setattr(auth_mod.subprocess, "Popen", _fake_popen)
+
+    result = auth_mod.start_provider_account_login(session_id=session.session_id, provider="agy")
+
+    assert result["started"] is True and result["provider"] == "agy"
+    cmd = calls[0]["cmd"]
+    assert cmd[0] == "/usr/bin/script" and cmd[-1] == "/dev/null"
+    assert "stty cols 4096" in cmd[-2] and cmd[-2].endswith("exec /opt/agy/agy")
+    agy_home = str(tmp_path / "auth" / "agy" / session.nexus_id)
+    # Antigravity writes $HOME/.gemini, so it must not share the Gemini CLI home.
+    assert calls[0]["env"]["HOME"] == agy_home
+    assert calls[0]["env"]["AGY_HOME"] == agy_home
+    assert calls[0]["stdin"] == auth_mod.subprocess.PIPE
+
+
+def test_agy_status_selects_google_oauth_once_and_asks_for_code(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("agy-pending")
+    _patch_agy_session(monkeypatch, auth_mod, session, {"agy_account_enabled": False})
+    monkeypatch.setattr(auth_mod, "_agy_signed_in", lambda **_kwargs: False)
+    log_path = tmp_path / "agy.log"
+    log_path.write_text(_AGY_LOGIN_LOG, encoding="utf-8")
+    stdin = _AgyStdin()
+    process = SimpleNamespace(poll=lambda: None, stdin=stdin)
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="agy")
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS[key] = {
+            "provider": "agy",
+            "session_id": session.session_id,
+            "nexus_id": session.nexus_id,
+            "process": process,
+            "log_path": str(log_path),
+            "log_file": None,
+            "provider_home": str(tmp_path),
+        }
+
+    first = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="agy")
+    second = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="agy")
+
+    assert first["state"] == second["state"] == "pending"
+    assert first["requires_code"] is True
+    assert first["verify_url"].startswith("https://accounts.google.com/o/oauth2/auth?")
+    # Digit-hyphen runs inside the OAuth client_id are not a device code.
+    assert first["user_code"] == ""
+    assert "authorization code" in first["message"].lower()
+    assert stdin.writes == ["\r"]
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS.pop(key, None)
+
+
+def test_agy_status_connects_once_cli_reports_signed_in(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("agy-connected")
+    _patch_agy_session(monkeypatch, auth_mod, session, {"agy_account_enabled": True})
+    monkeypatch.setattr(auth_mod, "_agy_signed_in", lambda **_kwargs: True)
+    stored: dict[str, object] = {}
+    monkeypatch.setattr(auth_mod, "store_ai_provider_keys", lambda **kwargs: stored.update(kwargs))
+    log_path = tmp_path / "agy.log"
+    log_path.write_text(_AGY_LOGIN_LOG, encoding="utf-8")
+    terminated: list[bool] = []
+    process = SimpleNamespace(
+        poll=lambda: None, stdin=_AgyStdin(), terminate=lambda: terminated.append(True)
+    )
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="agy")
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS[key] = {
+            "provider": "agy",
+            "session_id": session.session_id,
+            "nexus_id": session.nexus_id,
+            "process": process,
+            "log_path": str(log_path),
+            "log_file": None,
+            "provider_home": str(tmp_path),
+        }
+
+    result = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="agy")
+
+    assert result["state"] == "connected" and result["connected"] is True
+    assert stored == {"session_id": session.session_id, "use_agy_account": True}
+    assert terminated == [True]
+    with auth_mod._DEVICE_AUTH_LOCK:
+        assert key not in auth_mod._DEVICE_AUTH_JOBS
+
+
+def test_agy_tui_exit_without_sign_in_is_not_connected(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("agy-quit")
+    _patch_agy_session(monkeypatch, auth_mod, session, {"agy_account_enabled": False})
+    monkeypatch.setattr(auth_mod, "_agy_signed_in", lambda **_kwargs: False)
+    stored: dict[str, object] = {}
+    monkeypatch.setattr(auth_mod, "store_ai_provider_keys", lambda **kwargs: stored.update(kwargs))
+    log_path = tmp_path / "agy.log"
+    log_path.write_text(_AGY_LOGIN_LOG + "press ctrl+d again to exit\n", encoding="utf-8")
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="agy")
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS[key] = {
+            "provider": "agy",
+            "session_id": session.session_id,
+            "nexus_id": session.nexus_id,
+            "process": SimpleNamespace(poll=lambda: 0, stdin=None),
+            "log_path": str(log_path),
+            "log_file": None,
+            "provider_home": str(tmp_path),
+        }
+
+    result = auth_mod.get_provider_account_login_status(session_id=session.session_id, provider="agy")
+
+    assert result["state"] != "connected"
+    assert stored == {}
+
+
+def test_submit_provider_account_login_code_presses_enter_in_agy_tui(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = _agy_session("agy-code")
+    _patch_agy_session(monkeypatch, auth_mod, session, {"agy_account_enabled": False})
+    monkeypatch.setattr(auth_mod, "_agy_signed_in", lambda **_kwargs: False)
+    log_path = tmp_path / "agy.log"
+    log_path.write_text(_AGY_LOGIN_LOG, encoding="utf-8")
+    stdin = _AgyStdin()
+    key = auth_mod._device_job_key(session_id=session.session_id, provider="agy")
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS[key] = {
+            "provider": "agy",
+            "session_id": session.session_id,
+            "nexus_id": session.nexus_id,
+            "process": SimpleNamespace(poll=lambda: None, stdin=stdin),
+            "log_path": str(log_path),
+            "log_file": None,
+            "provider_home": str(tmp_path),
+            "agy_method_selected": True,
+        }
+
+    result = auth_mod.submit_provider_account_login_code(
+        session_id=session.session_id, provider="agy", authorization_code="4/0AeanS0b-example"
+    )
+
+    assert result["submitted"] is True
+    assert stdin.writes == ["4/0AeanS0b-example\r"]
+    assert "Antigravity CLI" in result["message"]
+    with auth_mod._DEVICE_AUTH_LOCK:
+        auth_mod._DEVICE_AUTH_JOBS.pop(key, None)
+
+
+def test_agy_signed_in_asks_the_cli_with_the_user_home(monkeypatch, tmp_path):
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    seen: list[dict[str, object]] = []
+
+    def _run(cmd, env, cwd, stdin, capture_output, text, timeout):
+        seen.append({"cmd": cmd, "home": env["HOME"]})
+        out = "Fetching available models...\n" + (
+            "gemini-3-pro\n" if len(seen) == 1 else "Error: Please sign in to view available models."
+        )
+        return SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+    monkeypatch.setattr(auth_mod.subprocess, "run", _run)
+
+    assert auth_mod._agy_signed_in(cli_path="/opt/agy/agy", home=str(tmp_path)) is True
+    assert auth_mod._agy_signed_in(cli_path="/opt/agy/agy", home=str(tmp_path)) is False
+    assert seen[0] == {"cmd": ["/opt/agy/agy", "models"], "home": str(tmp_path)}
+
+
+def test_parse_agy_oauth_url_splits_tui_redraws():
+    from urllib.parse import parse_qs, urlparse
+
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    url = (
+        "https://accounts.google.com/o/oauth2/auth?access_type=offline"
+        "&client_id=1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+        "&redirect_uri=https%3A%2F%2Fantigravity.google%2Foauth-callback"
+        "&response_type=code&scope=openid&state=VyYliKbMfSV_sEFm4zKxdQ"
+    )
+    # Two frames glued together, wrapped in terminal escapes, as script(1) logs them.
+    log = "\x1b[2J\x1b[HYour browser should open automatically. If not:\n" + url + "\x1b[1;1H" + url + "\n"
+
+    parsed = auth_mod._parse_agy_oauth_url(log)
+
+    assert parsed == url
+    assert parse_qs(urlparse(parsed).query)["state"] == ["VyYliKbMfSV_sEFm4zKxdQ"]
+    assert auth_mod._parse_agy_oauth_url("no url yet") == ""
