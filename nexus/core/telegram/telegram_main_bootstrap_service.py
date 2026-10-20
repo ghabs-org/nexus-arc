@@ -156,6 +156,13 @@ def register_application_handlers(
         CallbackQueryHandler(_wrap(handlers["monitor_project_picker_handler"]), pattern=r"^pickmonitor:")
     )
     app.add_handler(CallbackQueryHandler(_wrap(handlers["close_flow_handler"]), pattern=r"^flow:close$"))
+    if "login_callback_handler" in handlers:
+        app.add_handler(
+            CallbackQueryHandler(
+                _wrap(handlers["login_callback_handler"], command="login", action="onboarding"),
+                pattern=r"^login:",
+            )
+        )
     app.add_handler(CallbackQueryHandler(_wrap(handlers["feature_callback_handler"]), pattern=r"^feat:"))
     app.add_handler(
         CallbackQueryHandler(_wrap(handlers["route_feedback_callback_handler"]), pattern=r"^routefb:")

@@ -6,6 +6,7 @@ import time
 import json
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from typing import Any
 
 from src.alerting import init_alerting_system
@@ -1685,6 +1686,123 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+_ACCOUNT_LOGIN_PROVIDERS = ("claude", "codex", "agy", "gemini")
+_ACCOUNT_LOGIN_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity", "gemini": "Gemini"}
+# Providers whose sign-in ends with a code that is pasted on the account page.
+_ACCOUNT_LOGIN_CODE_HOSTS = {"claude": "claude.com", "agy": "antigravity.google", "gemini": "Google"}
+
+
+def _account_setup_url(session_ref: str) -> str:
+    return f"{NEXUS_PUBLIC_BASE_URL}/auth/setup?session={session_ref}"
+
+
+def _ready_login_session(nexus_id: str) -> dict | None:
+    """The latest login session if Git OAuth finished and it has not expired."""
+    latest = _svc_get_latest_login_session_status(nexus_id)
+    if not isinstance(latest, dict) or not latest.get("exists"):
+        return None
+    if str(latest.get("status") or "") not in {"oauth_done", "completed"}:
+        return None
+    try:
+        expires_at = datetime.fromisoformat(str(latest.get("expires_at") or ""))
+    except ValueError:
+        return None
+    if expires_at.tzinfo is None or expires_at <= datetime.now(UTC):
+        return None
+    return latest
+
+
+async def _reply_login_menu(message, session: dict) -> None:
+    """`/login` once Git is linked: one button per AI account, plus the account page."""
+    buttons = [
+        InlineKeyboardButton(f"Connect {_ACCOUNT_LOGIN_LABELS[p]}", callback_data=f"login:{p}")
+        for p in _ACCOUNT_LOGIN_PROVIDERS
+    ]
+    keyboard = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+    keyboard.append(
+        [InlineKeyboardButton("Open account page", url=_account_setup_url(str(session.get("session_ref") or "")))]
+    )
+    await message.reply_text(
+        (
+            "🔐 Your Nexus account is linked.\n"
+            "Connect an AI account, or open the account page to see all of them.\n"
+            "To link a different Git account, use /login github."
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        disable_web_page_preview=True,
+    )
+
+
+async def _reply_provider_account_login(message, user, provider: str) -> bool:
+    """Start a provider account login and reply with its steps. False when Git OAuth is needed."""
+    label = _ACCOUNT_LOGIN_LABELS.get(provider, provider.title())
+    try:
+        provider_login = _svc_start_provider_account_login_for_nexus(
+            nexus_id=str(user.nexus_id),
+            provider=provider,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Provider login bootstrap failed for %s (nexus_id=%s): %s", provider, user.nexus_id, exc
+        )
+        return False
+
+    state = str(provider_login.get("state") or "").strip().lower()
+    provider_message = str(provider_login.get("message") or "").strip()
+    verify_url = str(provider_login.get("verify_url") or "").strip()
+    user_code = str(provider_login.get("user_code") or "").strip()
+    session_ref = str(provider_login.get("session_ref") or "").strip()
+    setup_url = _account_setup_url(session_ref) if session_ref else ""
+
+    if bool(provider_login.get("started")) or state in {"starting", "pending"}:
+        lines = [f"🔐 {label} sign-in started."]
+        code_host = _ACCOUNT_LOGIN_CODE_HOSTS.get(provider)
+        if code_host and setup_url:
+            lines.append(f"Open your account page and follow the {label} row: {setup_url}")
+            lines.append(f"It shows the sign-in link and a box for the code {code_host} gives you.")
+        else:
+            if verify_url:
+                lines.append(f"1. Open: {verify_url}")
+            if user_code:
+                lines.append(f"2. Enter code: {user_code}")
+            lines.append("3. Approve the sign-in in the browser")
+            if setup_url:
+                lines.append(f"Account page: {setup_url}")
+        lines.append("Then run /setup_status.")
+        await message.reply_text("\n".join(lines), disable_web_page_preview=True)
+        return True
+    if state == "connected":
+        await message.reply_text(
+            f"✅ {label} account already connected. Run /setup_status to check setup.",
+            disable_web_page_preview=True,
+        )
+        return True
+    if state and state != "oauth_required":
+        lines = [f"⚠️ {provider_message or label + ' sign-in failed.'}"]
+        if state == "rate_limited":
+            lines.append("Wait 1-2 minutes and try again.")
+        if setup_url:
+            lines.append(f"Account page: {setup_url}")
+        await message.reply_text("\n".join(lines), disable_web_page_preview=True)
+        return True
+    return False
+
+
+async def login_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Buttons of the /login menu: `login:<provider>` starts that account's sign-in."""
+    query = update.callback_query
+    await query.answer()
+    provider = str(query.data or "").split(":", 1)[-1].strip().lower()
+    if not NEXUS_AUTH_ENABLED or provider not in _ACCOUNT_LOGIN_PROVIDERS:
+        return
+    user = _get_or_create_telegram_user(query.from_user)
+    if not await _reply_provider_account_login(query.message, user, provider):
+        await query.message.reply_text(
+            "Your Git sign-in has expired. Run /login to sign in again.",
+            disable_web_page_preview=True,
+        )
+
+
 async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not NEXUS_AUTH_ENABLED:
         await update.effective_message.reply_text("ℹ️ Auth onboarding is disabled in this environment.")
@@ -1742,69 +1860,14 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if account_provider_target in {"codex", "gemini", "claude", "agy"}:
-        try:
-            provider_login = _svc_start_provider_account_login_for_nexus(
-                nexus_id=str(user.nexus_id),
-                provider=account_provider_target,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Provider login bootstrap failed for %s (nexus_id=%s): %s",
-                account_provider_target,
-                user.nexus_id,
-                exc,
-            )
-            provider_login = {"started": False, "state": "oauth_required"}
-
-        provider_state = str(provider_login.get("state") or "").strip().lower()
-        provider_message = str(provider_login.get("message") or "").strip()
-        verify_url = str(provider_login.get("verify_url") or "").strip()
-        user_code = str(provider_login.get("user_code") or "").strip()
-
-        if bool(provider_login.get("started")) or provider_state in {"starting", "pending"}:
-            steps = [
-                "🔐 Provider account login started.",
-                f"Provider: {account_provider_target.title()}",
-            ]
-            if verify_url:
-                steps.append(f"1. Open: {verify_url}")
-            if user_code:
-                steps.append(f"2. Enter code: {user_code}")
-            steps.append("3. Complete provider authorization in the browser")
-            steps.append("4. Run `/setup_status`")
-            await update.effective_message.reply_text(
-                "\n".join(steps),
-                disable_web_page_preview=True,
-            )
+    if account_provider_target in _ACCOUNT_LOGIN_PROVIDERS:
+        if await _reply_provider_account_login(update.effective_message, user, account_provider_target):
             return
-        if provider_state == "connected":
-            await update.effective_message.reply_text(
-                "\n".join(
-                    [
-                        f"✅ {account_provider_target.title()} account already connected.",
-                        "Run `/setup_status` to verify setup readiness.",
-                    ]
-                ),
-                disable_web_page_preview=True,
-            )
-            return
-        if provider_state and provider_state != "oauth_required":
-            lines = [
-                f"⚠️ {provider_message or 'Provider account login failed.'}",
-                f"Provider: {account_provider_target.title()}",
-            ]
-            if verify_url:
-                lines.append(f"Open: {verify_url}")
-            if user_code:
-                lines.append(f"Code: {user_code}")
-            if provider_state == "rate_limited":
-                lines.append("Wait 1-2 minutes and retry `/login` for this provider.")
-            lines.append("Run `/setup_status` after retry.")
-            await update.effective_message.reply_text(
-                "\n".join(lines),
-                disable_web_page_preview=True,
-            )
+
+    if not requested_provider:
+        ready_session = _ready_login_session(str(user.nexus_id))
+        if ready_session:
+            await _reply_login_menu(update.effective_message, ready_session)
             return
 
     session_id = create_login_session_for_user(
@@ -2576,6 +2639,7 @@ def main():
             "help_handler": help_handler,
             "menu_handler": menu_handler,
             "login_handler": login_handler,
+            "login_callback_handler": login_callback_handler,
             "setup_status_handler": setup_status_handler,
             "whoami_handler": whoami_handler,
             "rename_handler": rename_handler,
