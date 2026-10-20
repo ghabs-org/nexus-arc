@@ -30,6 +30,14 @@ Providers lists them, and every model field offers them for the selected
 provider. They are suggestions, not an allow-list; any model ID the provider
 accepts can still be typed or saved as a model profile.
 
+**Import skill** (Library → Skills) takes a GitHub link to a repository, folder or
+`SKILL.md`, `owner/repo`, or an `npx skills add <source> --skill <name>` command. The
+command is parsed, never run, and only GitHub is contacted. `--skill` matches the
+skill's frontmatter `name`; a source with several skills offers a choice. SKILL.md and
+its Markdown references are imported while they fit the 128 KB skill limit; scripts,
+data and media are listed under "Not imported". The source repository and commit are
+kept, and importing again updates the skill as a new revision.
+
 CLI account usage follows the provider's installed configuration and plan; Studio
 does not issue subscription tokens or promise that every call uses subscription
 billing. Installation checks do not verify login, quota or billing. A failed

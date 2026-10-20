@@ -18,8 +18,9 @@ function renderLibrary(){
   document.querySelectorAll("[data-library-kind]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.libraryKind===library.kind)));
   $("library-create").textContent=library.kind==="artifacts"?"+ Upload file":`+ Create ${libraryNames[library.kind]}`;
   $("library-description").textContent=libraryDescriptions[library.kind];
+  $("library-import").hidden=library.kind!=="skills";
   const items=library.items.filter(item=>$("library-archived").checked||!item.archived);
-  $("library-content").innerHTML=items.length?items.map(item=>`<article class="library-row"><div><h2>${escapeHtml(item.name)} ${item.archived?badge("Archived"):""}</h2><p>${escapeHtml(item.description||item.data.filename||item.id)}</p><small>${escapeHtml(item.id)} · revision ${item.revision}${library.kind==="artifacts"?` · ${Math.ceil(item.data.size/1024)} KiB`:""}</small></div><div class="library-actions">${typeof operationActions==="function"?operationActions(item):""}${!item.archived&&library.kind==="artifacts"?`<a class="button-link" href="/api/catalog/artifacts/${encodeURIComponent(item.id)}/download" download>Download</a><button class="secondary" data-artifact-preview="${escapeHtml(item.id)}">Preview</button>`:""}${!item.archived?`<button class="secondary" data-library-edit="${escapeHtml(item.id)}">Edit</button>`:""}${!item.archived&&library.kind==="toolsets"?`<button class="secondary" data-toolset-open="${escapeHtml(item.id)}">Use tools</button>`:""}<button class="secondary" data-library-history="${escapeHtml(item.id)}">History</button><button class="secondary" data-library-archive="${escapeHtml(item.id)}">${item.archived?"Restore":"Archive"}</button></div></article>`).join(""):library.kind==="connectors"?'<p class="integration-empty">No saved connections. HTTP GET and SQLite can be created here. Other built-ins are listed in Available integrations.</p>':`<div class="empty-state"><h2>No ${library.kind} yet</h2><p>${escapeHtml(libraryDescriptions[library.kind])}</p></div>`;
+  $("library-content").innerHTML=items.length?items.map(item=>`<article class="library-row"><div><h2>${escapeHtml(item.name)} ${item.archived?badge("Archived"):""}</h2><p>${escapeHtml(item.description||item.data.filename||item.id)}</p><small>${escapeHtml(item.id)} · revision ${item.revision}${item.data.source?` · from ${escapeHtml(item.data.source.repository)}@${escapeHtml(item.data.source.commit.slice(0,7))}`:""}${library.kind==="artifacts"?` · ${Math.ceil(item.data.size/1024)} KiB`:""}</small></div><div class="library-actions">${typeof operationActions==="function"?operationActions(item):""}${!item.archived&&library.kind==="artifacts"?`<a class="button-link" href="/api/catalog/artifacts/${encodeURIComponent(item.id)}/download" download>Download</a><button class="secondary" data-artifact-preview="${escapeHtml(item.id)}">Preview</button>`:""}${!item.archived?`<button class="secondary" data-library-edit="${escapeHtml(item.id)}">Edit</button>`:""}${!item.archived&&library.kind==="toolsets"?`<button class="secondary" data-toolset-open="${escapeHtml(item.id)}">Use tools</button>`:""}<button class="secondary" data-library-history="${escapeHtml(item.id)}">History</button><button class="secondary" data-library-archive="${escapeHtml(item.id)}">${item.archived?"Restore":"Archive"}</button></div></article>`).join(""):library.kind==="connectors"?'<p class="integration-empty">No saved connections. HTTP GET and SQLite can be created here. Other built-ins are listed in Available integrations.</p>':`<div class="empty-state"><h2>No ${library.kind} yet</h2><p>${escapeHtml(libraryDescriptions[library.kind])}</p></div>`;
 }
 async function openLibraryEditor(id,template){
   const item=id?await api(`/api/catalog/${library.kind}/${encodeURIComponent(id)}`):null;
@@ -73,6 +74,24 @@ $("builder-upload").addEventListener("change",async event=>{
   finally{event.target.value="";}
 });
 $("library-create").addEventListener("click",()=>openLibraryEditor().catch(error=>notify(error.message)));
+// Import reads a public GitHub skill; commands are parsed, never run.
+async function importSkill(){
+  const form=await fieldsDialog("Import a skill",`<p>Paste a GitHub link to a repository, folder or SKILL.md, or a command such as <code>npx skills add https://github.com/owner/repo --skill name</code>. Studio reads the skill from GitHub; nothing is installed or run. SKILL.md and its Markdown references are imported; scripts and media are listed as not imported.</p><label>Source<input name="source" required maxlength="2000" placeholder="https://github.com/owner/repo"></label>`,"Import");
+  if(!form)return;const payload={source:form.get("source")};
+  $("library-import").disabled=true;notify("Importing skill from GitHub…");
+  try{
+    let result=await api("/api/catalog/skills/import",payload);
+    if(result.choices){
+      const pick=await fieldsDialog("Choose a skill",`<p>This source holds ${result.choices.length} skills${result.truncated?" (showing the first 30)":""}.</p><label>Skill<select name="skill">${result.choices.map(choice=>`<option value="${escapeHtml(choice.skill)}">${escapeHtml(choice.skill)}${choice.description?" — "+escapeHtml(choice.description.slice(0,90)):""}</option>`).join("")}</select></label>`,"Import");
+      if(!pick)return;result=await api("/api/catalog/skills/import",{...payload,skill:pick.get("skill")});
+    }
+    const skipped=result.skipped_files.length;
+    notify(`${result.updated?"Updated":"Imported"} skill ${result.skill.name}: ${result.imported_files.length} file${result.imported_files.length===1?"":"s"} imported${skipped?`, ${skipped} not imported (scripts, data or media)`:""}.`);
+    await refreshLibrary();
+  }catch(error){notify(error.message);}
+  finally{$("library-import").disabled=false;}
+}
+$("library-import").addEventListener("click",()=>importSkill());
 $("library-archived").addEventListener("change",renderLibrary);
 document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;

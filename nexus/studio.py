@@ -758,6 +758,8 @@ def make_studio_handler(service: StudioService, token: str):
                         202, service.operations.trigger_entrypoint(parts[2], payload)
                     )
 
+                if route == "/api/catalog/skills/import":
+                    return self.send_payload(200, service.skill_import.import_skill(payload))
                 if len(parts) >= 3 and parts[:2] == ["api", "catalog"]:
                     if len(parts) == 3:
                         return self.send_payload(201, service.catalog.save(parts[2], payload))

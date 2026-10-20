@@ -70,7 +70,19 @@ class StudioCatalog:
 
             return validate_prompt(data)
         if kind == "skills":
-            return {"content": _text(data.get("content"), "Content")}
+            skill = {"content": _text(data.get("content"), "Content")}
+            source = data.get("source")
+            if source is not None:
+                # Where an imported skill came from, for display and re-import.
+                fields = {"type", "repository", "ref", "commit", "path"}
+                if (
+                    not isinstance(source, dict)
+                    or set(source) - fields
+                    or any(not isinstance(v, str) or len(v) > 500 for v in source.values())
+                ):
+                    raise ValueError("Skill source must name its repository, ref, commit and path")
+                skill["source"] = dict(source)
+            return skill
         if kind == "toolsets":
             from nexus.tools import tool_registry
 

@@ -129,6 +129,9 @@ class StudioService:
         from nexus.core.studio_catalog import StudioCatalog
 
         self.catalog = StudioCatalog(self)
+        from nexus.core.studio_skill_import import StudioSkillImporter
+
+        self.skill_import = StudioSkillImporter(self)
         self.graph = StudioGraph(self)
         from nexus.core.studio_legacy_workflows import StudioLegacyWorkflows
 

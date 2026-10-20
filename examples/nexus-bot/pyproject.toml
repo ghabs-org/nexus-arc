@@ -21,6 +21,7 @@ nexus-webhook = "src.webhook_server:main"
 nexus-health = "src.health_check:main"
 nexus-studio = "src.studio:main"
 nexus-quick-build = "src.quick_build:main"
+nexus-import-skill = "src.import_skill:main"
 nexus-studio-workspace = "src.studio_workspace:main"
 nexus-studio-advanced = "src.studio_advanced:main"
 
