@@ -3,7 +3,7 @@
 import re
 
 from nexus.core.studio_interop_conditions import parse_condition
-from nexus.core.studio_interop_mappings import source_ref
+from nexus.core.studio_interop_mappings import normalize_indices, source_ref
 from nexus.core.studio_interop_values import LANGUAGE, import_value
 
 BASIC = {"agent", "tool", "workflow"}
@@ -70,6 +70,8 @@ def needs_compatibility(source):
             return set(value) in ({"coalesce"}, {"concat"}) or any(
                 operators(v) for v in value.values()
             )
+        if isinstance(value, str):
+            return bool(re.search(r"\{\{[^}]*\[[0-9]+\][^}]*\}\}", value))
         return isinstance(value, list) and any(operators(v) for v in value)
 
     return (
@@ -99,12 +101,17 @@ class SAMWorkflowCompiler:
         if expression.startswith("workflow.input"):
             path = source_ref(expression)
             return "interop_input" + path[5:], "input"
-        if expression in {"_map_item", "_map_index"} or expression.startswith("_map_item."):
+        if (
+            expression in {"_map_item", "_map_index"}
+            or expression.startswith("_map_item.")
+            or expression.startswith("_map_item[")
+        ):
             if not scope.get("map"):
                 raise ValueError("Map variables require a mapped body")
+            normalized = normalize_indices(expression)
             return (
-                "item" + expression[len("_map_item") :]
-                if expression.startswith("_map_item")
+                "item" + normalized[len("_map_item") :]
+                if normalized.startswith("_map_item")
                 else "index"
             ), "input"
         if expression == "_loop_iteration":
@@ -395,7 +402,7 @@ class SAMWorkflowCompiler:
         controllers = {
             identity
             for identity, node in self.nodes.items()
-            if node.get("type") in {"map", "loop"} and node.get("node") == root
+            if node.get("type") in ("map", "loop") and node.get("node") == root
         }
         changed = True
         while changed:
@@ -631,31 +638,6 @@ class SAMWorkflowCompiler:
                     )
                 self.owners[target] = identity
 
-        def ancestors(identity, seen=None):
-            seen = set() if seen is None else seen
-            dependencies = self.nodes.get(identity, {}).get("depends_on", [])
-            if not isinstance(dependencies, list):
-                return seen
-            for dependency in dependencies:
-                if isinstance(dependency, str) and dependency not in seen:
-                    seen.add(dependency)
-                    ancestors(dependency, seen)
-            return seen
-
-        for target in self.owners:
-            controllers = [
-                identity
-                for identity, node in self.nodes.items()
-                if node.get("type") == "loop" and node.get("node") == target
-            ]
-            for index, first in enumerate(controllers):
-                for second in controllers[index + 1 :]:
-                    if first not in ancestors(second) and second not in ancestors(first):
-                        self.issue(
-                            self.paths[second] + "/node",
-                            "ambiguous_body",
-                            "Shared external loop bodies require dependency-ordered controllers",
-                        )
         for root, controller in list(self.owners.items()):
             for member in self.members(root):
                 if member not in self.owners:
@@ -672,22 +654,23 @@ class SAMWorkflowCompiler:
             if phase not in exits:
                 continue
             target = exits[phase]
-            if not isinstance(target, str) or target not in self.nodes or target in self.owners:
+            if not isinstance(target, str) or target not in self.nodes:
                 self.issue(
                     path + "/on_exit/" + phase,
                     "invalid_handler",
-                    "Choose existing non-body exit handler nodes",
+                    "Choose existing exit handler nodes",
                 )
                 continue
             handlers.setdefault(target, []).append(phase)
         self.handlers = handlers
+        exit_members = {member for target in handlers for member in self.members(target)}
         result = {
             "version": 2,
             "mapping_language": LANGUAGE,
             "nodes": [
                 self.node(identity)
                 for identity in self.nodes
-                if identity not in self.owners and identity not in handlers
+                if identity not in self.owners and identity not in exit_members
             ],
             "edges": [],
         }
@@ -713,20 +696,23 @@ class SAMWorkflowCompiler:
         if handlers:
             result["interop_exit_handlers"] = []
             for target, phases in handlers.items():
-                visit(target)
+                members = self.members(target)
+                for member in members:
+                    visit(member)
                 for phase in phases:
-                    result["interop_exit_handlers"].append(
-                        {
-                            "phase": phase,
-                            "body": {
-                                "version": 2,
-                                "mapping_language": LANGUAGE,
-                                "interop_body": True,
-                                "nodes": [self.node(target, {"body": True, "exit": True})],
-                                "output_mapping": {"ref": "nodes." + target},
-                            },
+                    # Keep the original single-node projection byte-for-byte compatible.
+                    body = (
+                        self.body_graph(target, {"exit": True}, ())
+                        if len(members) > 1
+                        else {
+                            "version": 2,
+                            "mapping_language": LANGUAGE,
+                            "interop_body": True,
+                            "nodes": [self.node(target, {"body": True, "exit": True})],
                         }
                     )
+                    body["output_mapping"] = {"ref": "nodes." + target}
+                    result["interop_exit_handlers"].append({"phase": phase, "body": body})
         for identity in self.nodes.keys() - reachable:
             self.issue(
                 self.paths[identity], "unreachable_body", "Body cycle or orphan cannot be compiled"

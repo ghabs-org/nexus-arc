@@ -9,7 +9,20 @@ LANGUAGE = "nexus-template/v1"
 TOKEN = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 
 
+INDEX = re.compile(r"\[([0-9]|[1-9][0-9]{1,3})\]")
+
+
+def normalize_indices(value):
+    if "[" not in value and "]" not in value:
+        return value
+    cleaned = INDEX.sub(r".\1", value)
+    if "[" in cleaned or "]" in cleaned:
+        raise ValueError("Invalid external data reference")
+    return cleaned
+
+
 def source_ref(value):
+    value = normalize_indices(value)
     if value == "workflow.input":
         return "input"
     if value.startswith("workflow.input."):

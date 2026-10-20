@@ -258,6 +258,8 @@ class StudioA2AServer:
                         "Task does not accept this continuation; approval gates require Nexus UI",
                     )
                 value = structured[0] if structured else text
+                if isinstance(value, dict) and set(value) == {"_mcp_scalar"}:
+                    value = value["_mcp_scalar"]
                 values = {pending[0]["id"]: value} if len(pending) == 1 else value
                 run = self.studio.graph.structured.resume_input(continuation_id, values)
                 self.studio._write(path, {"id": key, "run_id": run["id"], "digest": digest})

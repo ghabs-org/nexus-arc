@@ -621,6 +621,15 @@ def make_studio_handler(service: StudioService, token: str):
             webhook = len(parts) == 3 and parts[:2] == ["api", "webhooks"]
             if len(parts) == 3 and parts[:2] == ["api", "channel-events"]:
                 try:
+                    challenge = parse_qs(urlparse(self.path).query).get("validationToken")
+                    if challenge is not None:
+                        if len(challenge) != 1:
+                            raise ValueError("Invalid validation token")
+                        return self.send_bytes(
+                            200,
+                            service.messaging.teams.challenge(parts[2], challenge[0]),
+                            "text/plain; charset=utf-8",
+                        )
                     length = int(self.headers.get("Content-Length", "0"))
                     if not 0 < length <= _MAX_BODY:
                         raise ValueError("Incoming event must be at most one MiB")

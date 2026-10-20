@@ -25,7 +25,9 @@ OPS = {
     ast.Gt: "gt",
     ast.GtE: "gte",
     ast.In: "in",
+    ast.NotIn: "not_in",
 }
+CALL_OPS = {"contains", "startswith", "endswith"}
 
 
 def parse_condition(source, reference=None):
@@ -112,6 +114,20 @@ def parse_condition(source, reference=None):
                     "right": value(node.comparators[0]),
                 }
             }
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in CALL_OPS
+            and len(node.args) == 2
+            and not node.keywords
+        ):
+            return {
+                "compare": {
+                    "left": value(node.args[0]),
+                    "op": node.func.id,
+                    "right": value(node.args[1]),
+                }
+            }
         return {"boolean": value(node)}
 
     result = {"interop_condition": condition(expression.body)}
@@ -136,7 +152,7 @@ def validate_condition(tree, depth=0, budget=None):
         if (
             not isinstance(value, dict)
             or set(value) != {"left", "op", "right"}
-            or value["op"] not in tuple(OPS.values())
+            or value["op"] not in (*OPS.values(), *CALL_OPS)
         ):
             raise ValueError("Invalid external comparison")
         validate_operand(value["left"])
@@ -237,6 +253,10 @@ def evaluate_condition(tree, context):
                 and not (type(left) in {int, float} and type(right) in {int, float})
             ):
                 raise ValueError("External comparison values have incompatible types")
+            if op in {"startswith", "endswith"} and (
+                not isinstance(left, str) or not isinstance(right, str)
+            ):
+                raise ValueError("External comparison values have incompatible types")
             operations = {
                 "eq": lambda: left == right,
                 "ne": lambda: left != right,
@@ -245,6 +265,10 @@ def evaluate_condition(tree, context):
                 "gt": lambda: left > right,
                 "gte": lambda: left >= right,
                 "in": lambda: left in right,
+                "not_in": lambda: left not in right,
+                "contains": lambda: right in left,
+                "startswith": lambda: left.startswith(right),
+                "endswith": lambda: left.endswith(right),
             }
             return Answer(bool(operations[op]()))
         except MissingSAMValueError as missing:

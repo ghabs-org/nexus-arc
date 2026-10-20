@@ -37,6 +37,51 @@ calls through `postman/simulations/studio-m56.sim.yaml`. Its synthetic Graph pee
 is mapped only inside the example's injected request client. Production URLs
 remain fixed to Microsoft Graph. No real tenant or external message was used.
 
-Existing connections remain unchanged. Shell cache v29 includes the editor.
+Existing connections remain unchanged. Shell cache v30 includes the editor.
 Backend restart is required; local validation does not restart an existing server.
 Real delegated-account acceptance remains pending.
+
+## Incoming channel tasks
+
+Entrypoints now include Microsoft Teams. Configure the selected team/channel,
+tenant ID, verification secret environment reference, reader credential reference,
+remote Microsoft-user → Nexus-user mapping, and command prefix (default `/nexus `).
+Allowed channels must contain exactly the selected channel. The Graph reader uses
+the entrypoint owner's configured account; the mapped sender's current Nexus
+permissions control execution. Local users map to `desktop`.
+
+1. Save the entrypoint disabled; subscription ID may be blank at this stage.
+2. Register a **basic** Graph channel subscription with `includeResourceData: false`,
+   `changeType: created`, and notification URL `/api/channel-events/ENTRYPOINT_ID`
+   on your HTTPS host. Set `clientState` to the server's verification secret.
+   Nexus echoes Graph's validation token as plain text during this disabled setup.
+3. Copy Graph's returned subscription ID into the saved entrypoint, then explicitly
+   enable it. Registration, consent and renewal are performed by the operator;
+   browsing or saving never changes a Microsoft subscription.
+
+Microsoft requires subscription renewal; follow its documented expiry and lifecycle
+requirements. Nexus does not claim to renew subscriptions automatically. Until your
+personal HTTPS VM is deployed, local tests use synthetic peers only.
+
+Receipts verify the tenant, subscription, fixed channel resource and secret before
+saving a durable message hint. Resource-data text, URLs and claimed Nexus identities
+are ignored. The existing scheduler fetches the authoritative message from fixed
+Graph endpoints. Only new user messages/replies beginning with the command prefix
+start tasks. HTML is converted to text without loading resources. Duplicate delivery
+starts one task; edits/deletes never repeat it. Configuration or permission changes
+revoke pending work. Failed/uncertain dispatch is visible and never automatically
+repeated. Both file and SQLite state use existing messaging recovery and task gates.
+
+Results, input continuation and approvals stay in Studio. Automatic channel replies,
+in-channel approval buttons, encrypted rich notifications, direct chats and bot-JWT
+integration are not supported by this incoming adapter. Outgoing reviewed messages
+remain available through the separate Teams connector. No existing entrypoint is
+converted or enabled during upgrade. Shell v30 includes the new setup form.
+
+The documented notification and handshake formats follow Microsoft's
+[channel message notification contract](https://learn.microsoft.com/en-us/graph/teams-changenotifications-chatmessage)
+and [webhook delivery contract](https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks).
+Local HTTP fixtures cover both storage backends, restart, forged payloads, reply
+reads, atomic batch preflight, duplicates and mapped-reader/sender role revocation.
+The Postman framework example also receives one duplicate hint and launches exactly
+one task after a real local Graph-shaped GET. Actual tenant/VM acceptance remains pending.

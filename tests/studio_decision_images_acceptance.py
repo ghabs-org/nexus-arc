@@ -3,8 +3,10 @@
 import base64
 import io
 import json
+import runpy
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -110,6 +112,42 @@ def test_imported_image_workflow_calls_selected_client_with_owned_revision(tmp_p
         assert "base64" not in json.dumps(studio.records("decisions"))
         exported = studio.configuration.export_interop({"document": converted["document"]}, None)
         assert exported["valid"], exported
+    finally:
+        studio.close()
+
+
+def test_cleanup_example_passes_owned_captured_image_to_selected_client(tmp_path):
+    calls = []
+
+    def client(state, questions, **kwargs):
+        calls.append(kwargs["image_urls"])
+        return {"visible": {"type": "noul", "noul": 0.9}}
+
+    studio = StudioService(tmp_path, workbench_options={"decision_client": client})
+    try:
+        photo = artifact(studio)
+        example = runpy.run_path(
+            str(Path(__file__).parents[1] / "examples/nexus-bot/src/studio_cleanup_images.py")
+        )
+        report = studio.configuration.convert_interop(example["document"](photo["id"]), None)
+        assert report["valid"], report
+        plan = studio.configuration.plan(report["document"], None)
+        studio.configuration.apply(plan["id"], plan["digest"], None)
+        assert not calls and not studio.records("runs")
+        result = done(
+            studio,
+            studio.start_run(
+                {
+                    "kind": "workflow",
+                    "workflow_id": "cleanup-image-review",
+                    "task": "Inspect selected evidence",
+                }
+            ),
+        )
+        assert result["status"] == "completed", result
+        assert len(calls) == 1 and calls[0][0].startswith("data:image/png;base64,")
+        assert not result.get("workflow_warnings")
+        assert json.loads(result["output"])["review"]["answers"]["visible"]["value"] is True
     finally:
         studio.close()
 

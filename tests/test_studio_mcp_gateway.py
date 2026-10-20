@@ -93,3 +93,87 @@ def test_gateway_real_mcp_sdk_uses_shared_task_service_and_deduplicates_submissi
         server.server_close()
         thread.join(timeout=2)
         studio.close()
+
+
+def test_mcp_gateway_supports_inline_files_and_scalar_input_continuation(tmp_path, monkeypatch):
+    monkeypatch.setenv("MCP_GATEWAY_TEST", "test-gateway-token-with-32-characters")
+    studio = StudioService(tmp_path)
+    try:
+        workflow = studio.save_definition(
+            "workflows",
+            {
+                "name": "Input workflow",
+                "graph": {
+                    "version": 2,
+                    "nodes": [
+                        {
+                            "id": "ask",
+                            "kind": "input",
+                            "output_schema": {"type": "integer"},
+                        }
+                    ],
+                    "output_mapping": {"ref": "nodes.ask"},
+                },
+            },
+        )
+        record = studio.catalog.save(
+            "entrypoints",
+            {
+                "name": "MCP workflow",
+                "data": {
+                    "target_kind": "workflow",
+                    "target_id": workflow["id"],
+                    "token_env": "MCP_GATEWAY_TEST",
+                    "enabled": True,
+                    "mcp_enabled": True,
+                },
+            },
+        )
+        submit = studio.mcp_server.dispatch(
+            record,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "submit_task",
+                    "arguments": {
+                        "task": "Wait for number",
+                        "request_id": "req-file-1",
+                        "files": [{"name": "note.txt", "bytes": "aGVsbG8="}],
+                    },
+                },
+            },
+        )
+        assert not submit["isError"]
+        task_id = submit["structuredContent"]["id"]
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            if studio.run(task_id)["status"] == "waiting":
+                break
+            time.sleep(0.02)
+        resumed = studio.mcp_server.dispatch(
+            record,
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "provide_input",
+                    "arguments": {
+                        "task_id": task_id,
+                        "request_id": "req-input-1",
+                        "input": 42,
+                    },
+                },
+            },
+        )
+        assert not resumed["isError"]
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            if studio.run(task_id)["status"] == "completed":
+                break
+            time.sleep(0.02)
+        assert json.loads(studio.run(task_id)["output"]) == 42
+    finally:
+        studio.close()

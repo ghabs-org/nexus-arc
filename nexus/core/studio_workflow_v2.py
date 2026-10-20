@@ -65,6 +65,7 @@ def condition(expression, context):
         "lte": lambda: left <= right,
         "contains": lambda: right in left,
         "in": lambda: left in right,
+        "not_in": lambda: left not in right,
     }
     if expression["op"] not in operations:
         raise ValueError("Unknown deterministic condition operator")
@@ -428,14 +429,6 @@ class StudioWorkflowV2:
                         ancestors[identity].update(parents(source))
             return ancestors[identity]
 
-        for alias in set(aliases):
-            controllers = [n["id"] for n in result["nodes"] if n.get("interop_body_id") == alias]
-            for index, first in enumerate(controllers):
-                for second in controllers[index + 1 :]:
-                    if first not in parents(second) and second not in parents(first):
-                        raise ValueError(
-                            "Shared external loop bodies require dependency-ordered controllers"
-                        )
         from nexus.core.studio_connections import READ_ACTIONS
 
         kinds = {node["id"]: node["kind"] for node in result["nodes"]}
@@ -470,12 +463,11 @@ class StudioWorkflowV2:
                 body = self.validate(
                     handler["body"], depth + 1, agent_ids, connections, limits, roots
                 )
-                if not body.get("interop_body") or len(body["nodes"]) != 1:
-                    raise ValueError("External exit handler requires one scoped body node")
-                identity = body["nodes"][0]["id"]
-                if identity in identities:
+                if not body.get("interop_body"):
+                    raise ValueError("External exit handler requires a scoped body graph")
+                if any(node["id"] in identities for node in body["nodes"]):
                     raise ValueError("External exit handlers cannot also be regular nodes")
-                handler_ids.add(identity)
+                handler_ids.update(node["id"] for node in body["nodes"])
                 handler["body"] = body
             from nexus.core.studio_workflow_validation import references
 
@@ -576,7 +568,12 @@ class StudioWorkflowV2:
             if graph.get("mapping_language") == "interop-template/v1" and not graph.get(
                 "interop_body"
             ):
-                context = {**context, "interop_input": context["input"], "interop_nodes": {}}
+                context = {
+                    **context,
+                    "interop_input": context["input"],
+                    "interop_nodes": {},
+                    "_image_capture_states": {},
+                }
             cancellation.enter(graph, context, scope, depth)
             try:
                 result = await run_graph_scoped(graph, context, scope, depth)
@@ -621,6 +618,8 @@ class StudioWorkflowV2:
                     outcomes[scope] = outcome
                 persist()
             if graph.get("interop_exit_handlers"):
+                from nexus.core.studio_workflow_artifacts import node_image_states
+
                 # Reconstruct direct completed outputs after body failure or recovery.
                 outputs = {
                     key[len(scope) + 1 :]: value
@@ -639,6 +638,7 @@ class StudioWorkflowV2:
                     ),
                 }
                 failures = state.setdefault("exit_failures", {})
+                exit_images = node_image_states(graph, scope, state, outputs)
                 for entry in sorted(
                     graph["interop_exit_handlers"], key=lambda item: item["phase"] != "always"
                 ):
@@ -664,6 +664,11 @@ class StudioWorkflowV2:
                         # A reused template needs one receipt per intentional phase.
                         handler_scope += "/" + entry["phase"]
                     if handler_scope in failures:
+                        # Reconstruct failed-phase evidence on restart as well. A
+                        # legacy root value may remain, but it is not fresh evidence.
+                        evidence = node_image_states(entry["body"], handler_scope, state, outputs)
+                        evidence[handler_id]["status"] = "failed"
+                        exit_images.update(evidence)
                         continue
                     if state.get("cancellation") is not None:
                         state["cancellation"]["current_handler"] = handler_scope
@@ -675,6 +680,7 @@ class StudioWorkflowV2:
                                 **context,
                                 "interop_input": context.get("interop_input", context["input"]),
                                 "interop_nodes": outputs,
+                                "_image_capture_states": exit_images,
                                 "interop_workflow": workflow,
                             },
                             handler_scope,
@@ -701,6 +707,25 @@ class StudioWorkflowV2:
                             ],
                         )
                         persist()
+                    # Publish only acknowledged direct children. Clear a pruned/failed
+                    # branch's old phase value; preserve legacy root-output behavior.
+                    for child in entry["body"]["nodes"][1:]:
+                        identity = child["id"]
+                        child_key = handler_scope + "/" + identity
+                        alias_key = scope + "/" + identity
+                        status = state["nodes"].get(child_key)
+                        if status == "completed":
+                            outputs[identity] = deepcopy(state["outputs"][child_key])
+                            state["outputs"][alias_key] = outputs[identity]
+                        else:
+                            outputs.pop(identity, None)
+                            state["outputs"].pop(alias_key, None)
+                    if len(entry["body"]["nodes"]) > 1:
+                        persist()
+                    evidence = node_image_states(entry["body"], handler_scope, state, outputs)
+                    if handler_scope in failures:
+                        evidence[handler_id]["status"] = "failed"
+                    exit_images.update(evidence)
                     if state.get("cancellation") is not None:
                         state["cancellation"].pop("current_handler", None)
                         persist()
@@ -735,13 +760,49 @@ class StudioWorkflowV2:
             if graph.get("mapping_language") == "interop-template/v1" and not graph.get(
                 "interop_body"
             ):
-                context.update(interop_input=context["input"], interop_nodes={})
+                context.update(
+                    interop_input=context["input"], interop_nodes={}, _image_capture_states={}
+                )
             if depth >= limits["nesting_depth"]:
                 raise ValueError(f"Workflow nesting exceeds {limits['nesting_depth']} levels")
             validate_schema(graph.get("input_schema"), context["input"])
             outputs, statuses = {}, {}
             aliases = [n["interop_body_id"] for n in graph["nodes"] if n.get("interop_body_id")]
             shared_aliases = {alias for alias in aliases if aliases.count(alias) > 1}
+            ancestors = {n["id"]: set() for n in graph["nodes"]}
+            for _ in range(len(graph["nodes"])):
+                for edge in graph["edges"]:
+                    if edge["source"] != "START" and edge["target"] in ancestors:
+                        ancestors[edge["target"]].update(
+                            {edge["source"], *ancestors.get(edge["source"], set())}
+                        )
+
+            def settle_aliases():
+                for alias in dict.fromkeys(aliases):
+                    controllers = [
+                        n
+                        for n in graph["nodes"]
+                        if n.get("interop_body_id") == alias
+                        and statuses.get(n["id"]) != "skipped"
+                        and (scope + "/" + n["id"] + "/interop_body") in state["outputs"]
+                    ]
+                    if controllers:
+                        maximal = [
+                            c
+                            for c in controllers
+                            if not any(c["id"] in ancestors[other["id"]] for other in controllers)
+                        ]
+                        winner = (maximal or controllers)[-1]
+                        outputs[alias] = state["outputs"][scope + "/" + alias] = deepcopy(
+                            state["outputs"][scope + "/" + winner["id"] + "/interop_body"]
+                        )
+                    elif (scope + "/" + alias) in state["outputs"] and any(
+                        statuses.get(n["id"]) == "completed"
+                        for n in graph["nodes"]
+                        if n.get("interop_body_id") == alias
+                    ):
+                        outputs[alias] = deepcopy(state["outputs"][scope + "/" + alias])
+
             incoming = {
                 n["id"]: [e for e in graph["edges"] if e["target"] == n["id"]]
                 for n in graph["nodes"]
@@ -784,30 +845,34 @@ class StudioWorkflowV2:
                     persist()
                 if state["nodes"].get(key) == "completed":
                     outputs[node["id"]] = state["outputs"][key]
-                    if node.get("interop_body_id"):
-                        alias = node["interop_body_id"]
-                        outputs[alias] = state["outputs"][scope + "/" + alias]
                     statuses[node["id"]] = "completed"
+                    if node.get("interop_body_id"):
+                        settle_aliases()
                     return
                 image_states = {
-                    **context.get("_image_node_states", {}),
-                    **{
-                        identity: {
-                            "status": status,
-                            "output": outputs.get(identity),
-                            "reason": state.get("skip_reasons", {}).get(scope + "/" + identity),
-                        }
-                        for identity, status in statuses.items()
-                    },
+                    identity: {
+                        "status": status,
+                        "output": outputs.get(identity),
+                        "reason": state.get("skip_reasons", {}).get(scope + "/" + identity),
+                    }
+                    for identity, status in statuses.items()
                 }
                 for controller in graph["nodes"]:
                     alias = controller.get("interop_body_id")
                     if alias and controller["id"] in image_states:
+                        current = image_states[controller["id"]]
+                        existing = image_states.get(alias)
+                        if (
+                            existing
+                            and existing.get("status") == "completed"
+                            and current.get("status") != "completed"
+                        ):
+                            continue
                         image_states[alias] = {
-                            **image_states[controller["id"]],
+                            **current,
                             "output": outputs.get(alias),
                         }
-                local = {**context, "nodes": outputs, "_image_node_states": image_states}
+                local = {**context, "nodes": outputs}
                 if "when" in node and not condition(node["when"], local):
                     state["nodes"][key] = statuses[node["id"]] = "skipped"
                     reason = "pruned"
@@ -944,6 +1009,10 @@ class StudioWorkflowV2:
                                                 **local.get("interop_nodes", {}),
                                                 **outputs,
                                             },
+                                            "_image_capture_states": {
+                                                **local.get("_image_capture_states", {}),
+                                                **image_states,
+                                            },
                                         },
                                         f"{key}/{index}",
                                         depth + 1,
@@ -964,10 +1033,36 @@ class StudioWorkflowV2:
                         value = None
                         if shared:
                             # Persist the seed before dispatch: a resumed controller
-                            # must not seed itself from its own later global output.
+                            # must not seed itself from its own later global output,
+                            # nor from concurrent controllers without dependency ordering.
                             seed_key = key + "/interop_initial"
                             if seed_key not in state["outputs"]:
-                                state["outputs"][seed_key] = deepcopy(outputs.get(alias))
+                                upstream = [
+                                    c
+                                    for c in graph["nodes"]
+                                    if c.get("interop_body_id") == alias
+                                    and c["id"] in ancestors[node["id"]]
+                                    and statuses.get(c["id"]) == "completed"
+                                    and (scope + "/" + c["id"] + "/interop_body") in state["outputs"]
+                                ]
+                                maximal_up = [
+                                    c
+                                    for c in upstream
+                                    if not any(
+                                        c["id"] in ancestors[other["id"]] for other in upstream
+                                    )
+                                ]
+                                seed_val = (
+                                    state["outputs"][
+                                        scope
+                                        + "/"
+                                        + (maximal_up or upstream)[-1]["id"]
+                                        + "/interop_body"
+                                    ]
+                                    if upstream
+                                    else None
+                                )
+                                state["outputs"][seed_key] = deepcopy(seed_val)
                                 persist()
                             value = deepcopy(state["outputs"][seed_key])
                         for index in range(node["max_iterations"]):
@@ -978,12 +1073,17 @@ class StudioWorkflowV2:
                                     "iteration": index,
                                     "previous": value,
                                     "interop_nodes": {**local.get("interop_nodes", {}), **outputs},
+                                    "_image_capture_states": {
+                                        **local.get("_image_capture_states", {}),
+                                        **image_states,
+                                    },
                                 },
                                 f"{key}/{index}",
                                 depth + 1,
                             )
-                            if shared:
-                                state["outputs"][scope + "/" + alias] = outputs[alias] = value
+                            if alias:
+                                state["outputs"][key + "/interop_body"] = deepcopy(value)
+                                settle_aliases()
                                 persist()
                             evaluation = {**local, "result": value, "iteration": index}
                             if node.get("result_mode") == "interop":
@@ -1001,7 +1101,8 @@ class StudioWorkflowV2:
                                     reason = "max_iterations"
                                 if answer.value is not True or index + 1 == node["max_iterations"]:
                                     alias = node["interop_body_id"]
-                                    state["outputs"][scope + "/" + alias] = outputs[alias] = value
+                                    state["outputs"][key + "/interop_body"] = deepcopy(value)
+                                    settle_aliases()
                                     return {
                                         "iterations_completed": index + 1,
                                         "stopped_reason": reason,
@@ -1259,6 +1360,7 @@ class StudioWorkflowV2:
 
             while len(statuses) < len(graph["nodes"]):
                 settle_decisions()
+                settle_aliases()
                 ready = [
                     n
                     for n in graph["nodes"]
@@ -1311,6 +1413,7 @@ class StudioWorkflowV2:
                     if isinstance(value, BaseException):
                         raise value
             settle_decisions()
+            settle_aliases()
             value = resolve(
                 graph.get("output_mapping", {"ref": "nodes"}),
                 {**context, "nodes": outputs, "_interop_output_mapping": True},

@@ -109,3 +109,93 @@ test("typed decision details show separate answer probabilities without internal
   assert.match(rendered,/Sent for review/);assert.match(rendered,/Confidence: 20%/);assert.match(rendered,/Probability of yes: 80%/);assert.match(rendered,/low → high/);
   assert.doesNotMatch(rendered,/internal-id|internal-digest|request_digest/);
 });
+
+test("interactive guide respects non-interruption rules, steps through views, and restores origin",async()=>{
+  const source=fs.readFileSync("nexus/studio_static/experience.js","utf8");
+  const guideSlice=source.slice(source.indexOf("const GUIDE_VERSION = 1;"),source.indexOf('document.addEventListener("click", async event =>'));
+  const elements=new Map();
+  function makeEl(id){
+    return {
+      id,hidden:true,open:false,textContent:"",innerHTML:"",dataset:{},
+      style:{setProperty(){},removeProperty(){}},
+      setAttribute(k,v){this[k]=v;},removeAttribute(k){delete this[k];},getAttribute(k){return this[k];},
+      getBoundingClientRect(){return {top:40,left:40,right:240,bottom:120,width:200,height:80};},
+      getClientRects(){return [{}];},
+      scrollIntoView(){},focus(){},
+      showModal(){this.open=true;this.hidden=false;},close(){this.open=false;this.hidden=true;},
+      showPopover(){this.popoverOpen=true;},hidePopover(){this.popoverOpen=false;},
+      matches(){return Boolean(this.popoverOpen);}
+    };
+  }
+  const $ = id => {if(!elements.has(id))elements.set(id,makeEl(id));return elements.get(id);};
+  $("team-login").hidden=true;
+  $("workspace-name").textContent="demo";
+  const storage=new Map();
+  const apiCalls=[];
+  const location={pathname:"/",hash:"#workflows"};
+  const context=vm.createContext({
+    $,
+    escapeHtml:value=>String(value??"").replaceAll("<","&lt;").replaceAll(">","&gt;"),
+    state:{
+      ready:true,mode:"desktop",workspacePath:"/tmp/demo",
+      providers:[{id:"codex",name:"Codex CLI",kind:"cli",configured:true},{id:"openai",name:"OpenAI API",kind:"api",configured:false}],
+      agents:[],workflows:[],runs:[],sessionId:null,busy:false
+    },
+    watchedRuns:new Set(),
+    location,
+    window:{
+      innerWidth:1440,innerHeight:900,
+      localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
+      sessionStorage:{getItem:()=>null,setItem:()=>{}},
+      visualViewport:{height:900,addEventListener(){}},
+      addEventListener(){}
+    },
+    document:{
+      body:{classList:{contains:()=>false}},
+      querySelector:sel=>{
+        if(sel==="dialog[open]")return [...elements.values()].find(e=>e.open)||null;
+        return $(sel.replace(/^#/,""));
+      },
+      querySelectorAll:()=>[]
+    },
+    matchMedia:()=>({matches:false}),
+    view:()=>location.hash.slice(1)||"chat",
+    showView:()=>{},
+    selectLibraryTab:()=>{},
+    notify:()=>{},
+    api:async(path,body)=>{
+      apiCalls.push({path,body});
+      if(path==="/api/workbench/guide"&&!body)return {status:"new",seen_version:0,current_step:"workspace-navigation",completed_steps:[],steps:null};
+      return {status:body?.action==="complete"?"completed":body?.action==="dismiss"?"dismissed":"in_progress",seen_version:1,current_step:body?.current_step||"workspace-navigation",completed_steps:[]};
+    }
+  });
+  vm.runInContext(guideSlice,context);
+
+  // Active runs suppress automatic first-visit welcome dialog.
+  context.state.busy=true;
+  await vm.runInContext("initInteractiveGuide()",context);
+  assert.equal($("guide-welcome").open,false);
+
+  // Idle first visit opens welcome dialog.
+  context.state.busy=false;
+  await vm.runInContext("initInteractiveGuide()",context);
+  assert.equal($("guide-welcome").open,true);
+
+  // Starting the guide records originHash (#workflows), closes welcome, and opens Step 1.
+  await vm.runInContext("startInteractiveGuide({restart:true})",context);
+  assert.equal($("guide-welcome").open,false);
+  assert.equal($("guide-callout").hidden,false);
+  assert.equal($("guide-step-progress").textContent,"STEP 1 OF 13");
+  assert.equal($("guide-step-title").textContent,"Workspace navigation");
+
+  // Stepping forward navigates through all 13 steps and restores #workflows on completion.
+  for(let i=0;i<12;i++){
+    await vm.runInContext("stepInteractiveGuide(1)",context);
+  }
+  assert.equal($("guide-step-progress").textContent,"STEP 13 OF 13");
+  assert.equal($("guide-next").textContent,"Finish guide");
+  await vm.runInContext("stepInteractiveGuide(1)",context);
+  assert.equal($("guide-callout").hidden,true);
+  assert.equal(location.hash,"#workflows");
+  assert.ok(apiCalls.every(call=>call.path==="/api/workbench/guide"));
+});

@@ -564,10 +564,14 @@ class StudioWorkbench:
             return {"items": self.records(area, actor)}
         if area == "controls":
             return self.controls(actor)
+        if area == "guide" and len(parts) == 1:
+            return self.onboarding.guide_state(actor)
         raise FileNotFoundError("Unknown workbench area")
 
     def post(self, parts, payload, actor):
         self.owner(actor)
+        if parts == ["guide"]:
+            return 200, self.onboarding.save_guide_state(payload, actor)
         if len(parts) == 3 and parts[0] == "onboarding":
             if parts[2] == "check":
                 return 200, self.onboarding.probe(parts[1], payload, actor)

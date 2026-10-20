@@ -17,6 +17,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dir", required=True)
     parser.add_argument("--check-local", action="store_true")
+    parser.add_argument(
+        "--guide",
+        choices=("status", "start", "complete", "dismiss", "reset"),
+        default="status",
+        help="Inspect or update the interactive Studio onboarding guide state",
+    )
     args = parser.parse_args()
     root = Path(args.dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -80,9 +86,19 @@ def main():
                 and time.monotonic() < deadline
             ):
                 time.sleep(0.05)
+        guide = (
+            app.workbench.onboarding.guide_state(None)
+            if args.guide == "status"
+            else app.workbench.onboarding.save_guide_state({"action": args.guide}, None)
+        )
         print(f"Inbox: {len(app.workbench.inbox.items(None))} pending reviews")
         print(f"Deployment checks: {len(deployment_readiness(app, None)['items'])} observations")
-        print("Open Studio → Approval inbox or Connectors → Saved connections → Setup guide.")
+        print(
+            f"Interactive guide: v{guide['version']} ({guide['status']}, {len(guide['steps'])} steps)"
+        )
+        print(
+            "Open Studio → Help → Interactive guide, Approval inbox, or Connectors → Saved connections → Setup guide."
+        )
     finally:
         app.close()
 

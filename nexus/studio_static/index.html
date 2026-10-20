@@ -50,12 +50,14 @@
       <a href="#activity" data-view="activity"><span>Activity</span></a>
       <a href="#workbench" data-view="workbench"><span>Workspace tools</span></a>
       <a href="#workspace" data-view="workspace"><span>Workspace & event mesh</span></a>
+      <span class="nav-label second">HELP</span>
+      <button type="button" class="nav-guide-button" id="open-interactive-guide" data-guide-open><span>Interactive guide</span><span class="nav-count" id="guide-status-badge" hidden>New</span></button>
     </nav>
     <div class="recents"><span class="nav-label">RECENT CONVERSATIONS</span><div id="recent-sessions"></div></div>
     <div class="sidebar-footer"><span class="status-dot"></span><span id="runtime-label">Runs on your machine</span><span class="version">ARC</span></div>
   </aside>
   <main id="main-content" tabindex="-1">
-    <header class="topbar"><div><span class="breadcrumb">Workspace</span><span class="slash">/</span><span id="view-title">Conversations</span></div><button type="button" class="secondary" id="install-app">Install app</button></header>
+    <header class="topbar"><div><span class="breadcrumb">Workspace</span><span class="slash">/</span><span id="view-title">Conversations</span></div><div class="topbar-actions"><button type="button" class="secondary" id="help-guide-button" data-guide-open>Interactive guide</button><button type="button" class="secondary" id="install-app">Install app</button></div></header>
     <section id="team-login" class="resource-view" hidden><span class="eyebrow">TEAM WORKSPACE</span><h1>Sign in with Nexus</h1><p>Use your existing Nexus account. Project access is required.</p><a id="team-login-link" class="button-link">Continue to Nexus login</a><button class="secondary" id="retry-login">Check sign-in again</button></section>
     <div id="connection-status" class="connection-status" role="status" hidden><span id="connection-message"></span><a href="#activity">View runs</a><button class="secondary" id="reconnect-now">Reconnect now</button></div>
     <div id="app-update" class="connection-status" hidden><span>A new version is ready.</span><button class="secondary" id="app-update-button">Update app</button></div>
@@ -120,5 +122,54 @@
   <dialog id="graph-editor"><form id="graph-form"><header class="dialog-heading"><div><span class="eyebrow">WORKFLOW CANVAS</span><h2>Shape your workflow</h2></div><button type="button" class="quiet close-dialog" aria-label="Close workflow canvas">×</button></header><div class="form-grid"><label>Name<input id="graph-name" required></label><label>Description<input id="graph-description"></label></div><div class="graph-toolbar"><button type="button" class="secondary" id="graph-add-agent">+ Agent node</button><button type="button" class="secondary" id="graph-add-tool">+ Tool node</button><button type="button" class="secondary" id="graph-add-decision">+ Decision</button><button type="button" class="secondary" id="graph-add-integration">+ Integration action</button><button type="button" class="secondary" id="graph-add-delay">+ Delay</button><button type="button" class="secondary" id="graph-add-gate">+ Approval gate</button><button type="button" class="secondary" data-graph-advanced="map">+ Map collection</button><button type="button" class="secondary" data-graph-advanced="loop">+ Bounded loop</button><button type="button" class="secondary" data-graph-advanced="workflow">+ Nested workflow</button><button type="button" class="secondary" data-graph-advanced="switch">+ Switch</button><button type="button" class="secondary" data-graph-advanced="input">+ Request input</button><button type="button" class="secondary" id="graph-layout">Arrange</button></div><p class="graph-canvas-help">Scroll the canvas to explore. Drag a node to move it; tap to edit. With a keyboard, focus a node and use arrow keys.</p><div class="graph-canvas-wrap"><svg id="graph-canvas" role="group" aria-label="Workflow graph"></svg></div><div id="graph-node-fields"></div><fieldset class="graph-edge-form"><legend>Connect nodes</legend><label>From<select id="graph-edge-source"></select></label><label>To<select id="graph-edge-target"></select></label><label>Only when output contains (optional)<input id="graph-edge-condition"></label><label>Decision choice (optional)<input id="graph-edge-choice"></label><button type="button" class="secondary" id="graph-add-edge">Connect</button></fieldset><div id="graph-edges"></div><p id="graph-error" class="form-error" role="alert"></p><footer><button type="button" class="secondary close-dialog">Cancel</button><button type="submit" id="graph-save">Save workflow</button></footer></form></dialog>
   <dialog id="library-editor"><form id="library-form"><header class="dialog-heading"><h2 id="library-editor-title">Create prompt</h2><button type="button" class="quiet close-dialog" aria-label="Close library editor">×</button></header><div id="library-fields"></div><p id="library-form-error" class="form-error" role="alert"></p><footer><button type="button" class="secondary close-dialog">Cancel</button><button type="submit" id="library-save">Save</button></footer></form></dialog>
   <dialog id="detail"><header class="dialog-heading"><h2 id="detail-title">Details</h2><button class="quiet close-dialog" aria-label="Close details">×</button></header><div id="detail-content"></div><footer><button class="secondary close-dialog">Close</button></footer></dialog>
+  <dialog id="guide-welcome" aria-labelledby="guide-welcome-title">
+    <header class="dialog-heading">
+      <div><span class="eyebrow" id="guide-welcome-kicker">INTERACTIVE GUIDE</span><h2 id="guide-welcome-title">Welcome to Nexus Studio</h2></div>
+      <button type="button" class="quiet" id="guide-welcome-close" data-guide-skip aria-label="Skip interactive guide for now">×</button>
+    </header>
+    <div class="guide-welcome-body">
+      <p>Take a short, hands-on tour of how Nexus Studio connects your agents, providers, workflows, and approvals without running live tasks or changing your workspace.</p>
+      <ul class="guide-welcome-list">
+        <li><strong>Providers &amp; accounts</strong>: compare subscription-backed CLI tools (Codex, Claude Code, Antigravity, Copilot, OpenCode) with API-key billing.</li>
+        <li><strong>Daily work</strong>: start conversations with files and reasoning effort, or draft multi-agent teams in Quick Build.</li>
+        <li><strong>Operations &amp; governance</strong>: inspect workflows, read-only connector checks, and the approval inbox.</li>
+      </ul>
+      <p id="guide-welcome-context" class="callout"></p>
+    </div>
+    <footer>
+      <button type="button" class="secondary" id="guide-welcome-skip" data-guide-skip>Skip for now</button>
+      <button type="button" class="secondary" id="guide-welcome-resume" data-guide-resume-tour hidden>Resume saved progress</button>
+      <button type="button" id="guide-welcome-start" data-guide-start>Start guide</button>
+    </footer>
+  </dialog>
+  <aside id="guide-callout" class="guide-callout" popover="manual" role="dialog" aria-modal="false" aria-labelledby="guide-step-title" aria-describedby="guide-step-summary" tabindex="-1" hidden>
+    <header class="guide-callout-header">
+      <span class="eyebrow" id="guide-step-progress" aria-live="polite">STEP 1 OF 13</span>
+      <select id="guide-step-select" class="guide-step-select" aria-label="Jump to guide step"></select>
+      <button type="button" class="quiet" id="guide-close" data-guide-dismiss aria-label="Close interactive guide">×</button>
+    </header>
+    <h2 id="guide-step-title">Workspace navigation</h2>
+    <p id="guide-step-summary"></p>
+    <p id="guide-step-capability" class="guide-meta" hidden></p>
+    <p id="guide-step-role" class="guide-role-note" hidden></p>
+    <details id="guide-branch" class="guide-branch">
+      <summary id="guide-branch-title">More about this area</summary>
+      <p id="guide-branch-body"></p>
+    </details>
+    <div id="guide-practice-box" class="guide-practice">
+      <button type="button" class="secondary" id="guide-practice-toggle" aria-expanded="false" aria-controls="guide-practice-preview">Preview sample</button>
+      <div id="guide-practice-preview" class="guide-practice-preview" role="region" aria-label="Disposable local sample preview" hidden></div>
+    </div>
+    <footer class="guide-callout-footer">
+      <div class="guide-footer-left">
+        <button type="button" class="secondary" id="guide-skip" data-guide-dismiss>Skip guide</button>
+        <button type="button" class="secondary" id="guide-restart" data-guide-restart hidden>Restart</button>
+      </div>
+      <div class="guide-footer-right">
+        <button type="button" class="secondary" id="guide-back">Back</button>
+        <button type="button" id="guide-next">Next</button>
+      </div>
+    </footer>
+  </aside>
 </body>
 </html>

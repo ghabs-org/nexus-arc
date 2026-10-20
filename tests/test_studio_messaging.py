@@ -192,3 +192,40 @@ def test_discord_real_ed25519_signature(app, monkeypatch):
     assert app.messaging.receive("incoming", headers, raw) == {"type": 1}
     with pytest.raises(PermissionError):
         app.messaging.receive("incoming", headers, raw + b" ")
+
+
+def test_whatsapp_webhook_hmac_verification_and_normalization(app, monkeypatch):
+    import hashlib
+    import hmac
+
+    secret = "whatsapp-app-secret-for-webhook-test"
+    monkeypatch.setenv("EVENT_SECRET", secret)
+    entry(app, kind="whatsapp")
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "metadata": {"phone_number_id": "room"},
+                            "messages": [
+                                {
+                                    "id": "wamid.123",
+                                    "from": "alice",
+                                    "text": {"body": "Summarize release"},
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    raw = json.dumps(payload).encode()
+    sig = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+    assert app.messaging.receive("incoming", {"X-Hub-Signature-256": sig}, raw) == {"ok": True}
+    app.messaging.tick()
+    events = app.records("channel-events")
+    assert len(events) == 1 and events[0]["task"] == "Summarize release"
+    with pytest.raises(PermissionError):
+        app.messaging.receive("incoming", {"X-Hub-Signature-256": sig + "0"}, raw)

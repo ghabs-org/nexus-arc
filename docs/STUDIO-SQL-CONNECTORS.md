@@ -10,11 +10,14 @@ never trigger automatic retries.
 Connect limits are five seconds. PostgreSQL statement and lock limits are fifteen
 seconds; MySQL and MariaDB set session statement limits. Their drivers also bound
 network reads/writes. SQL Server uses login/query timeouts; Oracle uses connect
-and checked-out connection call timeouts. These bounds have policy fixtures;
-wall-clock cancellation and timeout acceptance is still pending for each family.
+and checked-out connection call timeouts. Actual blocked-table SELECT checks on
+PostgreSQL/MySQL/MariaDB now fail within 10–25 seconds and then successfully read
+through the same pool after releasing the fixture lock. SQL Server/Oracle measured
+timeouts, active cancellation and live cross-owner pool checks remain pending.
 
 On 20 October 2026, isolated local Docker PostgreSQL 17, MySQL and MariaDB 11.4
-passed actual driver schema reads, bound parameters, rejected writes before
+passed actual driver schema reads, measured blocked-read timeout/pool recovery,
+bound parameters, rejected writes before
 approval, one approved commit, error recovery and pool reuse. Each used synthetic
 data, a random loopback port, resource limits and no host data mounts. Owned
 containers were removed. SQL Server and Oracle were not run; neither is labelled

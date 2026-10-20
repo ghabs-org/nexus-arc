@@ -120,3 +120,66 @@ def test_switch_unresolved_target_remains_distinct_from_intentionally_pruned_tar
             )
             == expected
         )
+
+
+def test_broader_artifact_reference_normalization_and_multi_artifact_tool_output(tmp_path):
+    from nexus.core.studio import StudioService
+    from nexus.core.studio_decision_images import normalize_artifact_reference
+    from nexus.core.studio_workflow_artifacts import tool_output
+
+    assert normalize_artifact_reference("artifact://workspace/scan.png@2") == ("scan.png", 2)
+    assert normalize_artifact_reference("artifact://session/scan.png?version=3") == (
+        "scan.png",
+        3,
+    )
+    assert normalize_artifact_reference("artifacts/scan.png#v4") == ("scan.png", 4)
+    assert normalize_artifact_reference({"filename": "scan.png", "revision": 5}) == (
+        "scan.png",
+        5,
+    )
+    assert normalize_artifact_reference({"uri": "artifact://user/scan.png:6"}) == ("scan.png", 6)
+    for invalid in (
+        "artifact://workspace/../secret.png",
+        "artifact://workspace/scan.png:1?version=2",
+        {"id": "scan", "filename": "scan.png"},
+        {"id": "scan", "revision": 0},
+    ):
+        with pytest.raises(ValueError):
+            normalize_artifact_reference(invalid)
+
+    studio = StudioService(tmp_path)
+    try:
+        first = studio.catalog.save(
+            "artifacts",
+            {
+                "name": "First",
+                "data": {"filename": "first.png", "content_base64": "MQ=="},
+            },
+        )
+        second = studio.catalog.save(
+            "artifacts",
+            {
+                "name": "Second",
+                "data": {"filename": "second.png", "content_base64": "Mg=="},
+            },
+        )
+        for item in (first, second):
+            item["generated_by_run"] = "run-1"
+            studio._write(studio.catalog._path("artifacts", item["id"]), item)
+        out = tool_output(
+            studio,
+            {
+                "artifacts": [
+                    {"id": first["id"], "revision": first["revision"]},
+                    {"id": second["id"], "revision": second["revision"]},
+                ]
+            },
+            "run-1",
+            None,
+        )
+        assert out["created_artifacts"] == [
+            f"{first['id']}:{first['revision']}",
+            f"{second['id']}:{second['revision']}",
+        ]
+    finally:
+        studio.close()

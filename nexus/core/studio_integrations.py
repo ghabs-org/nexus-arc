@@ -27,14 +27,15 @@ _INTEGRATIONS = (
         "teams",
         "Microsoft Teams",
         "Messaging",
-        "Read one selected channel; send and update messages with reviewed approval.",
+        "Read one selected channel, send reviewed messages, and receive mapped task commands.",
         [
             "Channel metadata and paginated messages",
             "Reviewed messages and replies",
             "Delegated work/school Graph account",
+            "Verified incoming commands with durable deduplication",
         ],
-        ["nexus/core/studio_teams.py"],
-        "Choose Microsoft Teams in the connector editor, set team/channel IDs and a delegated token reference. Select read/write actions and enable explicitly.",
+        ["nexus/core/studio_teams.py", "nexus/core/studio_teams_events.py"],
+        "Choose Microsoft Teams in the connector editor, set team/channel IDs and a delegated token reference. Select read/write actions and enable explicitly. Entrypoints also accept selected basic Graph notifications with mapped Microsoft users and a command prefix.",
         "studio",
     ),
     _integration(

@@ -15,7 +15,7 @@ import secrets
 import time
 from urllib.parse import parse_qs
 
-CHANNELS = {"telegram", "slack", "discord", "openclaw"}
+CHANNELS = {"telegram", "slack", "discord", "whatsapp", "openclaw", "teams"}
 
 
 def validate_channel(data):
@@ -56,12 +56,19 @@ def validate_channel(data):
     if (result["auto_reply"] or result["approval_notifications"]) and not connector:
         raise ValueError("Notifications require a saved, fixed-destination connection")
     result["notification_connector_id"] = connector
+    if kind == "teams":
+        from nexus.core.studio_teams_events import configuration
+
+        result.update(configuration(data))
     return result
 
 
 class StudioMessaging:
     def __init__(self, studio):
         self.studio = studio
+        from nexus.core.studio_teams_events import TeamsEvents
+
+        self.teams = TeamsEvents(studio)
 
     def verify(self, data, headers, raw):
         headers = {key.lower(): value for key, value in headers.items()}
@@ -72,6 +79,11 @@ class StudioMessaging:
         if kind == "telegram":
             valid = len(secret) >= 24 and secrets.compare_digest(
                 headers.get("x-telegram-bot-api-secret-token", ""), secret
+            )
+        elif kind == "whatsapp":
+            digest = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+            valid = secrets.compare_digest(
+                headers.get("x-hub-signature-256", ""), "sha256=" + digest
             )
         else:
             timestamp = headers.get(
@@ -121,9 +133,12 @@ class StudioMessaging:
     def receive(self, identity, headers, raw):
         if not 0 < len(raw) <= 1024 * 1024:
             raise ValueError("Incoming event exceeds one MiB")
-        data = self.studio.catalog.get("entrypoints", identity)["data"]
+        record = self.studio.catalog.get("entrypoints", identity)
+        data = record["data"]
         if not data["enabled"] or data.get("type") not in CHANNELS:
             raise PermissionError("Incoming channel is disabled")
+        if data["type"] == "teams":
+            return self.teams.receive(self.teams.profile(identity), raw)
         self.verify(data, headers, raw)
         content_type = next((v for k, v in headers.items() if k.lower() == "content-type"), "")
         try:
@@ -227,6 +242,35 @@ class StudioMessaging:
                 str(data.get("custom_id", "")),
                 str(body.get("id", "")),
             )
+        if kind == "whatsapp":
+            entries = body.get("entry", [])
+            changes = (
+                entries[0].get("changes", [])
+                if entries and isinstance(entries[0], dict)
+                else []
+            )
+            value = (
+                changes[0].get("value", {})
+                if changes and isinstance(changes[0], dict)
+                else {}
+            )
+            messages = value.get("messages", [])
+            if not messages or not isinstance(messages[0], dict):
+                return None
+            msg = messages[0]
+            interactive = msg.get("interactive", {})
+            reply = (
+                interactive.get("button_reply")
+                or interactive.get("list_reply")
+                or {}
+            )
+            return (
+                str(msg.get("from", "")),
+                str(value.get("metadata", {}).get("phone_number_id", "")),
+                str(msg.get("text", {}).get("body", "")),
+                str(reply.get("id", "")),
+                str(msg.get("id", "")),
+            )
         return (
             str(body.get("sender_id", "")),
             str(body.get("channel", "")),
@@ -262,10 +306,13 @@ class StudioMessaging:
             notification = None
             with self.studio.lock:
                 event = self.studio._read(self.studio._path("channel-events", event["id"]))
-                data = self.studio.catalog.get("entrypoints", event["entrypoint_id"])["data"]
+                record = self.studio.catalog.get("entrypoints", event["entrypoint_id"])
+                data = record["data"]
                 if not data["enabled"]:
                     continue
                 try:
+                    if event["status"] == "teams_pending":
+                        self.teams.resolve(event, record)
                     if event["status"] == "received":
                         if self.studio.team:
                             self.studio.team.assert_execution(event["requester_nexus_id"])

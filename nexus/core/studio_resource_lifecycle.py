@@ -307,6 +307,17 @@ class StudioResourceLifecycle:
             for component in result["components"]:
                 component["health"] = health.inspect(build, component)
                 component["live_health"] = component["health"]["status"]
+            result["health_summary"] = {
+                "supported": sum(1 for c in result["components"] if c["health"]["supported"]),
+                "checked": sum(1 for c in result["components"] if c["health"]["result"]),
+                "passed": sum(
+                    1 for c in result["components"] if c["health"]["status"] == "passed"
+                ),
+                "failed": sum(
+                    1 for c in result["components"] if c["health"]["status"] == "failed"
+                ),
+                "stale": sum(1 for c in result["components"] if c["health"]["status"] == "stale"),
+            }
             if any(c["health"]["result"] for c in result["components"]):
                 result["live_health"] = "partial"
         releases = [

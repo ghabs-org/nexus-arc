@@ -183,3 +183,156 @@ def test_recovery_keeps_completed_phase_and_original_shared_child(tmp_path, back
     finally:
         studio.close()
         tool_registry.unregister("interop:shared-recovery", func=record)
+
+
+@pytest.mark.parametrize("role", ["map", "loop"])
+def test_collection_template_can_also_serve_distinct_exit_phases(tmp_path, role):
+    calls = []
+
+    async def record(label):
+        calls.append(label)
+        return len(calls)
+
+    tool_registry.register("interop:cross-role", record, "Shared collection and exit fixture")
+    studio = StudioService(tmp_path)
+    try:
+        controller = {"id": "work", "type": role, "node": "shared"}
+        controller.update(
+            {"items": [1, 2]} if role == "map" else {"condition": "false", "max_iterations": 2}
+        )
+        value = {
+            "agent_name": "cross-role",
+            "agent_type": "workflow",
+            "tools": [{"tool_type": "builtin", "tool_name": "record"}],
+            "nodes": [
+                controller,
+                {
+                    "id": "shared",
+                    "type": "tool",
+                    "tool_name": "record",
+                    "input": {"label": "{{workflow.input.label}}"},
+                },
+            ],
+            "on_exit": {"always": "shared", "on_success": "shared"},
+            "output_mapping": {"work": "{{work.output}}", "exit": "{{shared.output}}"},
+        }
+        native = apply(studio, value, {"record": "interop:cross-role"})
+        result = run(studio, "cross-role", {"label": "common input"})
+        expected = 4 if role == "map" else 3
+        assert calls == ["common input"] * expected
+        output = json.loads(result["output"])
+        assert output["exit"] == expected
+        assert output["work"] == (
+            [1, 2]
+            if role == "map"
+            else {"iterations_completed": 1, "stopped_reason": "condition_false"}
+        )
+        state = studio._read(studio._path("graph-runs", result["id"]))
+        for phase in ("always", "on_success"):
+            assert state["nodes"][f"root/interop_exit/shared/{phase}/shared"] == "completed"
+        exported = studio.configuration.export_interop({"document": native}, None)
+        assert exported["valid"]
+        assert (
+            studio.configuration.convert_interop({"documents": [exported["bundle"]]}, None)[
+                "document"
+            ]
+            == native
+        )
+    finally:
+        studio.close()
+        tool_registry.unregister("interop:cross-role", func=record)
+
+
+def test_context_specific_collection_reference_is_rejected_for_exit_role(tmp_path):
+    studio = StudioService(tmp_path)
+    try:
+        value = {
+            "agent_name": "invalid-role",
+            "agent_type": "workflow",
+            "tools": [{"tool_type": "builtin", "tool_name": "record"}],
+            "nodes": [
+                {"id": "each", "type": "map", "node": "shared", "items": ["text"]},
+                {
+                    "id": "shared",
+                    "type": "tool",
+                    "tool_name": "record",
+                    "input": {"text": "{{_map_item}}"},
+                },
+            ],
+            "on_exit": "shared",
+            "output_mapping": {"result": "{{each.output}}"},
+        }
+        report = studio.configuration.convert_interop(
+            {"documents": [value], "bindings": {"tools": {"record": "text:wordcount"}}}, None
+        )
+        assert not report["valid"] and report["document"] is None
+        assert any(
+            row.get("code") == "invalid_mapping" and row.get("path", "").endswith("/input")
+            for row in report["diagnostics"]
+        )
+        assert not studio.records("runs") and not studio.records("configuration-plans")
+    finally:
+        studio.close()
+
+
+@pytest.mark.parametrize("backend", ["files", "sqlite"])
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_cross_role_approval_recovery_keeps_body_and_exit_receipts_separate(
+    tmp_path, backend, cancelled
+):
+    calls = []
+
+    async def record(label):
+        calls.append(label)
+        return len(calls)
+
+    tool_registry.register("interop:cross-role-recovery", record, "Shared role approved effect")
+    options = (
+        None
+        if backend == "files"
+        else {"url": "sqlite:///" + str(tmp_path / "roles.sqlite"), "namespace": "roles"}
+    )
+    root = tmp_path / "workspace"
+    studio = StudioService(root, state_options=options)
+    try:
+        gate(studio, "Shared role gate", "interop:cross-role-recovery")
+        value = {
+            "agent_name": "role-recovery",
+            "agent_type": "workflow",
+            "nodes": [
+                {"id": "each", "type": "map", "node": "shared", "items": ["one"]},
+                {"id": "shared", "type": "workflow", "workflow_name": "Shared role gate"},
+            ],
+            "on_exit": {"always": "shared", "on_success": "shared", "on_cancel": "shared"},
+            "output_mapping": {"result": "{{shared.output}}"},
+        }
+        apply(studio, value, {})
+        body_gate = run(studio, "role-recovery", {}, "waiting")
+        if cancelled:
+            exit_gate = wait(studio, studio.cancel_run(body_gate["id"]), "waiting")
+            assert not calls
+        else:
+            exit_gate = wait(studio, studio.graph.resume(body_gate["id"], "approve"), "waiting")
+            assert len(calls) == 1
+        studio.close()
+        (root / "workflows/shared-role-gate.yaml").unlink()
+        studio = StudioService(root, state_options=options)
+        final_gate = wait(studio, studio.graph.resume(exit_gate["id"], "approve"), "waiting")
+        result = wait(
+            studio,
+            studio.graph.resume(final_gate["id"], "approve"),
+            "cancelled" if cancelled else "completed",
+        )
+        assert len(calls) == (2 if cancelled else 3)
+        saved = studio._read(studio._path("graph-runs", result["id"]))
+        effects = [
+            key
+            for key, status in saved["nodes"].items()
+            if key.endswith("/effect") and status == "completed"
+        ]
+        assert len(effects) == len(calls)
+        assert any("/always/" in key for key in effects)
+        assert any(("/on_cancel/" if cancelled else "/on_success/") in key for key in effects)
+    finally:
+        studio.close()
+        tool_registry.unregister("interop:cross-role-recovery", func=record)

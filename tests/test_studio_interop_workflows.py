@@ -303,6 +303,55 @@ def test_unsupported_expression_is_rejected_before_execution(source):
         parse_condition(source)
 
 
+def test_extended_sam_conditions_and_indexed_references_roundtrip(studio):
+    from nexus.core.studio_interop_conditions import evaluate_condition
+
+    context = {
+        "input": {
+            "title": "nexus-release-rc1",
+            "tags": ["alpha", "beta"],
+            "items": [{"name": "first-item"}],
+        },
+        "nodes": {},
+    }
+    for expr, expected in (
+        ('"gamma" not in {{workflow.input.tags}}', True),
+        ('contains({{workflow.input.title}}, "release")', True),
+        ('startswith({{workflow.input.title}}, "nexus-")', True),
+        ('endswith({{workflow.input.title}}, "-rc1")', True),
+        ('{{workflow.input.items[0].name}} == "first-item"', True),
+    ):
+        tree = parse_condition(expr)["interop_condition"]
+        assert evaluate_condition(tree, context).value is expected
+
+    source = {
+        "agent_name": "indexed-workflow",
+        "agent_type": "workflow",
+        "tools": [{"tool_type": "builtin", "tool_name": "count"}],
+        "nodes": [
+            {
+                "id": "first",
+                "type": "tool",
+                "tool_name": "count",
+                "when": 'startswith({{workflow.input.items[0].text}}, "hello") and "skip" not in {{workflow.input.tags}}',
+                "input": {"text": "{{workflow.input.items[0].text}}"},
+            }
+        ],
+        "output_mapping": {"words": "{{first.output}}"},
+    }
+    native = apply(studio, source, {"count": "text:wordcount"})
+    out = json.loads(
+        run(
+            studio,
+            "indexed-workflow",
+            {"items": [{"text": "hello world"}], "tags": ["ok"]},
+        )["output"]
+    )
+    assert out == {"words": 2}
+    exported = studio.configuration.export_interop({"document": native}, None)
+    assert exported["valid"], exported
+
+
 def test_mapping_missing_input_omission_null_wrong_shape_and_stale_field():
     context = {"input": {}, "nodes": {"done": {}}, "_interop_input_mapping": True}
     assert resolve_value(

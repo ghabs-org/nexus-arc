@@ -23,6 +23,11 @@ def probe_action(key, value):
         "mongodb": "inspect_schema",
         "powerbi": "read",
         "teams": "status",
+        "neptune": "status",
+        "opensearch": "inspect_schema",
+        "elasticsearch": "inspect_schema",
+        "dynamodb": "inspect_schema",
+        "neo4j": "inspect_schema",
     }.get(data.get("type"))
     if data.get("type") not in {"sqlite", "http"} and action not in data.get("actions", []):
         return None

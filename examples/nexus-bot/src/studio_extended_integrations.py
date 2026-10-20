@@ -10,8 +10,10 @@ import base64
 import io
 import json
 import os
+import runpy
 import tempfile
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 import requests
@@ -42,6 +44,7 @@ def exercise(base="http://127.0.0.1:49730"):
             {
                 "EXAMPLE_TEAMS_TOKEN": "synthetic-teams-token",
                 "EXAMPLE_API_TOKEN": "synthetic-openapi-token",
+                "EXAMPLE_TEAMS_SECRET": "synthetic-notification-secret-123",
             },
         ),
     ):
@@ -249,6 +252,30 @@ def exercise(base="http://127.0.0.1:49730"):
                     raise RuntimeError("Image peer did not finish")
                 time.sleep(0.01)
             assert studio.run(run["id"])["status"] == "completed", studio.run(run["id"])
+            cleanup_example = runpy.run_path(
+                str(Path(__file__).with_name("studio_cleanup_images.py"))
+            )
+            converted = studio.configuration.convert_interop(
+                cleanup_example["document"](photo["id"]), None
+            )
+            assert converted["valid"], converted
+            plan = studio.configuration.plan(converted["document"], None)
+            studio.configuration.apply(plan["id"], plan["digest"], None)
+            cleanup_photo = studio.start_run(
+                {
+                    "kind": "workflow",
+                    "workflow_id": "cleanup-image-review",
+                    "task": "Review captured local evidence",
+                }
+            )
+            deadline = time.monotonic() + 10
+            while studio.run(cleanup_photo["id"])["status"] in {"running", "queued"}:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("Cleanup image peer did not finish")
+                time.sleep(0.01)
+            result = studio.run(cleanup_photo["id"])
+            assert result["status"] == "completed" and not result.get("workflow_warnings"), result
+            assert json.loads(result["output"])["review"]["answers"]["visible"]["value"] is True
             collection = {
                 "agent_name": "routed-items",
                 "agent_type": "workflow",
@@ -304,12 +331,180 @@ def exercise(base="http://127.0.0.1:49730"):
             assert [
                 item["selected_branch"] for item in json.loads(finished["output"])["results"]
             ] == ["short", "long"]
+            incoming = studio.catalog.save(
+                "entrypoints",
+                {
+                    "name": "Incoming Teams commands",
+                    "data": {
+                        "type": "teams",
+                        "target_kind": "workflow",
+                        "target_id": "routed-items",
+                        "enabled": True,
+                        "token_env": "EXAMPLE_TEAMS_SECRET",
+                        "graph_token_env": "EXAMPLE_TEAMS_TOKEN",
+                        "team_id": channel["data"]["team_id"],
+                        "channel_id": channel["data"]["channel_id"],
+                        "tenant_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                        "subscription_id": "11111111-aaaa-bbbb-cccc-222222222222",
+                        "identity_map": {"example-microsoft-user": "desktop"},
+                        "allowed_channels": [channel["data"]["channel_id"]],
+                    },
+                },
+            )
+            resource = (
+                "teams('"
+                + channel["data"]["team_id"]
+                + "')/channels('"
+                + channel["data"]["channel_id"]
+                + "')/messages('fixture-message')"
+            )
+            notification = json.dumps(
+                {
+                    "value": [
+                        {
+                            "subscriptionId": incoming["data"]["subscription_id"],
+                            "tenantId": incoming["data"]["tenant_id"],
+                            "clientState": "synthetic-notification-secret-123",
+                            "changeType": "created",
+                            "resource": resource,
+                        }
+                    ]
+                }
+            ).encode()
+            studio.messaging.receive(incoming["id"], {}, notification)
+            studio.messaging.receive(incoming["id"], {}, notification)
+            studio.messaging.tick()
+            events = studio.records("channel-events")
+            assert len(events) == 1 and events[0]["run_id"]
+            incoming_run = events[0]["run_id"]
+            deadline = time.monotonic() + 10
+            while studio.run(incoming_run)["status"] in {"running", "queued"}:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("Incoming Teams task did not finish")
+                time.sleep(0.01)
+            assert studio.run(incoming_run)["status"] == "completed"
+            assert studio.run(incoming_run)["task"] == "route items"
+            shared_roles = {
+                "agent_name": "shared-roles",
+                "agent_type": "workflow",
+                "tools": [{"tool_type": "builtin", "tool_name": "count"}],
+                "nodes": [
+                    {"id": "each", "type": "map", "node": "shared", "items": [1, 2]},
+                    {
+                        "id": "shared",
+                        "type": "tool",
+                        "tool_name": "count",
+                        "input": {"text": "{{workflow.input.text}}"},
+                    },
+                ],
+                "on_exit": {"always": "shared", "on_success": "shared"},
+                "output_mapping": {"items": "{{each.output}}", "cleanup": "{{shared.output}}"},
+            }
+            converted = studio.configuration.convert_interop(
+                {"documents": [shared_roles], "bindings": {"tools": {"count": "text:wordcount"}}},
+                None,
+            )
+            assert converted["valid"], converted
+            plan = studio.configuration.plan(converted["document"], None)
+            studio.configuration.apply(plan["id"], plan["digest"], None)
+            shared_run = studio.start_run(
+                {
+                    "kind": "workflow",
+                    "workflow_id": "shared-roles",
+                    "task": "Share one template across roles",
+                    "workflow_input": {"text": "one two"},
+                }
+            )
+            deadline = time.monotonic() + 10
+            while studio.run(shared_run["id"])["status"] in {"running", "queued"}:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("Shared-role workflow did not finish")
+                time.sleep(0.01)
+            result = studio.run(shared_run["id"])
+            assert result["status"] == "completed", result
+            assert json.loads(result["output"]) == {"items": [2, 2], "cleanup": 2}
+            cleanup_routes = {
+                "agent_name": "routed-cleanup",
+                "agent_type": "workflow",
+                "tools": [{"tool_type": "builtin", "tool_name": "count"}],
+                "nodes": [
+                    {"id": "work", "type": "tool", "tool_name": "count", "input": {"text": "one"}},
+                    {
+                        "id": "cleanup",
+                        "type": "switch",
+                        "cases": [
+                            {"condition": "'{{workflow.status}}' == 'success'", "node": "good"}
+                        ],
+                        "default": "other",
+                    },
+                    {
+                        "id": "good",
+                        "type": "tool",
+                        "tool_name": "count",
+                        "depends_on": ["cleanup"],
+                        "input": {"text": "one two"},
+                    },
+                    {
+                        "id": "other",
+                        "type": "tool",
+                        "tool_name": "count",
+                        "depends_on": ["cleanup"],
+                        "input": {"text": "one two three"},
+                    },
+                    {
+                        "id": "joined",
+                        "type": "tool",
+                        "tool_name": "count",
+                        "depends_on": ["good", "other"],
+                        "input": {
+                            "text": {
+                                "concat": [
+                                    "selected ",
+                                    {"coalesce": ["{{good.output}}", "{{other.output}}"]},
+                                ]
+                            }
+                        },
+                    },
+                ],
+                "on_exit": {"always": "cleanup", "on_success": "cleanup"},
+                "output_mapping": {
+                    "body": "{{work.output}}",
+                    "selected": {"coalesce": ["{{good.output}}", "{{other.output}}"]},
+                    "joined": "{{joined.output}}",
+                },
+            }
+            converted = studio.configuration.convert_interop(
+                {"documents": [cleanup_routes], "bindings": {"tools": {"count": "text:wordcount"}}},
+                None,
+            )
+            assert converted["valid"], converted
+            plan = studio.configuration.plan(converted["document"], None)
+            studio.configuration.apply(plan["id"], plan["digest"], None)
+            cleanup_run = studio.start_run(
+                {
+                    "kind": "workflow",
+                    "workflow_id": "routed-cleanup",
+                    "task": "Run local cleanup branches",
+                }
+            )
+            deadline = time.monotonic() + 10
+            while studio.run(cleanup_run["id"])["status"] in {"running", "queued"}:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("Routed cleanup did not finish")
+                time.sleep(0.01)
+            result = studio.run(cleanup_run["id"])
+            assert result["status"] == "completed", result
+            assert json.loads(result["output"]) == {"body": 1, "selected": 2, "joined": 2}
             return {
                 "teams_read_and_reviewed_write": True,
                 "openapi_local_reference_and_security": True,
                 "read_only_health": True,
                 "owned_image_decision": True,
                 "routed_collection": True,
+                "incoming_teams_task": True,
+                "shared_collection_exit_template": True,
+                "routed_exit_handlers": True,
+                "captured_cleanup_images": True,
             }
         finally:
             studio.close()

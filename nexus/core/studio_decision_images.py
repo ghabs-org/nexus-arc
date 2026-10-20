@@ -58,6 +58,57 @@ def pin(studio, payload):
     }
 
 
+def normalize_artifact_reference(reference):
+    explicit = None
+    if isinstance(reference, dict):
+        allowed = {"id", "artifact_id", "name", "filename", "uri", "revision", "version"}
+        if not reference or set(reference) - allowed:
+            raise ValueError("Image references must name owned artifacts")
+        targets = [
+            reference[k]
+            for k in ("id", "artifact_id", "name", "filename", "uri")
+            if k in reference
+        ]
+        if len(targets) != 1 or not isinstance(targets[0], str):
+            raise ValueError("Image references must name owned artifacts")
+        revs = [reference[k] for k in ("revision", "version") if k in reference]
+        if len(revs) > 1 or (revs and (type(revs[0]) is not int or revs[0] < 1)):
+            raise ValueError("Use artifact ID or filename with optional :revision")
+        if revs:
+            explicit = revs[0]
+        reference = targets[0]
+    if not isinstance(reference, str) or not 1 <= len(reference) <= 500:
+        raise ValueError("Image references must name owned artifacts")
+    if any(ord(c) < 32 or c == "\\" for c in reference) or ".." in reference:
+        raise ValueError("Use artifact ID or filename with optional :revision")
+    text = reference.removeprefix("artifact://")
+    for prefix in ("workspace/", "session/", "user/", "artifacts/"):
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    if "#" in text:
+        text, frag = text.split("#", 1)
+        m = re.fullmatch(r"v?([1-9][0-9]*)", frag)
+        if not m or (explicit is not None and explicit != int(m[1])):
+            raise ValueError("Use artifact ID or filename with optional :revision")
+        explicit = int(m[1])
+    if "?" in text:
+        text, query = text.split("?", 1)
+        m = re.fullmatch(r"(?:version|revision)=([1-9][0-9]*)", query)
+        if not m or (explicit is not None and explicit != int(m[1])):
+            raise ValueError("Use artifact ID or filename with optional :revision")
+        explicit = int(m[1])
+    match = re.fullmatch(r"([^/:@#?]+?)(?:[:@]([1-9][0-9]*))?", text)
+    if not match:
+        raise ValueError("Use artifact ID or filename with optional :revision")
+    if match[2]:
+        rev = int(match[2])
+        if explicit is not None and explicit != rev:
+            raise ValueError("Use artifact ID or filename with optional :revision")
+        explicit = rev
+    return match[1], explicit
+
+
 def prepare(studio, references, config, payload, actor, *, run_id=None):
     count, maximum = limits(config)
     if not isinstance(references, list) or len(references) > 128:
@@ -73,13 +124,7 @@ def prepare(studio, references, config, payload, actor, *, run_id=None):
         raise DecisionCallError("input_too_large")
     result, total = [], 0
     for reference in flattened:
-        if not isinstance(reference, str) or len(reference) > 500:
-            raise ValueError("Image references must name owned artifacts")
-        reference = reference.removeprefix("artifact://")
-        match = re.fullmatch(r"(.+?)(?::([1-9][0-9]*))?", reference)
-        if not match or any(c in reference for c in "/\\?#\x00"):
-            raise ValueError("Use artifact ID or filename with optional :revision")
-        name, explicit = match[1], int(match[2]) if match[2] else None
+        name, explicit = normalize_artifact_reference(reference)
         pinned = payload.get("_decision_image_revisions", {})
         candidates = [
             identity

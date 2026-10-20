@@ -5,32 +5,43 @@ def tool_output(studio, result, run_id, owner):
     if (
         not isinstance(result, dict)
         or not isinstance(result.get("artifacts"), list)
-        or len(result["artifacts"]) != 1
+        or not 1 <= len(result["artifacts"]) <= 20
     ):
         return result
-    reference = result["artifacts"][0]
-    if (
-        not isinstance(reference, dict)
-        or not isinstance(reference.get("id"), str)
-        or type(reference.get("revision")) is not int
+    references = result["artifacts"]
+    if any(
+        not isinstance(ref, dict)
+        or not isinstance(ref.get("id"), str)
+        or type(ref.get("revision")) is not int
+        for ref in references
     ):
         return result
     if studio.team:
         studio.team.assert_execution(owner)
-    current = studio.catalog.get("artifacts", reference["id"], archived=True)
-    artifact = studio.artifacts.revision(reference["id"], reference["revision"])
-    if (
-        current.get("owner_id") != owner
-        or artifact.get("owner_id") != owner
-        or artifact.get("generated_by_run") != run_id
-    ):
-        raise PermissionError("Tool artifact metadata does not belong to this run and user")
-    return {
-        **result,
-        "created_artifact": artifact["id"] + ":" + str(artifact["revision"]),
-        "created_artifact_name": artifact["data"]["filename"],
-        "created_artifact_version": artifact["revision"],
-    }
+    verified = []
+    for reference in references:
+        current = studio.catalog.get("artifacts", reference["id"], archived=True)
+        artifact = studio.artifacts.revision(reference["id"], reference["revision"])
+        if (
+            current.get("owner_id") != owner
+            or artifact.get("owner_id") != owner
+            or artifact.get("generated_by_run") != run_id
+        ):
+            raise PermissionError("Tool artifact metadata does not belong to this run and user")
+        verified.append(artifact)
+    enriched = dict(result)
+    if len(verified) == 1:
+        artifact = verified[0]
+        enriched.update(
+            created_artifact=artifact["id"] + ":" + str(artifact["revision"]),
+            created_artifact_name=artifact["data"]["filename"],
+            created_artifact_version=artifact["revision"],
+        )
+    else:
+        enriched["created_artifacts"] = [
+            item["id"] + ":" + str(item["revision"]) for item in verified
+        ]
+    return enriched
 
 
 def skipped_reason(graph, node_id, edges, statuses, outputs, context, scope, state):
@@ -69,6 +80,36 @@ def skipped_reason(graph, node_id, edges, statuses, outputs, context, scope, sta
     return "pruned"
 
 
+def node_image_states(graph, scope, state, outputs):
+    """Reconstruct direct acknowledgements without merging unrelated nested IDs."""
+    result = {}
+    for node in graph["nodes"]:
+        identity = node["id"]
+        key = scope + "/" + identity
+        status = state["nodes"].get(key, "pending")
+        result[identity] = {
+            "status": "pending" if status == "completed" and identity not in outputs else status,
+            "output": outputs.get(identity),
+            "reason": state.get("skip_reasons", {}).get(key),
+        }
+        if node.get("interop_body_id"):
+            alias = node["interop_body_id"]
+            current_status = "pending" if status == "completed" and alias not in outputs else status
+            existing = result.get(alias)
+            if (
+                existing
+                and existing.get("status") == "completed"
+                and current_status != "completed"
+            ):
+                continue
+            result[alias] = {
+                **result[identity],
+                "status": current_status,
+                "output": outputs.get(alias),
+            }
+    return result
+
+
 def image_references(entries, context, states, resolve):
     """Nil/pruned image entries vanish as a whole; stale/failed evidence fails."""
     from nexus.core.studio_interop_values import MissingSAMValueError, reference_value
@@ -102,7 +143,12 @@ def image_references(entries, context, states, resolve):
                 omit = True
                 break
             if parts[0] in {"nodes", "interop_nodes"} and len(parts) > 1:
-                known = states.get(parts[1])
+                evidence = (
+                    context.get("_image_capture_states", {})
+                    if parts[0] == "interop_nodes"
+                    else states
+                )
+                known = evidence.get(parts[1])
                 if known is None:
                     raise ValueError("Image reference has no acknowledged upstream node")
                 if known["status"] == "skipped":

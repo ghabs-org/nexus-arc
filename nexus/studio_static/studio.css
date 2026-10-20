@@ -412,4 +412,42 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 .workbench-output{background:var(--raised);border:1px solid var(--line);border-radius:8px;color:#353736}
 .workspace-statistics dd{color:var(--accent)}
 ::selection{background:#d9ebf0;color:#131416}
+/* Interactive onboarding guide: anchored desktop callout and docked mobile sheet. */
+.topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nav-guide-button{width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin:2px 0;border:0;border-radius:6px;background:transparent;color:#5d5f60;font-size:13px;font-weight:400;text-align:left;box-shadow:none}
+.nav-guide-button:hover{background:var(--raised);color:var(--ink)}
+.nav-guide-button[data-guide-active="true"]{background:#e6eff2;color:var(--accent);box-shadow:inset 2px 0 var(--accent);font-weight:500}
+.nav-guide-button .nav-count{background:#e6eff2;color:var(--accent);padding:2px 6px;border-radius:999px;font-size:10px;font-weight:600}
+.guide-welcome-body p{font-size:13px;line-height:1.75;color:var(--ink);margin:0 0 14px}
+.guide-welcome-list{margin:0 0 18px;padding-left:20px;font-size:13px;line-height:1.7;color:var(--muted)}
+.guide-welcome-list li{margin-bottom:8px}
+.guide-welcome-list strong{color:var(--ink)}
+[data-guide-target-active="true"]{anchor-name:--guide-active-target;outline:2px solid var(--accent)!important;outline-offset:4px!important;border-radius:8px;box-shadow:0 0 0 4px #1b6c801f}
+.guide-callout{position:fixed;inset:auto;top:var(--guide-top,84px);left:var(--guide-left,272px);z-index:60;width:min(368px,calc(100vw - 32px));max-height:calc(var(--studio-viewport-height,100dvh) - 32px);overflow-y:auto;margin:0;padding:18px 20px;background:var(--surface);color:var(--ink);border:1px solid var(--accent);border-radius:12px;box-shadow:0 16px 44px #13141624}
+.guide-callout[hidden]{display:none!important}
+.guide-callout[popover]:is(:popover-open,.\:popover-open),.guide-callout[data-guide-open-state="true"]{display:block}
+@supports not (anchor-name:--guide-active-target){.guide-callout{top:var(--guide-top,84px);left:var(--guide-left,272px)}}
+.guide-callout-header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.guide-step-select{margin-left:auto;max-width:170px;padding:4px 8px;border:1px solid var(--control);border-radius:6px;background:var(--surface);color:var(--ink);font-size:11px;line-height:1.3}
+.guide-callout h2{font-size:18px;font-weight:600;letter-spacing:-.35px;margin:0 0 8px}
+.guide-callout p{font-size:13px;line-height:1.65;color:var(--ink);margin:0 0 10px;overflow-wrap:anywhere}
+.guide-callout .guide-meta{font-size:12px;color:var(--muted);background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.guide-callout .guide-role-note{font-size:12px;color:var(--accent);background:#e6eff2;border-radius:6px;padding:8px 10px}
+.guide-branch{border-top:1px solid var(--line);margin:10px 0;padding-top:8px;font-size:12px;color:var(--muted)}
+.guide-branch summary{cursor:pointer;font-weight:500;color:var(--ink);padding:4px 0}
+.guide-branch p{font-size:12px;color:var(--muted);margin:6px 0 0}
+.guide-practice{margin:10px 0 14px}
+.guide-practice button{font-size:12px;padding:6px 10px}
+.guide-practice-preview{margin-top:8px;padding:10px 12px;background:var(--raised);border:1px dashed var(--control);border-radius:6px;font-size:12px;line-height:1.6;color:var(--ink);overflow-wrap:anywhere}
+.guide-callout-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;margin-top:8px}
+.guide-footer-left,.guide-footer-right{display:flex;align-items:center;gap:6px}
+.guide-callout-footer button,.guide-practice button,#guide-welcome footer button{font-size:12px;padding:7px 11px;white-space:nowrap}
+.guide-callout-footer button:active,.guide-practice button:active,#guide-welcome footer button:active{transform:translateY(1px)}
+.single-agent #help-guide-button,.single-agent #open-interactive-guide,.single-agent #guide-welcome,.single-agent #guide-callout{display:none!important}
+@media(max-width:767px){
+  .topbar-actions #help-guide-button{padding:6px 10px;font-size:12px;min-height:36px}
+  .nav-guide-button{min-height:44px;font-size:14px}
+  .guide-callout{top:auto!important;left:12px!important;right:12px!important;bottom:max(12px,env(safe-area-inset-bottom))!important;width:auto;max-width:none;max-height:min(54dvh,calc(var(--studio-viewport-height,100dvh) - 88px));padding:16px}
+  .guide-callout-footer button,.guide-practice button{min-height:44px;padding:8px 12px}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}

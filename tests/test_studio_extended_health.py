@@ -87,6 +87,11 @@ def test_disabled_external_agent_can_probe_card_without_enabling_or_sending(
         ("mongodb", "inspect_schema"),
         ("powerbi", "read"),
         ("teams", "status"),
+        ("neptune", "status"),
+        ("opensearch", "inspect_schema"),
+        ("elasticsearch", "inspect_schema"),
+        ("dynamodb", "inspect_schema"),
+        ("neo4j", "inspect_schema"),
     ],
 )
 def test_only_actual_selected_read_actions_are_health_supported(kind, action):

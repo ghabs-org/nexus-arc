@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus Studio external configuration conversion
-  version: 1.7.0
-  description: Non-executing owner-only conversion. Imports use existing native validate/plan/apply after review; no external deployment or secret expansion. Declarative agent skills map to routing capabilities, distinct from additionalConfigurations.skills knowledge bundles. Missing capability IDs get stable content-derived local IDs; original source remains unchanged on export. Dedicated toolsets require explicit existing-resource bindings. Transport modes and execution permissions are never expanded by descriptive metadata. One exit-handler template may serve multiple outcome phases; always runs first, followed by the matching outcome phase, each with its own durable checkpoint. Existing distinct-handler checkpoint paths remain unchanged. Shared loop templates require dependency-ordered controllers; each controller pins its initial previous value and keeps isolated iteration receipts. Later controllers inherit the preceding body output. Concurrent shared loops and mixed map/loop ownership reject before saving.
+  version: 1.9.0
+  description: Non-executing owner-only conversion. Imports use existing native validate/plan/apply after review; no external deployment or secret expansion. Declarative agent skills map to routing capabilities, distinct from additionalConfigurations.skills knowledge bundles. Missing capability IDs get stable content-derived local IDs; original source remains unchanged on export. Dedicated toolsets require explicit existing-resource bindings. Transport modes and execution permissions are never expanded by descriptive metadata. One exit-handler template may serve multiple outcome phases; always runs first, followed by the matching outcome phase, each with its own durable checkpoint. Routed handler roots compile their bounded branches and joins into a scoped graph; acknowledged child results are published by source node ID, and pruned branches clear earlier-phase values. Existing distinct-handler checkpoint paths remain unchanged. Shared loop templates require dependency-ordered controllers; each controller pins its initial previous value and keeps isolated iteration receipts. Later controllers inherit the preceding body output. Concurrent shared loops and mixed map/loop ownership reject before saving.
 paths:
   /api/studio/configuration/interop/convert:
     post:
@@ -21,7 +21,7 @@ paths:
               description: Supply text or documents, exactly one. Text accepts bounded multi-document YAML/JSON or a nexus-interop-bundle/v1 export. Bind every agent/model alias to an explicit Nexus provider; tool names require explicit bindings.
       responses:
         '200':
-          description: Conversion report, valid false on unsupported constructs; document is null on any diagnostic. Supports bounded map/loop/switch, when, coalesce/concat, deterministic conditions, bounded OnError/OnFailure/Always retries for generation-only API agents, and success/failure/always/cancellation exit handlers in interop-template/v1; typed text decisions with explicit decision bindings, choice/boolean/score answers, direct/default/escalation/reroute behavior; image decisions are unsupported; unsupported syntax/settings reject the whole document. No state writes or provider/tool calls.
+          description: Conversion report, valid false on unsupported constructs; document is null on any diagnostic. Supports bounded map/loop/switch, when, coalesce/concat, deterministic conditions, bounded OnError/OnFailure/Always retries for generation-only API agents, and success/failure/always/cancellation exit handlers in interop-template/v1; typed text decisions with explicit decision bindings, choice/boolean/score answers, direct/default/escalation/reroute behavior; explicit image-capable decision profiles accept pinned owned artifact references with configured count/byte bounds; unsupported syntax/settings reject the whole document. No state writes or provider/tool calls.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Report'}
@@ -59,7 +59,7 @@ components:
       additionalProperties: false
       required: [backend, model]
       properties:
-        backend: {type: string, enum: [openrouter, opencode]}
+        backend: {type: string, enum: [openrouter, opencode, openai]}
         model: {type: string, maxLength: 200}
     Provider:
       type: object
@@ -89,3 +89,15 @@ components:
 # per-item scope, retries, approvals and checkpoint paths. The collection returns
 # its named root body's output. Body-internal references use local node outputs;
 # references outside the body capture only acknowledged upstream outputs.
+# Exit routing extension: an on_exit root can own switch/decision branches and
+# dependent joins. The root stays first in its scoped graph; legacy one-node
+# handler shapes and checkpoint paths remain unchanged. Each intentional phase
+# has separate receipts. Acknowledged branch outputs are exposed by source node
+# ID after the phase; pruned branches cannot retain an earlier phase's output.
+# Cleanup failure is nonfatal to the main outcome, and paused/uncertain effects
+# never trigger automatic re-execution. Cross-scope dependencies reject preflight.
+# Image evidence uses separate local-node and captured-node acknowledgement
+# scopes. Exit phases may capture completed main/earlier-phase results; a failed,
+# unresolved or unfinished source fails before model invocation, even if an older
+# phase left a value. Intentionally pruned sources omit the entire image entry.
+# Restart reconstructs acknowledgement from existing scoped checkpoint receipts.

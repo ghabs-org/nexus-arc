@@ -55,7 +55,7 @@ def call_teams(studio, data, identity, action, arguments, request_client=None):
         raise ValueError("Teams arguments must be an object")
     allowed = {
         "status": set(),
-        "query": {"limit", "next_page", "message_id", "replies"},
+        "query": {"limit", "next_page", "message_id", "replies", "reply_id"},
         "send": {"text", "reply_to"},
         "update_message": {"text", "message_id"},
     }[action]
@@ -85,9 +85,13 @@ def call_teams(studio, data, identity, action, arguments, request_client=None):
         url += "/messages"
         if arguments.get("message_id"):
             url += "/" + segment(arguments["message_id"], "message ID")
-            if arguments.get("replies"):
+            if arguments.get("reply_id"):
+                if arguments.get("replies"):
+                    raise ValueError("Choose a reply or a reply page")
+                url += "/replies/" + segment(arguments["reply_id"], "reply ID")
+            elif arguments.get("replies"):
                 url += "/replies"
-        elif arguments.get("replies"):
+        elif arguments.get("replies") or arguments.get("reply_id"):
             raise ValueError("Choose a message before reading replies")
         if arguments.get("next_page"):
             target = arguments["next_page"]

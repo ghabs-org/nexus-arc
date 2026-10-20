@@ -401,3 +401,32 @@ def test_named_workflow_cycle_rejected_during_conversion_before_plan(studio):
     assert not report["valid"] and report["document"] is None
     assert len([d for d in report["diagnostics"] if d["path"].endswith("/graph")]) == 2
     assert not studio.definitions("workflows") and not studio.records("configuration-plans")
+
+
+def test_agent_max_tool_calls_per_task_converts_and_roundtrips(studio):
+    doc = {
+        "kind": "agent",
+        "name": "bounded-tools-agent",
+        "description": "Agent with bounded tool call limit",
+        "spec": {
+            "systemPrompt": "Use tools carefully.",
+            "modelProvider": ["subscription"],
+            "additionalConfigurations": {
+                "max_tool_calls_per_task": 12,
+                "max_llm_calls_per_task": 20,
+            },
+        },
+    }
+    report = studio.configuration.convert_interop({"documents": [doc], "bindings": BINDINGS}, None)
+    assert report["valid"], report
+    spec = report["document"]["definitions"][0]["document"]["spec"]
+    assert spec["max_tool_calls"] == 12
+    assert spec["max_model_calls"] == 20
+    exported = studio.configuration.export_interop({"document": report["document"]}, None)
+    assert exported["valid"], exported
+    assert (
+        exported["bundle"]["documents"][0]["spec"]["additionalConfigurations"][
+            "max_tool_calls_per_task"
+        ]
+        == 12
+    )

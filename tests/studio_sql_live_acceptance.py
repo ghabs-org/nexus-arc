@@ -86,3 +86,72 @@ def test_real_driver_reads_schema_binds_and_reviewed_commit(tmp_path, monkeypatc
         with engine.begin() as connection:
             connection.execute(sa.text("DROP TABLE nexus_acceptance"))
         engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "dialect",
+    [name for name in DSNS if name in {"postgresql", "mysql", "mariadb"}]
+    or ["timeout-prerequisite-missing"],
+)
+def test_real_blocked_read_times_out_and_pool_recovers(tmp_path, monkeypatch, dialect):
+    import concurrent.futures
+    import time
+
+    assert dialect in DSNS, "Timeout acceptance needs an isolated PostgreSQL/MySQL/MariaDB fixture"
+    engine = sa.create_engine(DSNS[dialect])
+    with engine.begin() as connection:
+        connection.execute(
+            sa.text("CREATE TABLE nexus_timeout_acceptance (id INTEGER PRIMARY KEY)")
+        )
+        connection.execute(sa.text("INSERT INTO nexus_timeout_acceptance (id) VALUES (1)"))
+    locker = engine.connect()
+    locker.exec_driver_sql(
+        "LOCK TABLE nexus_timeout_acceptance IN ACCESS EXCLUSIVE MODE"
+        if dialect == "postgresql"
+        else "LOCK TABLES nexus_timeout_acceptance WRITE"
+    )
+    monkeypatch.setenv("TIMEOUT_ACCEPTANCE_DSN", DSNS[dialect])
+    studio = StudioService(tmp_path)
+    try:
+        connector = studio.catalog.save(
+            "connectors",
+            {
+                "name": "Blocked reader",
+                "data": {
+                    "type": "sql",
+                    "dialect": dialect,
+                    "dsn_env": "TIMEOUT_ACCEPTANCE_DSN",
+                    "enabled": True,
+                },
+            },
+        )
+
+        def query(text):
+            return asyncio.run(
+                studio.connections.execute(
+                    connector["id"], {"action": "query", "arguments": {"query": text}}
+                )
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as workers:
+            start = time.monotonic()
+            future = workers.submit(query, "SELECT id FROM nexus_timeout_acceptance")
+            time.sleep(0.25)
+            assert not future.done(), "Fixture did not actually block the selected read"
+            try:
+                with pytest.raises(ValueError):
+                    future.result(timeout=25)
+            finally:
+                # Release before joining the worker, even if timeout enforcement fails.
+                if dialect != "postgresql":
+                    locker.exec_driver_sql("UNLOCK TABLES")
+                locker.rollback()
+            elapsed = time.monotonic() - start
+            assert 10 <= elapsed < 25, f"Unexpected driver timeout duration: {elapsed}"
+        assert query("SELECT id FROM nexus_timeout_acceptance")["rows"] == [[1]]
+    finally:
+        locker.close()
+        studio.close()
+        with engine.begin() as connection:
+            connection.execute(sa.text("DROP TABLE nexus_timeout_acceptance"))
+        engine.dispose()

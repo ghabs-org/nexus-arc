@@ -662,6 +662,7 @@ class StudioSAMConfiguration:
                         "toolset_ids",
                         "connector_ids",
                         "max_model_calls",
+                        "max_tool_calls",
                         "output_schema",
                         "agent_card",
                     }

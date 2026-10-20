@@ -291,3 +291,142 @@ def test_bedrock_knowledge_pagination_is_bounded_and_keeps_query_scope(tmp_path)
             query()
     finally:
         studio.close()
+
+
+def test_neptune_dynamodb_opensearch_and_neo4j_connectors_and_write_guards(tmp_path, monkeypatch):
+    monkeypatch.setenv("SEARCH_TOKEN", "search-secret-token")
+    requests = []
+
+    def fake_request(method, url, headers, body):
+        requests.append((method, url, headers, body))
+        return {"ok": True, "url": url}
+
+    class FakeNeptune:
+        def get_engine_status(self):
+            return {"status": "healthy"}
+
+        def execute_open_cypher_query(self, openCypherQuery):
+            return {"results": [{"n": openCypherQuery}]}
+
+    class FakeDynamoDB:
+        def list_tables(self, Limit=100):
+            return {"TableNames": ["orders", "ignored"]}
+
+        def query(self, **kwargs):
+            return {"Items": [{"id": {"S": "1"}}]}
+
+        def put_item(self, **kwargs):
+            return {}
+
+    studio = StudioService(
+        tmp_path,
+        connection_options={
+            "enterprise_options": {
+                "client_factories": {
+                    "neptune": lambda data, identity: FakeNeptune(),
+                    "dynamodb": lambda data, identity: FakeDynamoDB(),
+                },
+                "request_client": fake_request,
+            }
+        },
+    )
+    try:
+        neptune = studio.catalog.save(
+            "connectors",
+            {
+                "name": "Neptune Graph",
+                "data": {
+                    "type": "neptune",
+                    "region": "eu-west-1",
+                    "endpoint": "https://neptune.example.com",
+                    "enabled": True,
+                },
+            },
+        )
+        assert asyncio.run(
+            studio.connections.execute(neptune["id"], {"action": "status"})
+        ) == {"status": "healthy"}
+        with pytest.raises(PermissionError):
+            asyncio.run(
+                studio.connections.execute(
+                    neptune["id"],
+                    {"action": "query", "arguments": {"query": "CREATE (n:Person)"}},
+                )
+            )
+
+        dynamo = studio.catalog.save(
+            "connectors",
+            {
+                "name": "Orders Table",
+                "data": {
+                    "type": "dynamodb",
+                    "region": "eu-west-1",
+                    "tables": ["orders"],
+                    "allow_writes": True,
+                    "actions": ["inspect_schema", "query", "execute"],
+                    "enabled": True,
+                },
+            },
+        )
+        assert asyncio.run(
+            studio.connections.execute(dynamo["id"], {"action": "inspect_schema"})
+        ) == {"tables": ["orders"]}
+        assert (
+            asyncio.run(
+                studio.connections.execute(
+                    dynamo["id"],
+                    {
+                        "action": "execute",
+                        "confirm": True,
+                        "arguments": {
+                            "table": "orders",
+                            "operation": "put_item",
+                            "item": {"id": {"S": "1"}},
+                        },
+                    },
+                )
+            )["written"]
+            is True
+        )
+
+        opensearch = studio.catalog.save(
+            "connectors",
+            {
+                "name": "Search Cluster",
+                "data": {
+                    "type": "opensearch",
+                    "url": "https://search.example.com",
+                    "token_env": "SEARCH_TOKEN",
+                    "indices": ["docs"],
+                    "enabled": True,
+                },
+            },
+        )
+        assert asyncio.run(
+            studio.connections.execute(
+                opensearch["id"],
+                {"action": "query", "arguments": {"index": "docs", "size": 5}},
+            )
+        )["ok"]
+
+        neo4j = studio.catalog.save(
+            "connectors",
+            {
+                "name": "Neo4j Graph",
+                "data": {
+                    "type": "neo4j",
+                    "url": "https://neo4j.example.com",
+                    "token_env": "SEARCH_TOKEN",
+                    "database": "neo4j",
+                    "enabled": True,
+                },
+            },
+        )
+        assert asyncio.run(
+            studio.connections.execute(
+                neo4j["id"],
+                {"action": "query", "arguments": {"statement": "MATCH (n) RETURN n LIMIT 1"}},
+            )
+        )["ok"]
+    finally:
+        studio.close()

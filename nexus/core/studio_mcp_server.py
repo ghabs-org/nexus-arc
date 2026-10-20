@@ -37,6 +37,19 @@ class StudioMCPServer:
                         "task": {"type": "string", "maxLength": 16000},
                         "request_id": {"type": "string", "maxLength": 150},
                         "input": {"description": "Optional structured workflow input"},
+                        "files": {
+                            "type": "array",
+                            "maxItems": 5,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string", "maxLength": 200},
+                                    "bytes": {"type": "string"},
+                                },
+                                "required": ["name", "bytes"],
+                                "additionalProperties": False,
+                            },
+                        },
                     },
                     "required": ["task", "request_id"],
                     "additionalProperties": False,
@@ -129,10 +142,18 @@ class StudioMCPServer:
                     if not isinstance(value, (dict, list)):
                         if name == "provide_input" and isinstance(value, str):
                             message["parts"].append({"kind": "text", "text": value})
+                        elif name == "provide_input" and type(value) in {int, float, bool}:
+                            message["parts"].append(
+                                {"kind": "data", "data": {"_mcp_scalar": value}}
+                            )
                         else:
                             raise ValueError("Structured task input must be an object or array")
                     else:
                         message["parts"].append({"kind": "data", "data": value})
+                for file in arguments.get("files", []):
+                    message["parts"].append(
+                        {"kind": "file", "file": {"name": file["name"], "bytes": file["bytes"]}}
+                    )
                 if name == "provide_input":
                     message["taskId"] = arguments["task_id"]
                 identity = self.studio.a2a.send(record, {"message": message}, "0.3")

@@ -20,6 +20,7 @@ NATIVE = {
     "telegram",
     "discord",
     "slack",
+    "whatsapp",
     "openclaw",
     "mcp",
     "sql",
@@ -30,6 +31,11 @@ NATIVE = {
     "mongodb",
     "nuclia",
     "powerbi",
+    "neptune",
+    "opensearch",
+    "dynamodb",
+    "elasticsearch",
+    "neo4j",
 }
 READ_ACTIONS = {
     "list_operations",
@@ -217,7 +223,7 @@ class StudioConnections:
         if self.studio.team:
             self.studio.team.assert_execution(identity)
             if (
-                data["type"] in {"telegram", "discord", "slack", "openclaw"}
+                data["type"] in {"telegram", "discord", "slack", "whatsapp", "openclaw"}
                 and data.get("credential_scope") == "service"
             ):
                 token = os.getenv(data.get("token_env", ""))
@@ -290,6 +296,49 @@ class StudioConnections:
             from telegram import Bot
 
             return Bot(token=token)
+        if data["type"] == "whatsapp":
+            studio = self.studio
+
+            class WhatsAppChannel:
+                async def send_message(self, channel_id, message):
+                    recipient = arguments_recipient = str(channel_id)
+                    body = {
+                        "messaging_product": "whatsapp",
+                        "to": recipient,
+                        "type": "text",
+                        "text": {"body": message.text},
+                    }
+                    if getattr(message, "buttons", None):
+                        body = {
+                            "messaging_product": "whatsapp",
+                            "to": recipient,
+                            "type": "interactive",
+                            "interactive": {
+                                "type": "button",
+                                "body": {"text": message.text[:1024]},
+                                "action": {
+                                    "buttons": [
+                                        {
+                                            "type": "reply",
+                                            "reply": {
+                                                "id": b.callback_data,
+                                                "title": b.label[:20],
+                                            },
+                                        }
+                                        for b in message.buttons[:3]
+                                    ]
+                                },
+                            },
+                        }
+                    return await asyncio.to_thread(
+                        studio.research.request,
+                        "POST",
+                        f"https://graph.facebook.com/v21.0/{recipient}/messages",
+                        {"Authorization": f"Bearer {token}"},
+                        body,
+                    )
+
+            return WhatsAppChannel()
         from nexus.adapters.notifications.openclaw import OpenClawNotificationChannel
 
         return OpenClawNotificationChannel(

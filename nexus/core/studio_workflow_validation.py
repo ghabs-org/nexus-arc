@@ -3,7 +3,7 @@
 import re
 
 REFERENCE = re.compile(r"[A-Za-z_][\w-]*(?:\.[\w-]+)*")
-OPS = {"eq", "ne", "gt", "gte", "lt", "lte", "contains", "in"}
+OPS = {"eq", "ne", "gt", "gte", "lt", "lte", "contains", "in", "not_in"}
 
 
 def references(value):
@@ -66,7 +66,10 @@ def deterministic_condition(expression):
 
 
 def validate_mappings(graph, roots):
-    aliases = {n["interop_body_id"]: n["id"] for n in graph["nodes"] if "interop_body_id" in n}
+    alias_controllers = {}
+    for n in graph["nodes"]:
+        if "interop_body_id" in n:
+            alias_controllers.setdefault(n["interop_body_id"], []).append(n["id"])
     ids = {n["id"] for n in graph["nodes"]}
     ancestors = {i: set() for i in ids}
     for _ in range(len(ids)):
@@ -74,7 +77,23 @@ def validate_mappings(graph, roots):
             if edge["source"] != "START":
                 ancestors[edge["target"]].update({edge["source"], *ancestors[edge["source"]]})
 
-    def check(value, allowed_nodes, allow_all=False):
+    def valid_target(target, allowed_nodes, allow_all=False, current_node=None):
+        if target not in alias_controllers:
+            return target in allowed_nodes
+        controllers = alias_controllers[target]
+        if allow_all:
+            return all(c in allowed_nodes for c in controllers)
+        if not any(c in allowed_nodes for c in controllers):
+            return False
+        if current_node is not None and any(
+            c not in allowed_nodes and current_node not in ancestors[c] for c in controllers
+        ):
+            raise ValueError(
+                f"Shared external loop alias requires dependency ordering before referencing node: {target}"
+            )
+        return True
+
+    def check(value, allowed_nodes, allow_all=False, current_node=None):
         if graph.get("mapping_language") == "nexus-template/v1":
 
             def templates(part):
@@ -102,13 +121,15 @@ def validate_mappings(graph, roots):
                 if len(parts) == 1:
                     if not allow_all:
                         raise ValueError("Node inputs must name a specific completed node")
-                elif aliases.get(parts[1], parts[1]) not in allowed_nodes:
+                elif not valid_target(parts[1], allowed_nodes, allow_all, current_node):
                     raise ValueError(f"Workflow reference requires an upstream dependency: {path}")
 
     for key in ("input_schema", "output_schema"):
         schema_definition(graph.get(key))
     handler_ids = {
-        handler["body"]["nodes"][0]["id"] for handler in graph.get("interop_exit_handlers", [])
+        node["id"]
+        for handler in graph.get("interop_exit_handlers", [])
+        for node in handler["body"]["nodes"]
     }
     check(graph.get("output_mapping", {"ref": "nodes"}), ids | handler_ids, True)
     for node in graph["nodes"]:
@@ -127,13 +148,11 @@ def validate_mappings(graph, roots):
         ]
         for key in fields:
             if key in node:
-                check(node[key], ancestors[node["id"]])
+                check(node[key], ancestors[node["id"]], False, node["id"])
         if node.get("body") and not graph.get("interop_body"):
             for path in references(node["body"]):
-                if (
-                    path.startswith("interop_nodes.")
-                    and aliases.get(path.split(".")[1], path.split(".")[1])
-                    not in ancestors[node["id"]]
+                if path.startswith("interop_nodes.") and not valid_target(
+                    path.split(".")[1], ancestors[node["id"]], False, node["id"]
                 ):
                     raise ValueError(
                         f"External body capture requires an upstream dependency: {path}"
@@ -147,10 +166,8 @@ def validate_mappings(graph, roots):
             for path in references(node["condition"]):
                 if path.split(".")[0] not in roots | {"nodes", "iteration", "result"}:
                     raise ValueError(f"Workflow reference is outside this loop condition: {path}")
-                if (
-                    path.startswith("nodes.")
-                    and aliases.get(path.split(".")[1], path.split(".")[1])
-                    not in ancestors[node["id"]]
+                if path.startswith("nodes.") and not valid_target(
+                    path.split(".")[1], ancestors[node["id"]], False, node["id"]
                 ):
                     raise ValueError(f"Workflow reference requires an upstream dependency: {path}")
         if node["kind"] == "switch":

@@ -219,6 +219,8 @@ class NexusTeamPolicy:
             required = "owner"
         if route == "/api/workbench/campaigns/save":
             required = "builder"
+        if route == "/api/workbench/guide":
+            required = "viewer"
         if ROLES[principal["role"]] < ROLES[required]:
             raise TeamAccessError(f"This action requires the {required} role")
 

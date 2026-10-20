@@ -49,11 +49,15 @@ def source():
     }
 
 
-@pytest.mark.parametrize("mode", ["ordered", "transitive", "pruned", "maximum"])
+@pytest.mark.parametrize("mode", ["ordered", "transitive", "pruned", "maximum", "concurrent"])
 def test_shared_loop_alias_and_source_roundtrip(tmp_path, mode):
+    import asyncio
+
     calls = []
 
-    async def increase(previous=None, iteration=0):
+    async def increase(previous=None, iteration=0, delay=0.0):
+        if delay:
+            await asyncio.sleep(delay)
         calls.append((previous, iteration))
         return {"total": (previous or 0) + 1}
 
@@ -70,14 +74,34 @@ def test_shared_loop_alias_and_source_roundtrip(tmp_path, mode):
             value["nodes"][1]["when"] = "false"
         if mode == "maximum":
             value["nodes"][1].update(condition="true", max_iterations=1)
+        if mode == "concurrent":
+            value["nodes"][1].pop("depends_on")
+            value["nodes"][1].update(condition="true", max_iterations=1)
+            # Even if first finishes after second in wall-clock time,
+            # second is last in declaration order among maximal controllers.
+            value["nodes"][2]["input"]["delay"] = 0.02
         native = apply(studio, value, {"increase": "interop:shared-loop"})
         result = json.loads(run(studio, "shared-loops", {})["output"])
         assert result["first"] == {"iterations_completed": 2, "stopped_reason": "condition_false"}
-        assert result["body"] == {"total": 2 if mode == "pruned" else 3 if mode == "maximum" else 4}
-        loop_calls = calls if mode != "transitive" else calls[:2] + calls[3:]
-        assert loop_calls == [(None, 0), (1, 1)] + (
-            [] if mode == "pruned" else [(2, 0)] if mode == "maximum" else [(2, 0), (3, 1)]
-        )
+        if mode == "concurrent":
+            assert result["second"] == {
+                "iterations_completed": 1,
+                "stopped_reason": "max_iterations",
+            }
+            assert result["body"] == {"total": 1}
+            assert sorted(calls, key=lambda x: (x[0] or -1, x[1])) == [
+                (None, 0),
+                (None, 0),
+                (1, 1),
+            ]
+        else:
+            assert result["body"] == {
+                "total": 2 if mode == "pruned" else 3 if mode == "maximum" else 4
+            }
+            loop_calls = calls if mode != "transitive" else calls[:2] + calls[3:]
+            assert loop_calls == [(None, 0), (1, 1)] + (
+                [] if mode == "pruned" else [(2, 0)] if mode == "maximum" else [(2, 0), (3, 1)]
+            )
         exported = studio.configuration.export_interop({"document": native}, None)
         assert exported["valid"], exported
         again = studio.configuration.convert_interop({"documents": [exported["bundle"]]}, None)
@@ -87,13 +111,22 @@ def test_shared_loop_alias_and_source_roundtrip(tmp_path, mode):
         tool_registry.unregister("interop:shared-loop", func=increase)
 
 
-@pytest.mark.parametrize("mode", ["concurrent", "mixed", "collision"])
+@pytest.mark.parametrize("mode", ["unjoined_reader", "mixed", "collision"])
 def test_unsupported_shared_loop_ownership_rejects_without_writes(tmp_path, mode):
     studio = StudioService(tmp_path)
     try:
         value = source()
-        if mode == "concurrent":
+        if mode == "unjoined_reader":
             value["nodes"][1].pop("depends_on")
+            value["nodes"].append(
+                {
+                    "id": "reader",
+                    "type": "tool",
+                    "tool_name": "increase",
+                    "depends_on": ["first"],
+                    "input": {"previous": "{{body.output.total}}"},
+                }
+            )
         elif mode == "mixed":
             value["nodes"][1] = {"id": "second", "type": "map", "node": "body", "items": []}
         else:
@@ -182,15 +215,34 @@ def test_second_controller_recovery_pins_seed_and_child_revision(tmp_path, backe
 def test_native_configuration_cannot_bypass_shared_alias_order(tmp_path):
     studio = StudioService(tmp_path)
     try:
+        doc = source()
+        doc["nodes"].append(
+            {
+                "id": "reader",
+                "type": "tool",
+                "tool_name": "increase",
+                "depends_on": ["first", "second"],
+                "input": {"previous": "{{body.output.total}}"},
+            }
+        )
         report = studio.configuration.convert_interop(
-            {"documents": [source()], "bindings": {"tools": {"increase": "text:wordcount"}}}, None
+            {"documents": [doc], "bindings": {"tools": {"increase": "text:wordcount"}}}, None
         )
         assert report["valid"], report
         graph = report["document"]["definitions"][0]["document"]["graph"]
-        graph["edges"] = []
+        # Drop second -> reader edge so second is concurrent with reader while reader reads body.
+        graph["edges"] = [
+            e
+            for e in graph["edges"]
+            if not (e["source"] in ("first", "second") and e["target"] in ("second", "reader"))
+            or (e["source"] == "first" and e["target"] == "reader")
+        ]
         for node in graph["nodes"]:
-            node.pop("depends_on", None)
-        with pytest.raises(ValueError, match="dependency-ordered"):
+            if node["id"] == "second":
+                node.pop("depends_on", None)
+            elif node["id"] == "reader":
+                node["depends_on"] = ["first"]
+        with pytest.raises(ValueError, match="dependency ordering"):
             studio.save_definition("workflows", {"name": "Unsafe shared alias", "graph": graph})
         assert not list((tmp_path / "workflows").glob("*.yaml"))
     finally:

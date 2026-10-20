@@ -5,7 +5,7 @@ http.createServer((req,res)=>{
  const body=req.body;
  if(req.url.startsWith('/v1.0/teams/11111111-2222-3333-4444-555555555555/channels/19%3Atest%40thread.tacv2')){
   if(req.headers.authorization!=='Bearer synthetic-teams-token')return reply(401,{});
-  if(req.method==='GET')return reply(200,{id:'fixture-message',displayName:'Fixture channel',value:[{id:'fixture-message',body:{content:'Synthetic Teams post'}}]});
+  if(req.method==='GET')return reply(200,{id:'fixture-message',messageType:'message',from:{user:{id:'example-microsoft-user'}},body:{contentType:'text',content:'/nexus route items'},displayName:'Fixture channel',value:[{id:'fixture-message',body:{content:'Synthetic Teams post'}}]});
   if(['POST','PATCH'].includes(req.method)&&body?.body?.contentType==='text')return reply(200,{id:'fixture-message',body:body.body});
   return reply(501,{});
  }

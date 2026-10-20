@@ -5,7 +5,13 @@ from urllib.parse import urlparse
 
 from nexus.core.studio_configuration import digest
 
-RUNTIME = {"request_timeout_seconds", "max_llm_calls_per_task", "output_schema", "skills"}
+RUNTIME = {
+    "request_timeout_seconds",
+    "max_llm_calls_per_task",
+    "max_tool_calls_per_task",
+    "output_schema",
+    "skills",
+}
 
 
 def declarative_card(bridge, source, path):
@@ -198,6 +204,16 @@ def agent_settings(bridge, source, path):
             )
         else:
             result["max_model_calls"] = value
+    if "max_tool_calls_per_task" in source:
+        value = source["max_tool_calls_per_task"]
+        if type(value) is not int or not 1 <= value <= 100:
+            bridge.issue(
+                path + "/max_tool_calls_per_task",
+                "invalid_limit",
+                "Use one to 100 total tool calls",
+            )
+        else:
+            result["max_tool_calls"] = value
     if "output_schema" in source:
         from nexus.core.studio_workflow_validation import schema_definition
 
