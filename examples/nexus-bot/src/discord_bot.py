@@ -2267,6 +2267,7 @@ async def help_command(interaction: discord.Interaction):
         app_commands.Choice(name="Codex Account", value="codex"),
         app_commands.Choice(name="Gemini Account", value="gemini"),
         app_commands.Choice(name="Claude Account", value="claude"),
+        app_commands.Choice(name="Antigravity Account", value="agy"),
         app_commands.Choice(name="Copilot Account", value="copilot"),
     ]
 )
@@ -2290,12 +2291,12 @@ async def login_command(
     selected_provider = str(provider.value if provider else "").strip().lower()
     account_provider_target = (
         selected_provider
-        if selected_provider in {"codex", "gemini", "claude", "copilot"}
+        if selected_provider in {"codex", "gemini", "claude", "copilot", "agy"}
         else ""
     )
     user = _get_or_create_discord_user(interaction.user)
 
-    if account_provider_target in {"codex", "gemini", "claude", "copilot"}:
+    if account_provider_target in {"codex", "gemini", "claude", "copilot", "agy"}:
         imported = _svc_import_openclaw_local_provider_credentials(
             nexus_id=str(user.nexus_id),
             provider=account_provider_target,
@@ -2352,7 +2353,7 @@ async def login_command(
         )
         return
 
-    if account_provider_target in {"codex", "gemini", "claude"}:
+    if account_provider_target in {"codex", "gemini", "claude", "agy"}:
         try:
             provider_login = _svc_start_provider_account_login_for_nexus(
                 nexus_id=str(user.nexus_id),

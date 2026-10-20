@@ -340,7 +340,10 @@ def test_provider_connect_setup_form_renders_clickable_link_and_popup_flow():
     assert "setProviderConnectStatusWithLink" in rendered
     assert "Open verification link" in rendered
     assert "primeProviderPopup(provider, sessionId);" in rendered
-    assert 'if (providerKey === "codex" || providerKey === "gemini" || providerKey === "claude")' in rendered
+    assert (
+        'if (providerKey === "codex" || providerKey === "gemini" || providerKey === "claude"'
+        ' || providerKey === "agy")' in rendered
+    )
     assert 'window.open(pendingUrl, "_blank")' in rendered
     assert 'if (provider === "gemini") {' in rendered
     assert "setGeminiProviderSections({ showCode: false, showCallback: false });" in rendered
@@ -585,3 +588,52 @@ def test_login_is_unavailable_when_auth_disabled(monkeypatch):
     response = client.get("/login")
 
     assert response.status_code == 404
+
+
+def test_provider_connect_setup_form_offers_antigravity_code_flow():
+    import webhook_server
+
+    rendered = webhook_server._render_ai_key_form(
+        session_id="lsr_session-123",
+        show_api_key_inputs=False,
+        copilot_checked=False,
+        show_copilot_option=False,
+        copilot_token_set=False,
+        codex_key_set=False,
+        gemini_key_set=False,
+        claude_key_set=False,
+        codex_account_enabled=False,
+        gemini_account_enabled=False,
+        claude_account_enabled=False,
+        copilot_account_enabled=False,
+        existing_keys_note="note",
+        agy_account_enabled=True,
+    )
+
+    assert "startProviderConnect('agy')" in rendered
+    assert "Connect Antigravity Account" in rendered
+    assert 'id="agy_code_section" style="display:none;' in rendered
+    assert "submitProviderAuthCode('agy')" in rendered
+    assert 'name="use_agy_account" value="1" checked' in rendered
+    assert 'if (key === "agy") return "Antigravity";' in rendered
+    assert 'else if (key === "agy") fieldName = "use_agy_account";' in rendered
+    assert "setAgyCodeSection(state !== \"connected\" && !!payload.requires_code);" in rendered
+    assert 'document.getElementById(providerKey + "_authorization_code")' in rendered
+
+
+def test_ai_keys_form_saves_antigravity_account_toggle(monkeypatch):
+    import webhook_server
+
+    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
+    captured: dict = {}
+
+    def _store(**kwargs):
+        captured.update(kwargs)
+        return {"ready": True, "session_id": kwargs["session_id"]}
+
+    monkeypatch.setattr(webhook_server, "_svc_store_ai_provider_keys", _store)
+
+    client = webhook_server.app.test_client()
+    client.post("/auth/ai-keys", data={"session_id": "lsr_session-123", "use_agy_account": "1"})
+
+    assert captured["use_agy_account"] is True

@@ -872,12 +872,14 @@ def _render_ai_key_form(
     claude_account_enabled: bool,
     copilot_account_enabled: bool,
     existing_keys_note: str,
+    agy_account_enabled: bool = False,
 ) -> str:
     checked_attr = " checked" if copilot_checked else ""
     codex_account_attr = " checked" if codex_account_enabled else ""
     gemini_account_attr = " checked" if gemini_account_enabled else ""
     claude_account_attr = " checked" if claude_account_enabled else ""
     copilot_account_attr = " checked" if copilot_account_enabled else ""
+    agy_account_attr = " checked" if agy_account_enabled else ""
     api_key_mode_notice = ""
     if show_api_key_inputs:
         codex_field = """
@@ -976,6 +978,7 @@ def _render_ai_key_form(
     <button type="button" onclick="startProviderConnect('codex')">Connect Codex Account</button>
     <button type="button" onclick="startProviderConnect('gemini')">Connect Gemini Account</button>
     <button type="button" onclick="startProviderConnect('claude')">Connect Claude Account</button>
+    <button type="button" onclick="startProviderConnect('agy')">Connect Antigravity Account</button>
     <small id="provider_connect_status" style="display:block; margin-top:0.4rem;">This opens a browser-based device flow and saves the result to your session.</small>
   </div>
   <div id="gemini_code_section" style="display:none; margin:0.45rem 0 0.8rem;">
@@ -983,6 +986,12 @@ def _render_ai_key_form(
     <input id="gemini_authorization_code" type="text" placeholder="Paste the code shown after Google sign-in" spellcheck="false" autocapitalize="off" autocorrect="off" />
     <button type="button" style="margin-top:0.45rem; margin-bottom:0.25rem;" onclick="submitProviderAuthCode('gemini')">Submit Gemini Authorization Code</button>
     <small style="display:block;">If prompted with "Enter the authorization code", paste it here.</small>
+  </div>
+  <div id="agy_code_section" style="display:none; margin:0.45rem 0 0.8rem;">
+    <label for="agy_authorization_code"><small>Antigravity authorization code</small></label>
+    <input id="agy_authorization_code" type="text" placeholder="Paste the code shown after Google sign-in" spellcheck="false" autocapitalize="off" autocorrect="off" />
+    <button type="button" style="margin-top:0.45rem; margin-bottom:0.25rem;" onclick="submitProviderAuthCode('agy')">Submit Antigravity Authorization Code</button>
+    <small style="display:block;">After Google sign-in, antigravity.google shows a code; paste it here.</small>
   </div>
   <div id="gemini_callback_section" style="display:none; margin:0.2rem 0 0.8rem;">
     <label for="gemini_callback_url"><small>Gemini localhost callback URL (fallback)</small></label>
@@ -1001,6 +1010,10 @@ def _render_ai_key_form(
   <label style="display:block; margin-top:0.4rem;">
     <input type="checkbox" name="use_claude_account" value="1"{claude_account_attr} />
     Use Claude account login
+  </label>
+  <label style="display:block; margin-top:0.4rem;">
+    <input type="checkbox" name="use_agy_account" value="1"{agy_account_attr} />
+    Use Antigravity account login
   </label>
 """
     copilot_html = (
@@ -1048,6 +1061,7 @@ function providerDisplayName(provider) {{
   var key = String(provider || "").trim().toLowerCase();
   if (key === "gemini") return "Gemini";
   if (key === "claude") return "Claude";
+  if (key === "agy") return "Antigravity";
   return "Codex";
 }}
 function setProviderAccountToggle(provider, enabled) {{
@@ -1055,6 +1069,7 @@ function setProviderAccountToggle(provider, enabled) {{
   var fieldName = "";
   if (key === "gemini") fieldName = "use_gemini_account";
   else if (key === "claude") fieldName = "use_claude_account";
+  else if (key === "agy") fieldName = "use_agy_account";
   else if (key === "codex") fieldName = "use_codex_account";
   if (!fieldName) return;
   var input = document.querySelector('input[name="' + fieldName + '"]');
@@ -1099,6 +1114,10 @@ function setGeminiProviderSections(opts) {{
   var callbackSection = document.getElementById("gemini_callback_section");
   if (codeSection) codeSection.style.display = showCode ? "block" : "none";
   if (callbackSection) callbackSection.style.display = showCallback ? "block" : "none";
+}}
+function setAgyCodeSection(show) {{
+  var section = document.getElementById("agy_code_section");
+  if (section) section.style.display = show ? "block" : "none";
 }}
 function _providerConnectPendingUrl(provider, sessionId) {{
   var key = encodeURIComponent(String(provider || "").trim().toLowerCase() || "codex");
@@ -1193,6 +1212,9 @@ async function pollProviderConnect(provider, sessionId) {{
         showCallback: state !== "connected" && shouldShowCallback
       }});
     }}
+    if (String(provider || "").toLowerCase() === "agy") {{
+      setAgyCodeSection(state !== "connected" && !!payload.requires_code);
+    }}
     if (payload.verify_url) {{
       var openedFromPoll = maybeOpenProviderVerifyUrl(provider, payload.verify_url);
       setProviderConnectStatusWithLink(
@@ -1245,9 +1267,10 @@ async function startProviderConnect(provider) {{
     return;
   }}
   var providerKey = String(provider || "").toLowerCase();
-  if (providerKey === "codex" || providerKey === "gemini" || providerKey === "claude") {{
+  if (providerKey === "codex" || providerKey === "gemini" || providerKey === "claude" || providerKey === "agy") {{
     primeProviderPopup(provider, sessionId);
   }}
+  setAgyCodeSection(false);
   if (providerKey === "gemini") {{
     setGeminiProviderSections({{ showCode: true, showCallback: false }});
   }} else {{
@@ -1329,13 +1352,15 @@ async function submitProviderAuthCode(provider) {{
     setProviderConnectStatus("Missing session id.");
     return;
   }}
-  var codeInput = document.getElementById("gemini_authorization_code");
+  var providerKey = String(provider || "gemini").trim().toLowerCase() === "agy" ? "agy" : "gemini";
+  var providerName = providerDisplayName(providerKey);
+  var codeInput = document.getElementById(providerKey + "_authorization_code");
   var authorizationCode = codeInput ? String(codeInput.value || "").trim() : "";
   if (!authorizationCode) {{
-    setProviderConnectStatus("Paste the Gemini authorization code first.");
+    setProviderConnectStatus("Paste the " + providerName + " authorization code first.");
     return;
   }}
-  setProviderConnectStatus("Submitting authorization code to Gemini CLI...");
+  setProviderConnectStatus("Submitting authorization code to " + providerName + " CLI...");
   try {{
     var response = await fetch("/auth/provider-connect/submit-code", {{
       method: "POST",
@@ -1572,6 +1597,7 @@ def auth_github_callback():
             or setup.get("gemini_account_enabled")
             or setup.get("claude_account_enabled")
             or setup.get("copilot_account_enabled")
+            or setup.get("agy_account_enabled")
         )
     )
     api_keys_allowed = _allow_api_keys_in_web_setup()
@@ -1592,6 +1618,7 @@ def auth_github_callback():
         gemini_account_enabled=bool(isinstance(setup, dict) and setup.get("gemini_account_enabled")),
         claude_account_enabled=bool(isinstance(setup, dict) and setup.get("claude_account_enabled")),
         copilot_account_enabled=bool(isinstance(setup, dict) and setup.get("copilot_account_enabled")),
+        agy_account_enabled=bool(isinstance(setup, dict) and setup.get("agy_account_enabled")),
         existing_keys_note=(
             "All fields are optional. Leave fields blank to keep previously saved values unchanged. "
             + (
@@ -1704,6 +1731,7 @@ def auth_gitlab_callback():
             or setup.get("gemini_account_enabled")
             or setup.get("claude_account_enabled")
             or setup.get("copilot_account_enabled")
+            or setup.get("agy_account_enabled")
         )
     )
     api_keys_allowed = _allow_api_keys_in_web_setup()
@@ -1725,6 +1753,7 @@ def auth_gitlab_callback():
         gemini_account_enabled=bool(isinstance(setup, dict) and setup.get("gemini_account_enabled")),
         claude_account_enabled=bool(isinstance(setup, dict) and setup.get("claude_account_enabled")),
         copilot_account_enabled=bool(isinstance(setup, dict) and setup.get("copilot_account_enabled")),
+        agy_account_enabled=bool(isinstance(setup, dict) and setup.get("agy_account_enabled")),
         existing_keys_note=(
             "All fields are optional. Leave fields blank to keep previously saved values unchanged. "
             + (
@@ -1896,6 +1925,14 @@ def auth_ai_keys():
         use_claude_account = raw_use_claude_account
     elif raw_use_claude_account is not None:
         use_claude_account = str(raw_use_claude_account).strip().lower() in {"1", "true", "yes", "on"}
+    raw_use_agy_account = request.form.get("use_agy_account")
+    if raw_use_agy_account is None:
+        raw_use_agy_account = payload.get("use_agy_account")
+    use_agy_account = None
+    if isinstance(raw_use_agy_account, bool):
+        use_agy_account = raw_use_agy_account
+    elif raw_use_agy_account is not None:
+        use_agy_account = str(raw_use_agy_account).strip().lower() in {"1", "true", "yes", "on"}
     raw_use_copilot_account = request.form.get("use_copilot_account")
     if raw_use_copilot_account is None:
         raw_use_copilot_account = payload.get("use_copilot_account")
@@ -1947,6 +1984,7 @@ def auth_ai_keys():
             use_gemini_account=use_gemini_account,
             use_claude_account=use_claude_account,
             use_copilot_account=use_copilot_account,
+            use_agy_account=use_agy_account,
         )
     except Exception as exc:
         _notify_onboarding_message(
@@ -1995,9 +2033,11 @@ def auth_provider_connect_start():
 
 def _render_provider_connect_pending_page(*, provider: str, session_id: str) -> str:
     provider_key = str(provider or "codex").strip().lower()
-    if provider_key not in {"codex", "gemini", "claude"}:
+    if provider_key not in {"codex", "gemini", "claude", "agy"}:
         provider_key = "codex"
-    provider_label = "Codex" if provider_key == "codex" else ("Gemini" if provider_key == "gemini" else "Claude")
+    provider_label = {"codex": "Codex", "gemini": "Gemini", "claude": "Claude", "agy": "Antigravity"}[
+        provider_key
+    ]
     safe_provider = html.escape(provider_key, quote=True)
     safe_provider_label = html.escape(provider_label, quote=False)
     safe_session_id = html.escape(str(session_id or ""), quote=True)

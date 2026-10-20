@@ -1701,11 +1701,13 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "gemini-account": "gemini",
         "claude-account": "claude",
         "copilot-account": "copilot",
+        "agy-account": "agy",
+        "antigravity": "agy",
     }
     requested_provider = provider_aliases.get(requested_provider, requested_provider)
     account_provider_target = (
         requested_provider
-        if requested_provider in {"codex", "gemini", "claude", "copilot"}
+        if requested_provider in {"codex", "gemini", "claude", "copilot", "agy"}
         else ""
     )
     github_oauth_ready = bool(NEXUS_GITHUB_CLIENT_ID and NEXUS_GITHUB_CLIENT_SECRET)
@@ -1740,7 +1742,7 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if account_provider_target in {"codex", "gemini", "claude"}:
+    if account_provider_target in {"codex", "gemini", "claude", "agy"}:
         try:
             provider_login = _svc_start_provider_account_login_for_nexus(
                 nexus_id=str(user.nexus_id),
