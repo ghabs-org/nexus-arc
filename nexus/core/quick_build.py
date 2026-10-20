@@ -13,10 +13,10 @@ from typing import Any
 
 import yaml
 
-from nexus.adapters.ai.base import ExecutionContext
+from nexus.adapters.ai.base import EFFORT_LEVELS, ExecutionContext
 from nexus.adapters.registry import AdapterRegistry
 
-BUILD_PROVIDERS = ("codex", "claude-code", "openai", "claude")
+BUILD_PROVIDERS = ("codex", "claude-code", "agy", "openai", "claude")
 AGENT_PROVIDERS = (*BUILD_PROVIDERS, "copilot", "gemini", "opencode")
 
 
@@ -41,8 +41,12 @@ def build_provider(name: str):
             "--setting-sources",
             "",
         ]
+    elif name == "agy":
+        options["extra_args"] = ["--sandbox", "--disable-slash-commands"]
     if name not in BUILD_PROVIDERS:
-        raise ValueError("Quick Build supports Codex, Claude Code, OpenAI API and Anthropic API")
+        raise ValueError(
+            "Quick Build supports Codex, Claude Code, Google Antigravity, OpenAI API and Anthropic API"
+        )
     return AdapterRegistry().create_ai(name, **options)
 
 
@@ -80,7 +84,7 @@ class QuickBuilder:
         _text(payload.get("task"), "Build request")
         if payload.get("provider", "codex") not in BUILD_PROVIDERS:
             raise ValueError(
-                "Choose Codex, Claude Code, OpenAI API or Anthropic API for Quick Build"
+                "Choose Codex, Claude Code, Google Antigravity, OpenAI API or Anthropic API for Quick Build"
             )
         if payload.get("model") is not None and not isinstance(payload["model"], str):
             raise ValueError("Model must be text")
@@ -152,6 +156,7 @@ class QuickBuilder:
                     "instructions",
                     "provider",
                     "model",
+                    "effort",
                     "tool_ids",
                     "skill_ids",
                     "guardrails",
@@ -187,6 +192,11 @@ class QuickBuilder:
                     "model": agent_model.strip(),
                 }
             )
+            if agent.get("effort"):
+                effort = str(agent["effort"]).strip().lower()
+                if effort not in EFFORT_LEVELS:
+                    raise ValueError(f"Agent effort must be one of {', '.join(EFFORT_LEVELS)}")
+                normalized_agents[-1]["effort"] = effort
             for field in ("tool_ids", "skill_ids"):
                 if agent.get(field):
                     values = agent[field]
@@ -527,6 +537,7 @@ class QuickBuilder:
                 prompt,
                 Path(directory),
                 model_override=payload.get("model") or None,
+                effort=payload.get("effort") or None,
                 metadata=content_metadata,
                 timeout=600,
             )

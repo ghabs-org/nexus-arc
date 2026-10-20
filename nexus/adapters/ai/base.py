@@ -10,6 +10,24 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from nexus.core.models import AgentResult, RateLimitStatus
 
+EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+
+
+def split_model_effort(
+    model: str | None, effort: str | None = None
+) -> tuple[str | None, str | None]:
+    """Split an optional ``:<effort>`` suffix from *model* and normalize *effort*."""
+    clean_model = (model or "").strip() or None
+    clean_effort = (effort or "").strip().lower() or None
+    if clean_effort not in EFFORT_LEVELS:
+        clean_effort = None
+    if clean_model and ":" in clean_model:
+        head, tail = clean_model.rsplit(":", 1)
+        if tail.lower() in EFFORT_LEVELS and head:
+            clean_model = head
+            clean_effort = clean_effort or tail.lower()
+    return clean_model, clean_effort
+
 
 @dataclass
 class ExecutionContext:
@@ -24,6 +42,7 @@ class ExecutionContext:
     tool_restrictions: list | None = None  # Commands/tools to block (e.g., ["gh pr merge"])
     model_override: str | None = None  # Override the provider's default model (e.g., "gpt-4o-mini")
     max_tokens: int | None = None  # Cap output tokens for cost control
+    effort: str | None = None  # Reasoning effort ("low", "medium", "high", "xhigh", "max")
 
 
 class AIProvider(ABC):

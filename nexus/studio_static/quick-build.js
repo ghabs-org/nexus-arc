@@ -138,7 +138,7 @@ document.addEventListener("click",event=>{
   if(button.id==="builder-open-test")builderMode("test");
 });
 async function initializeQuickBuild(){
-  const ids=["codex","claude-code","openai","claude"];
+  const ids=["codex","claude-code","agy","openai","claude"];
   $("builder-provider").innerHTML=state.providers.filter(p=>ids.includes(p.id)).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}${p.configured?"":" · setup needed"}</option>`).join("");
   $("builder-provider").value=state.providers.find(p=>ids.includes(p.id)&&p.configured)?.id||"codex";
   try{await refreshBuilds();}catch(error){buildError(error);}

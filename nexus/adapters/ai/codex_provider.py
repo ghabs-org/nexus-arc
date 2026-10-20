@@ -8,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from nexus.adapters.ai.base import AIProvider, ExecutionContext
+from nexus.adapters.ai.base import AIProvider, ExecutionContext, split_model_effort
 from nexus.core.models import AgentResult, RateLimitStatus
 
 logger = logging.getLogger(__name__)
@@ -25,11 +25,13 @@ class CodexCLIProvider(AIProvider):
         timeout: int = 600,
         binary: str = "codex",
         model: str | None = None,
+        effort: str | None = None,
         extra_args: list[str] | None = None,
     ):
         self._timeout = timeout
         self._binary = binary
         self._model = model
+        self._effort = effort
         self._extra_args = extra_args or []
         self._availability_cache: dict = {}
         self._availability_ttl: int = 300  # seconds
@@ -77,9 +79,14 @@ class CodexCLIProvider(AIProvider):
         workspace = Path(context.workspace)
         workspace.mkdir(parents=True, exist_ok=True)
         cmd = [self._binary, "exec", "--skip-git-repo-check"]
-        model = context.model_override or self._model
+        model, effort = split_model_effort(
+            context.model_override or self._model,
+            context.effort or self._effort,
+        )
         if model:
             cmd.extend(["--model", model])
+        if effort:
+            cmd.extend(["-c", f'model_reasoning_effort="{effort}"'])
         cmd.extend(self._extra_args)
         cmd.append("-")
 

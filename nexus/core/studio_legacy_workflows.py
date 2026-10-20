@@ -92,6 +92,7 @@ class StudioLegacyWorkflows:
                         "task",
                         "provider",
                         "model",
+                        "effort",
                         "workflow_id",
                         "workflow_snapshot",
                         "reference_context",
@@ -205,6 +206,7 @@ class StudioLegacyWorkflows:
             for key in [
                 "provider",
                 "model",
+                "effort",
                 "reference_context",
                 "artifact_refs",
                 "agent_snapshots",

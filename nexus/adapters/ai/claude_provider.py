@@ -10,7 +10,7 @@ Uses the ``anthropic`` Python SDK with async support.
 import logging
 import time
 
-from nexus.adapters.ai.base import AIProvider, ExecutionContext
+from nexus.adapters.ai.base import AIProvider, ExecutionContext, split_model_effort
 from nexus.core.models import AgentResult, RateLimitStatus
 
 try:
@@ -101,7 +101,8 @@ class ClaudeProvider(AIProvider):
     async def execute_agent(self, context: ExecutionContext) -> AgentResult:
         """Send the prompt to the Anthropic Messages API and return the reply."""
         start = time.time()
-        model = context.model_override or self._model
+        raw_model, effort = split_model_effort(context.model_override, context.effort)
+        model = raw_model or self._model
         max_tokens = context.max_tokens or self._max_tokens
 
         # Build the user message, appending issue URL as context when provided
@@ -110,13 +111,16 @@ class ClaudeProvider(AIProvider):
             user_content = f"{context.prompt}\n\nIssue: {context.issue_url}"
 
         try:
-            response = await self._client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=self._system_prompt,
-                messages=[{"role": "user", "content": user_content}],
-                timeout=context.timeout if context.timeout is not None else self._timeout,
-            )
+            create_kwargs: dict = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "system": self._system_prompt,
+                "messages": [{"role": "user", "content": user_content}],
+                "timeout": context.timeout if context.timeout is not None else self._timeout,
+            }
+            if effort is not None:
+                create_kwargs["output_config"] = {"effort": effort}
+            response = await self._client.messages.create(**create_kwargs)
             elapsed = time.time() - start
             output = response.content[0].text if response.content else ""
             return AgentResult(

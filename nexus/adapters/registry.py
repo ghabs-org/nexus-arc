@@ -95,6 +95,10 @@ def _load_builtin_interactive(type_name: str) -> type[InteractiveClientPlugin] |
 
 
 def _load_builtin_ai(type_name: str) -> type[AIProvider] | None:
+    if type_name == "agy":
+        from nexus.adapters.ai.agy_provider import AntigravityProvider
+
+        return AntigravityProvider
     if type_name == "claude-code":
         from nexus.adapters.ai.claude_code_provider import ClaudeCodeProvider
 

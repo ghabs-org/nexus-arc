@@ -171,7 +171,9 @@ class StudioSAMConfiguration:
                             "Tool binding must name a registered Nexus tool",
                         )
                 else:
-                    binding = self.fields(binding, {"provider", "model", "profile"}, path)
+                    binding = self.fields(
+                        binding, {"provider", "model", "effort", "profile"}, path
+                    )
                     values[name] = binding
                     if "profile" in binding:
                         if set(binding) != {"profile"}:
@@ -392,6 +394,7 @@ class StudioSAMConfiguration:
             "timeout_seconds": 600,
             "max_retries": 0,
             **({"model": effective["model"]} if effective.get("model") else {}),
+            **({"effort": effective["effort"]} if effective.get("effort") else {}),
             **({"tool_ids": tools} if tools else {}),
             **({"model_id": profile_id} if profile_id else {}),
             **settings,
@@ -913,6 +916,7 @@ class StudioSAMConfiguration:
                         "purpose",
                         "provider",
                         "model",
+                        "effort",
                         "timeout_seconds",
                         "max_retries",
                         "tool_ids",

@@ -24,7 +24,7 @@ from typing import Any
 
 import yaml
 
-from nexus.adapters.ai.base import ExecutionContext
+from nexus.adapters.ai.base import EFFORT_LEVELS, ExecutionContext
 from nexus.adapters.registry import AdapterRegistry
 from nexus.core.studio_graph import StudioGraph, StudioPausedError
 from nexus.core.workflow import WorkflowDefinition
@@ -34,6 +34,7 @@ _ID = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}\Z")
 _PROVIDERS = (
     ("codex", "Codex", "codex", "cli", "codex login"),
     ("claude-code", "Claude Code", "claude", "cli", "claude auth login"),
+    ("agy", "Google Antigravity", "agy", "cli", "agy"),
     ("copilot", "GitHub Copilot", "copilot", "cli", "copilot login"),
     ("gemini", "Gemini CLI", "gemini", "cli", "gemini"),
     ("opencode", "OpenCode", "opencode", "cli", "opencode auth login"),
@@ -379,6 +380,11 @@ class StudioService:
             }
             if payload.get("model"):
                 doc["spec"]["model"] = str(payload["model"]).strip()
+            if payload.get("effort"):
+                effort = str(payload["effort"]).strip().lower()
+                if effort not in EFFORT_LEVELS:
+                    raise ValueError(f"Effort must be one of {', '.join(EFFORT_LEVELS)}")
+                doc["spec"]["effort"] = effort
             if payload.get("guardrails") is not None:
                 from nexus.core.studio_observability import validate_guardrails
 
@@ -951,6 +957,10 @@ class StudioService:
         )
         provider_name = str(payload.get("provider") or agent.get("provider") or "codex")
         model = payload.get("model") or agent.get("model")
+        raw_effort = payload.get("effort") or agent.get("effort")
+        effort = str(raw_effort).strip().lower() if raw_effort else None
+        if effort and effort not in EFFORT_LEVELS:
+            raise ValueError(f"Effort must be one of {', '.join(EFFORT_LEVELS)}")
         provider = (
             self.team.provider(provider_name, payload)
             if self.team
@@ -960,7 +970,12 @@ class StudioService:
             provider = await provider
         if not await provider.check_availability():
             raise ValueError(f"{provider_name} is not ready. Check its setup in Providers.")
-        self._update_run(run_id, provider=provider_name, model=model)
+        self._update_run(
+            run_id,
+            provider=provider_name,
+            model=model,
+            **({"effort": effort} if effort else {}),
+        )
         prompt = str(agent.get("purpose") or agent.get("instructions") or "")
         prompt += (
             agent.get("skill_context")
@@ -1005,6 +1020,7 @@ class StudioService:
             prompt=prompt,
             workspace=self.root,
             model_override=model,
+            effort=effort,
             metadata=content_metadata,
             timeout=int(agent.get("timeout_seconds") or 600),
         )
@@ -1154,6 +1170,7 @@ class StudioService:
                 provider=self.run(run_id)["provider"],
                 agent_id=payload.get("agent_id"),
                 model=payload.get("model") or "",
+                effort=payload.get("effort") or "",
             )
             with self.lock:
                 if self.run(run_id).get("cancel_requested"):

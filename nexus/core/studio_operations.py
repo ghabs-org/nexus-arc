@@ -56,12 +56,19 @@ class StudioOperations:
 
             return validate_external(data)
         if kind == "models":
+            from nexus.adapters.ai.base import EFFORT_LEVELS
             from nexus.core.studio import _PROVIDERS
 
             provider = data.get("provider")
             if provider not in {p[0] for p in _PROVIDERS}:
                 raise ValueError("Unknown model profile provider")
-            return {"provider": provider, "model": _text(data.get("model"), "Model ID", 200)}
+            model_spec = {"provider": provider, "model": _text(data.get("model"), "Model ID", 200)}
+            if data.get("effort"):
+                effort = str(data["effort"]).strip().lower()
+                if effort not in EFFORT_LEVELS:
+                    raise ValueError(f"Effort must be one of {', '.join(EFFORT_LEVELS)}")
+                model_spec["effort"] = effort
+            return model_spec
         if kind == "evaluations":
             target = self.target(data, targets)
             cases = data.get("cases")
@@ -353,16 +360,24 @@ class StudioOperations:
         variants = payload.get("variants", [{"name": "Saved configuration"}])
         if not isinstance(variants, list) or not 1 <= len(variants) <= 4:
             raise ValueError("An experiment supports 1 to 4 variants")
+        from nexus.adapters.ai.base import EFFORT_LEVELS
         from nexus.core.studio import _PROVIDERS
 
         for variant in variants:
-            if not isinstance(variant, dict) or set(variant) - {"name", "provider", "model"}:
+            if not isinstance(variant, dict) or set(variant) - {
+                "name",
+                "provider",
+                "model",
+                "effort",
+            }:
                 raise ValueError("Invalid experiment variant")
             _text(variant.get("name"), "Variant name", 100)
             if variant.get("provider") and variant["provider"] not in {p[0] for p in _PROVIDERS}:
                 raise ValueError("Unknown variant provider")
             if variant.get("model") is not None and not isinstance(variant["model"], str):
                 raise ValueError("Variant model must be text")
+            if variant.get("effort") and str(variant["effort"]).strip().lower() not in EFFORT_LEVELS:
+                raise ValueError(f"Variant effort must be one of {', '.join(EFFORT_LEVELS)}")
         payload["suite_snapshot"] = suite
         payload["variants"] = variants
 
@@ -384,7 +399,11 @@ class StudioOperations:
                 started = time.monotonic()
                 self.studio._update_run(run_id, step=f"{variant['name']} · case {index + 1}")
                 entry = {"variant": variant["name"], "case": index + 1, "input": case["input"]}
-                request = {key: variant[key] for key in ("provider", "model") if variant.get(key)}
+                request = {
+                    key: variant[key]
+                    for key in ("provider", "model", "effort")
+                    if variant.get(key)
+                }
                 request["requester_nexus_id"] = payload.get("requester_nexus_id")
                 try:
                     if target["target_kind"] == "workflow":

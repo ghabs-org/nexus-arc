@@ -177,6 +177,8 @@ def resolve_agent(studio, agent):
     if agent.get("model_id"):
         item = studio.catalog.get("models", agent["model_id"])
         resolved.update(provider=item["data"]["provider"], model=item["data"]["model"])
+        if item["data"].get("effort") and not resolved.get("effort"):
+            resolved["effort"] = item["data"]["effort"]
         revisions.append({"kind": "models", "id": item["id"], "revision": item["revision"]})
     resolved["tool_ids"] = list(dict.fromkeys(tools))
     resolved["skill_context"] = studio.catalog.context(

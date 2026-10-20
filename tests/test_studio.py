@@ -191,6 +191,37 @@ def test_claude_code_is_a_framework_adapter():
     assert isinstance(AdapterRegistry().create_ai("claude-code"), ClaudeCodeProvider)
 
 
+def test_agy_provider_and_effort_in_studio(studio):
+    from nexus.adapters.ai.agy_provider import AntigravityProvider
+    from nexus.adapters.registry import AdapterRegistry
+
+    assert isinstance(AdapterRegistry().create_ai("agy"), AntigravityProvider)
+    service, calls = studio
+    assert "agy" in {p["id"] for p in service.providers()}
+    created = service.save_definition(
+        "agents",
+        {
+            "name": "Agy Architect",
+            "provider": "agy",
+            "model": "opus-5-5",
+            "effort": "high",
+            "instructions": "Architect carefully.",
+        },
+    )
+    assert created["document"]["spec"]["provider"] == "agy"
+    assert created["document"]["spec"]["effort"] == "high"
+    run = service.start_run(
+        {"task": "Design API", "agent_id": created["id"], "effort": "xhigh"}
+    )
+    done = wait_run(service, run["id"])
+    assert done["status"] == "completed"
+    assert done["provider"] == "agy"
+    assert done["effort"] == "xhigh"
+    assert calls[-1][0] == "agy"
+    assert calls[-1][1].model_override == "opus-5-5"
+    assert calls[-1][1].effort == "xhigh"
+
+
 def test_local_workspace_does_not_require_bot_configuration():
     import os
     import subprocess

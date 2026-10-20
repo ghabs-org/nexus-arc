@@ -19,7 +19,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from nexus.adapters.ai.base import AIProvider, ExecutionContext
+from nexus.adapters.ai.base import AIProvider, ExecutionContext, split_model_effort
 from nexus.core.models import AgentResult, RateLimitStatus
 
 logger = logging.getLogger(__name__)
@@ -121,10 +121,12 @@ class OpenCodeProvider(AIProvider):
         timeout: int = 600,
         cli_path: str | None = None,
         model: str | None = None,
+        effort: str | None = None,
     ):
         self._timeout = timeout
         self._cli_path = (cli_path or os.getenv("OPENCODE_CLI_PATH", "opencode")).strip() or "opencode"
         self._model = (model or os.getenv("OPENCODE_MODEL", "")).strip() or DEFAULT_MODEL
+        self._effort = effort
         self._availability_cache: dict = {}
         self._availability_ttl: int = 300  # seconds
 
@@ -171,11 +173,24 @@ class OpenCodeProvider(AIProvider):
         workspace = Path(context.workspace)
         workspace.mkdir(parents=True, exist_ok=True)
 
-        model = (context.model_override or "").strip() or self._model
+        raw_model, effort = split_model_effort(
+            context.model_override,
+            context.effort or self._effort,
+        )
+        model = (raw_model or "").strip() or self._model
         prompt = context.prompt
         if context.issue_url:
             prompt = f"{prompt}\n\nIssue: {context.issue_url}"
-        cmd = [self._cli_path, "run", "--model", model, "--format", "json", prompt]
+        cmd = [
+            self._cli_path,
+            "run",
+            "--model",
+            model,
+            *(["--variant", effort] if effort else []),
+            "--format",
+            "json",
+            prompt,
+        ]
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,

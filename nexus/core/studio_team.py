@@ -419,6 +419,11 @@ class ContainerCLIProvider:
                 ]
             if context.model_override:
                 command += ["--model", context.model_override]
+            if context.effort:
+                if self.name == "codex":
+                    command += ["-c", f'model_reasoning_effort="{context.effort}"']
+                elif self.name == "claude-code":
+                    command += ["--effort", context.effort]
             if self.name == "codex":
                 command.append("-")
             process = None

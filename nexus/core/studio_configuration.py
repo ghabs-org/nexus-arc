@@ -176,6 +176,7 @@ class StudioConfiguration:
                     "instructions",
                     "provider",
                     "model",
+                    "effort",
                     "timeout_seconds",
                     "max_retries",
                     "tool_ids",

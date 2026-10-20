@@ -214,6 +214,7 @@ class StudioGraph:
                         "task",
                         "provider",
                         "model",
+                        "effort",
                         "workflow_id",
                         "reference_context",
                         "expanded_task",
@@ -353,6 +354,7 @@ class StudioGraph:
                                 for key in [
                                     "provider",
                                     "model",
+                                    "effort",
                                     "reference_context",
                                     "artifact_refs",
                                     "agent_snapshots",
