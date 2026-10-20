@@ -31,7 +31,7 @@ def test_index_renders_dedicated_login_page_when_auth_enabled(monkeypatch):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b"Nexus Login" in response.data
+    assert b"<h1>Sign in</h1>" in response.data
     assert b"/auth/start" in response.data
 
 
@@ -156,7 +156,7 @@ def test_visualizer_requires_shared_token_when_auth_disabled(monkeypatch):
     assert visualizer_response.status_code == 302
     assert visualizer_response.headers["Location"].endswith("/?next=/visualizer")
     assert index_response.status_code == 200
-    assert b"Visualizer Access" in index_response.data
+    assert b"<h1>Visualizer access</h1>" in index_response.data
     assert b"/visualizer/access" in index_response.data
 
 
@@ -236,20 +236,15 @@ def test_provider_connect_status_route_returns_service_payload(monkeypatch):
     assert payload["user_code"] == "ABCD-EFGH"
 
 
-def test_provider_connect_pending_route_renders_waiting_page(monkeypatch):
+def test_provider_connect_pending_popup_page_is_gone(monkeypatch):
     import webhook_server
 
     monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
 
-    client = webhook_server.app.test_client()
-    response = client.get("/auth/provider-connect/pending?session_id=sess-9&provider=gemini")
+    response = webhook_server.app.test_client().get("/auth/provider-connect/pending?session_id=sess-9&provider=claude")
 
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "Gemini Account Login" in body
-    assert "provider_pending_status" in body
-    assert "/auth/provider-connect/status?provider=" in body
-    assert "window.location.replace(verifyUrl)" in body
+    # Account setup shows the sign-in link inline; the popup page was removed.
+    assert response.status_code in {404, 405}
 
 
 def test_provider_connect_relay_callback_route_returns_service_payload(monkeypatch):
@@ -678,3 +673,47 @@ def test_auth_setup_rejects_unknown_or_unfinished_session(monkeypatch):
         response = client.get("/auth/setup?session=lsr_ref")
         assert response.status_code == 404
         assert "Set-Cookie" not in response.headers
+
+
+def test_ai_keys_save_shows_status_and_what_is_missing(monkeypatch):
+    import webhook_server
+
+    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
+    monkeypatch.setattr(webhook_server, "_svc_format_login_session_ref", lambda sid: f"lsr_{sid}")
+    monkeypatch.setattr(webhook_server, "_notify_onboarding_message", lambda **kw: None)
+    monkeypatch.setattr(
+        webhook_server,
+        "_svc_store_ai_provider_keys",
+        lambda **kw: {"ready": False, "session_id": "a" * 32, "grants_count": 0},
+    )
+    monkeypatch.setattr(webhook_server, "_svc_resolve_login_session_id", lambda ref: "a" * 32)
+    monkeypatch.setattr(
+        webhook_server,
+        "_svc_get_session_and_setup_status",
+        lambda _sid: {
+            "exists": True,
+            "setup": {
+                "github_login": "Ghabs95",
+                "git_provider_linked": True,
+                "org_verified": True,
+                "project_access_count": 0,
+                "ai_provider_ready": True,
+                "claude_account_enabled": True,
+                "projects": [],
+            },
+        },
+    )
+
+    response = webhook_server.app.test_client().post(
+        "/auth/ai-keys", data={"session_id": "lsr_ref", "use_claude_account": "1"}
+    )
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "<h1>Setup saved</h1>" in body
+    assert "Not ready yet" in body
+    assert "Access to a Nexus project" in body
+    assert "Sign in with GitHub" not in body
+    assert f"/auth/setup?session=lsr_{'a' * 32}" in body
+    assert "✅" not in body and "⚠️" not in body
+    assert f"{webhook_server._WEB_SESSION_COOKIE_NAME}={'a' * 32}" in (response.headers.get("Set-Cookie") or "")

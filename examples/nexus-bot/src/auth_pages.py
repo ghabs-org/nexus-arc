@@ -115,6 +115,7 @@ input[type=text], input[type=password] {
 }
 input.mono { font-family: var(--mono); font-size: 13px; }
 input::placeholder { color: var(--faint); }
+select.select { width: 100%; height: var(--field-height); padding: 0 10px; font: 400 14px var(--font); color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control); }
 input:disabled { background: var(--raised); color: var(--muted); }
 .joined { display: flex; min-width: 0; width: 100%; }
 .joined > input, .joined > .value { border-top-right-radius: 0; border-bottom-right-radius: 0; flex: 1; min-width: 0; }
@@ -151,7 +152,11 @@ input:disabled { background: var(--raised); color: var(--muted); }
 .fields { display: grid; gap: 16px; }
 .form-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 32px; border-top: 1px solid var(--border); }
 .form-foot .note { max-width: 640px; }
+.message-body > *:first-child { margin-top: 0; }
 .message-body > * + * { margin-top: 12px; }
+.message-body > p:last-child { margin-bottom: 0; }
+.plain-list { margin: 0; padding-left: 18px; }
+.plain-list li + li { margin-top: 4px; }
 .message-body form { display: grid; gap: 12px; max-width: 560px; }
 .message-body button, .message-body .form-submit { justify-self: start; }
 .message-body button:not(.btn) {
@@ -595,31 +600,119 @@ SETUP_JS = r"""
 """
 
 
-def render_session_sign_in(*, next_path: str, message_html: str = "") -> str:
-    """Studio sign-in: exchange a session reference from /login for this site's cookie."""
+def render_field_form(
+    *,
+    action: str,
+    method: str = "post",
+    hidden: dict[str, str] | None = None,
+    title: str,
+    description: str,
+    field_name: str,
+    field_label: str,
+    field_type: str = "text",
+    placeholder: str = "",
+    field_value: str = "",
+    submit_label: str,
+    message_html: str = "",
+    extra_fields_html: str = "",
+    aside_title: str = "",
+    aside_html: str = "",
+) -> str:
+    """One task per page: a labelled field with Paste and the primary action, plus help beside it."""
+    hidden_inputs = "".join(
+        f'<input type="hidden" name="{escape(k, quote=True)}" value="{escape(v, quote=True)}" />'
+        for k, v in (hidden or {}).items()
+    )
+    aside = ""
+    if aside_title:
+        aside = f"""
+  <section class="setting" aria-labelledby="aside-h">
+    <div class="label"><h2 id="aside-h">{escape(aside_title)}</h2></div>
+    <div class="panel">{aside_html}</div>
+  </section>"""
     return f"""
-<form method="post" action="/login" autocomplete="off">
-  <input type="hidden" name="next" value="{escape(next_path, quote=True)}" />
-  <section class="setting" aria-labelledby="ref-h">
-    <div class="label"><h2 id="ref-h">Session reference</h2><p>Paste the reference Nexus gave you to open your workspace on this site.</p></div>
+<form method="{method}" action="{escape(action, quote=True)}" autocomplete="off">
+  {hidden_inputs}
+  <section class="setting" aria-labelledby="field-h">
+    <div class="label"><h2 id="field-h">{escape(title)}</h2><p>{description}</p></div>
     <div class="panel fields">
       {message_html}
       <div>
-        <label class="field" for="session">Reference</label>
+        <label class="field" for="{field_name}">{escape(field_label)}</label>
         <div class="joined">
-          <input id="session" name="session" type="text" class="mono" placeholder="lsr_…" spellcheck="false" autocapitalize="off" autocorrect="off" required />
-          <button type="button" class="btn" data-paste="session">Paste</button>
+          <input id="{field_name}" name="{field_name}" type="{field_type}" class="mono" placeholder="{escape(placeholder, quote=True)}" value="{escape(field_value, quote=True)}" spellcheck="false" autocapitalize="off" autocorrect="off" required />
+          <button type="button" class="btn" data-paste="{field_name}">Paste</button>
         </div>
       </div>
-      <div><button type="submit" class="btn primary">Sign in</button></div>
+      {extra_fields_html}
+      <div><button type="submit" class="btn primary">{escape(submit_label)}</button></div>
     </div>
-  </section>
-  <section class="setting" aria-labelledby="get-h">
-    <div class="label"><h2 id="get-h">No reference yet?</h2><p>References come from the Nexus bot and last 7 days.</p></div>
-    <div class="panel">
-      <p>Send <code>/login</code> to the Nexus bot in Telegram or Discord and continue with GitHub.</p>
-      <p>When GitHub sign-in finishes, the reference is shown on your account page and in the chat. Copy it from there.</p>
-    </div>
-  </section>
+  </section>{aside}
 </form>
 <script>{SETUP_JS}</script>"""
+
+
+def render_setup_saved(
+    *,
+    ready: bool,
+    missing: list[str],
+    accounts: list[tuple[str, bool]],
+    projects: list[str],
+    setup_url: str,
+) -> str:
+    """The page after Save setup: is it ready, and if not, what is still missing."""
+    status_pill = (
+        '<span class="pill ok">Ready</span>' if ready else '<span class="pill wait">Not ready yet</span>'
+    )
+    missing_html = ""
+    if missing:
+        items = "".join(f"<li>{escape(item)}</li>" for item in missing)
+        missing_html = f'<div class="k">Still needed</div><div><ul class="plain-list">{items}</ul></div>'
+    account_cells = "".join(
+        f'<div class="k">{escape(name)}</div><div>'
+        + ('<span class="pill ok">Connected</span>' if connected else '<span class="pill off">Not connected</span>')
+        + "</div>"
+        for name, connected in accounts
+    )
+    projects_html = escape(", ".join(projects)) if projects else '<span class="pill bad">None yet</span>'
+    return f"""
+  <section class="setting" aria-labelledby="status-h">
+    <div class="label"><h2 id="status-h">Setup status</h2><p>Agents can run for you once Git is linked, an AI account is connected and you have access to a project.</p></div>
+    <div class="panel"><div class="kv">
+      <div class="k">Status</div><div>{status_pill}</div>
+      {missing_html}
+      <div class="k">Project access</div><div>{projects_html}</div>
+    </div></div>
+  </section>
+  <section class="setting" aria-labelledby="saved-accounts-h">
+    <div class="label"><h2 id="saved-accounts-h">AI accounts</h2><p>Change them any time on the account page.</p></div>
+    <div class="panel"><div class="kv">{account_cells}</div></div>
+  </section>
+  <div class="form-foot">
+    <p class="note">In Telegram send <code>/setup_status</code>, or <code>/setup-status</code> in Discord, to see this in chat.</p>
+    <a class="btn primary" href="{escape(setup_url, quote=True)}">Back to account setup</a>
+  </div>"""
+
+
+def render_message(title: str, body_html: str, *, status_code: int = 200, subline: str = "") -> str:
+    """Message pages: what happened, then the ways forward from here."""
+    failed = status_code >= 400
+    next_html = (
+        "<p>Send <code>/login</code> to the Nexus bot in Telegram or Discord to start again, "
+        "or open your account page if your sign-in is still active.</p>"
+        '<div class="row-actions"><a class="btn primary" href="/auth/setup">Account page</a>'
+        '<a class="btn" href="/">Sign-in page</a></div>'
+        if failed
+        else "<p>You can close this window, or go to your account page.</p>"
+        '<div class="row-actions"><a class="btn primary" href="/auth/setup">Account page</a></div>'
+    )
+    body = f"""
+  <section class="setting" aria-labelledby="what-h">
+    <div class="label"><h2 id="what-h">{"What happened" if failed else "Done"}</h2></div>
+    <div class="panel message-body">{body_html}</div>
+  </section>
+  <section class="setting" aria-labelledby="next-h">
+    <div class="label"><h2 id="next-h">Next</h2></div>
+    <div class="panel fields">{next_html}</div>
+  </section>"""
+    return render_page(title, body, subline=subline)

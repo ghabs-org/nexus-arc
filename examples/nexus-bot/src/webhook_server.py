@@ -435,59 +435,69 @@ def _visualizer_login_redirect(next_path: str = "/visualizer"):
 def _render_login_page(*, message_html: str = "", session_hint: str = ""):
     providers = _configured_oauth_providers()
     preferred_provider = _default_oauth_provider(providers) or "github"
-    session_value = html.escape(str(session_hint or "").strip(), quote=True)
     ordered_providers = (
         providers
         if preferred_provider == "github"
         else sorted(providers, key=lambda item: (item != "gitlab", item))
     )
-    provider_options = "".join(
-        f'<option value="{name}">{name.title()}</option>' for name in ordered_providers
-    )
-    provider_disabled_attr = "" if ordered_providers else " disabled"
-    submit_disabled_attr = "" if ordered_providers else " disabled"
-    missing_provider_note = (
-        ""
-        if ordered_providers
-        else (
-            "<p><small>No OAuth providers are fully configured yet. "
-            "Set both client ID and client secret for GitHub and/or GitLab.</small></p>"
+    if ordered_providers:
+        options = "".join(
+            f'<option value="{name}">{"GitHub" if name == "github" else "GitLab" if name == "gitlab" else name.title()}</option>'
+            for name in ordered_providers
         )
+        provider_field = (
+            '<div><label class="field" for="provider">Continue with</label>'
+            f'<select id="provider" name="provider" class="select">{options}</select></div>'
+        )
+    else:
+        provider_field = (
+            '<p class="status-line bad">No Git sign-in is configured yet. '
+            "Set the GitHub or GitLab OAuth client ID and secret.</p>"
+        )
+    body = _auth_pages.render_field_form(
+        action="/auth/start",
+        method="get",
+        title="Session reference",
+        description="Finish the Git sign-in that <code>/login</code> started in Telegram or Discord.",
+        field_name="session",
+        field_label="Reference",
+        placeholder="lsr_…",
+        field_value=str(session_hint or "").strip(),
+        submit_label="Continue",
+        message_html=message_html,
+        extra_fields_html=provider_field,
+        aside_title="No reference yet?",
+        aside_html=(
+        "<p>Send <code>/login</code> to the Nexus bot in Telegram or Discord and continue with GitHub.</p>"
+        "<p>When GitHub sign-in finishes, the reference is shown on your account page and in the chat. "
+        "Copy it from there.</p>"
+    ),
     )
-    if not provider_options:
-        provider_options = '<option value="">No OAuth providers configured</option>'
-    body = f"""
-<p>Authenticate using the same OAuth onboarding used by Telegram/Discord <code>/login</code>.</p>
-{message_html}
-<form method="get" action="/auth/start" autocomplete="off">
-  <label for="session"><strong>Session Reference</strong></label>
-  <input id="session" name="session" type="text" value="{session_value}" placeholder="Paste the session reference from /login" spellcheck="false" autocapitalize="off" autocorrect="off" required />
-  <label for="provider"><strong>Provider</strong></label>
-  <select id="provider" name="provider" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid #94a3b8;"{provider_disabled_attr}>
-    {provider_options}
-  </select>
-  <button type="submit" class="form-submit"{submit_disabled_attr}>Continue Login</button>
-</form>
-{missing_provider_note}
-<p><small>Tip: run <code>/login</code> in Telegram or Discord, then paste the session reference shown in chat.</small></p>
-"""
-    return _render_auth_message("Nexus Login", body, status_code=200)
+    page = _auth_pages.render_page("Sign in", body, subline="Link your Git account to Nexus.")
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def _render_visualizer_token_page(*, message_html: str = "", next_path: str = "/visualizer"):
-    safe_next = html.escape(_safe_next_path(next_path), quote=True)
-    body = f"""
-<p>Visualizer access requires the shared token configured in <code>NEXUS_VISUALIZER_SHARED_TOKEN</code>.</p>
-{message_html}
-<form method="post" action="/visualizer/access" autocomplete="off">
-  <input type="hidden" name="next" value="{safe_next}" />
-  <label for="token"><strong>Visualizer Token</strong></label>
-  <input id="token" name="token" type="password" placeholder="Paste shared token" spellcheck="false" autocapitalize="off" autocorrect="off" required />
-  <button type="submit" class="form-submit">Open Visualizer</button>
-</form>
-<p><small>Alternative: send header <code>{_VISUALIZER_SHARED_TOKEN_HEADER}</code> or <code>Authorization: Bearer ...</code>.</small></p>
-"""
-    return _render_auth_message("Visualizer Access", body, status_code=200)
+    body = _auth_pages.render_field_form(
+        action="/visualizer/access",
+        hidden={"next": _safe_next_path(next_path)},
+        title="Shared token",
+        description="The workflow visualizer is protected by the token set in "
+        "<code>NEXUS_VISUALIZER_SHARED_TOKEN</code>.",
+        field_name="token",
+        field_label="Token",
+        field_type="password",
+        placeholder="Paste the shared token",
+        submit_label="Open visualizer",
+        message_html=message_html,
+        aside_title="From a script?",
+        aside_html=(
+            f"<p>Send the token in the <code>{html.escape(_VISUALIZER_SHARED_TOKEN_HEADER)}</code> header, "
+            "or as <code>Authorization: Bearer …</code>.</p>"
+        ),
+    )
+    page = _auth_pages.render_page("Visualizer access", body, subline="Watch Nexus workflows as they run.")
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def _collect_visualizer_snapshot() -> list[dict]:
@@ -825,7 +835,7 @@ def handle_pull_request_review(payload, event):
 
 
 def _render_auth_message(title: str, body: str, *, status_code: int = 200, subline: str = ""):
-    html_page = _auth_pages.render_page(title, body, subline=subline, wrap_body=True)
+    html_page = _auth_pages.render_message(title, body, status_code=status_code, subline=subline)
     return html_page, status_code, {"Content-Type": "text/html; charset=utf-8"}
 
 
@@ -871,6 +881,42 @@ def _render_ai_key_form(
 
 
 _AI_ACCOUNT_KEYS = ("claude", "codex", "agy", "gemini")
+_AI_ACCOUNT_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity", "gemini": "Gemini"}
+
+
+def _setup_missing_items(setup: dict) -> list[str]:
+    """What still blocks agent runs, in the words a person acts on."""
+    missing: list[str] = []
+    if not setup.get("git_provider_linked"):
+        missing.append("Sign in with GitHub or GitLab (send /login to the bot)")
+    elif not setup.get("org_verified"):
+        missing.append("Membership of an allowed GitHub organisation")
+    if not int(setup.get("project_access_count") or 0):
+        missing.append("Access to a Nexus project (ask an admin to grant your team)")
+    if not setup.get("ai_provider_ready"):
+        missing.append("A connected AI account or an API key")
+    return missing
+
+
+def _render_setup_saved_page(*, session_id: str, ready: bool):
+    payload = _svc_get_session_and_setup_status(session_id)
+    setup = payload.get("setup") if isinstance(payload, dict) and isinstance(payload.get("setup"), dict) else {}
+    session_ref = _svc_format_login_session_ref(session_id) or session_id
+    identity = str(setup.get("github_login") or setup.get("gitlab_username") or "").strip()
+    accounts = [(_AI_ACCOUNT_LABELS[key], bool(setup.get(f"{key}_account_enabled"))) for key in _AI_ACCOUNT_KEYS]
+    connected = sum(1 for _name, on in accounts if on)
+    body = _auth_pages.render_setup_saved(
+        ready=ready,
+        missing=[] if ready else _setup_missing_items(setup),
+        accounts=accounts,
+        projects=[str(item) for item in (setup.get("projects") or []) if str(item).strip()],
+        setup_url=f"/auth/setup?session={quote(session_ref, safe='')}",
+    )
+    subline = (
+        f"{'Signed in as ' + html.escape(identity) + ' · ' if identity else ''}"
+        f"{connected} of {len(accounts)} AI accounts connected"
+    )
+    return _auth_pages.render_page("Setup saved", body, subline=subline, account=identity)
 
 
 def _render_account_setup_page(
@@ -1010,20 +1056,20 @@ def _notify_onboarding_message(
 def auth_start():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
     session_value = str(request.args.get("session", "")).strip()
     if not session_value:
-        return _render_auth_message("Invalid Request", "Missing <code>session</code> parameter.", status_code=400)
+        return _render_auth_message("Invalid request", "Missing <code>session</code> parameter.", status_code=400)
     resolved_session_id = _svc_resolve_login_session_id(session_value)
     if not resolved_session_id:
-        return _render_auth_message("Invalid Request", "Invalid <code>session</code> parameter.", status_code=400)
+        return _render_auth_message("Invalid request", "Invalid <code>session</code> parameter.", status_code=400)
     configured_providers = _configured_oauth_providers()
     if not configured_providers:
         return _render_auth_message(
-            "Login Error",
+            "Sign-in error",
             (
                 "OAuth is not configured. Set both client ID and client secret for "
                 "GitHub and/or GitLab."
@@ -1037,13 +1083,13 @@ def auth_start():
         provider = _default_oauth_provider(configured_providers)
     if provider not in {"github", "gitlab", "linkedin", "x", "meta"}:
         return _render_auth_message(
-            "Invalid Request",
+            "Invalid request",
             "Unsupported <code>provider</code>. Use <code>github</code>, <code>gitlab</code>, <code>linkedin</code>, <code>x</code>, or <code>meta</code>.",
             status_code=400,
         )
     if provider in {"github", "gitlab"} and provider not in configured_providers:
         return _render_auth_message(
-            "Login Error",
+            "Sign-in error",
             f"{provider.title()} OAuth is not fully configured in this environment.",
             status_code=400,
         )
@@ -1054,7 +1100,7 @@ def auth_start():
             session_id=resolved_session_id,
             text=f"❌ OAuth start failed for {provider.title()}: {exc}\nRun /login to retry.",
         )
-        return _render_auth_message("Login Error", f"Failed to start OAuth: <code>{exc}</code>", status_code=400)
+        return _render_auth_message("Sign-in error", f"Failed to start OAuth: <code>{exc}</code>", status_code=400)
     return redirect(oauth_url, code=302)
 
 
@@ -1062,7 +1108,7 @@ def auth_start():
 def auth_github_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
@@ -1087,10 +1133,10 @@ def auth_github_callback():
             except Exception:
                 pass
         safe_detail = html.escape(oauth_error_detail, quote=True)
-        return _render_auth_message("OAuth Error", f"GitHub returned: <code>{safe_detail}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"GitHub returned: <code>{safe_detail}</code>", status_code=400)
     if not code or not state:
         return _render_auth_message(
-            "OAuth Error",
+            "OAuth error",
             "Missing <code>code</code> or <code>state</code> in callback.",
             status_code=400,
         )
@@ -1108,7 +1154,7 @@ def auth_github_callback():
                 session_id=session_id,
                 text=f"❌ GitHub OAuth failed: {exc}\nRun /login to retry.",
             )
-        return _render_auth_message("OAuth Error", f"{exc}", status_code=400)
+        return _render_auth_message("OAuth error", f"{exc}", status_code=400)
 
     source_nexus_id = str(result.get("source_nexus_id") or "").strip()
     resolved_nexus_id = str(result.get("nexus_id") or "").strip()
@@ -1151,7 +1197,7 @@ def auth_github_callback():
 def auth_gitlab_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
@@ -1176,10 +1222,10 @@ def auth_gitlab_callback():
             except Exception:
                 pass
         safe_detail = html.escape(oauth_error_detail, quote=True)
-        return _render_auth_message("OAuth Error", f"GitLab returned: <code>{safe_detail}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"GitLab returned: <code>{safe_detail}</code>", status_code=400)
     if not code or not state:
         return _render_auth_message(
-            "OAuth Error",
+            "OAuth error",
             "Missing <code>code</code> or <code>state</code> in callback.",
             status_code=400,
         )
@@ -1197,7 +1243,7 @@ def auth_gitlab_callback():
                 session_id=session_id,
                 text=f"❌ GitLab OAuth failed: {exc}\nRun /login to retry.",
             )
-        return _render_auth_message("OAuth Error", f"{exc}", status_code=400)
+        return _render_auth_message("OAuth error", f"{exc}", status_code=400)
 
     source_nexus_id = str(result.get("source_nexus_id") or "").strip()
     resolved_nexus_id = str(result.get("nexus_id") or "").strip()
@@ -1240,19 +1286,19 @@ def auth_gitlab_callback():
 @app.route("/auth/linkedin/callback", methods=["GET"])
 def auth_linkedin_callback():
     if not NEXUS_AUTH_ENABLED:
-        return _render_auth_message("Auth Disabled", "Auth is disabled.", status_code=404)
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
     if oauth_error:
         detail = str(request.args.get("error_description") or oauth_error).strip()
-        return _render_auth_message("OAuth Error", f"LinkedIn returned: <code>{html.escape(detail)}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"LinkedIn returned: <code>{html.escape(detail)}</code>", status_code=400)
     if not code or not state:
-        return _render_auth_message("OAuth Error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
+        return _render_auth_message("OAuth error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
     try:
         result = _svc_complete_linkedin_oauth(code=code, state=state)
     except Exception as exc:
-        return _render_auth_message("OAuth Error", f"LinkedIn login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"LinkedIn login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
     session_id = str(result.get("session_id") or "").strip()
     name = str(result.get("linkedin_name") or "").strip()
     urn = str(result.get("linkedin_author_urn") or "").strip()
@@ -1261,27 +1307,27 @@ def auth_linkedin_callback():
         text=f"✅ LinkedIn connected!\nName: {name}\nAuthor URN: `{urn}`",
     )
     return _render_auth_message(
-        "LinkedIn Connected",
-        f"✅ LinkedIn account connected for <strong>{html.escape(name)}</strong>.<br>You can close this window.",
+        "LinkedIn connected",
+        f"LinkedIn account connected for <strong>{html.escape(name)}</strong>.<br>You can close this window.",
     )
 
 
 @app.route("/auth/x/callback", methods=["GET"])
 def auth_x_callback():
     if not NEXUS_AUTH_ENABLED:
-        return _render_auth_message("Auth Disabled", "Auth is disabled.", status_code=404)
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
     if oauth_error:
         detail = str(request.args.get("error_description") or oauth_error).strip()
-        return _render_auth_message("OAuth Error", f"X returned: <code>{html.escape(detail)}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"X returned: <code>{html.escape(detail)}</code>", status_code=400)
     if not code or not state:
-        return _render_auth_message("OAuth Error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
+        return _render_auth_message("OAuth error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
     try:
         result = _svc_complete_x_oauth(code=code, state=state)
     except Exception as exc:
-        return _render_auth_message("OAuth Error", f"X login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"X login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
     session_id = str(result.get("session_id") or "").strip()
     username = str(result.get("x_username") or "").strip()
     _notify_onboarding_message(
@@ -1289,27 +1335,27 @@ def auth_x_callback():
         text=f"✅ X (Twitter) connected! Username: @{username}",
     )
     return _render_auth_message(
-        "X Connected",
-        f"✅ X account <strong>@{html.escape(username)}</strong> connected.<br>You can close this window.",
+        "X connected",
+        f"X account <strong>@{html.escape(username)}</strong> connected.<br>You can close this window.",
     )
 
 
 @app.route("/auth/meta/callback", methods=["GET"])
 def auth_meta_callback():
     if not NEXUS_AUTH_ENABLED:
-        return _render_auth_message("Auth Disabled", "Auth is disabled.", status_code=404)
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
     if oauth_error:
         detail = str(request.args.get("error_description") or oauth_error).strip()
-        return _render_auth_message("OAuth Error", f"Meta returned: <code>{html.escape(detail)}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"Meta returned: <code>{html.escape(detail)}</code>", status_code=400)
     if not code or not state:
-        return _render_auth_message("OAuth Error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
+        return _render_auth_message("OAuth error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
     try:
         result = _svc_complete_meta_oauth(code=code, state=state)
     except Exception as exc:
-        return _render_auth_message("OAuth Error", f"Meta login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"Meta login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
     session_id = str(result.get("session_id") or "").strip()
     page_name = str(result.get("meta_page_name") or "").strip()
     ig_id = str(result.get("meta_ig_account_id") or "").strip()
@@ -1319,8 +1365,8 @@ def auth_meta_callback():
         text=f"✅ Meta connected!\nPage: {page_name}{ig_note}",
     )
     return _render_auth_message(
-        "Meta Connected",
-        f"✅ Meta page <strong>{html.escape(page_name)}</strong> connected.<br>{'Instagram account linked.' if ig_id else 'No Instagram Business account found.'}<br>You can close this window.",
+        "Meta connected",
+        f"Meta page <strong>{html.escape(page_name)}</strong> connected.<br>{'Instagram account linked.' if ig_id else 'No Instagram Business account found.'}<br>You can close this window.",
     )
 
 
@@ -1328,7 +1374,7 @@ def auth_meta_callback():
 def auth_ai_keys():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
@@ -1411,7 +1457,7 @@ def auth_ai_keys():
         and (codex_supplied or gemini_supplied or claude_supplied or copilot_token_supplied)
     ):
         return _render_auth_message(
-            "Credential Error",
+            "Credential error",
             (
                 "API key/token submission is disabled because "
                 "<code>NEXUS_CLI_AUTH_MODE=account</code>. Use provider account login toggles instead."
@@ -1420,7 +1466,7 @@ def auth_ai_keys():
         )
     if not session_id:
         return _render_auth_message(
-            "Invalid Request",
+            "Invalid request",
             "Field <code>session_id</code> is required.",
             status_code=400,
         )
@@ -1443,26 +1489,18 @@ def auth_ai_keys():
             session_id=session_id,
             text=f"❌ Credential save failed: {exc}\nRetry from the web form or run /login again.",
         )
-        return _render_auth_message("Credential Error", f"{exc}", status_code=400)
+        return _render_auth_message("Credential error", f"{exc}", status_code=400)
 
     ready = bool(result.get("ready"))
     grants = int(result.get("project_access_count") or 0)
-    body = (
-        "<p>✅ Setup completed successfully.</p>"
-        if ready
-        else "<p>⚠️ Credentials saved, but setup is not fully ready yet.</p>"
-    )
-    body += (
-        f"<p>Project access count: <strong>{grants}</strong>.</p>"
-        "<p>Go back to your chat app and run the matching command:"
-        " Discord <code>/setup-status</code>, Telegram <code>/setup_status</code>.</p>"
-    )
     _notify_onboarding_message(
         session_id=session_id,
         text=_svc_build_setup_completed_chat_message(session_id=session_id, ready=ready),
     )
-    response = make_response(_render_auth_message("Setup Complete", body, status_code=200))
-    _set_web_session_cookie(response, session_id)
+    # The form posts the session reference; pages and the cookie use the session ID.
+    resolved_session_id = _svc_resolve_login_session_id(session_id) or session_id
+    response = make_response(_render_setup_saved_page(session_id=resolved_session_id, ready=ready))
+    _set_web_session_cookie(response, resolved_session_id)
     return response
 
 
@@ -1517,161 +1555,6 @@ def auth_provider_connect_start():
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc), "provider": provider}), 400
     return jsonify({"status": "ok", **result}), 200
-
-
-def _render_provider_connect_pending_page(*, provider: str, session_id: str) -> str:
-    provider_key = str(provider or "codex").strip().lower()
-    if provider_key not in {"codex", "gemini", "claude", "agy"}:
-        provider_key = "codex"
-    provider_label = {"codex": "Codex", "gemini": "Gemini", "claude": "Claude", "agy": "Antigravity"}[
-        provider_key
-    ]
-    safe_provider = html.escape(provider_key, quote=True)
-    safe_provider_label = html.escape(provider_label, quote=False)
-    safe_session_id = html.escape(str(session_id or ""), quote=True)
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{safe_provider_label} Login</title>
-  <style>
-    body {{
-      margin: 0;
-      padding: 1.2rem;
-      font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #0f172a;
-      background: #f8fafc;
-    }}
-    .card {{
-      max-width: 42rem;
-      margin: 0 auto;
-      background: #ffffff;
-      border: 1px solid #cbd5e1;
-      border-radius: 10px;
-      padding: 1rem 1.1rem;
-    }}
-    .status {{
-      margin-top: 0.6rem;
-      color: #334155;
-      white-space: pre-wrap;
-    }}
-    code {{
-      background: #e2e8f0;
-      border-radius: 5px;
-      padding: 0.05rem 0.25rem;
-    }}
-  </style>
-</head>
-<body data-provider="{safe_provider}" data-session-id="{safe_session_id}">
-  <div class="card">
-    <h2 style="margin:0 0 0.4rem;">{safe_provider_label} Account Login</h2>
-    <div id="provider_pending_status" class="status">
-      Waiting for Nexus to generate the verification link...
-    </div>
-    <p style="margin:0.9rem 0 0; color:#475569;">
-      Keep this tab open. It will redirect automatically when the provider link is ready.
-    </p>
-  </div>
-  <script>
-  (function() {{
-    var root = document.body;
-    var provider = String(root.getAttribute("data-provider") || "codex");
-    var sessionId = String(root.getAttribute("data-session-id") || "");
-    var statusEl = document.getElementById("provider_pending_status");
-    var openerOrigin = window.location.origin;
-    function setStatus(text) {{
-      if (statusEl) statusEl.textContent = String(text || "");
-    }}
-    function notifyOpener(payload) {{
-      try {{
-        if (!window.opener || window.opener.closed) return;
-        var body = payload && typeof payload === "object" ? payload : {{}};
-        body.source = "nexus-provider-connect";
-        body.provider = provider;
-        body.session_id = sessionId;
-        window.opener.postMessage(body, openerOrigin);
-      }} catch (err) {{
-        return;
-      }}
-    }}
-    var stopStates = {{
-      failed: true,
-      connected: true,
-      connected_but_not_saved: true,
-      rate_limited: true,
-      interactive_required: true,
-      unsupported_provider: true,
-      invalid_session: true
-    }};
-    async function poll() {{
-      if (!sessionId) {{
-        setStatus("Missing session id.");
-        return;
-      }}
-      try {{
-        var response = await fetch(
-          "/auth/provider-connect/status?provider=" + encodeURIComponent(provider) + "&session_id=" + encodeURIComponent(sessionId),
-          {{ credentials: "same-origin" }}
-        );
-        var payload = await response.json();
-        var verifyUrl = String(payload.verify_url || "").trim();
-        if (verifyUrl) {{
-          notifyOpener({{
-            state: String(payload.state || "pending"),
-            verify_url: verifyUrl,
-            message: String(payload.message || "")
-          }});
-          setStatus("Redirecting to provider verification...");
-          window.location.replace(verifyUrl);
-          return;
-        }}
-        if (payload.message) {{
-          setStatus(String(payload.message));
-        }}
-        var state = String(payload.state || "");
-        if (stopStates[state]) {{
-          notifyOpener({{
-            state: state,
-            message: String(payload.message || "")
-          }});
-          if (state === "connected") {{
-            setStatus("Connected. Closing this tab...");
-            window.setTimeout(function() {{
-              try {{ window.close(); }} catch (err) {{ /* ignore */ }}
-            }}, 450);
-          }}
-          return;
-        }}
-      }} catch (err) {{
-        setStatus("Waiting for provider instructions...");
-      }}
-      window.setTimeout(poll, 1200);
-    }}
-    poll();
-  }})();
-  </script>
-</body>
-</html>
-"""
-
-
-@app.route("/auth/provider-connect/pending", methods=["GET"])
-def auth_provider_connect_pending():
-    if not NEXUS_AUTH_ENABLED:
-        return _render_auth_message("Auth Disabled", "Auth onboarding is disabled.", status_code=404)
-    session_id = str(request.args.get("session_id", "")).strip()
-    provider = str(request.args.get("provider", "codex")).strip().lower()
-    if not session_id:
-        return _render_auth_message(
-            "Missing Session",
-            "Missing <code>session_id</code> for provider account login.",
-            status_code=400,
-        )
-    response = make_response(_render_provider_connect_pending_page(provider=provider, session_id=session_id))
-    response.headers["Content-Type"] = "text/html; charset=utf-8"
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    return response
 
 
 @app.route("/auth/provider-connect/status", methods=["GET"])
@@ -2117,7 +2000,7 @@ def index():
 
     if mode == "disabled":
         return _render_auth_message(
-            "Visualizer Disabled",
+            "Visualizer disabled",
             "The visualizer is disabled (<code>NEXUS_VISUALIZER_ENABLED=false</code>).",
             status_code=404,
         )
@@ -2129,7 +2012,7 @@ def index():
 
     if mode == "unconfigured":
         return _render_auth_message(
-            "Visualizer Locked",
+            "Visualizer locked",
             (
                 "No access method is configured. "
                 "Set <code>NEXUS_VISUALIZER_SHARED_TOKEN</code> or enable "
@@ -2162,12 +2045,27 @@ def index():
 
 
 def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
-    body = _auth_pages.render_session_sign_in(next_path=next_path, message_html=message_html)
+    body = _auth_pages.render_field_form(
+        action="/login",
+        hidden={"next": next_path},
+        title="Session reference",
+        description="Paste the reference Nexus gave you to open your workspace on this site.",
+        field_name="session",
+        field_label="Reference",
+        placeholder="lsr_…",
+        submit_label="Sign in",
+        message_html=message_html,
+        aside_title="No reference yet?",
+        aside_html=(
+        "<p>Send <code>/login</code> to the Nexus bot in Telegram or Discord and continue with GitHub.</p>"
+        "<p>When GitHub sign-in finishes, the reference is shown on your account page and in the chat. "
+        "Copy it from there.</p>"
+    ),
+    )
     page = _auth_pages.render_page(
         "Sign in", body, subline="Open your Nexus workspace with a session reference."
     )
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
-
 
 @app.route("/login", methods=["GET", "POST"])
 def web_login():
@@ -2178,7 +2076,7 @@ def web_login():
     """
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
@@ -2206,7 +2104,7 @@ def visualizer_access():
     """Exchange shared visualizer token for an HttpOnly cookie session."""
     if not _VISUALIZER_ENABLED:
         return _render_auth_message(
-            "Visualizer Disabled",
+            "Visualizer disabled",
             "The visualizer is disabled (<code>NEXUS_VISUALIZER_ENABLED=false</code>).",
             status_code=404,
         )
@@ -2245,13 +2143,13 @@ def visualizer():
     if not allowed:
         if mode == "disabled":
             return _render_auth_message(
-                "Visualizer Disabled",
+                "Visualizer disabled",
                 "The visualizer is disabled (<code>NEXUS_VISUALIZER_ENABLED=false</code>).",
                 status_code=404,
             )
         if mode == "unconfigured":
             return _render_auth_message(
-                "Visualizer Locked",
+                "Visualizer locked",
                 (
                     "No access method is configured. "
                     "Set <code>NEXUS_VISUALIZER_SHARED_TOKEN</code> or enable "
@@ -2275,7 +2173,7 @@ def visualizer():
             visualizer_path = os.path.join(app.static_folder or "", "visualizer.html")
             logger.exception("Visualizer asset not found at %s", visualizer_path)
             return _render_auth_message(
-                "Visualizer Unavailable",
+                "Visualizer unavailable",
                 (
                     "Visualizer assets could not be loaded. "
                     "Rebuild the image and ensure <code>src/static/visualizer.html</code> is present."
