@@ -147,6 +147,19 @@ class QuickBuilder:
         normalized_agents = []
         agent_ids = set()
         for agent in agents:
+            if isinstance(agent, dict) and "settings" in agent:
+                # Models often nest the documented agent fields under "settings";
+                # lift them to the agent. Unknown fields are still rejected below.
+                agent = dict(agent)
+                nested = agent.pop("settings")
+                if not isinstance(nested, dict):
+                    raise ValueError("Agent settings must be an object")
+                if overlap := set(nested) & set(agent):
+                    raise ValueError(
+                        "Agent fields set both directly and in settings: "
+                        + ", ".join(sorted(overlap))
+                    )
+                agent.update(nested)
             agent = _keys(
                 agent,
                 {
@@ -493,7 +506,8 @@ class QuickBuilder:
             "Optional workflows:[{id,name,description,graph}] creates up to twelve additional named child workflows. "
             "Use version:2 graphs for named workflow calls (kind:workflow,workflow_id,input). "
             "Local workflow_id references resolve within this complete build; never create recursive cycles. "
-            "Agent settings may include timeout_seconds, max_model_calls, max_tool_calls, output_schema, "
+            "Agents may also have these top-level fields (never nest them in a settings object): "
+            "timeout_seconds, max_model_calls, max_tool_calls, output_schema, "
             "model_id, skill_ids, toolset_ids, connector_ids, connector_tools and agent_card. "
             "No installation or arbitrary code. Explain missing prerequisites in "
             "assumptions. No external action happens until the user explicitly tests/runs it. "
@@ -538,14 +552,13 @@ class QuickBuilder:
                 Path(directory),
                 model_override=payload.get("model") or None,
                 effort=payload.get("effort") or None,
-                metadata=content_metadata,
+                metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
                 timeout=600,
             )
+            # Stream the builder's text and tool activity into the build run.
             stream = getattr(provider, "execute_agent_streaming", None)
-            result = (
-                await stream(context, lambda text: None)
-                if callable(stream)
-                else await provider.execute_agent(context)
+            result = await self.studio.observability.invoke(
+                provider, context, run_id, payload, provider_name, stream
             )
         if not result.success:
             raise RuntimeError(result.error or "Builder provider failed")

@@ -7,6 +7,11 @@ ARG CLAUDE_CODE_VERSION
 # official release manifest (see deploy/studio/README.md). Empty skips agy.
 ARG AGY_URL=
 ARG AGY_SHA512=
+# Slim Node images ship no CA bundle. Node has its own roots, but Codex (Rust)
+# verifies TLS against the system store and fails every request without one.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 RUN test -n "$CODEX_VERSION" && test -n "$CLAUDE_CODE_VERSION" \
     && npm install --global "@openai/codex@${CODEX_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && npm cache clean --force

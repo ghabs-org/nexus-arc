@@ -3,7 +3,7 @@ const builder = {draft:null, id:null, busy:false, mode:"build", test:null, revie
 const buildError = error => {$("builder-error").textContent=error?.message || String(error);$("builder-error").hidden=false;};
 function builderBusy(busy, message="") {
   builder.busy=busy;
-  ["builder-generate","builder-new","builder-history","builder-provider","builder-model","builder-task","builder-test-run","builder-test-task","builder-slash","builder-mention","builder-artifacts","builder-upload"].forEach(id=>$(id).disabled=busy);
+  ["builder-generate","builder-new","builder-history","builder-provider","builder-model","builder-tools","builder-task","builder-test-run","builder-test-task","builder-slash","builder-mention","builder-artifacts","builder-upload"].forEach(id=>$(id).disabled=busy);
   $("builder-progress").hidden=!busy;$("builder-progress").textContent=message;
   $("builder-save")?.toggleAttribute("disabled",busy);
   $("builder-proposal")?.querySelectorAll("input,textarea,select").forEach(field=>field.disabled=busy||builder.draft?.status==="saved");
@@ -87,14 +87,14 @@ async function loadBuild(id) {
 async function generateBuild(event) {
   event.preventDefault();if(builder.busy)return;
   const task=$("builder-task").value.trim();if(!task)return;
-  const payload={task,provider:$("builder-provider").value,model:$("builder-model").value.trim(),artifact_ids:[...$("builder-artifacts").selectedOptions].map(option=>option.value)};
+  const payload={task,provider:$("builder-provider").value,model:$("builder-model").value.trim(),worker_tools:$("builder-tools").value,artifact_ids:[...$("builder-artifacts").selectedOptions].map(option=>option.value)};
   try{payload.prompt_values=await resolvePromptValues(task);}catch(error){buildError(error);return;}
   if(builder.id)payload.build_id=builder.id;
   try{if(builder.draft){payload.revision=builder.draft.revision;payload.proposal=proposalFromFields();}}catch(error){buildError(error);return;}
   builder.review=null;$("builder-error").hidden=true;builderBusy(true,"Designing your team… This may take a few minutes.");
   try {
     const queued=await api("/api/builds",payload);builder.id=queued.build_id;
-    await pollRun(queued.id,()=>{});
+    await pollRun(queued.id,run=>{const live=(run.output||"").slice(-6000);$("builder-progress").textContent="Designing your team…"+(live?"\n\n"+live:"");$("builder-progress").scrollTop=$("builder-progress").scrollHeight;});
     builder.draft=await api(`/api/builds/${encodeURIComponent(builder.id)}`);
     $("builder-task").value="";renderBuild();await refreshBuilds();
     $("builder-proposal").scrollIntoView({behavior:"smooth",block:"start"});

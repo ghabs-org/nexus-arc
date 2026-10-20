@@ -324,6 +324,104 @@ class NexusTeamPolicy:
         return ContainerCLIProvider(name, env, self.runner_image, builder=builder)
 
 
+def worker_failure(detail, prompt: str = "") -> str:
+    """Name a failed worker run with the last few lines the CLI reported.
+
+    Codex echoes the prompt on stderr, so lines from the prompt are left out.
+    """
+    if isinstance(detail, bytes):
+        detail = detail.decode(errors="replace")
+    echoed = {line.strip() for line in prompt.splitlines()}
+    lines = [
+        line.strip()
+        for line in str(detail or "").splitlines()
+        if line.strip() and line.strip() not in echoed
+    ]
+    tail = " | ".join(lines[-3:])[-300:]
+    return "Isolated provider execution failed" + (f": {tail}" if tail else "")
+
+
+# Tools a shared CLI worker may use. "web" adds search and page fetch; "shell" also
+# lets the CLI run commands inside the worker container, which can read the
+# user's mounted CLI login, so it is an explicit choice.
+WORKER_TOOL_LEVELS = ("none", "web", "shell")
+_CLAUDE_TOOLS = {
+    "none": [],
+    "web": ["WebSearch", "WebFetch"],
+    "shell": ["WebSearch", "WebFetch", "Bash", "Read", "Glob", "Grep"],
+}
+
+
+def worker_tool_level(value) -> str:
+    level = str(value or "none").strip().lower()
+    if level not in WORKER_TOOL_LEVELS:
+        raise ValueError("Tools must be one of " + ", ".join(WORKER_TOOL_LEVELS))
+    return level
+
+
+def _activity(text) -> str:
+    return "\n› " + " ".join(str(text).split())[:240] + "\n"
+
+
+def _tool_activity(name, arguments) -> str:
+    arguments = arguments if isinstance(arguments, dict) else {}
+    detail = next(
+        (
+            arguments[key]
+            for key in ("query", "url", "command", "pattern", "file_path", "path")
+            if arguments.get(key)
+        ),
+        "",
+    )
+    return _activity(f"{name}: {detail}" if detail else str(name))
+
+
+class ClaudeStream:
+    """Turn Claude Code stream-json events into text deltas and tool activity."""
+
+    def __init__(self, on_delta):
+        self.on_delta, self.result = on_delta, None
+
+    def feed(self, event):
+        if event.get("type") == "result":
+            self.result = event
+        elif event.get("parent_tool_use_id"):
+            return
+        elif event.get("type") == "stream_event":
+            delta = (event.get("event") or {}).get("delta") or {}
+            if delta.get("type") == "text_delta" and delta.get("text"):
+                self.on_delta(delta["text"])
+        elif event.get("type") == "assistant":
+            for block in (event.get("message") or {}).get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    self.on_delta(_tool_activity(block.get("name"), block.get("input")))
+
+
+class CodexStream:
+    """Turn ``codex exec --json`` events into messages and tool activity."""
+
+    def __init__(self, on_delta):
+        self.on_delta, self.output, self.error = on_delta, "", None
+
+    def feed(self, event):
+        item = event.get("item") or {}
+        kind = item.get("type")
+        if event.get("type") == "item.completed" and kind == "agent_message":
+            self.output = str(item.get("text") or "")
+            self.on_delta(self.output + "\n")
+        elif event.get("type") == "item.completed" and kind == "web_search":
+            self.on_delta(_activity(f"Web search: {item.get('query') or ''}"))
+        elif event.get("type") == "item.started" and kind == "command_execution":
+            self.on_delta(_activity(f"Run: {item.get('command') or ''}"))
+        elif event.get("type") in {"turn.failed", "error"}:
+            error = event.get("error")
+            self.error = str(
+                (error.get("message") if isinstance(error, dict) else error)
+                or event.get("message")
+                or "Codex turn failed"
+            )
+
+
 class ContainerCLIProvider:
     """Run a user's CLI with only its workspace and scoped credential homes mounted."""
 
@@ -341,6 +439,12 @@ class ContainerCLIProvider:
         return bool(shutil.which("docker"))
 
     async def execute_agent(self, context):
+        return await self._run(context)
+
+    async def execute_agent_streaming(self, context, on_delta):
+        return await self._run(context, on_delta)
+
+    async def _run(self, context, on_delta=None):
         if not await self.check_availability():
             raise ValueError("Isolated worker is unavailable")
         if self.name not in WORKER_CLIS:
@@ -348,6 +452,9 @@ class ContainerCLIProvider:
         docker = shutil.which("docker")
         if not docker:
             raise ValueError("Docker is required for isolated shared subscription runs")
+        tools = worker_tool_level((context.metadata or {}).get("worker_tools"))
+        # Antigravity returns its answer in one piece, so it never streams.
+        streaming = on_delta is not None and self.name != "agy"
         container_name = "nexus-studio-" + uuid.uuid4().hex
         client_env = {
             key: value
@@ -359,6 +466,8 @@ class ContainerCLIProvider:
         command = [
             docker,
             "run",
+            # Keep stdin open: the prompt is piped to the CLI, never put in argv.
+            "-i",
             "--rm",
             "--pull",
             "never",
@@ -420,9 +529,18 @@ class ContainerCLIProvider:
                     "--ignore-user-config",
                     "--ignore-rules",
                     "--ephemeral",
-                    "--sandbox",
-                    "read-only",
                 ]
+                # The container is the sandbox for "shell": read-only root, no
+                # capabilities, an empty read-only workspace.
+                command += (
+                    ["--dangerously-bypass-approvals-and-sandbox"]
+                    if tools == "shell"
+                    else ["--sandbox", "read-only"]
+                )
+                if tools != "none":
+                    command += ["-c", 'web_search="live"']
+                if streaming:
+                    command.append("--json")
             elif self.name == "agy":
                 model, effort = split_model_effort(context.model_override, context.effort)
                 timeout = int(context.timeout or 600)
@@ -433,12 +551,18 @@ class ContainerCLIProvider:
                     "claude",
                     "-p",
                     "--output-format",
-                    "json",
+                    "stream-json" if streaming else "json",
+                    *(["--verbose", "--include-partial-messages"] if streaming else []),
                     "--no-session-persistence",
                     "--setting-sources",
                     "",
                     "--tools",
-                    "",
+                    ",".join(_CLAUDE_TOOLS[tools]),
+                    *(
+                        ["--allowedTools", ",".join(_CLAUDE_TOOLS[tools])]
+                        if _CLAUDE_TOOLS[tools]
+                        else []
+                    ),
                     "--strict-mcp-config",
                     "--mcp-config",
                     '{"mcpServers":{}}',
@@ -460,6 +584,7 @@ class ContainerCLIProvider:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=client_env,
+                    limit=1 << 24,  # one stream event per line; the last repeats the reply
                 )
                 prompt_bytes = (
                     agy_stream_input(context.prompt)
@@ -467,6 +592,11 @@ class ContainerCLIProvider:
                     else context.prompt.encode()
                 )
                 started = time.monotonic()
+                if streaming:
+                    return await asyncio.wait_for(
+                        self._stream(process, prompt_bytes, on_delta, context.prompt),
+                        timeout=context.timeout,
+                    )
                 stdout, stderr = await asyncio.wait_for(
                     process.communicate(prompt_bytes), timeout=context.timeout
                 )
@@ -480,14 +610,20 @@ class ContainerCLIProvider:
                     )
                 text = stdout.decode(errors="replace")
                 success = process.returncode == 0
+                detail = stderr
                 if self.name == "claude-code":
-                    parsed = json.loads(text or "{}")
+                    try:
+                        parsed = json.loads(text or "{}")
+                    except ValueError:
+                        parsed = {"is_error": True}
                     success = success and not parsed.get("is_error")
                     text = str(parsed.get("result") or "")
+                    if parsed.get("is_error") and text:
+                        detail = text
                 return AgentResult(
                     success=success,
                     output=text,
-                    error=None if success else "Isolated provider execution failed",
+                    error=None if success else worker_failure(detail, context.prompt),
                     provider_used=self.name,
                 )
             except TimeoutError:
@@ -515,6 +651,39 @@ class ContainerCLIProvider:
                 except TimeoutError:
                     cleanup.kill()
                     await cleanup.wait()
+
+
+    async def _stream(self, process, prompt_bytes, on_delta, prompt):
+        stderr = asyncio.create_task(process.stderr.read())
+        process.stdin.write(prompt_bytes)
+        await process.stdin.drain()
+        process.stdin.close()
+        parser = (ClaudeStream if self.name == "claude-code" else CodexStream)(on_delta)
+        while line := await process.stdout.readline():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict):
+                parser.feed(event)
+        returncode = await process.wait()
+        detail = await stderr
+        if self.name == "claude-code":
+            result = parser.result or {}
+            output = str(result.get("result") or "")
+            success = returncode == 0 and bool(result) and not result.get("is_error")
+            if result.get("is_error") and output:
+                detail = output
+        else:
+            output = parser.output
+            success = returncode == 0 and not parser.error
+            detail = parser.error or detail
+        return AgentResult(
+            success=success,
+            output=output,
+            error=None if success else worker_failure(detail, prompt),
+            provider_used=self.name,
+        )
 
 
 def load_team_configuration(path):

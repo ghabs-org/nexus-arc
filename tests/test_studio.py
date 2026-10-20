@@ -184,6 +184,19 @@ def test_provider_inventory_never_claims_authentication_or_unlimited_quota(studi
     assert next(p for p in providers if p["id"] == "claude-code")["status"] == "CLI installed"
 
 
+def test_every_provider_lists_default_model_suggestions(studio):
+    service, _ = studio
+    providers = {p["id"]: p for p in service.providers()}
+    assert all(p["models"] for p in providers.values())
+    claude_code = [m["id"] for m in providers["claude-code"]["models"]]
+    assert {"claude-opus-5-5", "claude-sonnet-5-5"} <= set(claude_code)
+    assert providers["claude"]["models"] == providers["claude-code"]["models"]
+    assert providers["codex"]["models"][0] == {"id": "gpt-6.1-sol", "name": "GPT-6.1-Sol"}
+    for provider in providers.values():
+        ids = [m["id"] for m in provider["models"]]
+        assert len(ids) == len(set(ids)) and all(m["name"] for m in provider["models"])
+
+
 def test_claude_code_is_a_framework_adapter():
     from nexus.adapters.ai.claude_code_provider import ClaudeCodeProvider
     from nexus.adapters.registry import AdapterRegistry
@@ -316,3 +329,16 @@ def test_codex_respects_context_model_uses_stdin_and_stops_timed_out_process(tmp
     process.communicate.assert_awaited_once_with(b"private prompt")
     process.kill.assert_called_once()
     process.wait.assert_awaited_once()
+
+
+def test_chat_tool_level_defaults_to_web_and_is_validated(studio):
+    service, calls = studio
+    wait_run(service, service.start_run({"task": "Find sources", "provider": "codex"})["id"])
+    assert calls[-1][1].metadata["worker_tools"] == "web"
+    run = service.start_run({"task": "No browsing", "provider": "codex", "worker_tools": "none"})
+    wait_run(service, run["id"])
+    assert calls[-1][1].metadata["worker_tools"] == "none"
+    with pytest.raises(ValueError, match="Tools must be one of"):
+        service.start_run({"task": "x", "provider": "codex", "worker_tools": "root"})
+    with pytest.raises(ValueError, match="chat and Quick Build runs only"):
+        service.start_run({"kind": "workflow", "task": "x", "worker_tools": "web"})

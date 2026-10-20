@@ -5,17 +5,29 @@ import json
 import time
 
 from nexus.core.studio import StudioService
+from nexus.core.studio_models import default_models
 
 
 def main():
     parser = argparse.ArgumentParser(description="Describe a Nexus team and review its draft")
-    parser.add_argument("brief", help="What the agents and workflow should accomplish")
+    parser.add_argument(
+        "brief", nargs="?", help="What the agents and workflow should accomplish"
+    )
     parser.add_argument("--dir", default=".", help="Workspace for drafts and definitions")
     parser.add_argument(
         "--provider", default="codex", choices=["codex", "claude-code", "openai", "claude"]
     )
     parser.add_argument("--model", default="")
+    parser.add_argument(
+        "--list-models", action="store_true", help="Show suggested models for --provider"
+    )
     args = parser.parse_args()
+    if args.list_models:
+        for model in default_models(args.provider):
+            print(f"{model['id']}\t{model['name']}")
+        return
+    if not args.brief:
+        parser.error("brief is required")
     service = StudioService(args.dir)
     try:
         run = service.start_run(

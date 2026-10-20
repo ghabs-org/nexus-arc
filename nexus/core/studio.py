@@ -27,6 +27,7 @@ import yaml
 from nexus.adapters.ai.base import EFFORT_LEVELS, ExecutionContext
 from nexus.adapters.registry import AdapterRegistry
 from nexus.core.studio_graph import StudioGraph, StudioPausedError
+from nexus.core.studio_models import default_models
 from nexus.core.workflow import WorkflowDefinition
 from nexus.core.yaml_loader import YamlWorkflowLoader
 
@@ -315,6 +316,7 @@ class StudioService:
                 "setup": setup,
                 "auth_verified": False,
                 "quota": None,
+                "models": default_models(identity),
             }
             for identity, label, source, kind, setup in _PROVIDERS
         ]
@@ -668,6 +670,13 @@ class StudioService:
             from nexus.core.auth.delegated_credentials import seal
 
             seal("external-callback-readiness", {})
+        if payload.get("kind", "chat") in {"chat", "build"}:
+            from nexus.core.studio_team import worker_tool_level
+
+            # Web search and fetch unless the request picks another tool level.
+            payload["worker_tools"] = worker_tool_level(payload.get("worker_tools") or "web")
+        elif "worker_tools" in payload:
+            raise ValueError("Tools can be chosen for chat and Quick Build runs only")
         if payload.get("kind", "chat") == "chat" and payload.get("session_id"):
             previous_project = self.session(payload["session_id"]).get("knowledge_project_id")
             if previous_project:
@@ -1020,7 +1029,7 @@ class StudioService:
             workspace=self.root,
             model_override=model,
             effort=effort,
-            metadata=content_metadata,
+            metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
             timeout=int(agent.get("timeout_seconds") or 600),
         )
         stream = getattr(provider, "execute_agent_streaming", None)

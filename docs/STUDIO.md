@@ -25,6 +25,11 @@ process per state directory. SQL mode supports multiple controllers/workers.
 | OpenAI API | `OPENAI_API_KEY`, `nexus-arc[openai]` |
 | Anthropic API | `ANTHROPIC_API_KEY`, `nexus-arc[anthropic]` |
 
+Each provider ships default model suggestions (`nexus/core/studio_models.py`):
+Providers lists them, and every model field offers them for the selected
+provider. They are suggestions, not an allow-list; any model ID the provider
+accepts can still be typed or saved as a model profile.
+
 CLI account usage follows the provider's installed configuration and plan; Studio
 does not issue subscription tokens or promise that every call uses subscription
 billing. Installation checks do not verify login, quota or billing. A failed

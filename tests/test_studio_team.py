@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -445,6 +446,8 @@ def test_shared_cli_never_mounts_workspace_or_passes_tokens_in_arguments(
     other_key = "ANTHROPIC_API_KEY" if provider == "codex" else "OPENAI_API_KEY"
     assert env[selected_key] == "alice-private-key" and other_key not in env
     assert "--read-only" in args and "--pull" in args
+    # Without -i Docker drops the piped prompt and both CLIs exit with no input.
+    assert args[1:3] == ("run", "-i")
     if provider == "claude-code":
         assert not any("CLAUDE_CONFIG_DIR=" in arg for arg in args)
         assert "--strict-mcp-config" in args and "--tools" in args
@@ -963,3 +966,141 @@ def test_parity_projects_feedback_and_snapshot_grants_are_scoped_to_nexus_identi
     assert request("/api/public-shares/" + public["token"])[0] == 404
     manager.revoked.add("bob")
     assert request("/api/studio/shares/" + share["id"], user="bob")[0] == 401
+
+
+@pytest.mark.parametrize(
+    ("provider", "stdout", "stderr", "expected"),
+    [
+        (
+            "codex",
+            b"",
+            # Codex echoes the prompt; it must not reach the stored error.
+            b"user\nhello\nwarning: no bubblewrap\nERROR: Reconnecting... 5/5\n"
+            b"ERROR: workspace routing discovery failed\n",
+            "Isolated provider execution failed: warning: no bubblewrap | "
+            "ERROR: Reconnecting... 5/5 | ERROR: workspace routing discovery failed",
+        ),
+        (
+            "claude-code",
+            b"",
+            b"Error: Input must be provided either through stdin\n",
+            "Isolated provider execution failed: Error: Input must be provided either through stdin",
+        ),
+        (
+            "claude-code",
+            b'{"is_error":true,"result":"Not logged in"}',
+            b"",
+            "Isolated provider execution failed: Not logged in",
+        ),
+    ],
+)
+def test_shared_cli_failure_reports_the_cli_message(tmp_path, provider, stdout, stderr, expected):
+    process = MagicMock(returncode=1)
+    process.communicate = AsyncMock(return_value=(stdout, stderr))
+    cleanup = MagicMock(returncode=0)
+    cleanup.wait = AsyncMock(return_value=0)
+    with (
+        patch("nexus.core.studio_team.shutil.which", return_value="/usr/bin/docker"),
+        patch(
+            "nexus.core.studio_team.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=[process, cleanup]),
+        ),
+    ):
+        result = asyncio.run(
+            ContainerCLIProvider(provider, {}, "trusted-worker@sha256:" + "a" * 64).execute_agent(
+                ExecutionContext("test", "hello", tmp_path)
+            )
+        )
+    assert not result.success and result.error == expected
+
+
+def _worker_args(provider, tools, *, stream=False):
+    process = MagicMock(returncode=0)
+    process.communicate = AsyncMock(
+        return_value=(b'{"result":"ok"}' if provider == "claude-code" else b"ok", b"")
+    )
+    lines = [
+        b'{"type":"result","result":"ok"}\n'
+        if provider == "claude-code"
+        else b'{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}\n',
+        b"",
+    ]
+    process.stdout.readline = AsyncMock(side_effect=lines)
+    process.stderr.read = AsyncMock(return_value=b"")
+    process.stdin.drain = AsyncMock()
+    process.wait = AsyncMock(return_value=0)
+    cleanup = MagicMock(returncode=0)
+    cleanup.wait = AsyncMock(return_value=0)
+    context = ExecutionContext("test", "hello", Path("/tmp"), metadata={"worker_tools": tools})
+    with (
+        patch("nexus.core.studio_team.shutil.which", return_value="/usr/bin/docker"),
+        patch(
+            "nexus.core.studio_team.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=[process, cleanup]),
+        ) as spawn,
+    ):
+        worker = ContainerCLIProvider(provider, {}, "trusted-worker@sha256:" + "a" * 64)
+        result = asyncio.run(
+            worker.execute_agent_streaming(context, lambda text: None)
+            if stream
+            else worker.execute_agent(context)
+        )
+    assert result.success and result.output == "ok"
+    return list(spawn.call_args_list[0].args)
+
+
+def test_worker_tool_levels_select_cli_tools():
+    claude = {level: _worker_args("claude-code", level) for level in ("none", "web", "shell")}
+    assert claude["none"][claude["none"].index("--tools") + 1] == ""
+    assert "--allowedTools" not in claude["none"]
+    assert claude["web"][claude["web"].index("--tools") + 1] == "WebSearch,WebFetch"
+    assert claude["web"][claude["web"].index("--allowedTools") + 1] == "WebSearch,WebFetch"
+    assert "Bash" in claude["shell"][claude["shell"].index("--tools") + 1]
+    codex = {level: _worker_args("codex", level) for level in ("none", "web", "shell")}
+    assert 'web_search="live"' not in codex["none"] and "read-only" in codex["none"]
+    assert 'web_search="live"' in codex["web"] and "read-only" in codex["web"]
+    assert "--dangerously-bypass-approvals-and-sandbox" in codex["shell"]
+    assert "read-only" not in codex["shell"][codex["shell"].index("codex") :]
+    with pytest.raises(ValueError, match="Tools must be one of"):
+        _worker_args("codex", "root")
+
+
+def test_worker_streaming_uses_event_output_formats():
+    claude = _worker_args("claude-code", "web", stream=True)
+    assert claude[claude.index("--output-format") + 1] == "stream-json"
+    assert "--include-partial-messages" in claude
+    assert "--json" in _worker_args("codex", "web", stream=True)
+    assert "--json" not in _worker_args("codex", "web")
+
+
+def test_stream_parsers_report_text_and_tool_activity():
+    from nexus.core.studio_team import ClaudeStream, CodexStream
+
+    seen = []
+    claude = ClaudeStream(seen.append)
+    for event in (
+        {"type": "stream_event", "event": {"delta": {"type": "text_delta", "text": "Hi"}}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [{"type": "tool_use", "name": "WebFetch", "input": {"url": "https://x.test"}}]
+            },
+        },
+        {"type": "stream_event", "parent_tool_use_id": "t1", "event": {"delta": {"type": "text_delta", "text": "sub"}}},
+        {"type": "result", "result": "Final"},
+    ):
+        claude.feed(event)
+    assert seen == ["Hi", "\n› WebFetch: https://x.test\n"] and claude.result["result"] == "Final"
+
+    seen.clear()
+    codex = CodexStream(seen.append)
+    for event in (
+        {"type": "item.completed", "item": {"type": "web_search", "query": "brag skill"}},
+        {"type": "item.started", "item": {"type": "command_execution", "command": "ls"}},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "Done"}},
+    ):
+        codex.feed(event)
+    assert seen == ["\n› Web search: brag skill\n", "\n› Run: ls\n", "Done\n"]
+    assert codex.output == "Done" and codex.error is None
+    codex.feed({"type": "turn.failed", "error": {"message": "usage limit"}})
+    assert codex.error == "usage limit"

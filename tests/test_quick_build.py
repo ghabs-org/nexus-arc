@@ -569,3 +569,23 @@ def test_builder_can_save_resource_only_plan_and_refuses_phantom_workflow_test(t
             service.builder.test("resource1234", {"task": "Test"})
     finally:
         service.close()
+
+
+def test_agent_fields_nested_in_settings_are_lifted_not_rejected(app):
+    service, _, _ = app
+    data = proposal()
+    data["agents"][0]["settings"] = {"timeout_seconds": 900, "max_model_calls": 4}
+    agent = service.builder.normalize(data, "build12345678", "codex")["agents"][0]
+    assert agent["timeout_seconds"] == 900 and agent["max_model_calls"] == 4
+    assert "settings" not in agent
+
+    data["agents"][0]["settings"] = {"timeout_seconds": 900, "install": "brag"}
+    with pytest.raises(ValueError, match="Unsupported agent fields: install"):
+        service.builder.normalize(data, "build12345678", "codex")
+    data["agents"][0].update(timeout_seconds=60, settings={"timeout_seconds": 900})
+    with pytest.raises(ValueError, match="both directly and in settings: timeout_seconds"):
+        service.builder.normalize(data, "build12345678", "codex")
+    data["agents"][0].pop("timeout_seconds")
+    data["agents"][0]["settings"] = "fast"
+    with pytest.raises(ValueError, match="Agent settings must be an object"):
+        service.builder.normalize(data, "build12345678", "codex")
