@@ -88,7 +88,11 @@ def test_partial_stream_failure_preserves_output_without_committing_conversation
         result = finished(app, app.start_run({"task": "No automatic replay"}))
         assert result["status"] == "failed" and result["output"] == "Partial evidence"
         assert result["stream"]["status"] == "interrupted-or-failed"
-        assert app.records("sessions") == []
+        # The attempt is kept as a failed turn holding the error, never the partial text.
+        [session] = app.records("sessions")
+        reply = app.session(session["id"])["messages"][-1]
+        assert reply["status"] == "failed" and "Provider connection lost" in reply["content"]
+        assert "Partial evidence" not in reply["content"]
     finally:
         app.close()
 

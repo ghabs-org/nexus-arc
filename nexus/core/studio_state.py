@@ -407,7 +407,8 @@ class StudioSQLState:
                 .values(status="finished", expires=None)
             )
 
-    def reap(self):
+    def reap(self, on_interrupted=None):
+        """Interrupt runs whose worker lease expired; return how many were reaped."""
         with self.lock:
             with self.transaction() as conn:
                 rows = (
@@ -462,7 +463,13 @@ class StudioSQLState:
                         )
                         campaign.pop("active_run", None)
                         self.put("campaigns", campaign_id, campaign)
-                return len(rows)
+        if on_interrupted:
+            for row in rows:
+                try:
+                    on_interrupted(row["run_id"], row["payload"])
+                except Exception:  # the lease is already settled; keep reaping
+                    pass
+        return len(rows)
 
 
 class StudioDurableExecutor:
@@ -489,7 +496,7 @@ class StudioDurableExecutor:
     def worker(self):
         while not self.stop.is_set():
             try:
-                self.store.reap()
+                self.store.reap(self.studio.save_unsuccessful_turn)
                 job = self.store.claim(self.lease_seconds)
                 if not job:
                     self.stop.wait(0.2)

@@ -78,7 +78,9 @@ def test_claim_is_exclusive_and_expired_attempt_is_never_replayed(tmp_path, monk
             one.put("output", "after", {"stale": True})
     finally:
         job_fence.reset(token)
-    assert two.reap() == 1
+    reaped = []
+    assert two.reap(lambda run_id, payload: reaped.append(run_id)) == 1
+    assert reaped == ["run"]
     assert one.get("runs", "run")["status"] == "interrupted"
     assert one.claim(60) is None
     assert not one.heartbeat("run", claimed[0]["token"], 60)

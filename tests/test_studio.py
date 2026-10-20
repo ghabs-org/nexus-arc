@@ -91,7 +91,23 @@ def test_failed_provider_does_not_fall_back_or_commit_a_successful_reply(studio)
     assert done["status"] == "failed"
     assert "usage limit" in done["error"]
     assert [name for name, _ in calls] == ["claude-code"]
-    assert service.records("sessions") == []
+    # The failed attempt is kept, marked failed, and never replayed as history.
+    [session] = service.records("sessions")
+    messages = service.session(session["id"])["messages"]
+    assert [(m["role"], m["status"]) for m in messages] == [
+        ("user", "failed"),
+        ("assistant", "failed"),
+    ]
+    assert messages[0]["content"] == "fail this task" and "usage limit" in messages[1]["content"]
+    retry = service.start_run(
+        {"task": "Try again", "provider": "codex", "session_id": session["id"]}
+    )
+    assert wait_run(service, retry["id"])["status"] == "completed"
+    assert "fail this task" not in calls[-1][1].prompt
+    messages = service.session(session["id"])["messages"]
+    assert [m.get("status") for m in messages] == ["failed", "failed", None, None]
+    service.save_unsuccessful_turn(run["id"])
+    assert len(service.session(session["id"])["messages"]) == 4
 
 
 def test_sequential_workflow_uses_real_engine_and_per_agent_providers(studio):

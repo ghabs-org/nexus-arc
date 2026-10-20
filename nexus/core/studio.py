@@ -232,6 +232,7 @@ class StudioService:
                         status="interrupted",
                         error="Previous Studio process stopped. Review its checkpoint and external effects before resuming.",
                     )
+                    self.save_unsuccessful_turn(run["id"])
             for receipt in self.records("job-resumptions", limit=None):
                 identity = receipt["run_id"]
                 if self.run(identity)["status"] in {"queued", "running", "waiting"}:
@@ -523,6 +524,56 @@ class StudioService:
             except (ValueError, OSError):
                 continue
         return sorted(records, key=lambda item: item.get("updated_at", ""), reverse=True)[:limit]
+
+    def _new_session(self, session_id: str, payload: dict) -> dict:
+        return {
+            "id": session_id,
+            "title": payload["task"][:70],
+            "messages": [],
+            "created_at": _now(),
+            "owner_id": payload.get("requester_nexus_id"),
+            "knowledge_project_id": payload.get("knowledge_project_id"),
+        }
+
+    def save_unsuccessful_turn(self, run_id: str, payload: dict | None = None) -> None:
+        """Keep a failed, cancelled or interrupted chat turn in its conversation.
+
+        The turn is marked ``status: failed`` so it is shown but never sent back
+        to a model as history. Saving twice for one run is a no-op.
+        """
+        run = self.run(run_id)
+        data = {**run, **(payload or {})}
+        session_id = data.get("session_id")
+        if data.get("kind", "chat") != "chat" or not session_id or not data.get("task"):
+            return
+        if run.get("status") not in {"failed", "interrupted", "cancelled"}:
+            return
+        path = self._path("sessions", session_id)
+        with self.lock:
+            session = self._read(path) if path.exists() else self._new_session(session_id, data)
+            if any(message.get("run_id") == run_id for message in session["messages"]):
+                return
+            provider = run.get("provider") or data.get("provider") or ""
+            session["messages"].extend(
+                [
+                    {"role": "user", "content": data["task"], "run_id": run_id, "status": "failed"},
+                    {
+                        "role": "assistant",
+                        "content": run.get("error") or f"The task was {run['status']}.",
+                        "run_id": run_id,
+                        "status": "failed",
+                        "provider": provider,
+                    },
+                ]
+            )
+            session.update(
+                updated_at=_now(),
+                provider=provider,
+                agent_id=data.get("agent_id"),
+                model=data.get("model") or "",
+                effort=data.get("effort") or "",
+            )
+            self._write(path, session)
 
     def session(self, identity: str) -> dict:
         return self._read(self._path("sessions", identity))
@@ -917,12 +968,20 @@ class StudioService:
                 execution_identity.reset(identity_token)
                 current_run_id.reset(run_token)
 
+        denied = False
         try:
             asyncio.run(execute())
         except Exception as exc:
+            # Lost access must not create records on the user's behalf.
+            denied = isinstance(exc, PermissionError)
             if self.run(run_id)["status"] != "cancelled":
                 self._update_run(run_id, status="failed", error=str(exc))
         finally:
+            try:
+                if not denied:
+                    self.save_unsuccessful_turn(run_id, payload)
+            except Exception:  # never block run cleanup on conversation storage
+                pass
             with self.lock:
                 self.active_sessions.discard(session_id)
                 self.active_tasks.pop(run_id, None)
@@ -956,7 +1015,11 @@ class StudioService:
                 if self.team
                 else None
             )
-            self.knowledge.validate_snapshot(payload["knowledge_snapshot"], actor)
+            try:
+                self.knowledge.validate_snapshot(payload["knowledge_snapshot"], actor)
+            except ValueError as exc:
+                # Archived or missing knowledge is lost access, not a task failure.
+                raise PermissionError(str(exc)) from exc
         agent = (
             payload.get("agent_snapshots", {}).get(payload["agent_id"])
             or self.definition("agents", payload["agent_id"])["spec"]
@@ -1126,18 +1189,9 @@ class StudioService:
             path = self._path("sessions", session_id)
             with self.lock:
                 session = (
-                    self._read(path)
-                    if path.exists()
-                    else {
-                        "id": session_id,
-                        "title": payload["task"][:70],
-                        "messages": [],
-                        "created_at": _now(),
-                        "owner_id": payload.get("requester_nexus_id"),
-                        "knowledge_project_id": payload.get("knowledge_project_id"),
-                    }
+                    self._read(path) if path.exists() else self._new_session(session_id, payload)
                 )
-                history = list(session["messages"])
+                history = [m for m in session["messages"] if m.get("status") != "failed"]
             result = await self._invoke(
                 payload, payload.get("expanded_task", payload["task"]), run_id, history
             )
