@@ -196,3 +196,10 @@ The existing HTTPS proxy can route `/api/a2a/*` to Studio. Preserve authorizatio
 A2A version headers and unbuffered SSE responses. Do not remove Studio's host or
 Origin checks. Outgoing MCP pools live on each worker independently and do not
 make stdio servers available over a network.
+
+## Isolated analysis and vision workers
+
+See [the data-worker guide](../../docs/STUDIO-DATA-WORKERS.md) for explicit image
+builds, bounded chart profiles, selected Docker contexts and optional CPU vision
+with installed read-only model weights. These workers never run while browsing
+the catalog and do not inherit Studio credentials.

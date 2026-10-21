@@ -589,3 +589,48 @@ def test_agent_fields_nested_in_settings_are_lifted_not_rejected(app):
     data["agents"][0]["settings"] = "fast"
     with pytest.raises(ValueError, match="Agent settings must be an object"):
         service.builder.normalize(data, "build12345678", "codex")
+
+
+def test_quick_build_normalizes_zero_and_missing_tool_call_limits(app):
+    service, _, _ = app
+    data = proposal()
+    data["agents"][0]["max_tool_calls"] = 0
+    data["agents"][1]["max_tool_calls"] = "0"
+    normalized = service.builder.normalize(data, "build12345678", "codex")
+    assert normalized["agents"][0]["max_tool_calls"] == 0
+    assert normalized["agents"][1]["max_tool_calls"] == 0
+
+    data = proposal()
+    data["agents"][0]["max_tool_calls"] = None
+    data["agents"][0]["max_model_calls"] = None
+    normalized = service.builder.normalize(data, "build12345678", "codex")
+    assert "max_tool_calls" not in normalized["agents"][0]
+    assert "max_model_calls" not in normalized["agents"][0]
+
+    docs = service.builder.documents(normalized)
+    spec = docs[0][2]["spec"]
+    assert "max_tool_calls" not in spec
+
+    data = proposal()
+    data["agents"][0]["max_tool_calls"] = 150
+    data["agents"][0]["max_model_calls"] = 200
+    data["agents"][0]["timeout_seconds"] = 5000
+    normalized = service.builder.normalize(data, "build12345678", "codex")
+    assert normalized["agents"][0]["max_tool_calls"] == 100
+    assert normalized["agents"][0]["max_model_calls"] == 101
+    assert normalized["agents"][0]["timeout_seconds"] == 3600
+
+
+def test_quick_build_get_missing_draft_raises_clean_not_found(app):
+    service, _, _ = app
+    with pytest.raises(FileNotFoundError, match="Build draft not found"):
+        service.builder.get("nonexistent-build-id")
+
+
+def test_parse_agy_stream_output_extracts_stdout_error():
+    from nexus.adapters.ai.agy_provider import parse_agy_stream_output
+
+    stdout = b'error: Individual quota reached. Resets in 140h.\nAGY_ERROR: {"short_error":"RESOURCE_EXHAUSTED"}\n'
+    result = parse_agy_stream_output(stdout, 3, b"", 0.5, None)
+    assert not result.success
+    assert "Individual quota reached" in result.error

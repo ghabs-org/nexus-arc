@@ -46,14 +46,16 @@ def validate_settings(studio, payload):
         result["model_id"] = payload["model_id"]
     if "max_tool_calls" in payload:
         limit = payload["max_tool_calls"]
-        if type(limit) is not int or not 1 <= limit <= 100:
-            raise ValueError("Agent tool call limit must be between one and 100")
-        result["max_tool_calls"] = limit
+        if limit is not None:
+            if type(limit) is not int or not 0 <= limit <= 100:
+                raise ValueError("Agent tool call limit must be between zero and 100")
+            result["max_tool_calls"] = limit
     if "max_model_calls" in payload:
         limit = payload["max_model_calls"]
-        if type(limit) is not int or not 1 <= limit <= 101:
-            raise ValueError("Agent model call limit must be between one and 101")
-        result["max_model_calls"] = limit
+        if limit is not None:
+            if type(limit) is not int or not 1 <= limit <= 101:
+                raise ValueError("Agent model call limit must be between one and 101")
+            result["max_model_calls"] = limit
     if "connector_tools" in payload:
         permissions = payload["connector_tools"]
         if not isinstance(permissions, dict) or set(permissions) - set(

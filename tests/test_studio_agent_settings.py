@@ -325,3 +325,22 @@ def test_declarative_additional_configuration_references_round_trip(fixture):
         studio.configuration.convert_interop({"documents": [exported["bundle"]]}, None)["document"]
         == native
     )
+
+
+def test_agent_max_tool_calls_zero_allowed_and_enforced(fixture):
+    from nexus.core.studio_agent_settings import call_limit, validate_settings
+
+    studio, _, _, _ = fixture
+    assert validate_settings(studio, {"max_tool_calls": 0})["max_tool_calls"] == 0
+    assert validate_settings(studio, {"max_tool_calls": None}) == {}
+    assert validate_settings(studio, {"max_model_calls": None}) == {}
+    assert call_limit({"max_tool_calls": 0}) == 0
+    assert call_limit({"max_tool_calls": 0, "max_model_calls": 10}) == 0
+    assert call_limit({"max_tool_calls": 3, "max_model_calls": 10}) == 3
+
+    with pytest.raises(ValueError, match="Agent tool call limit must be between zero and 100"):
+        validate_settings(studio, {"max_tool_calls": -1})
+    with pytest.raises(ValueError, match="Agent tool call limit must be between zero and 100"):
+        validate_settings(studio, {"max_tool_calls": 101})
+    with pytest.raises(ValueError, match="Agent tool call limit must be between zero and 100"):
+        validate_settings(studio, {"max_tool_calls": "0"})

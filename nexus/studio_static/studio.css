@@ -465,3 +465,6 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
   .guide-callout-footer button,.guide-practice button{min-height:44px;padding:8px 12px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+
+.integration-catalog pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.integration-catalog details { max-width: 100%; }

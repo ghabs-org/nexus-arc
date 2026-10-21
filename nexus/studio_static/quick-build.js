@@ -92,13 +92,20 @@ async function generateBuild(event) {
   if(builder.id)payload.build_id=builder.id;
   try{if(builder.draft){payload.revision=builder.draft.revision;payload.proposal=proposalFromFields();}}catch(error){buildError(error);return;}
   builder.review=null;$("builder-error").hidden=true;builderBusy(true,"Designing your team… This may take a few minutes.");
+  const previousId=builder.id;
   try {
     const queued=await api("/api/builds",payload);builder.id=queued.build_id;
-    await pollRun(queued.id,run=>{const live=(run.output||"").slice(-6000);$("builder-progress").textContent="Designing your team…"+(live?"\n\n"+live:"");$("builder-progress").scrollTop=$("builder-progress").scrollHeight;});
+    const run=await pollRun(queued.id,run=>{const live=(run.output||"").slice(-6000);$("builder-progress").textContent="Designing your team…"+(live?"\n\n"+live:"");$("builder-progress").scrollTop=$("builder-progress").scrollHeight;});
+    if(!run||run.status!=="completed"){
+      throw new Error(run?.error||`Build run ${run?.status||"did not complete"}`);
+    }
     builder.draft=await api(`/api/builds/${encodeURIComponent(builder.id)}`);
     $("builder-task").value="";renderBuild();await refreshBuilds();
     $("builder-proposal").scrollIntoView({behavior:"smooth",block:"start"});
-  }catch(error){buildError(error);}
+  }catch(error){
+    if(!builder.draft)builder.id=previousId;
+    buildError(error);
+  }
   finally{builderBusy(false);refreshRuns().catch(()=>{});}
 }
 async function saveBuild() {
@@ -150,12 +157,16 @@ document.addEventListener("click",async event=>{if(event.target.id!=="builder-re
 function buildLifecycleRoot(){let root=document.getElementById("builder-lifecycle");if(!root){root=document.createElement("section");root.id="builder-lifecycle";root.className="build-agent-fields";$("builder-proposal").after(root);}return root;}
 function buildChangesHtml(plan){return `<ul>${plan.changes.map(change=>`<li><strong>${escapeHtml(change.resource)}</strong> · ${escapeHtml(change.action)}${change.paths?.length?`<br><small>Changed: ${escapeHtml(change.paths.join(", "))}</small>`:""}</li>`).join("")}</ul>`;}
 function renderBuildReview(plan){const root=buildLifecycleRoot();root.innerHTML=`<h3>Review changes · revision ${plan.revision}</h3>${buildChangesHtml(plan)}<p>Saving keeps resources inactive. Review prerequisites and activate afterward.</p><button data-build-apply-reviewed>Apply reviewed build</button>`;root.scrollIntoView({block:"nearest"});}
+function buildPrerequisiteHtml(component){
+ const checks=component.prerequisite_checks||[];
+ return checks.length?`<details><summary>Software and worker setup</summary><ul>${checks.map(check=>`<li>${escapeHtml(check.name)}: ${escapeHtml(check.status)}</li>`).join("")}</ul><p>Local prerequisites only; account access and connectivity stay separate. Activation review checks selected workers without running your workflow actions.</p></details>`:"";
+}
 async function refreshBuildLifecycle(){
  const root=buildLifecycleRoot(),id=builder.id,revision=builder.draft?.revision;
  if(builder.draft?.status!=="saved"){root.replaceChildren();return;}
  const data=await featureApi(`builds/${encodeURIComponent(id)}/lifecycle`);if(builder.id!==id||builder.draft?.revision!==revision)return;
  const mayChange=state.mode!=="team"||state.user?.role==="owner";
- root.innerHTML=`<h3>Resources & readiness</h3><p>Setup checks stay separate from connectivity. Use Check connection for a read-only probe; results belong to this release.</p><div>${data.components.map(component=>`<article class="library-row"><div><strong>${escapeHtml(component.name)}</strong><p>${escapeHtml(component.key.split(":")[0])} · ${escapeHtml(component.status.replaceAll("_"," "))}</p>${component.issues.filter(issue=>!["inactive","missing_credentials"].includes(issue)).length?`<p>${escapeHtml(component.issues.filter(issue=>!["inactive","missing_credentials"].includes(issue)).map(issue=>issue.replaceAll("_"," ")).join(", "))}</p>`:""}${buildHealthHtml(component,mayChange)}${component.missing_environment.length?`<p>Configure: ${escapeHtml(component.missing_environment.join(", "))}</p>`:""}</div>${component.managed&&["connectors","entrypoints","schedules","externalagents"].includes(component.key.split(":")[0])?`<label><input type="checkbox" data-enable-build-component value="${escapeHtml(component.key)}" ${component.enabled?"checked":""} ${mayChange?"":"disabled"}> Enable after review</label>`:""}</article>`).join("")}</div><details><summary>Component dependencies</summary>${data.dependencies.length?`<ul>${data.dependencies.map(edge=>`<li>${escapeHtml(edge.source)} → ${escapeHtml(edge.target)}</li>`).join("")}</ul>`:"<p>No component dependencies.</p>"}</details>${data.errors.length?`<p role="alert">${escapeHtml(data.errors.map(e=>`${e.component}: ${e.reason}`).join("; "))}</p>`:""}${mayChange?`<div class="card-actions"><button class="secondary" data-build-transition="activate">Review activation</button><button class="secondary" data-build-transition="deactivate">Review deactivation</button></div><label>Saved release<select id="builder-release" aria-label="Saved release">${data.releases.map(release=>`<option value="${escapeHtml(release.id)}">Revision ${release.revision} · ${escapeHtml(release.action||"save")} · ${escapeHtml(release.created_at||release.id.slice(0,8))}</option>`).join("")}</select></label><button class="secondary" data-build-transition="rollback" ${data.releases.length?"":"disabled"}>Review rollback</button>`:"<p>Lifecycle changes require the workspace owner.</p>"}<div id="builder-transition-review"></div>`;
+ root.innerHTML=`<h3>Resources & readiness</h3><p>Setup checks stay separate from connectivity. Use Check connection for a read-only probe; results belong to this release. Activation review also checks selected local worker software in isolated containers.</p><div>${data.components.map(component=>`<article class="library-row"><div><strong>${escapeHtml(component.name)}</strong><p>${escapeHtml(component.key.split(":")[0])} · ${escapeHtml(component.status.replaceAll("_"," "))}</p>${component.issues.filter(issue=>!["inactive","missing_credentials"].includes(issue)).length?`<p>${escapeHtml(component.issues.filter(issue=>!["inactive","missing_credentials"].includes(issue)).map(issue=>issue.replaceAll("_"," ")).join(", "))}</p>`:""}${buildPrerequisiteHtml(component)}${buildHealthHtml(component,mayChange)}${component.missing_environment.length?`<p>Configure: ${escapeHtml(component.missing_environment.join(", "))}</p>`:""}</div>${component.managed&&["connectors","entrypoints","schedules","externalagents"].includes(component.key.split(":")[0])?`<label><input type="checkbox" data-enable-build-component value="${escapeHtml(component.key)}" ${component.enabled?"checked":""} ${mayChange?"":"disabled"}> Enable after review</label>`:""}</article>`).join("")}</div><details><summary>Component dependencies</summary>${data.dependencies.length?`<ul>${data.dependencies.map(edge=>`<li>${escapeHtml(edge.source)} → ${escapeHtml(edge.target)}</li>`).join("")}</ul>`:"<p>No component dependencies.</p>"}</details>${data.errors.length?`<p role="alert">${escapeHtml(data.errors.map(e=>`${e.component}: ${e.reason}`).join("; "))}</p>`:""}${mayChange?`<div class="card-actions"><button class="secondary" data-build-transition="activate">Review activation</button><button class="secondary" data-build-transition="deactivate">Review deactivation</button></div><label>Saved release<select id="builder-release" aria-label="Saved release">${data.releases.map(release=>`<option value="${escapeHtml(release.id)}">Revision ${release.revision} · ${escapeHtml(release.action||"save")} · ${escapeHtml(release.created_at||release.id.slice(0,8))}</option>`).join("")}</select></label><button class="secondary" data-build-transition="rollback" ${data.releases.length?"":"disabled"}>Review rollback</button>`:"<p>Lifecycle changes require the workspace owner.</p>"}<div id="builder-transition-review"></div>`;
 }
 async function applyBuildReview(){
  if(builder.busy||!builder.review)return;builderBusy(true,"Applying reviewed changes…");

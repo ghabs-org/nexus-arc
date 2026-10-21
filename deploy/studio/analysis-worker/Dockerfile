@@ -1,4 +1,4 @@
-# Supply an explicitly selected python:3.13-slim image@sha256 digest at build time.
+# Supply an explicitly selected Python 3.12+ image@sha256 digest at build time.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends jq imagemagick chromium fonts-liberation libgl1 libglib2.0-0 \

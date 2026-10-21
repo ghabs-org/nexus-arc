@@ -13,7 +13,7 @@ async function refreshModelChoices(){
     for(const [section,providerId,modelId] of [[".chat-controls","chat-provider","chat-model"],[".builder-provider-fields","builder-provider","builder-model"]]){
       const parent=document.querySelector(section);let select=parent.querySelector(".model-profile");
       if(!select){const label=document.createElement("label");label.textContent="Profile";select=document.createElement("select");select.className="model-profile";select.setAttribute("aria-label",providerId==="chat-provider"?"Chat model profile":"Build model profile");label.appendChild(select);parent.appendChild(label);}
-      const selected=select.value;select.innerHTML='<option value="">Custom configuration</option>'+models.filter(item=>providerId!=="builder-provider"||["codex","claude-code","openai","claude"].includes(item.data.provider)).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("");select.value=selected;
+      const selected=select.value;select.innerHTML='<option value="">Custom configuration</option>'+models.filter(item=>providerId!=="builder-provider"||["codex","claude-code","agy","openai","claude"].includes(item.data.provider)).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("");select.value=selected;
       select.onchange=()=>{const item=models.find(item=>item.id===select.value);if(item){$(providerId).value=item.data.provider;$(modelId).value=item.data.model;}};
     }
   }catch(error){notify(error.message);}

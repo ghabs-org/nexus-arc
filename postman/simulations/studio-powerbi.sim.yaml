@@ -1,0 +1,5 @@
+simulation: studio-powerbi
+routing: path
+mocks:
+  - routeKey: powerbi
+    path: ../mocks/studio-powerbi/config.yaml

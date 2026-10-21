@@ -21,12 +21,16 @@ for item in request['files']:
 def limits():
     resource.setrlimit(resource.RLIMIT_CPU,(request['timeout'],request['timeout']))
     resource.setrlimit(resource.RLIMIT_FSIZE,(16*1024*1024,16*1024*1024))
-    resource.setrlimit(resource.RLIMIT_NOFILE,(64,64))
+    resource.setrlimit(resource.RLIMIT_NOFILE,(request['open_files'],request['open_files']))
 with (root/'stdout').open('wb') as out,(root/'stderr').open('wb') as err:
     result=subprocess.run([sys.executable,'-I',str(root/'job.py')],cwd=root,
         env={'PATH':os.defpath,'HOME':'/work','INPUT_DIR':str(inputs),'OUTPUT_DIR':str(outputs)},
         stdout=out,stderr=err,timeout=request['timeout'],preexec_fn=limits)
-if result.returncode:raise ValueError('Sandbox program failed')
+if result.returncode:
+    with (root/'stderr').open('rb') as error:
+        error.seek(max(0,(root/'stderr').stat().st_size-2000))
+        detail=error.read(2000).decode(errors='replace')
+    raise ValueError('Sandbox program failed: '+detail)
 if (root/'stdout').stat().st_size>1024*1024:raise ValueError('Program output exceeds one MiB')
 files=[];total=0
 for path in sorted(outputs.rglob('*')):
@@ -53,9 +57,12 @@ class StudioSandbox:
                 "timeout",
                 "model_path",
                 "memory_mb",
+                "docker_context",
+                "pids_limit",
+                "open_files",
             }:
                 raise ValueError(
-                    "Worker profiles support image, python, timeout, model_path and memory_mb"
+                    "Worker profiles support image, python, timeout, model_path, memory_mb, docker_context, pids_limit and open_files"
                 )
             image = profile.get("image", "")
             if not isinstance(image, str) or not re.fullmatch(
@@ -70,13 +77,30 @@ class StudioSandbox:
             memory = profile.get("memory_mb", 768)
             if type(memory) is not int or not 128 <= memory <= 4096:
                 raise ValueError("Worker memory must be 128–4096 MiB")
+            pids = profile.get("pids_limit", 64)
+            if type(pids) is not int or not 16 <= pids <= 512:
+                raise ValueError("Worker process limit must be 16–512")
+            descriptors = profile.get("open_files", 64)
+            if type(descriptors) is not int or not 64 <= descriptors <= 1024:
+                raise ValueError("Worker open file limit must be 64–1024")
             if not isinstance(profile.get("python", "python3"), str) or not re.fullmatch(
                 r"/?[A-Za-z0-9_./-]+", profile.get("python", "python3")
             ):
                 raise ValueError("Choose an installed Python executable inside the worker image")
             model = profile.get("model_path")
+            context = profile.get("docker_context")
+            if context is not None and (
+                not isinstance(context, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", context)
+            ):
+                raise ValueError("Choose a valid installed Docker context name")
             if model and (not Path(model).is_file() or Path(model).is_symlink()):
                 raise ValueError("Worker model must be an installed ordinary file")
+
+    @staticmethod
+    def docker_command(profile):
+        context = profile.get("docker_context")
+        return ["docker", "--context", context] if context else ["docker"]
 
     def arguments(self, profile_id, name):
         profile = self.profiles.get(profile_id)
@@ -85,7 +109,7 @@ class StudioSandbox:
                 "Configure a pinned analysis worker profile in private runtime settings"
             )
         command = [
-            "docker",
+            *self.docker_command(profile),
             "run",
             "--rm",
             "--pull=never",
@@ -104,7 +128,7 @@ class StudioSandbox:
             "--memory-swap",
             f"{profile.get('memory_mb', 768)}m",
             "--pids-limit",
-            "64",
+            str(profile.get("pids_limit", 64)),
             "--cap-drop",
             "ALL",
             "--security-opt",
@@ -117,7 +141,10 @@ class StudioSandbox:
             "/tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777",
         ]
         if profile.get("model_path"):
-            model = str(Path(profile["model_path"]).resolve())
+            selected = Path(profile["model_path"])
+            if not selected.is_file() or selected.is_symlink():
+                raise ValueError("Worker model must be an installed ordinary file")
+            model = str(selected.resolve())
             if "," in model:
                 raise ValueError("Model path cannot contain commas")
             command += [
@@ -150,7 +177,7 @@ class StudioSandbox:
         command = self.arguments(profile, name)
         configured = self.profiles[profile]
         check = self.run_command(
-            ["docker", "image", "inspect", configured["image"]],
+            [*self.docker_command(configured), "image", "inspect", configured["image"]],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=15,
@@ -160,7 +187,12 @@ class StudioSandbox:
                 "Configured worker image is not installed; automatic image pulling is disabled"
             )
         payload = json.dumps(
-            {"code": code, "files": files, "timeout": configured.get("timeout", 30)}
+            {
+                "code": code,
+                "files": files,
+                "timeout": configured.get("timeout", 30),
+                "open_files": configured.get("open_files", 64),
+            }
         ).encode()
         process = subprocess.Popen(
             command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -171,7 +203,7 @@ class StudioSandbox:
             expired.set()
             try:
                 self.run_command(
-                    ["docker", "rm", "--force", name],
+                    [*self.docker_command(configured), "rm", "--force", name],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     timeout=10,
@@ -219,6 +251,8 @@ class StudioSandbox:
                     stop()
                     raise ValueError("Sandbox response exceeds output limits")
             process.wait(timeout=5)
+            # stderr can reach EOF after stdout; collect it before reporting failure.
+            errors.join(timeout=2)
             if expired.is_set():
                 raise ValueError("Analysis worker timed out")
             if process.returncode:

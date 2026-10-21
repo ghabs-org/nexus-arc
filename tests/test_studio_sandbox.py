@@ -46,3 +46,64 @@ def test_local_image_ids_are_immutable_and_vision_memory_stays_bounded():
     assert args[args.index("--memory-swap") + 1] == "2048m"
     with pytest.raises(ValueError, match="memory"):
         StudioSandbox({"vision": {"image": IMAGE, "memory_mb": 8192}})
+
+
+@pytest.mark.parametrize("context", ["", "../remote", "tcp://host:2375", "--host=remote", 42])
+def test_worker_rejects_invalid_docker_contexts(context):
+    with pytest.raises(ValueError, match="context"):
+        StudioSandbox({"data": {"image": IMAGE, "docker_context": context}})
+
+
+def test_selected_context_routes_inspection_and_execution(monkeypatch):
+    from types import SimpleNamespace
+
+    calls = []
+    monkeypatch.setattr("nexus.core.studio_sandbox.shutil.which", lambda _: "/bin/docker")
+
+    def inspect(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=1)
+
+    sandbox = StudioSandbox(
+        {"data": {"image": IMAGE, "docker_context": "desktop-linux"}}, run=inspect
+    )
+    assert sandbox.arguments("data", "owned")[:4] == ["docker", "--context", "desktop-linux", "run"]
+    with pytest.raises(ValueError, match="not installed"):
+        sandbox.execute("print(1)", profile="data")
+    assert calls == [["docker", "--context", "desktop-linux", "image", "inspect", IMAGE]]
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("pids_limit", 0),
+        ("pids_limit", 513),
+        ("pids_limit", True),
+        ("open_files", 63),
+        ("open_files", 1025),
+        ("open_files", False),
+    ],
+)
+def test_worker_resource_overrides_stay_bounded(key, value):
+    with pytest.raises(ValueError, match="limit"):
+        StudioSandbox({"data": {"image": IMAGE, key: value}})
+
+
+def test_chart_profile_preserves_isolation_with_explicit_bounded_resources():
+    sandbox = StudioSandbox({"data": {"image": IMAGE, "pids_limit": 256, "open_files": 256}})
+    args = sandbox.arguments("data", "chart")
+    assert args[args.index("--pids-limit") + 1] == "256"
+    assert args[args.index("--network") + 1] == "none"
+    assert "--read-only" in args and "--mount" not in args
+
+
+def test_model_mount_rechecks_replaced_symlink(tmp_path):
+    model = tmp_path / "model.pt"
+    model.write_bytes(b"selected")
+    sandbox = StudioSandbox({"vision": {"image": IMAGE, "model_path": str(model)}})
+    args = sandbox.arguments("vision", "owned")
+    assert args[args.index("--mount") + 1].endswith("destination=/models/model.pt,readonly")
+    model.unlink()
+    model.symlink_to(tmp_path / "other.pt")
+    with pytest.raises(ValueError, match="ordinary"):
+        sandbox.arguments("vision", "owned")

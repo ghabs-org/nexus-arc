@@ -206,11 +206,11 @@ def agent_settings(bridge, source, path):
             result["max_model_calls"] = value
     if "max_tool_calls_per_task" in source:
         value = source["max_tool_calls_per_task"]
-        if type(value) is not int or not 1 <= value <= 100:
+        if type(value) is not int or not 0 <= value <= 100:
             bridge.issue(
                 path + "/max_tool_calls_per_task",
                 "invalid_limit",
-                "Use one to 100 total tool calls",
+                "Use zero to 100 total tool calls",
             )
         else:
             result["max_tool_calls"] = value

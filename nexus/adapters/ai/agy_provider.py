@@ -75,10 +75,18 @@ def parse_agy_stream_output(
         or not res_payload
     )
     if is_error:
+        stdout_text = (stdout or b"").decode(errors="replace").strip()
+        stdout_err_lines = [
+            line.strip()
+            for line in stdout_text.splitlines()
+            if line.strip() and not line.strip().startswith("{")
+        ]
+        stdout_err = "\n".join(stdout_err_lines).strip()
         err_msg = (
             str(res_payload.get("error") or "")
             or output
             or (stderr or b"").decode(errors="replace").strip()
+            or stdout_err
             or f"agy exited {returncode}"
         )
         return AgentResult(

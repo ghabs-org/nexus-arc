@@ -1,0 +1,10 @@
+version: 1
+name: Nuclia synchronous answer contract
+slug: studio-nuclia
+protocol: http
+port: 49873
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

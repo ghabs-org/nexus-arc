@@ -1,0 +1,11 @@
+# Supply a reviewed Python 3.12 image@sha256 digest at build time.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-vision.txt /tmp/requirements-vision.txt
+RUN python -m pip install --no-cache-dir -r /tmp/requirements-vision.txt \
+    && rm /tmp/requirements-vision.txt
+# Model weights are an explicit read-only runtime mount, never downloaded here.
+USER 65534:65534
+ENTRYPOINT ["python3"]

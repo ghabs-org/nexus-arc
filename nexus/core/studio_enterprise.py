@@ -103,6 +103,7 @@ def validate_enterprise(data):
             allow_private=remote["allow_private"],
             token_env=remote["auth"]["token_env"],
         )
+        supported = {"query", "ask"}
         result["knowledge_box"] = identifier(data.get("knowledge_box"), "Knowledge box ID")
         if "/" in result["knowledge_box"]:
             raise ValueError("Choose a knowledge box ID without a path")
@@ -226,7 +227,7 @@ def validate_enterprise(data):
         raise ValueError("Unknown catalog connector")
     if set(data) - fields:
         raise ValueError("Unsupported connector fields: " + ", ".join(sorted(set(data) - fields)))
-    actions = data.get("actions", sorted(supported - {"execute"}))
+    actions = data.get("actions", ["query"] if kind == "nuclia" else sorted(supported - {"execute"}))
     if not isinstance(actions, list) or set(actions) - supported:
         raise ValueError("Choose supported connector actions: " + ", ".join(sorted(supported)))
     result["actions"] = list(dict.fromkeys(actions))
@@ -238,6 +239,36 @@ def bounded(value):
     if len(raw.encode()) > 256 * 1024:
         raise ValueError("Connector response exceeds 256 KiB; narrow the query")
     return json.loads(raw)
+
+
+def validate_powerbi_response(value, dataset_id, action):
+    """Reject provider errors and partial tables even when HTTP reports success.
+
+    Preserve the documented response object for existing connector consumers.
+    Never include provider diagnostics or partial rows in the error message.
+    """
+    if not isinstance(value, dict) or value.get("error") is not None:
+        raise ValueError("Power BI returned an error or invalid response")
+    if action == "read":
+        if not isinstance(value.get("id"), str) or value["id"].lower() != dataset_id.lower():
+            raise ValueError("Power BI metadata does not match the selected dataset")
+        return value
+    results = value.get("results")
+    if not isinstance(results, list) or len(results) != 1:
+        raise ValueError("Power BI must return one query result")
+    result = results[0]
+    if not isinstance(result, dict) or result.get("error") is not None:
+        raise ValueError("Power BI query failed or returned partial data; narrow the query")
+    tables = result.get("tables")
+    if not isinstance(tables, list) or len(tables) != 1:
+        raise ValueError("Power BI must return one result table")
+    table = tables[0]
+    if not isinstance(table, dict) or table.get("error") is not None:
+        raise ValueError("Power BI table is incomplete; narrow the query")
+    rows = table.get("rows", [])
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Power BI returned invalid table rows")
+    return value
 
 
 class StudioEnterprise:
@@ -641,7 +672,7 @@ class StudioEnterprise:
             if hasattr(client, "close"):
                 client.close()
 
-    def call(self, data, identity, action, arguments):
+    def call(self, data, identity, action, arguments, *, connector_id=None):
         if data["type"].startswith("bedrock"):
             return self.bedrock(data, identity, arguments)
         if data["type"] == "mongodb":
@@ -657,21 +688,12 @@ class StudioEnterprise:
         )
         if data["type"] == "nuclia":
             headers = {"X-NUCLIA-SERVICEACCOUNT": headers["Authorization"]}
-            url = data["url"] + "/api/v1/kb/" + data["knowledge_box"] + "/find"
-            top_k = arguments.get("top_k", 10)
-            page = arguments.get("page", 0)
-            if (
-                type(top_k) is not int
-                or not 1 <= top_k <= 50
-                or type(page) is not int
-                or not 0 <= page <= 100
-            ):
-                raise ValueError("Nuclia top_k must be 1–50 and page 0–100")
-            body = {
-                "query": _text(arguments.get("query"), "Search query", 4000),
-                "top_k": top_k,
-                **({"page_number": page} if page else {}),
-            }
+            from nexus.core.studio_nuclia import request_body
+
+            url = data["url"] + "/api/v1/kb/" + data["knowledge_box"] + ("/ask" if action == "ask" else "/find")
+            body = request_body(action, arguments)
+            if action == "ask":
+                headers["X-Synchronous"] = "true"
             method = "POST"
         elif data["type"] in {"opensearch", "elasticsearch"}:
             if action == "inspect_schema":
@@ -738,9 +760,19 @@ class StudioEnterprise:
                     "serializerSettings": {"includeNulls": True},
                 }
         if self.request_client:
-            return bounded(self.request_client(method, url, headers, body))
-        return bounded(
-            self.studio.research.request(
-                method, url, headers, body, private=data.get("allow_private", False)
+            result = bounded(self.request_client(method, url, headers, body))
+        else:
+            result = bounded(
+                self.studio.research.request(
+                    method, url, headers, body, private=data.get("allow_private", False),
+                    **({"timeout": 90, "response_limit": 256 * 1024}
+                       if data["type"] == "nuclia" and action == "ask" else {}),
+                )
             )
-        )
+        if data["type"] == "nuclia" and action == "ask":
+            from nexus.core.studio_nuclia import answer_sources, publish_answer
+
+            return publish_answer(self.studio, answer_sources(result), identity, data, connector_id)
+        if data["type"] == "powerbi":
+            return validate_powerbi_response(result, data["dataset_id"], action)
+        return result

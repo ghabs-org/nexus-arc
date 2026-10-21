@@ -82,6 +82,8 @@ def dependencies(kind, document):
                     refs.add(component_key("workflows", node["workflow_id"]))
                 if node.get("connector_id"):
                     refs.add(component_key("connectors", node["connector_id"]))
+                if str(node.get("tool_id", "")).startswith("connector:"):
+                    refs.add(component_key("connectors", node["tool_id"].rsplit(":", 1)[-1]))
                 walk(node.get("body"))
             for field in ("on_success", "on_error"):
                 walk(value.get(field))
@@ -170,7 +172,7 @@ class StudioResourceLifecycle:
             visit(key)
         return {"edges": edges, "errors": errors, "values": known, "managed": managed}
 
-    def readiness(self, key, value, actor):
+    def readiness(self, key, value, actor, *, probe_workers=False, worker_cache=None):
         kind = key.split(":", 1)[0]
         data = value.get("spec", {}) if kind == "agents" else value.get("data", {})
         refs = set()
@@ -231,6 +233,16 @@ class StudioResourceLifecycle:
             path = self.studio.root / data["path"]
             if not path.resolve().is_relative_to(self.studio.root) or not path.is_file():
                 issues.append("database_file_missing")
+        from nexus.core.studio_activation_setup import local_prerequisites
+
+        prerequisites = local_prerequisites(
+            self.studio,
+            key,
+            value,
+            probe_workers=probe_workers and not execution_denied,
+            worker_cache=worker_cache,
+        )
+        issues.extend(prerequisites["issues"])
         marker = self.marker(key)
         if marker and marker.get("active") is False:
             issues.append("inactive")
@@ -244,14 +256,19 @@ class StudioResourceLifecycle:
             "ready": not issues,
             "issues": issues,
             "missing_environment": missing,
+            "prerequisite_checks": prerequisites["checks"],
+            "prerequisite_fingerprint": prerequisites["fingerprint"],
             "live_health": "not_checked",
         }
 
-    def inspect(self, document, actor=None):
+    def inspect(self, document, actor=None, *, probe_workers=False):
         graph = self.graph(document)
         components = []
+        worker_cache = {}
         for key, value in sorted(graph["values"].items()):
-            readiness = self.readiness(key, value, actor)
+            readiness = self.readiness(
+                key, value, actor, probe_workers=probe_workers, worker_cache=worker_cache
+            )
             kind = key.split(":", 1)[0]
             data = value.get("data", {})
             components.append(
@@ -310,12 +327,8 @@ class StudioResourceLifecycle:
             result["health_summary"] = {
                 "supported": sum(1 for c in result["components"] if c["health"]["supported"]),
                 "checked": sum(1 for c in result["components"] if c["health"]["result"]),
-                "passed": sum(
-                    1 for c in result["components"] if c["health"]["status"] == "passed"
-                ),
-                "failed": sum(
-                    1 for c in result["components"] if c["health"]["status"] == "failed"
-                ),
+                "passed": sum(1 for c in result["components"] if c["health"]["status"] == "passed"),
+                "failed": sum(1 for c in result["components"] if c["health"]["status"] == "failed"),
                 "stale": sum(1 for c in result["components"] if c["health"]["status"] == "stale"),
             }
             if any(c["health"]["result"] for c in result["components"]):
@@ -389,7 +402,9 @@ class StudioResourceLifecycle:
             if action != "activate" and enable:
                 raise ValueError("Only activation can explicitly enable resources")
             normalized = self.studio.configuration.normalize(document)
-            details = self.inspect(document, self.execution_actor(build))
+            details = self.inspect(
+                document, self.execution_actor(build), probe_workers=action == "activate"
+            )
             errors = list(details["errors"])
             records = {"builds:" + identity: after}
             for key in keys + [k for k in document_keys(normalized) if k not in keys]:
@@ -468,6 +483,9 @@ class StudioResourceLifecycle:
                     for item in details["components"]
                     if not item["managed"]
                 },
+                "prerequisite_fingerprints": {
+                    item["key"]: item["prerequisite_fingerprint"] for item in details["components"]
+                },
                 "errors": errors,
                 "changes": [],
             }
@@ -536,9 +554,23 @@ class StudioResourceLifecycle:
                     raise ValueError("Component dependency changed; review a fresh transition plan")
             if plan["action"] == "activate":
                 # Credential availability may change after review. Never expose values.
+                # Reject changed local setup before starting any worker probe.
                 for item in self.inspect(plan["document"], self.execution_actor(build))[
                     "components"
                 ]:
+                    expected = plan.get("prerequisite_fingerprints", {}).get(item["key"])
+                    if expected != item["prerequisite_fingerprint"]:
+                        raise ValueError(
+                            "Component software or worker setup changed; review a fresh plan"
+                        )
+                for item in self.inspect(
+                    plan["document"], self.execution_actor(build), probe_workers=True
+                )["components"]:
+                    expected = plan.get("prerequisite_fingerprints", {}).get(item["key"])
+                    if expected != item["prerequisite_fingerprint"]:
+                        raise ValueError(
+                            "Component software or worker setup changed; review a fresh plan"
+                        )
                     blocking = set(item["issues"])
                     if item["managed"]:
                         blocking.discard("inactive")

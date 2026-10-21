@@ -201,32 +201,100 @@ CATALOG = [
     },
 ]
 
+# This contract covers composing mail; delivery and engagement remain provider-owned.
+# Keep optional SendGrid fields intact so existing connector exports stay readable.
 SENDGRID_SPEC = {
     "openapi": "3.0.3",
-    "info": {"title": "SendGrid mail", "version": "1"},
+    "info": {"title": "SendGrid mail", "version": "2"},
+    "security": [{"sendgrid": []}],
+    "components": {
+        "securitySchemes": {"sendgrid": {"type": "http", "scheme": "bearer"}},
+        "schemas": {
+            "Address": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                    "email": {"type": "string", "pattern": r"^[^\s@]+@[^\s@]+$"},
+                    "name": {"type": "string"},
+                },
+            },
+            "Recipients": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": {"$ref": "#/components/schemas/Address"},
+            },
+            "Personalization": {
+                "type": "object",
+                "required": ["to"],
+                "properties": {
+                    "to": {"$ref": "#/components/schemas/Recipients"},
+                    "cc": {"$ref": "#/components/schemas/Recipients"},
+                    "bcc": {"$ref": "#/components/schemas/Recipients"},
+                    "from": {"$ref": "#/components/schemas/Address"},
+                    "subject": {"type": "string", "minLength": 1},
+                    "dynamic_template_data": {"type": "object"},
+                },
+            },
+        },
+    },
     "paths": {
         "/v3/mail/send": {
             "post": {
                 "operationId": "sendMail",
-                "summary": "Send an email through the configured account",
+                "summary": "Send reviewed plain text, HTML or template email",
                 "requestBody": {
                     "required": True,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "type": "object",
-                                "required": ["personalizations", "from", "subject", "content"],
+                                "required": ["personalizations", "from"],
                                 "properties": {
-                                    "personalizations": {"type": "array", "minItems": 1},
-                                    "from": {"type": "object"},
-                                    "subject": {"type": "string"},
-                                    "content": {"type": "array", "minItems": 1},
+                                    "personalizations": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "maxItems": 1000,
+                                        "items": {"$ref": "#/components/schemas/Personalization"},
+                                    },
+                                    "from": {"$ref": "#/components/schemas/Address"},
+                                    "reply_to": {"$ref": "#/components/schemas/Address"},
+                                    "subject": {"type": "string", "minLength": 1},
+                                    "template_id": {"type": "string", "minLength": 1},
+                                    "content": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "items": {
+                                            "type": "object",
+                                            "required": ["type", "value"],
+                                            "properties": {
+                                                "type": {"type": "string", "minLength": 1},
+                                                "value": {"type": "string", "minLength": 1},
+                                            },
+                                        },
+                                    },
                                 },
+                                "anyOf": [
+                                    {"required": ["template_id"]},
+                                    {
+                                        "required": ["content"],
+                                        "anyOf": [
+                                            {"required": ["subject"]},
+                                            {
+                                                "properties": {
+                                                    "personalizations": {
+                                                        "items": {"required": ["subject"]}
+                                                    }
+                                                }
+                                            },
+                                        ],
+                                    },
+                                ],
                             }
                         }
                     },
                 },
-                "responses": {"202": {"description": "Accepted"}},
+                "responses": {"202": {"description": "Accepted for processing, not delivered"}},
             }
         }
     },
@@ -264,7 +332,7 @@ class StudioRecipes:
             row["installation"] = (
                 "Configuration only; no installation hooks or package downloads run while browsing"
             )
-        return {
+        result = {
             "items": rows,
             "official_items": [
                 {
@@ -300,6 +368,12 @@ class StudioRecipes:
             ],
             "note": "Available integrations require their own account or installed local dependencies. Listing does not install or enable anything.",
         }
+
+        from nexus.core.studio_catalog_setup import describe_setup
+
+        for row in result["items"] + result["official_items"]:
+            row.update(describe_setup(row))
+        return result
 
     def configure(self, identity, data, actor):
         recipe = next((r for r in CATALOG if r["id"] == identity), None)

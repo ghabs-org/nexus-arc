@@ -1,0 +1,10 @@
+version: 1
+name: Selected Power BI dataset contract
+slug: studio-powerbi
+protocol: http
+port: 49872
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

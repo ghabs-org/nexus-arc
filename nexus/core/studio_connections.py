@@ -39,6 +39,7 @@ NATIVE = {
 }
 READ_ACTIONS = {
     "list_operations",
+    "ask",
     "read",
     "query",
     "inspect_schema",
@@ -422,7 +423,9 @@ class StudioConnections:
                     self.enterprise.request_client,
                 )
             if data["type"] in KINDS:
-                return await asyncio.to_thread(self.enterprise.call, data, actor, action, arguments)
+                return await asyncio.to_thread(
+                    self.enterprise.call, data, actor, action, arguments, connector_id=identity
+                )
             if data["type"] == "openapi":
                 from nexus.core.studio_openapi import call_openapi
 

@@ -78,7 +78,10 @@ class QuickBuilder:
         self.provider_factory = provider_factory
 
     def get(self, identity: str) -> dict:
-        return self.studio._read(self.studio._path("builds", identity))
+        try:
+            return self.studio._read(self.studio._path("builds", identity))
+        except FileNotFoundError:
+            raise FileNotFoundError("Build draft not found") from None
 
     def validate_request(self, payload: dict) -> None:
         _text(payload.get("task"), "Build request")
@@ -253,14 +256,22 @@ class QuickBuilder:
                 normalized_agents[-1]["connector_tools"] = {
                     reference("connectors", key): value for key, value in permissions.items()
                 }
-            for field in (
-                "timeout_seconds",
-                "max_tool_calls",
-                "max_model_calls",
-                "output_schema",
-                "agent_card",
+            for field, (lower, upper) in (
+                ("max_tool_calls", (0, 100)),
+                ("max_model_calls", (1, 101)),
+                ("timeout_seconds", (1, 3600)),
             ):
                 if field in agent:
+                    val = agent[field]
+                    if val is None or val == "":
+                        continue
+                    if isinstance(val, str) and val.strip().isdigit():
+                        val = int(val.strip())
+                    if type(val) is int:
+                        val = max(lower, min(upper, val))
+                    normalized_agents[-1][field] = val
+            for field in ("output_schema", "agent_card"):
+                if field in agent and agent[field] is not None:
                     normalized_agents[-1][field] = agent[field]
             if agent.get("guardrails"):
                 from nexus.core.studio_observability import validate_guardrails
@@ -397,7 +408,7 @@ class QuickBuilder:
                 "agent_card",
                 "output_schema",
             ):
-                if field in agent:
+                if field in agent and agent[field] is not None:
                     spec[field] = agent[field]
             result.append(
                 (
@@ -507,7 +518,7 @@ class QuickBuilder:
             "Use version:2 graphs for named workflow calls (kind:workflow,workflow_id,input). "
             "Local workflow_id references resolve within this complete build; never create recursive cycles. "
             "Agents may also have these top-level fields (never nest them in a settings object): "
-            "timeout_seconds, max_model_calls, max_tool_calls, output_schema, "
+            "timeout_seconds (1-3600), max_model_calls (1-101), max_tool_calls (0-100), output_schema, "
             "model_id, skill_ids, toolset_ids, connector_ids, connector_tools and agent_card. "
             "No installation or arbitrary code. Explain missing prerequisites in "
             "assumptions. No external action happens until the user explicitly tests/runs it. "

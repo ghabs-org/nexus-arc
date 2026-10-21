@@ -88,6 +88,8 @@ def test_powerbi_and_nuclia_requests_are_scoped_and_do_not_store_secrets(tmp_pat
 
     def request(method, url, headers, body):
         requests.append((method, url, headers, body))
+        if "api.powerbi.com" in url:
+            return {"results": [{"tables": [{"rows": [{"[x]": 1}]}]}]}
         return {"results": [{"answer": "contract response"}]}
 
     monkeypatch.setenv("FIXTURE_SERVICE_TOKEN", "private-fixture-token")

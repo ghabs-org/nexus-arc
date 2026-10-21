@@ -12,8 +12,18 @@ from nexus.core.studio_sandbox import StudioSandbox
 
 current_run_id = contextvars.ContextVar("studio_tool_run_id", default=None)
 
+ACTION_PROFILES = {
+    "query_sql": "data",
+    "create_database": "data",
+    "transform_jq": "data",
+    "chart": "data",
+    "python": "python",
+    "imagemagick": "media",
+    "detect_objects": "vision",
+}
+
 DATA_PROGRAM = r"""
-import csv,io,json,os,pathlib,sqlite3,subprocess
+import csv,io,itertools,json,os,pathlib,sqlite3,subprocess
 params=json.loads(PARAMETERS)
 root=pathlib.Path(os.environ['INPUT_DIR']);out=pathlib.Path(os.environ['OUTPUT_DIR'])
 source=root/params['filename'];action=params['action']
@@ -23,7 +33,7 @@ if action in ('query_sql','create_database'):
     else:
         db=sqlite3.connect(str(out/'dataset.sqlite') if action=='create_database' else ':memory:')
         if source.suffix.lower()=='.csv':
-            reader=csv.reader(source.open());columns=next(reader);rows=list(reader)
+            reader=csv.reader(source.open());columns=next(reader);rows=list(itertools.islice(reader,100001))
         else:
             records=json.loads(source.read_text())
             if not isinstance(records,list) or not records or not all(isinstance(r,dict) for r in records):raise ValueError('Expected JSON array of objects')
@@ -69,7 +79,12 @@ if params['action']=='imagemagick':
     command.append(str(out/'processed.png'));subprocess.run(command,check=True,timeout=30)
     print('Image processed')
 elif params['action']=='detect_objects':
+    pathlib.Path('/work/yolo').mkdir(exist_ok=True)
+    os.environ['YOLO_CONFIG_DIR']='/work/yolo'
+    os.environ['YOLO_AUTOINSTALL']='false'
     from ultralytics import YOLO
+    import torch
+    torch.set_num_threads(1)
     model=YOLO('/models/model.pt')
     result=model(str(source),device='cpu',verbose=False,max_det=100)[0]
     boxes=[{'label':result.names[int(box.cls[0])],'confidence':float(box.conf[0]),'xyxy':box.xyxy[0].tolist()} for box in result.boxes]
@@ -116,21 +131,12 @@ class StudioDataTools:
             tool_registry.unregister(name, func=function)
 
     def inventory(self):
-        profiles = {
-            "query_sql": "data",
-            "create_database": "data",
-            "transform_jq": "data",
-            "chart": "data",
-            "python": "python",
-            "imagemagick": "media",
-            "detect_objects": "vision",
-        }
         return {
             "items": [
                 {
                     "id": name,
-                    "configured": profiles[name.rsplit(":", 1)[1]] in self.sandbox.profiles,
-                    "profile": profiles[name.rsplit(":", 1)[1]],
+                    "configured": ACTION_PROFILES[name.rsplit(":", 1)[1]] in self.sandbox.profiles,
+                    "profile": ACTION_PROFILES[name.rsplit(":", 1)[1]],
                     "billing": "Local container compute",
                     "setup": "Configure an installed, pinned local analysis worker. Host execution and automatic image downloads are disabled.",
                 }
@@ -198,14 +204,24 @@ class StudioDataTools:
                 parameters["grayscale"] = arguments.get("grayscale") is True
             program = IMAGE_PROGRAM if action in {"imagemagick", "detect_objects"} else DATA_PROGRAM
             code = program.replace("PARAMETERS", repr(json.dumps(parameters)))
-            profile = (
-                "vision"
-                if action == "detect_objects"
-                else "media"
-                if action == "imagemagick"
-                else "data"
-            )
+            profile = ACTION_PROFILES[action]
         result = await asyncio.to_thread(self.sandbox.execute, code, files, profile)
+        # Container work may finish after a cancellation or access revocation.
+        # Recheck ownership before publishing any result into the workspace.
+        with self.studio.lock:
+            self.actor()
+            run_id = current_run_id.get()
+            if run_id:
+                run = self.studio.collaboration.owned(self.studio.run(run_id), actor)
+                if run.get("cancel_requested") or run.get("status") not in {"queued", "running"}:
+                    raise asyncio.CancelledError
+            for identity in identities:
+                self.studio.collaboration.owned(
+                    self.studio.catalog.get("artifacts", identity), actor
+                )
+            return self.publish(result, actor, run_id)
+
+    def publish(self, result, actor, run_id):
         artifacts = []
         for file in result["files"]:
             saved = self.studio.catalog.save(
@@ -220,10 +236,28 @@ class StudioDataTools:
                     },
                 },
             )
-            run_id = current_run_id.get()
             if run_id:
                 saved["generated_by_run"] = run_id
                 self.studio._write(self.studio.catalog._path("artifacts", saved["id"]), saved)
+                run = self.studio.run(run_id)
+                parts = list(run.get("structured_content", []))
+                if len(parts) < 40:
+                    parts.append(
+                        {
+                            "type": "artifact",
+                            "artifact_id": saved["id"],
+                            "revision": saved["revision"],
+                            "filename": file["filename"],
+                        }
+                    )
+                self.studio._update_run(run_id, content_version=1, structured_content=parts)
+                self.studio.execution.record(
+                    run_id,
+                    "artifact",
+                    status="generated",
+                    artifact_id=saved["id"],
+                    artifact_revision=saved["revision"],
+                )
             artifacts.append(
                 {"id": saved["id"], "filename": file["filename"], "revision": saved["revision"]}
             )
