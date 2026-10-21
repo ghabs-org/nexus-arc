@@ -160,6 +160,7 @@ def load_runtime_configuration(path, root):
         "research",
         "media",
         "workflow_limits",
+        "workspace_files",
     }:
         raise ValueError("Runtime configuration contains unsupported settings")
     state = data.get("state", {})
@@ -196,4 +197,6 @@ def load_runtime_configuration(path, root):
         from nexus.core.studio_workflow_policy import workflow_limits
 
         options["workflow_limits"] = workflow_limits(data["workflow_limits"])
+    if "workspace_files" in data:
+        options["workspace_file_options"] = {"roots": data["workspace_files"]}
     return options

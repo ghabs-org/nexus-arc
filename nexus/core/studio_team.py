@@ -200,6 +200,7 @@ class NexusTeamPolicy:
         if (
             route.startswith("/api/catalog/")
             or route in {"/api/agents", "/api/workflows"}
+            or route.startswith(("/api/agents/", "/api/workflows/"))
             or route.endswith(("/update", "/apply"))
             or route.startswith("/api/workbench/versions/")
         ):
@@ -221,6 +222,10 @@ class NexusTeamPolicy:
             required = "builder"
         if route == "/api/workbench/guide":
             required = "viewer"
+        if route.startswith("/api/studio/assistant/"):
+            required = "viewer"
+        if route.startswith("/api/studio/files/"):
+            required = "builder"
         if ROLES[principal["role"]] < ROLES[required]:
             raise TeamAccessError(f"This action requires the {required} role")
 
@@ -235,7 +240,7 @@ class NexusTeamPolicy:
             or name in studio.operations.tools
             or any(
                 name in getattr(getattr(studio, capability, None), "names", {})
-                for capability in ("data_tools", "research", "dynamic_embeds", "rulesets", "media")
+                for capability in ("data_tools", "research", "dynamic_embeds", "rulesets", "media", "assistant")
             )
         )
 

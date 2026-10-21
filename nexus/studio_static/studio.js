@@ -5,14 +5,20 @@ const state = {token:"",providers:[],agents:[],workflows:[],tools:[],skills:[],s
 let noticeTimer,bootstrapRetryTimer;
 let bootstrapInFlight=false,bootstrapFailures=0,reconnectHandshake=null;
 function notify(message){$("notice").textContent=message;$("notice").hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$("notice").hidden=true,5500);}
-async function api(path, body){
+async function api(path, body, method){
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),body===undefined?15000:90000);
   let response,data;
+  const verb=method||(body===undefined?"GET":"POST");
+  const init={method:verb,signal:controller.signal};
+  if(body!==undefined||verb==="POST"||verb==="DELETE"){
+    init.headers={"Content-Type":"application/json","X-Nexus-Studio-Token":state.token};
+    if(body!==undefined)init.body=JSON.stringify(body);
+  }
   try{
-    response=await fetch(path,{...(body===undefined?{}:{method:"POST",headers:{"Content-Type":"application/json","X-Nexus-Studio-Token":state.token},body:JSON.stringify(body)}),signal:controller.signal});
+    response=await fetch(path,init);
     data=await response.json();
   }catch(cause){
-    const error=new Error(body===undefined?"Connection unavailable. Reconnecting…":"No confirmation received. Check Activity before trying this action again; it may have reached the server.");
+    const error=new Error(body===undefined&&verb==="GET"?"Connection unavailable. Reconnecting…":"No confirmation received. Check Activity before trying this action again; it may have reached the server.");
     error.retryable=true;error.cause=cause;throw error;
   }finally{clearTimeout(timeout);}
   if(response.status===401&&data.login_url){
@@ -28,14 +34,14 @@ function badge(text, kind=""){return `<span class="badge ${escapeHtml(kind)}">${
 function providerOptions(selected="codex", optional=false){return (optional?'<option value="">Use each agent’s provider</option>':"")+state.providers.map(p=>`<option value="${escapeHtml(p.id)}" ${p.id===selected?"selected":""}>${escapeHtml(p.name)}${p.configured?"":" · setup needed"}</option>`).join("");}
 function effortOptions(selected=""){return [["","Default"],["low","Low"],["medium","Medium"],["high","High"],["xhigh","Extra high"],["max","Max"]].map(([val,label])=>`<option value="${val}" ${val===selected?"selected":""}>${label}</option>`).join("");}
 function empty(title,copy,action,label){return `<div class="empty-state"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p>${action?`<button data-action="${action}">${escapeHtml(label)}</button>`:""}</div>`;}
-function view(){const name=location.hash.slice(1).split("/")[0]||"chat";if(["connectors","entrypoints","schedules","evaluations","models","externalagents"].includes(name))return "library";return ["chat","agents","workflows","providers","tools","activity","inbox","quick-build","library","workspace","workbench","projects","feedback","sharing"].includes(name)?name:"chat";}
-function showView(){if(!$("team-login").hidden)return;const name=view();document.querySelectorAll(".view").forEach(section=>section.hidden=section.id!==`view-${name}`);document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")===`#${location.hash.slice(1).split("/")[0]||name}`));$("view-title").textContent={projects:"Knowledge projects",feedback:"Response feedback",sharing:"Conversation sharing",inbox:"Approval inbox",workbench:"Workspace tools",workspace:"Workspace & event mesh",library:"Library","quick-build":"Quick Build",chat:"Conversations",agents:"Agents",workflows:"Workflows",providers:"Providers & models",tools:"Tools",activity:"Activity"}[name];if(name==="tools")api("/api/tools").then(data=>{state.tools=data.items;renderTools();}).catch(error=>notify(error.message));if(name==="activity")refreshRuns().catch(error=>notify(error.message));}
+function view(){const name=location.hash.slice(1).split("/")[0]||"chat";if(["connectors","entrypoints","schedules","evaluations","models","externalagents"].includes(name))return "library";return ["chat","agents","workflows","providers","tools","activity","inbox","quick-build","library","workspace","workbench","projects","feedback","sharing","files","assistant"].includes(name)?name:"chat";}
+function showView(){if(!$("team-login").hidden)return;const name=view();document.querySelectorAll(".view").forEach(section=>section.hidden=section.id!==`view-${name}`);document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")===`#${location.hash.slice(1).split("/")[0]||name}`));$("view-title").textContent={files:"Workspace files",assistant:"Studio assistant",projects:"Knowledge projects",feedback:"Response feedback",sharing:"Conversation sharing",inbox:"Approval inbox",workbench:"Workspace tools",workspace:"Workspace & event mesh",library:"Library","quick-build":"Quick Build",chat:"Conversations",agents:"Agents",workflows:"Workflows",providers:"Providers & models",tools:"Tools",activity:"Activity"}[name];if(name==="tools")api("/api/tools").then(data=>{state.tools=data.items;renderTools();}).catch(error=>notify(error.message));if(name==="activity")refreshRuns().catch(error=>notify(error.message));}
 function renderAgents(){
   $("agent-count").textContent=state.agents.length;
   $("agents-content").innerHTML=state.agents.length?`<div class="resource-grid">${state.agents.map(item=>{
     const doc=item.document||{},meta=doc.metadata||{},spec=doc.spec||{};
     if(item.error)return `<article class="resource-card"><h2>${escapeHtml(item.id)}</h2>${badge("Invalid definition","failed")}<p>${escapeHtml(item.error)}</p></article>`;
-    return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span>${(spec.skill_ids||[]).length?`<span>· Skill: ${escapeHtml(spec.skill_ids[0])}</span>`:""}</div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button></div></article>`;
+    return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span>${(spec.skill_ids||[]).length?`<span>· Skill: ${escapeHtml(spec.skill_ids[0])}</span>`:""}</div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="agents">Delete</button></div></article>`;
   }).join("")}</div>`:empty("Give your team its first specialist","Create an agent with a clear purpose, then choose which provider does the work.","create-agent","Create an agent");
   const selected=$("chat-agent").value;
   $("chat-agent").innerHTML='<option value="">General assistant</option>'+state.agents.filter(a=>a.document).map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.document.metadata?.name||a.id)}</option>`).join("");
@@ -45,7 +51,7 @@ function renderWorkflows(){
   $("workflow-count").textContent=state.workflows.length;
   $("workflows-content").innerHTML=state.workflows.length?`<div class="resource-grid">${state.workflows.map(item=>{
     const doc=item.document||{},steps=doc.steps||doc.graph?.nodes||[];
-    return `<article class="resource-card"><div class="card-meta">${badge(item.error?"Invalid definition":doc.graph?"GRAPH WORKFLOW":"WORKFLOW",item.error?"failed":"")}<span>${steps.length} steps</span></div><h2>${escapeHtml(doc.metadata?.name||item.id)}</h2><p>${escapeHtml(item.error||doc.metadata?.description||(doc.graph?steps.slice(0,4).map(s=>s.name||s.kind||s.id).join(" · ")+(steps.length>4?` · ${steps.length-4} more`:""):steps.map(s=>s.agent_type).join(" → ")))}</p><div class="card-actions"><button data-run-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Run workflow</button>${doc.graph?`<button class="secondary" data-edit-graph="${escapeHtml(item.id)}">Edit canvas</button>`:""}<button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="workflows">Versions</button><button class="secondary" data-workflow="${escapeHtml(item.id)}">View & validate</button></div></article>`;
+    return `<article class="resource-card"><div class="card-meta">${badge(item.error?"Invalid definition":doc.graph?"GRAPH WORKFLOW":"WORKFLOW",item.error?"failed":"")}<span>${steps.length} steps</span></div><h2>${escapeHtml(doc.metadata?.name||item.id)}</h2><p>${escapeHtml(item.error||doc.metadata?.description||(doc.graph?steps.slice(0,4).map(s=>s.name||s.kind||s.id).join(" · ")+(steps.length>4?` · ${steps.length-4} more`:""):steps.map(s=>s.agent_type).join(" → ")))}</p><div class="card-actions"><button data-run-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Run workflow</button>${doc.graph?`<button class="secondary" data-edit-graph="${escapeHtml(item.id)}">Edit canvas</button>`:`<button class="secondary" data-edit-workflow="${escapeHtml(item.id)}">Edit</button>`}<button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="workflows">Versions</button><button class="secondary" data-workflow="${escapeHtml(item.id)}">View & validate</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="workflows">Delete</button></div></article>`;
   }).join("")}</div>`:empty("Connect your agents into a workflow","Define the handoffs between specialists. Each step can use its agent’s own provider and model.","create-workflow","Create a workflow");
 }
 // Default model suggestions per provider; model inputs stay free text.
@@ -125,7 +131,7 @@ document.addEventListener("change",event=>{
         modelInput=select.form?.querySelector('input[name="model"]');
       }
       if(modelInput){
-        modelInput.value=firstModelForProvider(select.value);
+        modelInput.value="";
         modelInput.dispatchEvent(new Event("input",{bubbles:true}));
       }
     }
@@ -227,11 +233,17 @@ function openEditor(kind,identity){
   const fields=$("editor-fields");
   if(kind==="agent"||kind==="agent-edit"){
     $("editor-kicker").textContent="NEW SPECIALIST";$("editor-title").textContent="Create an agent";$("editor-save").textContent="Create agent";
-    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)",firstModelForProvider("codex"))}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<label>Skill (optional)<select name="skill_ids" class="agent-skill-select">${skillOptions()}</select></label>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
-  }else if(kind==="workflow"){
+    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<label>Skill (optional)<select name="skill_ids" class="agent-skill-select">${skillOptions()}</select></label>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
+  }else if(kind==="workflow"||kind==="workflow-edit"){
     if(!state.agents.some(a=>a.document)){notify("Create an agent before building a workflow.");location.hash="agents";return;}
-    $("editor-kicker").textContent="A SERIES OF HANDOFFS";$("editor-title").textContent="Create a workflow";$("editor-save").textContent="Create workflow";
-    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+'<div id="workflow-steps"></div><button type="button" class="secondary" id="add-step">+ Add step</button>';addWorkflowStep();
+    const isEdit=kind==="workflow-edit";
+    const item=isEdit?state.workflows.find(w=>w.id===identity):null;
+    const doc=item?.document||{},meta=doc.metadata||{};
+    if(isEdit)state.editor.revision=item?.revision;
+    $("editor-kicker").textContent="A SERIES OF HANDOFFS";$("editor-title").textContent=isEdit?"Edit workflow":"Create a workflow";$("editor-save").textContent=isEdit?"Save changes":"Create workflow";
+    fields.innerHTML=inputField("name","Name",meta.name||(isEdit?identity:""))+inputField("description","Description",meta.description||"")+'<div id="workflow-steps"></div><button type="button" class="secondary" id="add-step">+ Add step</button>';
+    const steps=doc.steps||[];
+    if(isEdit&&steps.length){steps.forEach(s=>addWorkflowStep(s));}else{addWorkflowStep();}
   }else if(kind==="workflow-run"){
     const item=state.workflows.find(w=>w.id===identity);$("editor-kicker").textContent="RUN WORKFLOW";$("editor-title").textContent=item.document.metadata?.name||identity;$("editor-save").textContent="Start workflow";
     fields.innerHTML='<label>Task<textarea name="task" required placeholder="What should this workflow accomplish?"></textarea></label>'+`<label>Provider override<select name="provider">${providerOptions("",true)}</select></label>`+(item.document.graph?.version===2?'<label>Workflow input (JSON, optional)<textarea name="workflow_input_json" rows="4" placeholder="[&quot;First item&quot;, &quot;Second item&quot;]"></textarea></label><p>Supply the input shape expected by this workflow, or leave blank to use the task text.</p>':'');
@@ -256,9 +268,30 @@ function openEditor(kind,identity){
   }
   $("editor").showModal();fields.querySelector("input,textarea,select")?.focus();
 }
-function addWorkflowStep(){
+function renumberSteps(){
+  const rows=document.querySelectorAll("#workflow-steps .step-editor");
+  rows.forEach((row,i)=>{
+    const span=row.querySelector(".step-heading span");
+    if(span)span.textContent=`STEP ${i+1}`;
+  });
+}
+function addWorkflowStep(step={}){
   const box=$("workflow-steps");const count=box.children.length+1;const row=document.createElement("div");row.className="step-editor";
-  row.innerHTML=`<div class="step-heading"><span>STEP ${count}</span><button type="button" class="secondary remove-step">Remove</button></div><label>Agent<select class="step-agent">${state.agents.filter(a=>a.document).map(a=>`<option value="${escapeHtml(a.document.spec.agent_type)}">${escapeHtml(a.document.metadata?.name||a.id)}</option>`).join("")}</select></label><label>Task instructions<textarea class="step-prompt" placeholder="Use {task} for the original task">{task}</textarea></label>`;box.appendChild(row);
+  const stepAgent=step.agent_type||"";
+  const stepPrompt=step.prompt_template||step.prompt||"{task}";
+  let agentOpts=state.agents.filter(a=>a.document).map(a=>{
+    const agentType=a.document.spec?.agent_type||a.id;
+    const isSel=(agentType===stepAgent||a.id===stepAgent)?"selected":"";
+    return `<option value="${escapeHtml(agentType)}" ${isSel}>${escapeHtml(a.document.metadata?.name||a.id)}</option>`;
+  }).join("");
+  const knownAgent=state.agents.some(a=>(a.document?.spec?.agent_type||a.id)===stepAgent||a.id===stepAgent);
+  if(stepAgent&&!knownAgent){
+    agentOpts+=`<option value="${escapeHtml(stepAgent)}" selected>${escapeHtml(stepAgent)} (unregistered)</option>`;
+  }
+  row.innerHTML=`<div class="step-heading"><span>STEP ${count}</span><button type="button" class="secondary remove-step">Remove</button></div><label>Agent<select class="step-agent">${agentOpts}</select></label><label>Task instructions<textarea class="step-prompt" placeholder="Use {task} for the original task">${escapeHtml(stepPrompt)}</textarea></label>`;
+  if(step.id)row.dataset.stepId=step.id;
+  if(step.name)row.dataset.stepName=step.name;
+  box.appendChild(row);
 }
 async function saveEditor(event){
   event.preventDefault();const data=Object.fromEntries(new FormData(event.target));const {kind,identity}=state.editor;$("editor-save").disabled=true;$("editor-error").textContent="";
@@ -271,9 +304,17 @@ async function saveEditor(event){
       if(kind==="agent-edit"){data.revision=state.editor.revision;await api(`/api/agents/${encodeURIComponent(identity)}/update`,data);}else await api("/api/agents",data);
       $("editor").close();await refreshDefinitions();location.hash="agents";notify(kind==="agent-edit"?"Agent updated.":"Agent created.");
     }
-    else if(kind==="workflow"){
-      data.steps=[...document.querySelectorAll(".step-editor")].map((row,index)=>({id:`step_${index+1}`,name:`Step ${index+1}`,agent_type:row.querySelector(".step-agent").value,prompt:row.querySelector(".step-prompt").value}));
-      await api("/api/workflows",data);$("editor").close();await refreshDefinitions();location.hash="workflows";notify("Workflow created.");
+    else if(kind==="workflow"||kind==="workflow-edit"){
+      const stepRows=[...document.querySelectorAll(".step-editor")];
+      if(!stepRows.length){$("editor-error").textContent="Add at least one workflow step.";$("editor-save").disabled=false;return;}
+      data.steps=stepRows.map((row,index)=>({id:row.dataset.stepId||`step_${index+1}`,name:row.dataset.stepName||`Step ${index+1}`,agent_type:row.querySelector(".step-agent").value,prompt:row.querySelector(".step-prompt").value}));
+      if(kind==="workflow-edit"){
+        data.revision=state.editor.revision;
+        await api(`/api/workflows/${encodeURIComponent(identity)}/update`,data);
+      }else{
+        await api("/api/workflows",data);
+      }
+      $("editor").close();await refreshDefinitions();location.hash="workflows";notify(kind==="workflow-edit"?"Workflow updated.":"Workflow created.");
     }else{
       const payload=kind==="tool"?{kind:"tool",tool:identity,args:JSON.parse(data.args),kwargs:JSON.parse(data.kwargs)}:{kind:"workflow",workflow_id:identity,task:data.task,...(data.workflow_input_json?.trim()?{workflow_input:JSON.parse(data.workflow_input_json)}:{}),...(data.provider?{provider:data.provider}:{})};
       const run=await api("/api/runs",payload);$("editor").close();location.hash="activity";showRun(run);pollRun(run.id,updateRunDetail).then(()=>refreshRuns()).catch(error=>{updateRunDetail(error.run||{id:run.id,error:error.message,status:"failed"});refreshRuns();});
@@ -302,11 +343,32 @@ document.addEventListener("click",async event=>{
   try{
     if(button.classList.contains("close-dialog"))button.closest("dialog").close();
     if(button.dataset.editAgent)openEditor("agent-edit",button.dataset.editAgent);
+    if(button.dataset.editWorkflow)openEditor("workflow-edit",button.dataset.editWorkflow);
     if(button.dataset.action==="quick-build")location.hash="quick-build";
     if(button.dataset.action==="create-agent")openEditor("agent");
     if(button.dataset.action==="create-workflow"||button.id==="create-workflow")openEditor("workflow");
-    if(button.id==="add-step")addWorkflowStep();
-    if(button.classList.contains("remove-step"))button.closest(".step-editor").remove();
+    if(button.id==="add-step"){addWorkflowStep();renumberSteps();}
+    if(button.classList.contains("remove-step")){button.closest(".step-editor").remove();renumberSteps();}
+    if(button.dataset.deleteDefinition){
+      const kind=button.dataset.kind;
+      const identity=button.dataset.deleteDefinition;
+      const singular=kind==="workflows"?"workflow":"agent";
+      const item=(state[kind]||[]).find(x=>x.id===identity);
+      const name=item?.document?.metadata?.name||identity;
+      const confirmed=typeof window.confirm==="function"?window.confirm(`Are you sure you want to delete ${singular} "${name}"?`):true;
+      if(confirmed){
+        try{
+          button.disabled=true;
+          await api(`/api/${kind}/${encodeURIComponent(identity)}`,undefined,"DELETE");
+          notify(`${singular.charAt(0).toUpperCase()+singular.slice(1)} deleted.`);
+          await refreshDefinitions();
+        }catch(error){
+          notify(error.message);
+        }finally{
+          button.disabled=false;
+        }
+      }
+    }
     if(button.dataset.prompt){$("chat-task").value=button.dataset.prompt;$("chat-task").focus();}
     if(button.dataset.agent){if(state.busy){notify("Let the current conversation finish first.");return;}newChat();$("chat-agent").value=button.dataset.agent;selectAgent();}
     if(button.dataset.session){if(state.busy){notify("Let the current conversation finish first.");return;}const session=await api(`/api/sessions/${encodeURIComponent(button.dataset.session)}`);state.sessionId=session.id;$("chat-project").value=session.knowledge_project_id||"";if(typeof updateKnowledgeDisclosure==="function")updateKnowledgeDisclosure();$("messages").replaceChildren();session.messages.forEach(m=>{const node=addMessage(m.role,m.content,providerName(m.provider||""),m.run_id,m.citations||[],m.structured_content||[],m.retrieval_notice);if(m.status==="failed")node.classList.add("error");});$("chat-agent").value=session.agent_id||"";$("chat-provider").value=session.provider||"codex";$("chat-model").value=session.model||"";if($("chat-effort"))$("chat-effort").value=session.effort||"";location.hash="chat";}

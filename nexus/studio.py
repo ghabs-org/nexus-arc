@@ -23,6 +23,7 @@ _ASSETS = {
     "/content.js": ("content.js", "text/javascript; charset=utf-8"),
     "/conversation-content.js": ("conversation-content.js", "text/javascript; charset=utf-8"),
     "/features.js": ("features.js", "text/javascript; charset=utf-8"),
+    "/workspace-access.js": ("workspace-access.js", "text/javascript; charset=utf-8"),
     "/experience.js": ("experience.js", "text/javascript; charset=utf-8"),
     "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
     "/service-worker.js": ("service-worker.js", "text/javascript; charset=utf-8"),
@@ -584,8 +585,43 @@ def make_studio_handler(service: StudioService, token: str):
             if not self.trusted_host():
                 return self.send_payload(403, {"error": "Unrecognized host"})
             route = urlparse(self.path).path
-            if route.startswith("/api/a2a/") and route.strip("/").split("/")[3:4] == ["rest"]:
+            parts = route.strip("/").split("/")
+            if route.startswith("/api/a2a/") and parts[3:4] == ["rest"]:
                 return self.handle_a2a_rest(route)
+            if len(parts) == 3 and parts[0] == "api" and parts[1] in {"agents", "workflows"}:
+                self.actor = service.team.principal(self.headers) if service.team else None
+                try:
+                    authorized = secrets.compare_digest(
+                        self.headers.get("X-Nexus-Studio-Token", ""),
+                        service.team.csrf(token, self.actor)
+                        if service.team and self.actor
+                        else token,
+                    )
+                except (FileNotFoundError, ValueError, TypeError):
+                    authorized = False
+                if service.team and not self.actor:
+                    return self.send_payload(
+                        401, {"error": "Nexus sign-in required", "login_url": service.team.login_url}
+                    )
+                if not authorized:
+                    return self.send_payload(
+                        403, {"error": "Refresh the local workspace before continuing"}
+                    )
+                origin = self.headers.get("Origin")
+                if origin and origin != (
+                    service.team.public_url if service.team else f"http://{self.headers.get('Host')}"
+                ):
+                    return self.send_payload(403, {"error": "Cross-origin requests are not supported"})
+                try:
+                    if service.team:
+                        service.team.authorize(self.actor, route)
+                    return self.send_payload(200, service.delete_definition(parts[1], parts[2]))
+                except PermissionError as exc:
+                    return self.send_payload(403, {"error": str(exc)})
+                except FileNotFoundError as exc:
+                    return self.send_payload(404, {"error": str(exc)})
+                except (ValueError, TypeError, OSError) as exc:
+                    return self.send_payload(400, {"error": str(exc)})
             self.send_error(501, "Unsupported method")
 
         def do_POST(self):
@@ -678,7 +714,7 @@ def make_studio_handler(service: StudioService, token: str):
                 body_limit = (
                     24 * 1024 * 1024
                     if parts
-                    in (["api", "catalog", "artifacts"], ["api", "studio", "projects", "import"])
+                    in (["api", "catalog", "artifacts"], ["api", "studio", "projects", "import"], ["api", "studio", "files", "upload"])
                     else 6 * 1024 * 1024
                     if parts
                     in (["api", "workbench", "transcriptions"], ["api", "studio", "speech"])

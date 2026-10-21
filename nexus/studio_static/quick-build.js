@@ -31,7 +31,7 @@ function resetBuilder() {
   $("builder-generate").textContent="Generate build ↗";
   $("builder-error").hidden=true;$("builder-test-result").hidden=true;$("builder-test-task").value="";
   $("builder-note").textContent="Draft first. Review and save before running your team.";
-  $("builder-model").value=firstModelForProvider($("builder-provider").value);
+  $("builder-model").value="";
   builderMode("build");builderBusy(false);$("builder-task").focus();
 }
 function proposalFromFields() {
@@ -158,7 +158,6 @@ async function initializeQuickBuild(){
   const ids=["codex","claude-code","agy","openai","claude"];
   $("builder-provider").innerHTML=state.providers.filter(p=>ids.includes(p.id)).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}${p.configured?"":" · setup needed"}</option>`).join("");
   $("builder-provider").value=state.providers.find(p=>ids.includes(p.id)&&p.configured)?.id||"codex";
-  if(!$("builder-model").value)$("builder-model").value=firstModelForProvider($("builder-provider").value);
   if(!state.skills)loadSkills().catch(()=>{});
   try{await refreshBuilds();}catch(error){buildError(error);}
 }

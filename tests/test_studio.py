@@ -358,3 +358,86 @@ def test_chat_tool_level_defaults_to_web_and_is_validated(studio):
         service.start_run({"task": "x", "provider": "codex", "worker_tools": "root"})
     with pytest.raises(ValueError, match="chat and Quick Build runs only"):
         service.start_run({"kind": "workflow", "task": "x", "worker_tools": "web"})
+
+
+def test_workflow_and_agent_delete_and_step_workflow_update(studio):
+    service, _ = studio
+    agent = service.save_definition(
+        "agents",
+        {"name": "Tester", "provider": "codex", "instructions": "Test tasks."},
+    )
+    workflow = service.save_definition(
+        "workflows",
+        {
+            "name": "Pipeline",
+            "description": "Multi-step pipeline",
+            "steps": [
+                {"id": "step_1", "name": "Step 1", "agent_type": "tester", "prompt": "First {task}"},
+                {"id": "step_2", "name": "Step 2", "agent_type": "tester", "prompt": "Second {task}"},
+            ],
+        },
+    )
+    assert len(service.definition("workflows", workflow["id"])["steps"]) == 2
+
+    updated = service.update_definition(
+        "workflows",
+        workflow["id"],
+        {
+            "name": "Pipeline Updated",
+            "description": "Single step pipeline",
+            "revision": workflow["revision"],
+            "steps": [
+                {"id": "step_1", "name": "Step 1", "agent_type": "tester", "prompt": "Only {task}"},
+            ],
+        },
+    )
+    assert len(updated["document"]["steps"]) == 1
+    assert updated["document"]["metadata"]["name"] == "Pipeline Updated"
+    assert len(service.definition("workflows", workflow["id"])["steps"]) == 1
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_studio_handler(service, "test-token"))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_port}"
+
+    def request(path, method="GET", body=None, headers=None):
+        req = urllib.request.Request(
+            origin + path,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={"Content-Type": "application/json", **(headers or {})},
+            method=method,
+        )
+        try:
+            return urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as exc:
+            return exc
+
+    try:
+        assert request(f"/api/workflows/{workflow['id']}", method="DELETE").status == 403
+        with request(
+            f"/api/workflows/{workflow['id']}",
+            method="DELETE",
+            headers={"X-Nexus-Studio-Token": "test-token"},
+        ) as res:
+            assert res.status == 200
+            assert json.load(res)["deleted"] is True
+        assert not (service.root / "workflows" / f"{workflow['id']}.yaml").exists()
+        assert (
+            request(
+                f"/api/workflows/{workflow['id']}",
+                method="DELETE",
+                headers={"X-Nexus-Studio-Token": "test-token"},
+            ).status
+            == 404
+        )
+        with request(
+            f"/api/agents/{agent['id']}",
+            method="DELETE",
+            headers={"X-Nexus-Studio-Token": "test-token"},
+        ) as res:
+            assert res.status == 200
+            assert json.load(res)["deleted"] is True
+        assert not (service.root / "agents" / f"{agent['id']}.yaml").exists()
+    finally:
+        server.shutdown()
+        server.server_close()

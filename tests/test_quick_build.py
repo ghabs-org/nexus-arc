@@ -634,3 +634,23 @@ def test_parse_agy_stream_output_extracts_stdout_error():
     result = parse_agy_stream_output(stdout, 3, b"", 0.5, None)
     assert not result.success
     assert "Individual quota reached" in result.error
+
+
+def test_parse_agy_stream_output_extracts_deltas_and_rejects_empty():
+    from nexus.adapters.ai.agy_provider import parse_agy_stream_output
+
+    # 1. Step update text deltas when response in result event is empty
+    stdout_deltas = (
+        b'{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"Agents are in "}}\n'
+        b'{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"agents/ folder."}}\n'
+        b'{"event":"result","result":{"status":"SUCCESS","response":""}}\n'
+    )
+    result = parse_agy_stream_output(stdout_deltas, 0, b"", 0.5, "gemini-3.8-flash-high")
+    assert result.success
+    assert result.output == "Agents are in agents/ folder."
+
+    # 2. Completely empty response with status SUCCESS must be rejected as failure
+    stdout_empty = b'{"event":"result","result":{"status":"SUCCESS","response":""}}\n'
+    result_empty = parse_agy_stream_output(stdout_empty, 0, b"", 0.5, "gemini-3.8-flash-high")
+    assert not result_empty.success
+    assert "Antigravity returned no response" in result_empty.error

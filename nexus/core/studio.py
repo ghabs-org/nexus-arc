@@ -76,6 +76,7 @@ class StudioService:
         research_options=None,
         workflow_limits=None,
         media_options=None,
+        workspace_file_options=None,
     ):
         self.root = Path(root).resolve()
         self.team = team_policy
@@ -229,6 +230,11 @@ class StudioService:
         from nexus.core.studio_rulesets import StudioRulesets
 
         self.rulesets = StudioRulesets(self)
+        from nexus.core.studio_assistant import StudioAssistant
+        from nexus.core.studio_workspace_files import StudioWorkspaceFiles
+
+        self.workspace_files = StudioWorkspaceFiles(self, **(workspace_file_options or {}))
+        self.assistant = StudioAssistant(self)
         self.recipes = StudioRecipes(self)
         from nexus.core.studio_mcp_server import StudioMCPServer
 
@@ -502,6 +508,10 @@ class StudioService:
                 if not payload.get("skill_ids"):
                     spec.pop("skill_ids", None)
                 doc["spec"] = spec
+            elif kind == "workflows":
+                current_meta = dict(current.get("document", {}).get("metadata", {}))
+                current_meta.update(doc["metadata"])
+                doc["metadata"] = current_meta
             path = self.root / kind / f"{identity}.yaml"
             if not path.resolve().is_relative_to(self.root):
                 raise ValueError("Resource is outside the workspace")
@@ -520,6 +530,19 @@ class StudioService:
             }
             self.versions.remember(kind, result)
             return result
+
+    def delete_definition(self, kind: str, identity: str) -> dict:
+        if kind not in {"agents", "workflows"}:
+            raise ValueError("Unknown definition collection")
+        identity = _identity(identity)
+        path = self.root / kind / f"{identity}.yaml"
+        if not path.resolve().is_relative_to(self.root):
+            raise ValueError("Resource is outside the workspace")
+        with self.lock:
+            if not path.is_file():
+                raise FileNotFoundError(f"{kind.rstrip('s').title()} not found: {identity}")
+            path.unlink()
+        return {"id": identity, "deleted": True}
 
     def records(self, collection: str, limit: int | None = 100) -> list[dict]:
         if self.sql_state:
@@ -717,6 +740,12 @@ class StudioService:
     def start_run(self, payload: dict, *, callback_origin=None) -> dict:
         """Queue an explicitly selected agent/chat/workflow/tool; no implicit provider fallback."""
         payload = dict(payload)
+        if type(payload.get("studio_assistant", False)) is not bool:
+            raise ValueError("Studio assistant selection must be true or false")
+        if payload.get("studio_assistant"):
+            if payload.get("kind", "chat") != "chat" or payload.get("agent_id"):
+                raise ValueError("Studio assistant requires a chat without a custom agent")
+            payload["worker_tools"] = "none"
         payload["_media_profile_revisions"] = self.media.revisions()
         payload.pop("_evaluation_case", None)
         payload.pop("_workflow_limits", None)
@@ -1065,6 +1094,8 @@ class StudioService:
             if payload.get("agent_id")
             else {}
         )
+        if payload.get("studio_assistant"):
+            agent = self.assistant.spec()
         provider_name = str(payload.get("provider") or agent.get("provider") or "codex")
         model = payload.get("model") or agent.get("model")
         raw_effort = payload.get("effort") or agent.get("effort")
@@ -1386,6 +1417,7 @@ class StudioService:
         self.media.close()
         self.dynamic_embeds.close()
         self.rulesets.close()
+        self.assistant.close()
         for run in [] if self.sql_state else self.records("runs", limit=None):
             if run["status"] in {"running", "queued"}:
                 self._update_run(

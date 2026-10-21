@@ -9,6 +9,17 @@ class StudioFeatures:
 
     def get(self, parts, query, actor):
         studio = self.studio
+        if parts == ["assistant"]:
+            question = query.get("question", [""])[0]
+            return studio.assistant.answer(question, actor=actor)
+        if parts in (["files"], ["files", "preview"]):
+            root, path = query.get("root", ["files"])[0], query.get("path", [""])[0]
+            method = (
+                studio.workspace_files.preview
+                if len(parts) == 2
+                else studio.workspace_files.listing
+            )
+            return method(root, path, actor)
         if len(parts) == 3 and parts[0] == "external-runs" and parts[2] == "callbacks":
             return studio.external.callbacks.status(parts[1], actor)
         if len(parts) == 3 and parts[0] == "entrypoints" and parts[2] == "a2a-deliveries":
@@ -109,6 +120,7 @@ class StudioFeatures:
                 + studio.media.inventory()["items"]
                 + studio.dynamic_embeds.inventory()["items"]
                 + studio.rulesets.inventory()["items"]
+                + studio.assistant.inventory()["items"]
             }
         if parts == ["integrations"]:
             return studio.recipes.list()
@@ -129,6 +141,10 @@ class StudioFeatures:
         if len(parts) == 4 and parts[0] == "connectors" and parts[2:] == ["oauth", "disconnect"]:
             return 200, self.studio.oauth.disconnect(parts[1], actor)
         studio = self.studio
+        if parts == ["assistant", "answer"]:
+            return 200, studio.assistant.answer(data.get("question", ""), actor)
+        if len(parts) == 2 and parts[0] == "files" and parts[1] in {"upload", "folder", "snapshot"}:
+            return 201, getattr(studio.workspace_files, parts[1])(data, actor)
         if parts == ["original-document"]:
             from nexus.core.studio_nuclia_documents import queue_original
 

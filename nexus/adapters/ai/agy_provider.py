@@ -53,6 +53,7 @@ def parse_agy_stream_output(
 ) -> AgentResult:
     """Turn agy stream-json output into an AgentResult (final `result` event wins)."""
     res_payload: dict = {}
+    deltas: list[str] = []
     for raw_line in (stdout or b"").splitlines():
         line = raw_line.strip()
         if not line.startswith(b"{"):
@@ -65,14 +66,22 @@ def parse_agy_stream_output(
             res_payload = event["result"]
         elif event.get("type") == "result":
             res_payload = event
+        step = event.get("step_update") or {}
+        delta = step.get("text_delta")
+        if delta and isinstance(delta, str):
+            deltas.append(delta)
 
     status = str(res_payload.get("status") or "")
-    output = str(res_payload.get("response") or res_payload.get("result") or "")
+    output = str(res_payload.get("response") or res_payload.get("result") or "").strip()
+    if not output and deltas:
+        output = "".join(deltas).strip()
+
     is_error = bool(
         returncode != 0
         or res_payload.get("is_error")
         or (status and status != "SUCCESS")
         or not res_payload
+        or not output
     )
     if is_error:
         stdout_text = (stdout or b"").decode(errors="replace").strip()
@@ -87,7 +96,7 @@ def parse_agy_stream_output(
             or output
             or (stderr or b"").decode(errors="replace").strip()
             or stdout_err
-            or f"agy exited {returncode}"
+            or (f"agy exited {returncode}" if returncode not in (0, None) else "Antigravity returned no response")
         )
         return AgentResult(
             success=False,
@@ -226,8 +235,64 @@ class AntigravityProvider(AIProvider):
     async def execute_agent_streaming(
         self, context: ExecutionContext, on_delta: Callable[[str], None]
     ) -> AgentResult:
-        """Execute via stream-json and invoke on_delta when the result arrives."""
-        result = await self.execute_agent(context)
-        if result.success and result.output:
-            on_delta(result.output)
-        return result
+        """Stream NDJSON events from agy in real time, invoking on_delta for each text_delta."""
+        start = time.time()
+        workspace = Path(context.workspace)
+        workspace.mkdir(parents=True, exist_ok=True)
+        cmd, model, _ = self._cmd(context)
+        payload = agy_stream_input(context.prompt)
+        timeout = context.timeout or self._timeout
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(workspace),
+                limit=1 << 24,
+            )
+        except Exception as exc:
+            return self._failure(str(exc), start)
+
+        async def consume() -> tuple[bytes, int | None, bytes]:
+            stderr_task = asyncio.create_task(process.stderr.read())
+            process.stdin.write(payload)
+            await process.stdin.drain()
+            process.stdin.close()
+            stdout_lines: list[bytes] = []
+
+            async for line in process.stdout:
+                stdout_lines.append(line)
+                stripped = line.strip()
+                if not stripped.startswith(b"{"):
+                    continue
+                try:
+                    event = json.loads(stripped)
+                except ValueError:
+                    continue
+                step = event.get("step_update") or {}
+                delta = step.get("text_delta")
+                if delta and isinstance(delta, str) and on_delta:
+                    on_delta(delta)
+
+            returncode = await process.wait()
+            stderr_bytes = await stderr_task
+            return b"".join(stdout_lines), returncode, stderr_bytes
+
+        try:
+            stdout_bytes, returncode, stderr_bytes = await asyncio.wait_for(
+                consume(), timeout=timeout
+            )
+        except TimeoutError:
+            return self._failure(f"Timeout after {timeout}s", start)
+        except Exception as exc:
+            return self._failure(str(exc), start)
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+
+        return self._parse_stream_output(
+            stdout_bytes, returncode, stderr_bytes, time.time() - start, model
+        )

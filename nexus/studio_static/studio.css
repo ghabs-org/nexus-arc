@@ -468,3 +468,9 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 
 .integration-catalog pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .integration-catalog details { max-width: 100%; }
+
+/* Server file previews stay inert and fit narrow browser windows. */
+.workspace-file-path,.workspace-help-text{overflow-wrap:anywhere;white-space:pre-wrap}
+.workspace-file-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:26rem;overflow:auto;max-width:100%;padding:1rem;background:var(--surface-alt,#f3f5f6);border:1px solid var(--border,#d4dadd);border-radius:.5rem}
+#view-files .form-grid>*,#view-assistant .workbench-form>*{min-width:0}
+#view-files h2,#studio-help-answer code{overflow-wrap:anywhere}

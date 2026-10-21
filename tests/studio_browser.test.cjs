@@ -53,6 +53,26 @@ test("an unconfirmed submission is never automatically replayed",async()=>{
   assert.equal(calls,1);
 });
 
+test("api helper supports DELETE method with authentication header",async()=>{
+  const requests=[];
+  const context=vm.createContext({
+    state:{token:"test-csrf-token"},
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    fetch:async(url,opts)=>{
+      requests.push({url,opts});
+      return {ok:true,status:200,json:async()=>({deleted:true})};
+    }
+  });
+  vm.runInContext(source.slice(source.indexOf("async function api("),source.indexOf("function providerName")),context);
+  const result=await vm.runInContext('api("/api/workflows/flow-1",undefined,"DELETE")',context);
+  assert.equal(result.deleted,true);
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].opts.method,"DELETE");
+  assert.equal(requests[0].opts.headers["X-Nexus-Studio-Token"],"test-csrf-token");
+});
+
 test("service worker never intercepts or caches account data, actions or other sites",async()=>{
   const handlers={},fetched=[],cached=[];
   const context=vm.createContext({URL,self:{location:{origin:"https://studio.test"},addEventListener:(name,fn)=>handlers[name]=fn},fetch:async request=>{fetched.push(request.url);throw new Error("offline");},caches:{match:async(path)=>{cached.push(path);return "offline shell";}}});
