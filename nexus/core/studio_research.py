@@ -75,9 +75,12 @@ class StudioResearch:
             "search",
             "finance",
             "ip_location",
+            "geographic",
         }:
-            raise ValueError("Research configuration uses search, finance and ip_location")
-        for key in ("finance", "ip_location"):
+            raise ValueError(
+                "Research configuration uses search, finance, ip_location and geographic"
+            )
+        for key in ("finance", "ip_location", "geographic"):
             if type(self.config.get(key, False)) is not bool:
                 raise ValueError(f"Research {key} must be explicitly true or false")
         search = self.config.get("search", {})
@@ -122,6 +125,13 @@ class StudioResearch:
             "ip_location": "Look up a public IP with explicitly enabled ipapi.co; arguments: optional ip. An empty IP looks up the Studio server's public location.",
             "finance": "Read up to one year of daily prices using explicitly enabled yfinance; arguments: ticker and optional period (1mo, 3mo, 6mo, 1y). No trading operations.",
         }
+        descriptions.update(
+            {
+                "city_to_coordinates": "Find city coordinates and location evidence using explicitly enabled Open-Meteo. Arguments: city, optional country_code, limit (1–5).",
+                "city_to_timezone": "Find a city timezone, current local time, UTC offset and DST using explicitly enabled Open-Meteo. Arguments: city, optional country_code, limit (1–5).",
+                "get_weather": "Get current weather and a 1–7 day forecast from explicitly enabled Open-Meteo. Arguments: city, optional country_code, forecast_days. Returns selected location, units and source evidence.",
+            }
+        )
         for action, description in descriptions.items():
             name = f"studio:{namespace}:{action}"
 
@@ -150,7 +160,9 @@ class StudioResearch:
             "items": [
                 {
                     "id": name,
-                    "configured": ready
+                    "configured": self.config.get("geographic", False)
+                    if action in {"city_to_coordinates", "city_to_timezone", "get_weather"}
+                    else ready
                     if action in {"web_search", "research"}
                     else ready and self.search["provider"] != "searxng"
                     if action == "image_search"
@@ -159,13 +171,17 @@ class StudioResearch:
                     else self.config.get("ip_location", False)
                     if action == "ip_location"
                     else True,
-                    "billing": "Selected search API account"
+                    "billing": "Open-Meteo public API; personal/non-commercial terms"
+                    if action in {"city_to_coordinates", "city_to_timezone", "get_weather"}
+                    else "Selected search API account"
                     if action in {"web_search", "image_search", "research"}
                     and self.search.get("provider") != "searxng"
                     else "Selected public data service"
                     if action in {"finance", "ip_location"}
                     else "Local processing; selected source requests",
-                    "setup": "Configure research.search in private runtime settings. No search provider or API account is chosen automatically."
+                    "setup": "Explicitly enable research.geographic for Open-Meteo personal/non-commercial requests. No API key; provider terms apply."
+                    if action in {"city_to_coordinates", "city_to_timezone", "get_weather"}
+                    else "Configure research.search in private runtime settings. No search provider or API account is chosen automatically."
                     if action in {"web_search", "image_search", "research"}
                     else "Explicitly enable research.finance and install the studio-research extra."
                     if action == "finance"
@@ -178,7 +194,22 @@ class StudioResearch:
             ]
         }
 
-    def request(self, method, url, headers=None, body=None, *, private=False, text=False):
+    def request(
+        self,
+        method,
+        url,
+        headers=None,
+        body=None,
+        *,
+        private=False,
+        text=False,
+        response_limit=512 * 1024,
+        timeout=None,
+    ):
+        if type(response_limit) is not int or not 1 <= response_limit <= 24 * 1024 * 1024:
+            raise ValueError("Response limit exceeds supported bounds")
+        if timeout is not None and (type(timeout) not in (int, float) or not 1 <= timeout <= 180):
+            raise ValueError("Request timeout must be from 1 to 180 seconds")
         validate_destination(url, private)
         if self.request_client:
             return self.request_client(method, url, headers or {}, body, text)
@@ -190,7 +221,7 @@ class StudioResearch:
                     url,
                     headers={"User-Agent": "NexusStudio/1.0", **(headers or {})},
                     json=body,
-                    timeout=(5, 15),
+                    timeout=(5, timeout or 15),
                     allow_redirects=False,
                     stream=True,
                 ) as response:
@@ -200,7 +231,7 @@ class StudioResearch:
                     start = time.monotonic()
                     for part in response.iter_content(16384):
                         raw.extend(part)
-                        if len(raw) > 512 * 1024 or time.monotonic() - start > 20:
+                        if len(raw) > response_limit or time.monotonic() - start > (timeout or 20):
                             raise ValueError("Research response exceeded its size or time limit")
                     if text:
                         kind = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
@@ -394,6 +425,10 @@ class StudioResearch:
 
     async def execute(self, action, arguments):
         actor = self.studio.data_tools.actor()
+        from nexus.core.studio_geography import ACTIONS, StudioGeography
+
+        if action in ACTIONS:
+            return await asyncio.to_thread(StudioGeography(self).execute, action, arguments, actor)
         if action in {"web_search", "image_search"}:
             result = await asyncio.to_thread(
                 self.search_pages,

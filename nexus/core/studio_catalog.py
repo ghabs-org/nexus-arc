@@ -203,7 +203,7 @@ class StudioCatalog:
         record = self.get("artifacts", identity)
         return record["data"]["filename"], self.studio.artifacts.get(record)
 
-    def context(self, payload, *, require_active=False):
+    def context(self, payload, *, require_active=False, artifacts_as_files=False):
         sections = []
         for key, kind in [
             ("prompt_ids", "prompts"),
@@ -246,6 +246,12 @@ class StudioCatalog:
                         {},
                     )
                     item = self.studio.artifacts.revision(identity, ref.get("revision"))
+                    if artifacts_as_files:
+                        sections.append(
+                            f"\nAttached file: {item['data']['filename']} (revision {item['revision']}). "
+                            "Original content will be supplied separately to the selected provider."
+                        )
+                        continue
                     binary = self.studio.artifacts.get(item)
                     mime = content_type(binary)
                     if mime in IMAGE_TYPES or mime == "application/pdf":
@@ -323,7 +329,9 @@ class StudioCatalog:
         context = self.context(
             {**payload, "artifact_ids": []} if payload.get("kind") == "external" else payload,
             require_active=True,
+            artifacts_as_files=True,
         )
+        payload["artifact_context_mode"] = "references"
         for resource in references:
             context += f"\nReferenced agent {resource['id']}:\n" + str(
                 resource["document"].get("spec", {}).get("purpose", "")

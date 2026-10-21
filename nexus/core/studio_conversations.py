@@ -63,13 +63,12 @@ class StudioConversations:
                 values["output"] = result.output
             self.studio._update_run(run_id, **values)
 
-    def content(self, result, payload):
+    def content(self, result, payload, additional=()):
         """Accept optional typed parts; keep plain output and drop unsafe metadata."""
         raw = (result.metadata or {}).get("structured_content")
-        if raw is None:
-            return []
-        if not isinstance(raw, list) or len(raw) > 40:
-            return []
+        if raw is None or not isinstance(raw, list) or len(raw) > 40:
+            raw = []
+        raw = [*raw, *additional][:40]
         actor = {
             "nexus_id": payload.get("requester_nexus_id"),
             "role": self.studio.team.bindings.get(payload.get("requester_nexus_id"), "operator")

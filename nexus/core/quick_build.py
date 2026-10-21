@@ -542,10 +542,13 @@ class QuickBuilder:
         if not await provider.check_availability():
             raise ValueError(f"{provider_name} is not ready. Check its setup in Providers.")
         # No project files or project-level CLI configuration enter the generation workspace.
-        prompt, content_metadata = self.studio.artifacts.provider_context(
-            payload, provider_name, prompt
-        )
-        with tempfile.TemporaryDirectory(prefix="nexus-builder-") as directory:
+        with (
+            self.studio.artifacts.execution_context(payload, provider_name, prompt) as (
+                prompt,
+                content_metadata,
+            ),
+            tempfile.TemporaryDirectory(prefix="nexus-builder-") as directory,
+        ):
             context = ExecutionContext(
                 "quick-build",
                 prompt,

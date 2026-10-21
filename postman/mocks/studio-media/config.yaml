@@ -1,0 +1,10 @@
+version: 1
+name: Configured media API contract fixture
+slug: studio-media
+protocol: http
+port: 49831
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

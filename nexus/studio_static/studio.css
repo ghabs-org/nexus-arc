@@ -414,6 +414,20 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 ::selection{background:#d9ebf0;color:#131416}
 /* Interactive onboarding guide: anchored desktop callout and docked mobile sheet. */
 .topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topbar-location{display:flex;align-items:center;min-width:0;gap:0}
+#view-title{word-break:normal;overflow-wrap:normal;white-space:nowrap}
+.topbar-icon{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.topbar-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.topbar-actions button[hidden]{display:none}
+@media(max-width:767px){
+  .topbar{gap:12px;flex-wrap:wrap}
+  .topbar-location{flex:1 1 auto}
+  .topbar-actions{flex:0 0 auto;flex-wrap:nowrap;margin-left:auto}
+  .topbar-actions .topbar-button-label{display:none}
+  .topbar-actions :is(#install-app,#help-guide-button){padding:10px;min-width:44px;min-height:44px}
+  .topbar-location .breadcrumb,.topbar-location .slash{display:none}
+  #view-title{font-size:14px}
+}
 .nav-guide-button{width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin:2px 0;border:0;border-radius:6px;background:transparent;color:#5d5f60;font-size:13px;font-weight:400;text-align:left;box-shadow:none}
 .nav-guide-button:hover{background:var(--raised);color:var(--ink)}
 .nav-guide-button[data-guide-active="true"]{background:#e6eff2;color:var(--accent);box-shadow:inset 2px 0 var(--accent);font-weight:500}
@@ -445,7 +459,7 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 .guide-callout-footer button:active,.guide-practice button:active,#guide-welcome footer button:active{transform:translateY(1px)}
 .single-agent #help-guide-button,.single-agent #open-interactive-guide,.single-agent #guide-welcome,.single-agent #guide-callout{display:none!important}
 @media(max-width:767px){
-  .topbar-actions #help-guide-button{padding:6px 10px;font-size:12px;min-height:36px}
+  .topbar-actions #help-guide-button{padding:10px;font-size:12px;min-height:44px}
   .nav-guide-button{min-height:44px;font-size:14px}
   .guide-callout{top:auto!important;left:12px!important;right:12px!important;bottom:max(12px,env(safe-area-inset-bottom))!important;width:auto;max-width:none;max-height:min(54dvh,calc(var(--studio-viewport-height,100dvh) - 88px));padding:16px}
   .guide-callout-footer button,.guide-practice button{min-height:44px;padding:8px 12px}

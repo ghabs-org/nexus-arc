@@ -5,6 +5,7 @@ import json
 import sqlite3
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -21,6 +22,10 @@ def app(tmp_path):
             return True
 
         async def execute_agent(self, context):
+            context.attachment_contents = [
+                Path(item["path"]).read_bytes()
+                for item in (context.metadata or {}).get("attachment_files", [])
+            ]
             calls.append(context)
             if "cause provider failure" in context.prompt:
                 return AgentResult(success=False, output="", error="Test quota error")
@@ -111,9 +116,11 @@ def test_prompt_agent_skill_attachment_context_reaches_provider_and_output_is_ar
         "Analyze only supplied evidence",
         "Special instructions",
         "Cite uncertainty",
-        "Supplied source material",
     ]:
         assert text in calls[0].prompt
+    assert "Supplied source material" not in calls[0].prompt
+    assert calls[0].attachment_contents == [b"Supplied source material"]
+    assert "file:" in calls[0].prompt
     assert "/evidence" not in calls[0].prompt
     artifact_id = "run-" + run["id"]
     limit = time.monotonic() + 2
@@ -123,11 +130,14 @@ def test_prompt_agent_skill_attachment_context_reaches_provider_and_output_is_ar
     assert "content_base64" not in service.catalog.list("artifacts")[0]["data"]
 
 
-def test_binary_oversize_and_archived_context_are_rejected(app):
-    service, _ = app
+def test_binary_is_a_file_while_oversize_and_archived_context_are_rejected(app):
+    service, calls = app
     item = save(service, "artifacts", {"filename": "binary.bin", "content_base64": "AP8="})
-    with pytest.raises(ValueError, match="UTF-8"):
-        service.start_run({"task": "Read", "artifact_ids": [item["id"]]})
+    assert (
+        done(service, service.start_run({"task": "Read", "artifact_ids": [item["id"]]}))["status"]
+        == "completed"
+    )
+    assert calls[0].attachment_contents == [b"\x00\xff"]
     with pytest.raises(ValueError, match="16 MiB"):
         save(
             service,

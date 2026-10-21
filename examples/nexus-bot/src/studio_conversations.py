@@ -32,6 +32,9 @@ def create_demo(root, delay=0):
             return True
 
         async def execute_agent_streaming(self, context, delta):
+            if "Synthetic completion failure" in context.prompt:
+                delta("Partial output, not a successful reply")
+                raise RuntimeError("Synthetic completion failure")
             chunks = [
                 "## Evidence review\n\nRefunds are available within thirty days. [source:1]\n\n",
                 "| Source | Result |\n|---|---|\n| Policy | Verified |\n\n",
@@ -142,7 +145,11 @@ def run_example():
                 "approval",
                 "artifact",
             }
-            print("Cited streaming reply, pinned Office section and approval replay verified.")
+            failed = studio.start_run({"task": "Synthetic completion failure"})
+            terminal = settled(studio, failed["id"])
+            assert terminal["status"] == "failed"
+            assert studio.session(failed["session_id"])["messages"][-1]["status"] == "failed"
+            print("Cited reply, pinned Office section, approval replay and failure receipt verified.")
         finally:
             studio.close()
 

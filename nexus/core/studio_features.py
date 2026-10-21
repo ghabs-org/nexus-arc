@@ -106,6 +106,9 @@ class StudioFeatures:
             return {
                 "items": studio.data_tools.inventory()["items"]
                 + studio.research.inventory()["items"]
+                + studio.media.inventory()["items"]
+                + studio.dynamic_embeds.inventory()["items"]
+                + studio.rulesets.inventory()["items"]
             }
         if parts == ["integrations"]:
             return studio.recipes.list()

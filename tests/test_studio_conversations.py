@@ -97,6 +97,69 @@ def test_partial_stream_failure_preserves_output_without_committing_conversation
         app.close()
 
 
+@pytest.mark.parametrize("backend", ["files", "sqlite"])
+def test_failed_run_and_turn_are_visible_at_one_completion_boundary(tmp_path, monkeypatch, backend):
+    provider_release, saving, save_release, observed = (threading.Event() for _ in range(4))
+
+    class Provider:
+        async def check_availability(self):
+            return True
+
+        async def execute_agent(self, context):
+            await asyncio.to_thread(provider_release.wait, 5)
+            raise RuntimeError("Synthetic terminal failure")
+
+    options = (
+        None
+        if backend == "files"
+        else {
+            "url": "sqlite:///" + str(tmp_path / "state.sqlite"),
+            "namespace": "terminal-boundary",
+            "workers": 1,
+        }
+    )
+    app = StudioService(
+        tmp_path / "workspace", provider_factory=lambda _: Provider(), state_options=options
+    )
+    save = app.save_unsuccessful_turn
+    results = []
+
+    def delayed_save(*args, **kwargs):
+        if not saving.is_set():
+            saving.set()
+            assert save_release.wait(5)
+        return save(*args, **kwargs)
+
+    monkeypatch.setattr(app, "save_unsuccessful_turn", delayed_save)
+    reader = None
+    try:
+        run = app.start_run({"task": "Fail once without replay"})
+        provider_release.set()
+        assert saving.wait(5)
+
+        def read_terminal():
+            result = app.run(run["id"])
+            results.append((result, app.session(result["session_id"])))
+            observed.set()
+
+        reader = threading.Thread(target=read_terminal)
+        reader.start()
+        assert not observed.wait(0.05)
+        save_release.set()
+        reader.join(5)
+        assert observed.is_set()
+        terminal, session = results[0]
+        assert terminal["status"] == "failed"
+        assert session["messages"][-1]["status"] == "failed"
+        assert "Synthetic terminal failure" in session["messages"][-1]["content"]
+    finally:
+        provider_release.set()
+        save_release.set()
+        if reader:
+            reader.join(5)
+        app.close()
+
+
 def test_live_preview_is_bounded_and_late_invocation_cannot_clobber_another(tmp_path):
     app = StudioService(tmp_path)
     try:

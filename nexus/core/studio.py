@@ -75,6 +75,7 @@ class StudioService:
         data_tool_options=None,
         research_options=None,
         workflow_limits=None,
+        media_options=None,
     ):
         self.root = Path(root).resolve()
         self.team = team_policy
@@ -218,6 +219,16 @@ class StudioService:
         from nexus.core.studio_research import StudioResearch
 
         self.research = StudioResearch(self, **(research_options or {}))
+        from nexus.core.studio_media import StudioMedia
+
+        self.media = StudioMedia(self, **(media_options or {}))
+
+        from nexus.core.studio_dynamic_embeds import StudioDynamicEmbeds
+
+        self.dynamic_embeds = StudioDynamicEmbeds(self)
+        from nexus.core.studio_rulesets import StudioRulesets
+
+        self.rulesets = StudioRulesets(self)
         self.recipes = StudioRecipes(self)
         from nexus.core.studio_mcp_server import StudioMCPServer
 
@@ -706,6 +717,7 @@ class StudioService:
     def start_run(self, payload: dict, *, callback_origin=None) -> dict:
         """Queue an explicitly selected agent/chat/workflow/tool; no implicit provider fallback."""
         payload = dict(payload)
+        payload["_media_profile_revisions"] = self.media.revisions()
         payload.pop("_evaluation_case", None)
         payload.pop("_workflow_limits", None)
         payload.pop("_callback_origin", None)
@@ -821,6 +833,7 @@ class StudioService:
                 payload.get("kwargs", {}), dict
             ):
                 raise ValueError("Tool arguments must be a list and keyword arguments an object")
+            self.media.pin_tool(payload)
         provider = str(payload.get("provider") or "codex")
         if provider not in {p[0] for p in _PROVIDERS}:
             raise ValueError("Unknown provider")
@@ -924,6 +937,17 @@ class StudioService:
                 path.unlink(missing_ok=True)
                 self.executor.submit(self._execute, run_id, payload, "")
 
+    def _finish_unsuccessful_run(self, run_id, payload, *, save_turn=True, **values):
+        # Readers must not observe a terminal run before its failed chat receipt.
+        # SQLWorkspaceLock also commits these records in one existing transaction.
+        with self.lock:
+            self._update_run(run_id, **values)
+            if save_turn:
+                try:
+                    self.save_unsuccessful_turn(run_id, payload)
+                except Exception:  # preserve terminal status if conversation storage fails
+                    pass
+
     def _execute(self, run_id: str, payload: dict, session_id: str) -> None:
         async def execute():
             with self.lock:
@@ -931,7 +955,7 @@ class StudioService:
             if self.run(run_id).get("cancel_requested") and not self.run(run_id).get(
                 "cancellation_cleanup"
             ):
-                self._update_run(run_id, status="cancelled")
+                self._finish_unsuccessful_run(run_id, payload, status="cancelled")
                 return
             self._update_run(run_id, status="running")
             from nexus.core.studio_connections import execution_identity
@@ -940,6 +964,9 @@ class StudioService:
             from nexus.core.studio_data_tools import current_run_id
 
             run_token = current_run_id.set(run_id)
+            from nexus.core.studio_media import media_profile_revisions
+
+            media_token = media_profile_revisions.set(payload.get("_media_profile_revisions"))
             try:
                 if self.closing:
                     raise asyncio.CancelledError
@@ -959,8 +986,9 @@ class StudioService:
                     if self.run(run_id).get("cancellation_cleanup")
                     else {}
                 )
-                self._update_run(
+                self._finish_unsuccessful_run(
                     run_id,
+                    payload,
                     status="interrupted" if interrupted else "cancelled",
                     error="Execution cancelled; already-started external effects may still complete"
                     if requested
@@ -970,6 +998,7 @@ class StudioService:
             finally:
                 execution_identity.reset(identity_token)
                 current_run_id.reset(run_token)
+                media_profile_revisions.reset(media_token)
 
         denied = False
         try:
@@ -978,7 +1007,9 @@ class StudioService:
             # Lost access must not create records on the user's behalf.
             denied = isinstance(exc, PermissionError)
             if self.run(run_id)["status"] != "cancelled":
-                self._update_run(run_id, status="failed", error=str(exc))
+                self._finish_unsuccessful_run(
+                    run_id, payload, save_turn=not denied, status="failed", error=str(exc)
+                )
         finally:
             try:
                 if not denied:
@@ -1078,70 +1109,77 @@ class StudioService:
                     citations=[*knowledge["items"], *web_sources],
                     retrieval_notice=knowledge["notice"],
                 )
-        prompt, content_metadata = self.artifacts.provider_context(payload, provider_name, prompt)
-        history_text = ""
-        if history:
-            history_text = "\nConversation so far:\n" + "\n".join(
-                f"{entry['role']}: {entry['content']}" for entry in history[-40:]
+        with self.artifacts.execution_context(payload, provider_name, prompt) as (
+            prompt,
+            content_metadata,
+        ):
+            history_text = ""
+            if history:
+                history_text = "\nConversation so far:\n" + "\n".join(
+                    f"{entry['role']}: {entry['content']}" for entry in history[-40:]
+                )
+            prompt, budget = self.workbench.budget_prompt(
+                payload, prompt + f"\nUser task:\n{task}", history_text
             )
-        prompt, budget = self.workbench.budget_prompt(
-            payload, prompt + f"\nUser task:\n{task}", history_text
-        )
-        if budget:
-            self._update_run(run_id, prompt_budget=budget)
-        context = ExecutionContext(
-            agent_name=str(agent.get("agent_type") or "studio"),
-            prompt=prompt,
-            workspace=self.root,
-            model_override=model,
-            effort=effort,
-            metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
-            timeout=int(agent.get("timeout_seconds") or 600),
-        )
-        stream = getattr(provider, "execute_agent_streaming", None)
-        if agent.get("tool_ids"):
-            from nexus.core.studio_agent_settings import call_limit
-            from nexus.core.studio_tool_loop import execute_with_tools
+            if budget:
+                self._update_run(run_id, prompt_budget=budget)
+            context = ExecutionContext(
+                agent_name=str(agent.get("agent_type") or "studio"),
+                prompt=prompt,
+                workspace=self.root,
+                model_override=model,
+                effort=effort,
+                metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
+                timeout=int(agent.get("timeout_seconds") or 600),
+            )
+            stream = getattr(provider, "execute_agent_streaming", None)
+            if agent.get("tool_ids"):
+                from nexus.core.studio_agent_settings import call_limit
+                from nexus.core.studio_tool_loop import execute_with_tools
 
+                async with self.workbench.presence(
+                    payload, run_id, payload.get("agent_id"), provider_name
+                ):
+                    result = await execute_with_tools(
+                        self,
+                        provider,
+                        context,
+                        agent["tool_ids"],
+                        payload,
+                        run_id,
+                        provider_name,
+                        max_calls=call_limit(agent),
+                        connector_tools=agent.get("connector_tools", {}),
+                    )
+                    from nexus.core.studio_agent_settings import validate_output
+
+                    validate_output(agent, result.output)
+                    self.observability.output(
+                        result.output, agent.get("guardrails"), run_id, payload
+                    )
+                    return result
             async with self.workbench.presence(
                 payload, run_id, payload.get("agent_id"), provider_name
             ):
-                result = await execute_with_tools(
-                    self,
+                result = await self.observability.invoke(
                     provider,
                     context,
-                    agent["tool_ids"],
-                    payload,
                     run_id,
+                    payload,
                     provider_name,
-                    max_calls=call_limit(agent),
-                    connector_tools=agent.get("connector_tools", {}),
+                    stream if not agent.get("guardrails") else None,
                 )
-                from nexus.core.studio_agent_settings import validate_output
+            self.observability.output(result.output, agent.get("guardrails"), run_id, payload)
+            if not result.success:
+                from nexus.core.studio_workflow_retry import StudioAgentFailureError
 
-                validate_output(agent, result.output)
-                self.observability.output(result.output, agent.get("guardrails"), run_id, payload)
-                return result
-        async with self.workbench.presence(payload, run_id, payload.get("agent_id"), provider_name):
-            result = await self.observability.invoke(
-                provider,
-                context,
-                run_id,
-                payload,
-                provider_name,
-                stream if not agent.get("guardrails") else None,
-            )
-        self.observability.output(result.output, agent.get("guardrails"), run_id, payload)
-        if not result.success:
-            from nexus.core.studio_workflow_retry import StudioAgentFailureError
+                raise StudioAgentFailureError(
+                    result.error or result.output or "Provider execution failed"
+                )
+            from nexus.core.studio_agent_settings import validate_output
 
-            raise StudioAgentFailureError(
-                result.error or result.output or "Provider execution failed"
-            )
-        from nexus.core.studio_agent_settings import validate_output
-
-        validate_output(agent, result.output)
-        return result
+            validate_output(agent, result.output)
+            return result
 
     async def _execute_async(self, run_id: str, payload: dict, session_id: str) -> None:
         if self.team:
@@ -1198,8 +1236,12 @@ class StudioService:
             result = await self._invoke(
                 payload, payload.get("expanded_task", payload["task"]), run_id, history
             )
-            output = result.output
-            structured = self.conversations.content(result, payload)
+            output, embed_parts = self.dynamic_embeds.complete(result.output, payload, run_id)
+            structured = self.conversations.content(
+                result,
+                payload,
+                additional=[*self.run(run_id).get("structured_content", []), *embed_parts],
+            )
             if structured:
                 self._update_run(run_id, content_version=1, structured_content=structured)
                 for part in structured:
@@ -1336,6 +1378,9 @@ class StudioService:
         self.connections.close()
         self.data_tools.close()
         self.research.close()
+        self.media.close()
+        self.dynamic_embeds.close()
+        self.rulesets.close()
         for run in [] if self.sql_state else self.records("runs", limit=None):
             if run["status"] in {"running", "queued"}:
                 self._update_run(

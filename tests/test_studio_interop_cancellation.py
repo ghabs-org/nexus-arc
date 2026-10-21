@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import threading
+import time
 
 import pytest
 
@@ -365,6 +366,12 @@ def test_cancel_queued_resumption_reuses_existing_job(fixture):
     child(studio)
     install(studio, source(body="workflow", cleanup=None))
     task = wait(studio, start(studio), "waiting")
+    # This case targets an already queued continuation. A visible pause may still
+    # have its prior worker finalizing; that handoff has separate race coverage.
+    deadline = time.monotonic() + 2
+    while task["id"] in studio.active_tasks and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert task["id"] not in studio.active_tasks
     submitted = []
     submit = studio.executor.submit
     studio.executor.submit = lambda *args: submitted.append(args)

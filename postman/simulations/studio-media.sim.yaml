@@ -1,0 +1,5 @@
+simulation: studio-media
+routing: path
+mocks:
+  - routeKey: media
+    path: ../mocks/studio-media/config.yaml

@@ -85,7 +85,7 @@ async function loadBuild(id) {
   renderBuild();builderMode("build");$("builder-history").value=id;
 }
 async function generateBuild(event) {
-  event.preventDefault();if(builder.busy)return;
+  event.preventDefault();if(builder.busy||state.attachmentUpload)return;
   const task=$("builder-task").value.trim();if(!task)return;
   const payload={task,provider:$("builder-provider").value,model:$("builder-model").value.trim(),worker_tools:$("builder-tools").value,artifact_ids:[...$("builder-artifacts").selectedOptions].map(option=>option.value)};
   try{payload.prompt_values=await resolvePromptValues(task);}catch(error){buildError(error);return;}
@@ -111,7 +111,7 @@ async function saveBuild() {
   finally{builderBusy(false);}
 }
 async function testBuild(event) {
-  event.preventDefault();if(builder.busy)return;
+  event.preventDefault();if(builder.busy||state.attachmentUpload)return;
   $("builder-error").hidden=true;builderBusy(true,"Running your saved workflow…");
   $("builder-test-result").hidden=false;$("builder-test-output").textContent="Waiting for the selected provider…";
   const update=run=>{

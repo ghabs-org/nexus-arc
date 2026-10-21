@@ -158,6 +158,7 @@ def load_runtime_configuration(path, root):
         "speech",
         "analysis_workers",
         "research",
+        "media",
         "workflow_limits",
     }:
         raise ValueError("Runtime configuration contains unsupported settings")
@@ -185,6 +186,10 @@ def load_runtime_configuration(path, root):
         if not isinstance(data["analysis_workers"], dict):
             raise ValueError("Analysis worker profiles must be a named mapping")
         options["data_tool_options"] = {"profiles": data["analysis_workers"]}
+    if "media" in data:
+        if not isinstance(data["media"], dict):
+            raise ValueError("Media profiles must be a named mapping")
+        options["media_options"] = {"profiles": data["media"]}
     if data.get("research"):
         options["research_options"] = {"config": data["research"]}
     if "workflow_limits" in data:

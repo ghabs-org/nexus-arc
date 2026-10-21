@@ -235,7 +235,7 @@ class NexusTeamPolicy:
             or name in studio.operations.tools
             or any(
                 name in getattr(getattr(studio, capability, None), "names", {})
-                for capability in ("data_tools", "research")
+                for capability in ("data_tools", "research", "dynamic_embeds", "rulesets", "media")
             )
         )
 
@@ -453,6 +453,21 @@ class ContainerCLIProvider:
         if not docker:
             raise ValueError("Docker is required for isolated shared subscription runs")
         tools = worker_tool_level((context.metadata or {}).get("worker_tools"))
+        attachment_directory = (context.metadata or {}).get("attachment_directory")
+        attachment_mount = []
+        claude_tools = list(_CLAUDE_TOOLS[tools])
+        claude_allowed = list(claude_tools)
+        if attachment_directory:
+            path = Path(attachment_directory).resolve()
+            if not path.is_dir() or "," in str(path):
+                raise ValueError("Attachment files are unavailable")
+            attachment_mount = [
+                "--mount",
+                f"type=bind,src={path},dst=/workspace/attachments,readonly",
+            ]
+            if "Read" not in claude_tools:
+                claude_tools.append("Read")
+                claude_allowed.append("Read(./attachments/**)")
         # Antigravity returns its answer in one piece, so it never streams.
         streaming = on_delta is not None and self.name != "agy"
         container_name = "nexus-studio-" + uuid.uuid4().hex
@@ -520,7 +535,12 @@ class ContainerCLIProvider:
         with tempfile.TemporaryDirectory(prefix="nexus-team-prompt-") as scratch:
             # Shared inference gets no project/state directory. Local coding execution
             # remains available only in the desktop runtime.
-            command += ["--mount", f"type=bind,src={scratch},dst=/workspace,readonly", self.image]
+            command += [
+                "--mount",
+                f"type=bind,src={scratch},dst=/workspace,readonly",
+                *attachment_mount,
+                self.image,
+            ]
             if self.name == "codex":
                 command += [
                     "codex",
@@ -557,12 +577,8 @@ class ContainerCLIProvider:
                     "--setting-sources",
                     "",
                     "--tools",
-                    ",".join(_CLAUDE_TOOLS[tools]),
-                    *(
-                        ["--allowedTools", ",".join(_CLAUDE_TOOLS[tools])]
-                        if _CLAUDE_TOOLS[tools]
-                        else []
-                    ),
+                    ",".join(claude_tools),
+                    *(["--allowedTools", ",".join(claude_allowed)] if claude_allowed else []),
                     "--strict-mcp-config",
                     "--mcp-config",
                     '{"mcpServers":{}}',
@@ -651,7 +667,6 @@ class ContainerCLIProvider:
                 except TimeoutError:
                     cleanup.kill()
                     await cleanup.wait()
-
 
     async def _stream(self, process, prompt_bytes, on_delta, prompt):
         stderr = asyncio.create_task(process.stderr.read())

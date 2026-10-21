@@ -56,23 +56,34 @@ async function refreshContextChoices(){
   $("builder-slash").innerHTML='<option value="">Choose a /prompt</option>'+prompts.map(item=>`<option value="${escapeHtml(item.id)}">/${escapeHtml(item.id)} · ${escapeHtml(item.name)}</option>`).join("");
   $("builder-mention").innerHTML='<option value="">Choose an @agent</option>'+state.agents.filter(item=>item.document).map(item=>`<option value="${escapeHtml(item.id)}">@${escapeHtml(item.id)}</option>`).join("");
   const selected=new Set([...$("builder-artifacts").selectedOptions].map(option=>option.value));
-  $("builder-artifacts").innerHTML=artifacts.map(item=>`<option value="${escapeHtml(item.id)}" ${selected.has(item.id)?"selected":""}>${escapeHtml(item.name)}</option>`).join("");
+  $("builder-artifacts").innerHTML=artifacts.map(item=>`<option value="${escapeHtml(item.id)}" data-size="${Number(item.data.size)||0}" ${selected.has(item.id)?"selected":""}>${escapeHtml(item.name)}</option>`).join("");
 }
 for(const [id,prefix] of [["builder-slash","/"],["builder-mention","@"]])$(id).addEventListener("change",event=>{
   if(!event.target.value)return;const field=$("builder-task"),text=`${prefix}${event.target.value} `;
   field.setRangeText(text,field.selectionStart,field.selectionEnd,"end");field.focus();event.target.value="";
 });
-$("builder-upload").addEventListener("change",async event=>{
-  const file=event.target.files[0];if(!file)return;
+async function attachUploadedFiles(input, selectionId, statusId, refresh){
+  const status=$(statusId),files=Array.from(input.files||[]);if(!files.length)return;
+  if(state.attachmentUpload||state.busy||builder.busy){status.textContent="Wait for the current upload or run to finish.";input.value="";return;}
+  const selected=new Set(Array.from($(selectionId).selectedOptions,option=>option.value));
   try{
-    if(file.size>128*1024)throw new Error("Builder text attachments must be at most 128 KiB.");
-    const content=await file.text();if(content.includes("\u0000")||content.includes("\uFFFD"))throw new Error("Choose a UTF-8 text file.");
-    $("builder-upload-status").textContent="Uploading…";const artifact=await uploadArtifact(file);await refreshContextChoices();
-    [...$("builder-artifacts").options].find(option=>option.value===artifact.id).selected=true;
-    $("builder-upload-status").textContent=`Attached ${artifact.name}. It will be sent when you generate.`;
-  }catch(error){$("builder-upload-status").textContent=error.message;}
-  finally{event.target.value="";}
-});
+    if(selected.size+files.length>5)throw new Error("Attach at most five files.");
+    if(files.some(file=>file.size>16*1024*1024))throw new Error("Each file must be no larger than 16 MiB.");
+    const existing=Array.from($(selectionId).selectedOptions).reduce((sum,item)=>sum+(Number(item.dataset.size)||0),0);
+    if(existing+files.reduce((sum,file)=>sum+file.size,0)>32*1024*1024)throw new Error("Combined files must be no larger than 32 MiB.");
+    state.attachmentUpload=true;input.disabled=true;$("send-message").disabled=true;$("builder-generate").disabled=true;
+    for(const file of files){
+      status.textContent=`Uploading ${file.name}…`;
+      const artifact=await uploadArtifact(file);selected.add(artifact.id);
+      await refresh();
+      for(const option of $(selectionId).options)option.selected=selected.has(option.value);
+    }
+    status.textContent=`${selected.size} file${selected.size===1?"":"s"} attached. Sent only when you submit.`;
+  }catch(error){status.textContent=error.message;}
+  finally{if(state.attachmentUpload){state.attachmentUpload=false;input.disabled=false;$("send-message").disabled=Boolean(state.busy);$("builder-generate").disabled=Boolean(builder.busy);}input.value="";}
+}
+$("builder-upload").addEventListener("change",event=>attachUploadedFiles(event.target,"builder-artifacts","builder-upload-status",refreshContextChoices));
+$("chat-upload")?.addEventListener("change",event=>attachUploadedFiles(event.target,"chat-artifacts","chat-upload-status",refreshModelChoices));
 $("library-create").addEventListener("click",()=>openLibraryEditor().catch(error=>notify(error.message)));
 // Import reads a public GitHub skill; commands are parsed, never run.
 async function importSkill(){

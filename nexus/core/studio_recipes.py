@@ -13,9 +13,9 @@ OFFICIAL = [
     (
         "community-geo-information",
         "Geographic information",
-        "planned",
-        "",
-        "Geographic search adapter remains to be implemented",
+        "tool",
+        "city_to_coordinates",
+        "Opt-in city coordinates, IANA timezone/DST and current weather/forecast through Open-Meteo",
     ),
     (
         "community-mcp-server-gateway-adapter",
@@ -69,9 +69,9 @@ OFFICIAL = [
     (
         "community-ruleset-lookup-tool",
         "Ruleset lookup",
-        "planned",
-        "",
-        "Artifact-backed ruleset lookup remains to be implemented",
+        "tool",
+        "ruleset_lookup",
+        "Private versioned grouped policy text with typed parameters, explicit defaults and source evidence",
     ),
     (
         "community-slack-gateway-adapter",
@@ -243,7 +243,7 @@ class StudioRecipes:
         rows = deepcopy(CATALOG)
         tools = {
             r["id"]: r
-            for service in (self.studio.data_tools, self.studio.research)
+            for service in (self.studio.data_tools, self.studio.research, self.studio.rulesets)
             for r in service.inventory()["items"]
         }
         for row in rows:
@@ -276,6 +276,18 @@ class StudioRecipes:
                     "configured": False,
                     "live_verified": False,
                     "catalog_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+                    **next(
+                        (
+                            {
+                                "tool_id": tool_id,
+                                "configured": value["configured"],
+                                "setup": value["setup"],
+                            }
+                            for tool_id, value in tools.items()
+                            if mode == "tool" and tool_id.endswith(":" + target)
+                        ),
+                        {},
+                    ),
                 }
                 for identity, name, mode, target, description in OFFICIAL
             ],
@@ -292,7 +304,19 @@ class StudioRecipes:
     def configure(self, identity, data, actor):
         recipe = next((r for r in CATALOG if r["id"] == identity), None)
         if recipe is None:
-            raise FileNotFoundError("Catalog integration not found")
+            official = next(
+                (
+                    r
+                    for r in self.list()["official_items"]
+                    if r["id"] == identity and r["mode"] == "tool"
+                ),
+                None,
+            )
+            if official is None:
+                raise FileNotFoundError("Catalog integration not found")
+            if self.studio.team:
+                self.studio.team.authorize(actor, "/api/catalog/connectors")
+            return {key: official[key] for key in ("tool_id", "configured", "setup")}
         if self.studio.team:
             self.studio.team.authorize(actor, "/api/catalog/connectors")
         mode = recipe["mode"]

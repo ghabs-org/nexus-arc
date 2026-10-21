@@ -106,7 +106,7 @@ for(const name of ["online","offline","pageshow"])window.addEventListener(name,(
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)window.dispatchEvent(new Event("studio-reconnect"));});
 
 async function sendMessage(event){
-  event.preventDefault();if(state.busy)return;const task=$("chat-task").value.trim();if(!task)return;
+  event.preventDefault();if(state.busy||state.attachmentUpload)return;const task=$("chat-task").value.trim();if(!task)return;
   if(location.pathname==="/agent.html"&&!state.agents.some(agent=>agent.id===new URLSearchParams(location.search).get("agent"))){notify("This embedded agent is unavailable. Open Nexus Studio to choose an agent.");return;}
   const payload={task,provider:$("chat-provider").value,model:$("chat-model").value.trim(),...($("chat-tools")?{worker_tools:$("chat-tools").value}:{}),...($("chat-effort")?.value?{effort:$("chat-effort").value}:{}),agent_id:$("chat-agent").value||null,session_id:state.sessionId,knowledge_project_id:$("chat-project")?.value||null,artifact_ids:[...$("chat-artifacts").selectedOptions].map(item=>item.value)};
   try{payload.prompt_values=await resolvePromptValues(task);}catch(error){notify(error.message);return;}state.busy=true;$("send-message").disabled=true;$("chat-task").value="";addMessage("user",task);

@@ -22,9 +22,30 @@ Restart and cancellation never repeat the completed collection body; named child
 revisions remain pinned. Map/iteration-only variables are rejected in an exit
 context before saving.
 
-Concurrent shared loop templates, mixed map/loop ownership and broader expression-
-language compatibility remain explicit limitations. Named nested workflows remain
-available for those designs.
+Shared loop templates support independent concurrent controllers and joined
+dependent controllers. Independent controllers start with separate nil seeds.
+A dependent controller inherits the final value from its maximal completed
+upstream controller; ties use source declaration order. Final shared aliases use
+the same rule, independent of wall-clock completion order. A node reading a shared
+alias must join every concurrent writer; ambiguous readers reject before saving.
+This is the explicit Nexus compatibility policy, not an independently verified
+claim about SAM's concurrent result ordering.
+
+Mixed map/loop ownership and broader expression-language compatibility remain
+explicit limitations. Named nested workflows remain available for those designs.
+
+When an older completed-loop checkpoint lacks a per-controller body receipt,
+recovery reconstructs it from that controller's acknowledged final iteration.
+It never seeds a later controller from a potentially unrelated global alias.
+Missing summaries, missing acknowledged outputs or mappings requiring unavailable
+invocation context stop recovery explicitly without replaying completed effects.
+The additive receipt is saved before continuing; repeating recovery is idempotent.
+No bulk state or definition rewrite is required. Existing per-controller receipts
+remain unchanged. Approval-paused file/SQLite runs retain pinned child definitions.
+
+`examples/nexus-bot/src/studio_shared_loops.py --concurrent` exercises independent
+controllers and a joined controller using local built-in tools. Add `--sql` to
+exercise SQLite durable state. Neither example calls a model or external account.
 
 No persisted definition rewrite is required. New skip-reason metadata and image
 revision pins are additive. Existing graph/YAML definitions remain readable;

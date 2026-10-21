@@ -8,7 +8,7 @@ async function refreshWorkspace(){
 }
 async function refreshModelChoices(){
   try{
-    const artifacts=(await api("/api/catalog/artifacts")).items;const files=$("chat-artifacts");const chosen=[...files.selectedOptions].map(item=>item.value);files.innerHTML=artifacts.map(item=>`<option value="${escapeHtml(item.id)}" ${chosen.includes(item.id)?"selected":""}>${escapeHtml(item.name)} · ${escapeHtml(item.data.filename)}</option>`).join("");
+    const artifacts=(await api("/api/catalog/artifacts")).items;const files=$("chat-artifacts");const chosen=[...files.selectedOptions].map(item=>item.value);files.innerHTML=artifacts.map(item=>`<option value="${escapeHtml(item.id)}" data-size="${Number(item.data.size)||0}" ${chosen.includes(item.id)?"selected":""}>${escapeHtml(item.name)} · ${escapeHtml(item.data.filename)}</option>`).join("");
     const models=(await api("/api/catalog/models")).items.filter(item=>!item.archived);
     for(const [section,providerId,modelId] of [[".chat-controls","chat-provider","chat-model"],[".builder-provider-fields","builder-provider","builder-model"]]){
       const parent=document.querySelector(section);let select=parent.querySelector(".model-profile");

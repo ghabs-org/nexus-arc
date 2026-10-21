@@ -86,6 +86,48 @@ def validate_schema(schema, value):
             raise ValueError("Workflow value does not match its declared schema") from None
 
 
+def restore_loop_receipt(node, key, state):
+    """Upgrade a completed old controller from its own acknowledged iteration."""
+    if node["kind"] != "loop" or not node.get("interop_body_id"):
+        return False
+    receipt = key + "/interop_body"
+    if receipt in state["outputs"]:
+        return False
+    summary = state["outputs"].get(key)
+    count = summary.get("iterations_completed") if isinstance(summary, dict) else None
+    if type(count) is not int or not 1 <= count <= node["max_iterations"]:
+        raise ValueError("Completed loop is missing its acknowledged iteration summary")
+    body = node["body"]
+    prefix = key + "/" + str(count - 1) + "/"
+    from nexus.core.studio_workflow_validation import references
+
+    mapping = body.get("output_mapping", {"ref": "nodes"})
+    needed = set()
+    for path in references(mapping):
+        parts = path.split(".")
+        if parts[0] != "nodes":
+            raise ValueError("Legacy loop recovery requires acknowledged body output references")
+        needed.update([parts[1]] if len(parts) > 1 else [n["id"] for n in body["nodes"]])
+    for identity in needed:
+        status = state["nodes"].get(prefix + identity)
+        if status not in {"completed", "skipped"} or (
+            status == "completed" and prefix + identity not in state["outputs"]
+        ):
+            raise ValueError(
+                "Completed loop is missing acknowledged body outputs; no replay allowed"
+            )
+    outputs = {
+        n["id"]: state["outputs"][prefix + n["id"]]
+        for n in body["nodes"]
+        if state["nodes"].get(prefix + n["id"]) == "completed"
+        and prefix + n["id"] in state["outputs"]
+    }
+    state["outputs"][receipt] = resolve(
+        mapping, {"nodes": outputs, "_mapping_language": body.get("mapping_language")}
+    )
+    return True
+
+
 class StudioWorkflowV2:
     def __init__(self, studio):
         self.studio = studio
@@ -415,8 +457,8 @@ class StudioWorkflowV2:
             ordered.update(ready)
         if ordered != identities:
             raise ValueError("Workflow contains cyclic dependencies")
-        # A shared alias is workflow-wide. Require an explicit dependency order,
-        # rather than silently choosing a winner between concurrent controllers.
+        # Shared-alias readers require dependency ordering. Independent controllers
+        # may run concurrently; publication uses dependency/declaration order.
         ancestors = {}
 
         def parents(identity):
@@ -844,6 +886,8 @@ class StudioWorkflowV2:
                     state["nodes"][key] = "completed"
                     persist()
                 if state["nodes"].get(key) == "completed":
+                    if restore_loop_receipt(node, key, state):
+                        persist()
                     outputs[node["id"]] = state["outputs"][key]
                     statuses[node["id"]] = "completed"
                     if node.get("interop_body_id"):
@@ -1043,7 +1087,8 @@ class StudioWorkflowV2:
                                     if c.get("interop_body_id") == alias
                                     and c["id"] in ancestors[node["id"]]
                                     and statuses.get(c["id"]) == "completed"
-                                    and (scope + "/" + c["id"] + "/interop_body") in state["outputs"]
+                                    and (scope + "/" + c["id"] + "/interop_body")
+                                    in state["outputs"]
                                 ]
                                 maximal_up = [
                                     c
@@ -1441,6 +1486,11 @@ class StudioWorkflowV2:
                 metadata={"structured_content": [{"type": "json", "data": json.loads(output)}]}
             ),
             state["payload"],
+            additional=[
+                part
+                for part in self.studio.run(run_id).get("structured_content", [])
+                if isinstance(part, dict) and part.get("type") == "artifact"
+            ],
         )
         self.studio._update_run(
             run_id, awaiting_approval=[], content_version=1, structured_content=content

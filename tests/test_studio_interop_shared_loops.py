@@ -247,3 +247,233 @@ def test_native_configuration_cannot_bypass_shared_alias_order(tmp_path):
         assert not list((tmp_path / "workflows").glob("*.yaml"))
     finally:
         studio.close()
+
+
+@pytest.mark.parametrize("backend", ["files", "sqlite"])
+@pytest.mark.parametrize("completed_loops", [1, 2])
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_legacy_completed_controllers_recover_their_own_body_receipts(
+    tmp_path, backend, completed_loops, corrupt
+):
+    from tests.test_studio_interop_shared_handlers import gate
+
+    calls = []
+
+    async def increase(previous=None, iteration=0):
+        calls.append((previous, iteration))
+        return {"total": (previous or 0) + 1}
+
+    tool_registry.register("interop:legacy-loop", increase, "Local pre-upgrade loop fixture")
+    root = tmp_path / "workspace"
+    options = (
+        None
+        if backend == "files"
+        else {
+            "url": "sqlite:///" + str(tmp_path / "state.sqlite"),
+            "namespace": "legacy-loops",
+            "workers": 1,
+        }
+    )
+    studio = StudioService(root, state_options=options)
+    try:
+        gate(studio, "Wait between loops")
+        value = source()
+        value["nodes"][0]["condition"] = value["nodes"][1]["condition"] = "false"
+        previous = "first"
+        if completed_loops == 2:
+            value["nodes"].insert(
+                1,
+                {
+                    "id": "middle",
+                    "type": "loop",
+                    "node": "body",
+                    "condition": "false",
+                    "depends_on": ["first"],
+                },
+            )
+            previous = "middle"
+        value["nodes"].append(
+            {
+                "id": "review",
+                "type": "workflow",
+                "workflow_name": "Wait between loops",
+                "depends_on": [previous],
+            }
+        )
+        next(node for node in value["nodes"] if node["id"] == "second")["depends_on"] = ["review"]
+        apply(studio, value, {"increase": "interop:legacy-loop"})
+        paused = run(studio, "shared-loops", {}, "waiting")
+        assert len(calls) == completed_loops
+        path = studio._path("graph-runs", paused["id"])
+        saved = studio._read(path)
+        saved["outputs"] = {
+            key: item for key, item in saved["outputs"].items() if not key.endswith("/interop_body")
+        }
+        if corrupt:
+            saved["outputs"].pop("root/first/0/body")
+        studio._write(path, saved)
+        studio.close()
+        (root / "workflows/wait-between-loops.yaml").unlink()
+        studio = StudioService(root, state_options=options)
+        result = wait(
+            studio,
+            studio.graph.resume(paused["id"], "approve"),
+            "failed" if corrupt else "completed",
+        )
+        if corrupt:
+            assert "missing acknowledged body outputs" in result["error"]
+            assert len(calls) == completed_loops
+            return
+        assert json.loads(result["output"])["body"] == {"total": completed_loops + 1}
+        assert calls == [(None, 0), *[(i, 0) for i in range(1, completed_loops + 1)]]
+        saved = studio._read(studio._path("graph-runs", paused["id"]))
+        assert saved["outputs"]["root/first/interop_body"] == {"total": 1}
+        assert saved["outputs"]["root/second/interop_initial"] == {"total": completed_loops}
+    finally:
+        studio.close()
+        tool_registry.unregister("interop:legacy-loop", func=increase)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_concurrent_join_seed_uses_dependency_and_declaration_not_finish_order(tmp_path, reverse):
+    import asyncio
+
+    calls = []
+
+    async def increase(previous=None, iteration=0):
+        position = len(calls)
+        calls.append((previous, iteration))
+        await asyncio.sleep(0.03 if position == 0 else 0.001)
+        return {"total": (previous or 0) + 1}
+
+    tool_registry.register("interop:joined-loops", increase, "Local concurrent join")
+    studio = StudioService(tmp_path)
+    try:
+        value = source()
+        value["nodes"][1].pop("depends_on")
+        value["nodes"][1]["condition"] = "false"
+        if reverse:
+            value["nodes"][0], value["nodes"][1] = value["nodes"][1], value["nodes"][0]
+        value["nodes"].append(
+            {
+                "id": "joined",
+                "type": "loop",
+                "node": "body",
+                "condition": "false",
+                "depends_on": ["first", "second"],
+            }
+        )
+        apply(studio, value, {"increase": "interop:joined-loops"})
+        result = run(studio, "shared-loops", {})
+        saved = studio._read(studio._path("graph-runs", result["id"]))
+        expected = 2 if reverse else 1
+        assert saved["outputs"]["root/first/interop_initial"] is None
+        assert saved["outputs"]["root/second/interop_initial"] is None
+        assert saved["outputs"]["root/joined/interop_initial"] == {"total": expected}
+        assert json.loads(result["output"])["body"] == {"total": expected + 1}
+        assert len(calls) == 4
+    finally:
+        studio.close()
+        tool_registry.unregister("interop:joined-loops", func=increase)
+
+
+@pytest.mark.parametrize("backend", ["files", "sqlite"])
+def test_concurrent_approvals_and_join_restart_keep_pinned_children(tmp_path, backend):
+    calls = []
+
+    async def increase(previous=None, iteration=0):
+        calls.append((previous, iteration))
+        return {"total": (previous or 0) + 1}
+
+    tool_registry.register(
+        "interop:concurrent-approved", increase, "Local concurrent approved loops"
+    )
+    root = tmp_path / "workspace"
+    options = (
+        None
+        if backend == "files"
+        else {
+            "url": "sqlite:///" + str(tmp_path / "state.sqlite"),
+            "namespace": "concurrent-loops",
+            "workers": 1,
+        }
+    )
+    studio = StudioService(root, state_options=options)
+    try:
+        studio.save_definition(
+            "workflows",
+            {
+                "name": "Approved loop child",
+                "graph": {
+                    "version": 2,
+                    "nodes": [
+                        {"id": "review", "kind": "approval"},
+                        {
+                            "id": "effect",
+                            "kind": "tool",
+                            "tool_id": "interop:concurrent-approved",
+                            "kwargs": {
+                                "previous": {"ref": "input.previous"},
+                                "iteration": {"ref": "input.iteration"},
+                            },
+                            "depends_on": ["review"],
+                        },
+                    ],
+                    "output_mapping": {"ref": "nodes.effect"},
+                },
+            },
+        )
+        value = source()
+        value["nodes"][0]["condition"] = value["nodes"][1]["condition"] = "false"
+        value["nodes"][1].pop("depends_on")
+        value["nodes"][2].pop("tool_name")
+        value["nodes"][2].update(type="workflow", workflow_name="Approved loop child")
+        value["nodes"][2]["input"]["previous"] = {"coalesce": ["{{body.output.total}}", None]}
+        value["nodes"].append(
+            {
+                "id": "joined",
+                "type": "loop",
+                "node": "body",
+                "condition": "false",
+                "depends_on": ["first", "second"],
+            }
+        )
+        apply(studio, value, {"increase": "interop:concurrent-approved"})
+        paused = run(studio, "shared-loops", {}, "waiting")
+        assert len(paused["awaiting_approval"]) == 2 and calls == []
+        studio.close()
+        (root / "workflows/approved-loop-child.yaml").unlink()
+        studio = StudioService(root, state_options=options)
+        joined = wait(studio, studio.graph.resume(paused["id"], "approve"), "waiting")
+        assert calls == [(None, 0), (None, 0)]
+        studio.close()
+        studio = StudioService(root, state_options=options)
+        result = wait(studio, studio.graph.resume(joined["id"], "approve"))
+        assert calls == [(None, 0), (None, 0), (1, 0)]
+        assert json.loads(result["output"])["body"] == {"total": 2}
+    finally:
+        studio.close()
+        tool_registry.unregister("interop:concurrent-approved", func=increase)
+
+
+@pytest.mark.parametrize("value", [None, 0, {}, []])
+def test_legacy_receipt_upgrade_is_idempotent_and_preserves_nil_or_empty_outputs(value):
+    from copy import deepcopy
+
+    from nexus.core.studio_workflow_v2 import restore_loop_receipt
+
+    node = {
+        "kind": "loop",
+        "interop_body_id": "body",
+        "max_iterations": 2,
+        "body": {"nodes": [{"id": "body"}], "output_mapping": {"ref": "nodes.body"}},
+    }
+    state = {
+        "nodes": {"root/loop/0/body": "completed"},
+        "outputs": {"root/loop": {"iterations_completed": 1}, "root/loop/0/body": value},
+    }
+    assert restore_loop_receipt(node, "root/loop", state)
+    assert state["outputs"]["root/loop/interop_body"] == value
+    saved = deepcopy(state)
+    assert not restore_loop_receipt(node, "root/loop", state)
+    assert state == saved

@@ -78,6 +78,11 @@ class ClaudeCodeProvider(AIProvider):
             cmd.extend(["--model", model])
         if effort:
             cmd.extend(["--effort", effort])
+        attachment_directory = (context.metadata or {}).get("attachment_directory")
+        if attachment_directory:
+            # The private directory contains only this invocation's selected files.
+            # Quick Build uses a separate empty working directory.
+            cmd.extend(["--add-dir", str(attachment_directory)])
         cmd.extend(self._extra_args)
         return cmd, model
 
