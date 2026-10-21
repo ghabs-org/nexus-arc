@@ -59,3 +59,13 @@ test('malformed configuration shows error and sends no review request',async()=>
  assert.equal(f.requests.length,0);
  assert.equal(f.builder.busy,false);
 });
+
+test('agent skill selection assigns single skill resource ID and handles unassigned',()=>{
+ const f=fixture([field('agents.0.skill_ids','content-strategy')],[option('{"max_model_calls":2}')]);
+ const result=read(f.context);
+ assert.deepEqual(result.agents[0].skill_ids,['content-strategy']);
+
+ const fEmpty=fixture([field('agents.0.skill_ids','')],[option('{"max_model_calls":2}')]);
+ const resultEmpty=read(fEmpty.context);
+ assert.deepEqual(resultEmpty.agents[0].skill_ids,[]);
+});

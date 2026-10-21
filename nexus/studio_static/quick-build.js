@@ -31,6 +31,7 @@ function resetBuilder() {
   $("builder-generate").textContent="Generate build ↗";
   $("builder-error").hidden=true;$("builder-test-result").hidden=true;$("builder-test-task").value="";
   $("builder-note").textContent="Draft first. Review and save before running your team.";
+  $("builder-model").value=firstModelForProvider($("builder-provider").value);
   builderMode("build");builderBusy(false);$("builder-task").focus();
 }
 function proposalFromFields() {
@@ -38,15 +39,24 @@ function proposalFromFields() {
   const root=$("builder-proposal");
   root.querySelectorAll("[data-build-field]").forEach(field=>{
     const path=field.dataset.buildField.split(".");let target=proposal;
-    for(const part of path.slice(0,-1))target=target[part];target[path.at(-1)]=field.hasAttribute("data-build-json")?JSON.parse(field.value):field.value;
+    for(const part of path.slice(0,-1))target=target[part];
+    if(field.dataset.buildField.endsWith(".skill_ids")){
+      target[path.at(-1)]=field.value&&field.value!=="__new__"?[field.value]:[];
+    }else{
+      target[path.at(-1)]=field.hasAttribute("data-build-json")?JSON.parse(field.value):field.value;
+    }
   });
   root.querySelectorAll("[data-build-agent-options]").forEach(field=>{
     const options=JSON.parse(field.value),agent=proposal.agents[Number(field.dataset.buildAgentOptions)];
     if(!options||Array.isArray(options)||typeof options!=="object")throw new Error("Advanced agent settings must be an object.");
     const basic=new Set(["id","name","description","instructions","provider","model"]);
     if(Object.keys(options).some(key=>basic.has(key)||["__proto__","constructor","prototype"].includes(key)))throw new Error("Edit agent identity and instructions in their own fields.");
+    const assignedSkillIds=agent.skill_ids;
     Object.keys(agent).filter(key=>!basic.has(key)).forEach(key=>delete agent[key]);
     Object.assign(agent,options);
+    if(assignedSkillIds!==undefined&&!("skill_ids" in options)){
+      agent.skill_ids=assignedSkillIds;
+    }
   });
   return proposal;
 }
@@ -55,7 +65,7 @@ function builderField(path,label,value, multiline=false) {
   return `<label>${label}${field}</label>`;
 }
 function buildAgentOptions(agent,index,saved){
- const basic=new Set(["id","name","description","instructions","provider","model"]);
+ const basic=new Set(["id","name","description","instructions","provider","model","skill_ids"]);
  const options=Object.fromEntries(Object.entries(agent).filter(([key])=>!basic.has(key)));
  return `<details><summary>Runtime limits and resource assignments</summary><p>Advanced settings: timeout, call limits, tools, skills, connections and output schema. Changes require review before activation.</p><label>Advanced agent settings<textarea rows="9" aria-label="Advanced agent settings" data-build-agent-options="${index}" ${saved?"disabled":""}>${escapeHtml(JSON.stringify(options,null,2))}</textarea></label></details>`;
 }
@@ -68,7 +78,7 @@ function renderBuild() {
     <p class="build-summary">${escapeHtml(p.summary)}</p>
     ${workflow?`<div class="build-plan"><div class="build-plan-heading"><h3>${workflow.graph?"Graph workflow":"Workflow"}</h3><span>${p.agents.length} agents · ${steps.length} ${steps.length===1?"step":"steps"}</span></div><ol>${steps.map((step,i)=>`<li><span class="build-step-index">${i+1}</span><div><b>${escapeHtml(step.name)}</b><span>${escapeHtml(step.kind||step.agent_type||"Agent")}</span></div></li>`).join("")}</ol>${workflow.graph?`<p>Connections: ${workflow.graph.edges.map(edge=>`${escapeHtml(edge.source)} → ${escapeHtml(edge.target)}${edge.choice?` (${escapeHtml(edge.choice)})`:""}`).join(" · ")}</p>`:""}</div>`:""}
     ${p.assumptions.length?`<aside class="build-assumptions"><h3>Before you run</h3><ul>${p.assumptions.map(a=>`<li>${escapeHtml(a)}</li>`).join("")}</ul></aside>`:""}
-    ${p.agents.length?`<div class="build-agents"><h3>Your agents</h3>${p.agents.map((a,i)=>`<details class="build-agent"><summary><span><b>${escapeHtml(a.name)}</b><small>${escapeHtml(a.description)}</small></span><span class="build-agent-provider">${escapeHtml(providerName(a.provider))}</span></summary><div class="build-agent-fields">${builderField(`agents.${i}.name`,"Agent name",a.name)}${builderField(`agents.${i}.description`,"Description",a.description)}${builderField(`agents.${i}.instructions`,"Instructions",a.instructions,true)}<div class="build-field-pair"><label>Provider<select data-build-field="agents.${i}.provider" ${saved?"disabled":""}>${providerOptions(a.provider)}</select></label>${builderField(`agents.${i}.model`,"Model (optional)",a.model)}</div>${buildAgentOptions(a,i,saved)}</div></details>`).join("")}</div>`:""}
+    ${p.agents.length?`<div class="build-agents"><h3>Your agents</h3>${p.agents.map((a,i)=>`<details class="build-agent"><summary><span><b>${escapeHtml(a.name)}</b><small>${escapeHtml(a.description)}${(a.skill_ids||[])[0]?` · Skill: ${escapeHtml(a.skill_ids[0])}`:""}</small></span><span class="build-agent-provider">${escapeHtml(providerName(a.provider))}</span></summary><div class="build-agent-fields">${builderField(`agents.${i}.name`,"Agent name",a.name)}${builderField(`agents.${i}.description`,"Description",a.description)}${builderField(`agents.${i}.instructions`,"Instructions",a.instructions,true)}<div class="build-field-pair"><label>Provider<select data-build-field="agents.${i}.provider" ${saved?"disabled":""}>${providerOptions(a.provider)}</select></label>${builderField(`agents.${i}.model`,"Model (optional)",a.model)}</div><label>Skill (optional)<select data-build-field="agents.${i}.skill_ids" class="agent-skill-select" ${saved?"disabled":""}>${skillOptions((a.skill_ids||[])[0]||"",(p.resources||[]).filter(r=>r.kind==="skills"))}</select></label>${buildAgentOptions(a,i,saved)}</div></details>`).join("")}</div>`:""}
     ${workflow?`<details class="build-step-details"><summary>Review workflow configuration</summary><div class="build-agent-fields">${workflow.graph?jsonField("workflow.graph","Nodes and connections",workflow.graph):steps.map((step,i)=>builderField(`workflow.steps.${i}.prompt`,`${i+1}. ${escapeHtml(step.name)}`,step.prompt,true)).join("")}</div></details>`:""}
     <details class="build-step-details"><summary>Named child workflows${p.workflows?.length?` · ${p.workflows.length}`:""}</summary><p>Reusable workflows created with this build. Ask the builder to add or refine them, or edit their configuration below.</p>${jsonField("workflows","Child workflow definitions",p.workflows||[])}</details>
     ${resources.length?`<div class="build-agents"><h3>Related resources</h3><p>Connections, schedules and entrypoints are saved disabled. Configure accounts and enable them separately.</p>${resources.map((item,i)=>`<details class="build-agent"><summary>${escapeHtml(item.name)} · ${escapeHtml(item.kind)}</summary><div class="build-agent-fields">${builderField(`resources.${i}.name`,"Resource name",item.name)}${builderField(`resources.${i}.description`,"Description",item.description||"")}${jsonField(`resources.${i}.data`,"Resource settings",item.data)}</div></details>`).join("")}</div>`:""}
@@ -148,6 +158,8 @@ async function initializeQuickBuild(){
   const ids=["codex","claude-code","agy","openai","claude"];
   $("builder-provider").innerHTML=state.providers.filter(p=>ids.includes(p.id)).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}${p.configured?"":" · setup needed"}</option>`).join("");
   $("builder-provider").value=state.providers.find(p=>ids.includes(p.id)&&p.configured)?.id||"codex";
+  if(!$("builder-model").value)$("builder-model").value=firstModelForProvider($("builder-provider").value);
+  if(!state.skills)loadSkills().catch(()=>{});
   try{await refreshBuilds();}catch(error){buildError(error);}
 }
 if(state.ready)initializeQuickBuild();else window.addEventListener("studio-ready",initializeQuickBuild,{once:true});

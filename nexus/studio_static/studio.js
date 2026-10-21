@@ -1,7 +1,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const state = {token:"",providers:[],agents:[],workflows:[],tools:[],sessions:[],runs:[],sessionId:null,busy:false,editor:null,ready:false};
+const state = {token:"",providers:[],agents:[],workflows:[],tools:[],skills:[],sessions:[],runs:[],sessionId:null,busy:false,editor:null,ready:false};
 let noticeTimer,bootstrapRetryTimer;
 let bootstrapInFlight=false,bootstrapFailures=0,reconnectHandshake=null;
 function notify(message){$("notice").textContent=message;$("notice").hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$("notice").hidden=true,5500);}
@@ -35,7 +35,7 @@ function renderAgents(){
   $("agents-content").innerHTML=state.agents.length?`<div class="resource-grid">${state.agents.map(item=>{
     const doc=item.document||{},meta=doc.metadata||{},spec=doc.spec||{};
     if(item.error)return `<article class="resource-card"><h2>${escapeHtml(item.id)}</h2>${badge("Invalid definition","failed")}<p>${escapeHtml(item.error)}</p></article>`;
-    return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span></div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button></div></article>`;
+    return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span>${(spec.skill_ids||[]).length?`<span>· Skill: ${escapeHtml(spec.skill_ids[0])}</span>`:""}</div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button></div></article>`;
   }).join("")}</div>`:empty("Give your team its first specialist","Create an agent with a clear purpose, then choose which provider does the work.","create-agent","Create an agent");
   const selected=$("chat-agent").value;
   $("chat-agent").innerHTML='<option value="">General assistant</option>'+state.agents.filter(a=>a.document).map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.document.metadata?.name||a.id)}</option>`).join("");
@@ -53,10 +53,112 @@ const MODEL_INPUTS='#chat-model,#builder-model,input[name="model"],input[data-bu
 function renderModelLists(){let host=$("model-lists");if(!host){host=document.createElement("div");host.id="model-lists";document.body.appendChild(host);}host.innerHTML=state.providers.map(p=>`<datalist id="models-${escapeHtml(p.id)}">${(p.models||[]).map(m=>`<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join("")}</datalist>`).join("");linkModelInputs();}
 function modelProvider(input){if(input.id==="chat-model")return $("chat-provider")?.value;if(input.id==="builder-model")return $("builder-provider")?.value;const field=input.dataset.buildField;if(field)return document.querySelector(`[data-build-field="${CSS.escape(field.slice(0,-6))}.provider"]`)?.value;return input.form?.querySelector('select[name="provider"]')?.value;}
 function linkModelInputs(){document.querySelectorAll(MODEL_INPUTS).forEach(input=>{const provider=modelProvider(input);if(provider&&document.getElementById("models-"+provider))input.setAttribute("list","models-"+provider);else input.removeAttribute("list");if(!input.placeholder)input.placeholder="Provider default · pick or type a model";});}
+function firstModelForProvider(providerId){const p=(state.providers||[]).find(p=>p.id===providerId);return p?.models?.[0]?.id||"";}
+async function loadSkills(){try{const res=await api("/api/catalog/skills");state.skills=(res.items||[]).filter(item=>!item.archived);return state.skills;}catch{return state.skills||[];}}
+function skillOptions(selected="", extraSkills=[]){
+  const allSkills=[...(state.skills||[])];
+  for(const s of extraSkills){if(s&&!allSkills.some(item=>item.id===s.id))allSkills.push(s);}
+  let options='<option value="">None (no skill)</option>';
+  for(const s of allSkills){
+    const isSelected=s.id===selected?"selected":"";
+    const label=s.name?`${s.name} (${s.id})`:s.id;
+    options+=`<option value="${escapeHtml(s.id)}" ${isSelected}>${escapeHtml(label)}</option>`;
+  }
+  if(selected&&!allSkills.some(s=>s.id===selected)){
+    options+=`<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>`;
+  }
+  options+='<option value="__new__">+ New skill…</option>';
+  return options;
+}
+function createSkillDialog(){
+  return new Promise(resolve=>{
+    const dialog=document.createElement("dialog");dialog.className="feature-dialog";
+    dialog.innerHTML=`<form><header class="dialog-heading"><h2>Create a new skill</h2><button type="button" class="quiet close-dialog" data-dismiss aria-label="Close">×</button></header><label>Skill name<input name="name" required placeholder="e.g. Content Strategy Guidelines" maxlength="200"></label><label>Description (optional)<input name="description" placeholder="Short description of this skill" maxlength="500"></label><label>Instructions<textarea name="content" rows="6" required placeholder="Detailed guidelines and instructions this skill provides to the agent..."></textarea></label><p class="form-error" role="alert"></p><footer><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">Create skill</button></footer></form>`;
+    document.body.append(dialog);let resolved=false;
+    const finish=val=>{if(!resolved){resolved=true;dialog.close();dialog.remove();resolve(val);}};
+    dialog.querySelectorAll("[data-dismiss]").forEach(b=>b.onclick=()=>finish(null));
+    dialog.addEventListener("cancel",()=>finish(null));
+    dialog.querySelector("form").onsubmit=event=>{event.preventDefault();const fd=new FormData(event.target);finish({name:fd.get("name")?.trim(),description:fd.get("description")?.trim(),content:fd.get("content")?.trim()});};
+    dialog.showModal();dialog.querySelector('input[name="name"]')?.focus();
+  });
+}
+async function promptNewSkill(targetSelect, extraSkills=[]){
+  const answer=await createSkillDialog();
+  if(!answer||!answer.name||!answer.content){
+    if(targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
+    return null;
+  }
+  try{
+    const payload={name:answer.name,description:answer.description||"",data:{content:answer.content||""}};
+    const created=await api("/api/catalog/skills",payload);
+    await loadSkills();
+    document.querySelectorAll(".agent-skill-select").forEach(sel=>{
+      const val=sel===targetSelect?created.id:sel.value;
+      sel.innerHTML=skillOptions(val,extraSkills);
+      sel.value=val;
+      sel.dataset.prevValue=val;
+    });
+    targetSelect.dispatchEvent(new Event("change",{bubbles:true}));
+    notify("Skill created and assigned.");
+    return created;
+  }catch(error){
+    notify(error.message);
+    if(targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
+    return null;
+  }
+}
 // Model fields are rendered by many views; link new ones and follow provider changes.
 let modelLinkQueued=false;
 new MutationObserver(()=>{if(modelLinkQueued)return;modelLinkQueued=true;requestAnimationFrame(()=>{modelLinkQueued=false;linkModelInputs();});}).observe(document.body,{childList:true,subtree:true});
-document.addEventListener("change",event=>{if(event.target instanceof HTMLSelectElement)linkModelInputs();});
+document.addEventListener("change",event=>{
+  if(event.target instanceof HTMLSelectElement){
+    const select=event.target;
+    const isProvider=select.id==="chat-provider"||select.id==="builder-provider"||select.name==="provider"||select.dataset?.buildField?.endsWith(".provider");
+    if(isProvider){
+      let modelInput=null;
+      if(select.id==="chat-provider")modelInput=$("chat-model");
+      else if(select.id==="builder-provider")modelInput=$("builder-model");
+      else if(select.dataset?.buildField?.endsWith(".provider")){
+        const prefix=select.dataset.buildField.slice(0,-9);
+        modelInput=document.querySelector(`[data-build-field="${CSS.escape(prefix)}.model"]`);
+      }else if(select.name==="provider"){
+        modelInput=select.form?.querySelector('input[name="model"]');
+      }
+      if(modelInput){
+        modelInput.value=firstModelForProvider(select.value);
+        modelInput.dispatchEvent(new Event("input",{bubbles:true}));
+      }
+    }
+    if(select.classList.contains("agent-skill-select")){
+      if(select.value==="__new__"){
+        let extraSkills=[];
+        if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
+          extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
+        }
+        promptNewSkill(select,extraSkills);
+      }else{
+        select.dataset.prevValue=select.value;
+      }
+    }
+    linkModelInputs();
+  }
+});
+document.addEventListener("click",async event=>{
+  const btn=event.target.closest(".new-skill-btn");
+  if(btn){
+    event.preventDefault();
+    const targetId=btn.dataset.skillTarget;
+    const select=targetId?$(targetId):btn.closest(".agent-skill-field,label,div")?.querySelector(".agent-skill-select");
+    if(select){
+      let extraSkills=[];
+      if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
+        extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
+      }
+      await promptNewSkill(select,extraSkills);
+    }
+  }
+});
+window.addEventListener("studio-resource-saved",event=>{if(event.detail?.kind==="skills")loadSkills().catch(()=>{});});
 document.addEventListener("focusin",event=>{if(event.target instanceof HTMLInputElement&&event.target.matches(MODEL_INPUTS))linkModelInputs();});
 function renderProviders(){
   renderModelLists();
@@ -125,7 +227,7 @@ function openEditor(kind,identity){
   const fields=$("editor-fields");
   if(kind==="agent"||kind==="agent-edit"){
     $("editor-kicker").textContent="NEW SPECIALIST";$("editor-title").textContent="Create an agent";$("editor-save").textContent="Create agent";
-    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+inputField("skill_ids","Saved skill IDs (optional, comma separated)")+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
+    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)",firstModelForProvider("codex"))}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<label>Skill (optional)<select name="skill_ids" class="agent-skill-select">${skillOptions()}</select></label>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
   }else if(kind==="workflow"){
     if(!state.agents.some(a=>a.document)){notify("Create an agent before building a workflow.");location.hash="agents";return;}
     $("editor-kicker").textContent="A SERIES OF HANDOFFS";$("editor-title").textContent="Create a workflow";$("editor-save").textContent="Create workflow";
@@ -141,8 +243,15 @@ function openEditor(kind,identity){
     const item=state.agents.find(item=>item.id===identity),doc=item.document,spec=doc.spec||{};
     state.editor.revision=item.revision;
     $("editor-title").textContent="Edit agent";$("editor-save").textContent="Save changes";
-    const values={name:doc.metadata?.name||identity,description:doc.metadata?.description||"",provider:spec.provider,model:spec.model||"",effort:spec.effort||"",instructions:spec.purpose||"",timeout_seconds:spec.timeout_seconds||600,skill_ids:(spec.skill_ids||[]).join(", "),tool_ids:(spec.tool_ids||[]).join(", "),guardrails_json:JSON.stringify(spec.guardrails||{},null,2)};
+    const values={name:doc.metadata?.name||identity,description:doc.metadata?.description||"",provider:spec.provider,model:spec.model||"",effort:spec.effort||"",instructions:spec.purpose||"",timeout_seconds:spec.timeout_seconds||600,tool_ids:(spec.tool_ids||[]).join(", "),guardrails_json:JSON.stringify(spec.guardrails||{},null,2)};
     for(const [name,value] of Object.entries(values)){const field=fields.querySelector(`[name="${name}"]`);if(field)field.value=value;}
+    const currentSkill=(spec.skill_ids||[])[0]||"";
+    const skillSelect=fields.querySelector(".agent-skill-select");
+    if(skillSelect){
+      skillSelect.innerHTML=skillOptions(currentSkill);
+      skillSelect.value=currentSkill;
+      skillSelect.dataset.prevValue=currentSkill;
+    }
     const agentType=document.createElement("input");agentType.type="hidden";agentType.name="agent_type";agentType.value=spec.agent_type||identity;fields.appendChild(agentType);
   }
   $("editor").showModal();fields.querySelector("input,textarea,select")?.focus();
@@ -154,7 +263,14 @@ function addWorkflowStep(){
 async function saveEditor(event){
   event.preventDefault();const data=Object.fromEntries(new FormData(event.target));const {kind,identity}=state.editor;$("editor-save").disabled=true;$("editor-error").textContent="";
   try{
-    if(kind==="agent"||kind==="agent-edit"){if(!data.effort)delete data.effort;if(data.guardrails_json&&data.guardrails_json.trim()!=="{}")data.guardrails=JSON.parse(data.guardrails_json);delete data.guardrails_json;if(kind==="agent-edit"){data.revision=state.editor.revision;await api(`/api/agents/${encodeURIComponent(identity)}/update`,data);}else await api("/api/agents",data);$("editor").close();await refreshDefinitions();location.hash="agents";notify(kind==="agent-edit"?"Agent updated.":"Agent created.");}
+    if(kind==="agent"||kind==="agent-edit"){
+      if(!data.effort)delete data.effort;
+      if(data.guardrails_json&&data.guardrails_json.trim()!=="{}")data.guardrails=JSON.parse(data.guardrails_json);
+      delete data.guardrails_json;
+      if(data.skill_ids&&data.skill_ids!=="__new__"){data.skill_ids=[data.skill_ids];}else{data.skill_ids=[];}
+      if(kind==="agent-edit"){data.revision=state.editor.revision;await api(`/api/agents/${encodeURIComponent(identity)}/update`,data);}else await api("/api/agents",data);
+      $("editor").close();await refreshDefinitions();location.hash="agents";notify(kind==="agent-edit"?"Agent updated.":"Agent created.");
+    }
     else if(kind==="workflow"){
       data.steps=[...document.querySelectorAll(".step-editor")].map((row,index)=>({id:`step_${index+1}`,name:`Step ${index+1}`,agent_type:row.querySelector(".step-agent").value,prompt:row.querySelector(".step-prompt").value}));
       await api("/api/workflows",data);$("editor").close();await refreshDefinitions();location.hash="workflows";notify("Workflow created.");
@@ -212,7 +328,7 @@ async function bootstrap(){
   if(bootstrapInFlight)return;bootstrapInFlight=true;clearTimeout(bootstrapRetryTimer);
   try{const data=await api("/api/bootstrap");if(state.user&&data.user?.nexus_id!==state.user.nexus_id){location.reload();return;}bootstrapFailures=0;state.workspacePath=data.workspace.path;disconnectedRuns.delete("bootstrap");connectionStatus();state.accountUrl=data.account_url;state.token=data.token;state.mode=data.mode;state.user=data.user;state.providers=data.providers;$("team-login").hidden=true;$("send-message").disabled=false;
     if(data.mode==="team"){$("deployment-mode").textContent="TEAM";$("runtime-label").textContent=`${data.user.nexus_id} · ${data.user.role}`;$("composer-hint").textContent="Uses your Nexus provider configuration";$("view-providers").querySelector(".callout").textContent="Providers use your existing Nexus account setup. Shared Codex and Claude Code runs use isolated prompt-only containers. Complete provider setup through Nexus login.";}
-    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
+    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
   catch(error){if(error.retryable){disconnectedRuns.add("bootstrap");connectionStatus();}if($("team-login").hidden)notify(`Could not load the workspace: ${error.message}`);$("send-message").disabled=true;if(error.retryable&&$("team-login").hidden)bootstrapRetryTimer=setTimeout(bootstrap,Math.min(15000,1000*2**Math.min(bootstrapFailures++,4)));}
   finally{bootstrapInFlight=false;}
 }
