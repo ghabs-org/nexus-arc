@@ -107,6 +107,16 @@ def test_command_matches_frontmatter_name_and_reimport_updates(app):
     assert again["updated"] and again["skill"]["revision"] == first["skill"]["revision"] + 1
 
 
+def test_import_multiple_skills_at_once(app):
+    result = app.skill_import.import_skill(
+        {"source": "https://github.com/latent-spaces/brag", "skills": ["brag", "brag-slim"]}
+    )
+    assert result["count"] == 2
+    assert [s["id"] for s in result["skills"]] == ["brag", "brag-slim"]
+    catalog_skills = [s["id"] for s in app.catalog.list("skills")]
+    assert "brag" in catalog_skills and "brag-slim" in catalog_skills
+
+
 def test_missing_skill_name_and_bad_source_metadata_fail(app):
     with pytest.raises(ValueError, match="No skill named nope"):
         app.skill_import.import_skill({"source": "o/r", "skill": "nope"})

@@ -93,11 +93,47 @@ async function importSkill(){
   try{
     let result=await api("/api/catalog/skills/import",payload);
     if(result.choices){
-      const pick=await fieldsDialog("Choose a skill",`<p>This source holds ${result.choices.length} skills${result.truncated?" (showing the first 30)":""}.</p><label>Skill<select name="skill">${result.choices.map(choice=>`<option value="${escapeHtml(choice.skill)}">${escapeHtml(choice.skill)}${choice.description?" — "+escapeHtml(choice.description.slice(0,90)):""}</option>`).join("")}</select></label>`,"Import");
-      if(!pick)return;result=await api("/api/catalog/skills/import",{...payload,skill:pick.get("skill")});
+      setTimeout(()=>{
+        const toggleAll=document.getElementById("skills-toggle-all");
+        const countBadge=document.getElementById("skills-selected-count");
+        const boxes=document.querySelectorAll('input[name="skills"]');
+        const dialogForm=toggleAll?.closest("form");
+        if(toggleAll && boxes.length){
+          const update=()=>{
+            const checked=[...boxes].filter(b=>b.checked).length;
+            if(countBadge)countBadge.textContent=`${checked} selected`;
+            toggleAll.checked=checked===boxes.length;
+            toggleAll.indeterminate=checked>0&&checked<boxes.length;
+          };
+          toggleAll.onchange=()=>{
+            boxes.forEach(b=>{b.checked=toggleAll.checked;});
+            update();
+          };
+          boxes.forEach(b=>b.onchange=update);
+          dialogForm?.addEventListener("submit",e=>{
+            if(![...boxes].some(b=>b.checked)){
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              const err=dialogForm.querySelector(".form-error");
+              if(err)err.textContent="Select at least one skill to import.";
+            }
+          },true);
+        }
+      },0);
+      const pick=await fieldsDialog("Choose skills",`<p>This source holds ${result.choices.length} skills${result.truncated?" (showing the first 30)":""}. Select one or more skills to import.</p><div class="skills-select-header"><label class="check-label"><input type="checkbox" id="skills-toggle-all"> <strong>Select all</strong></label><span id="skills-selected-count" class="badge">0 selected</span></div><div class="skills-select-list">${result.choices.map(choice=>`<label class="skills-select-item check-label"><input type="checkbox" name="skills" value="${escapeHtml(choice.skill)}"><div class="skills-select-meta"><span class="skills-select-name">${escapeHtml(choice.skill)}</span>${choice.description?`<span class="skills-select-desc">${escapeHtml(choice.description.slice(0,140))}</span>`:""}</div></label>`).join("")}</div>`,"Import");
+      if(!pick)return;
+      const chosenSkills=pick.getAll("skills").filter(Boolean);
+      if(!chosenSkills.length)return;
+      result=await api("/api/catalog/skills/import",{...payload,skills:chosenSkills});
     }
-    const skipped=result.skipped_files.length;
-    notify(`${result.updated?"Updated":"Imported"} skill ${result.skill.name}: ${result.imported_files.length} file${result.imported_files.length===1?"":"s"} imported${skipped?`, ${skipped} not imported (scripts, data or media)`:""}.`);
+    const count=result.skills?result.skills.length:(result.skill?1:0);
+    const skipped=(result.skipped_files||[]).length;
+    const importedCount=(result.imported_files||[]).length;
+    if(count>1){
+      notify(`Imported ${count} skills: ${importedCount} file${importedCount===1?"":"s"} imported${skipped?`, ${skipped} not imported (scripts, data or media)`:""}.`);
+    }else if(result.skill){
+      notify(`${result.updated?"Updated":"Imported"} skill ${result.skill.name}: ${importedCount} file${importedCount===1?"":"s"} imported${skipped?`, ${skipped} not imported (scripts, data or media)`:""}.`);
+    }
     await refreshLibrary();
   }catch(error){notify(error.message);}
   finally{$("library-import").disabled=false;}

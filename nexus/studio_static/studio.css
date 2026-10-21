@@ -474,3 +474,13 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 .workspace-file-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:26rem;overflow:auto;max-width:100%;padding:1rem;background:var(--surface-alt,#f3f5f6);border:1px solid var(--border,#d4dadd);border-radius:.5rem}
 #view-files .form-grid>*,#view-assistant .workbench-form>*{min-width:0}
 #view-files h2,#studio-help-answer code{overflow-wrap:anywhere}
+
+/* Multi-skill import selection */
+.skills-select-header{display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;font-size:13px}
+.skills-select-list{max-height:18rem;overflow-y:auto;border:1px solid var(--line,#cdced1);border-radius:6px;padding:6px;background:var(--surface,#f9faf9);display:flex;flex-direction:column;gap:4px}
+.skills-select-item{display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:4px;cursor:pointer;background:var(--canvas,#fff);border:1px solid transparent;font-size:13px}
+.skills-select-item:hover{border-color:var(--line,#cdced1)}
+.skills-select-item input[type=checkbox]{margin-top:3px;flex-shrink:0}
+.skills-select-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.skills-select-name{font-weight:600;color:var(--ink,#182e35);overflow-wrap:anywhere}
+.skills-select-desc{font-size:12px;color:var(--muted,#5d5f60);line-height:1.4;overflow-wrap:anywhere}

@@ -34,3 +34,69 @@ test('catalog setup blocks missing dependencies and preserves configured/legacy 
     assert.match(rendered,/>Run tool<\/button>/);
   }
 });
+
+test('importSkill supports multi-selection of skills and submits skills array', async () => {
+  const libSource = fs.readFileSync('nexus/studio_static/library.js', 'utf8');
+  const importFn = libSource.slice(libSource.indexOf('async function importSkill('), libSource.indexOf('$("library-import").addEventListener'));
+  const notifications = [];
+  const apiCalls = [];
+  let dialogCalls = [];
+
+  const context = vm.createContext({
+    escapeHtml,
+    $: (id) => ({ disabled: false }),
+    notify: (msg) => notifications.push(msg),
+    refreshLibrary: async () => {},
+    setTimeout: (fn) => fn(),
+    document: {
+      getElementById: (id) => null,
+      querySelectorAll: (sel) => [],
+    },
+    fieldsDialog: async (title, html) => {
+      dialogCalls.push({ title, html });
+      if (title === 'Import a skill') {
+        const fd = new Map([['source', 'https://github.com/owner/multi-skill']]);
+        return { get: (k) => fd.get(k) };
+      }
+      if (title === 'Choose skills') {
+        return {
+          getAll: (k) => (k === 'skills' ? ['skill-a', 'skill-b'] : []),
+          get: (k) => null,
+        };
+      }
+      return null;
+    },
+    api: async (url, payload) => {
+      apiCalls.push({ url, payload });
+      if (payload.skills) {
+        return {
+          skills: [{ name: 'skill-a' }, { name: 'skill-b' }],
+          imported_files: ['skill-a/SKILL.md', 'skill-b/SKILL.md'],
+          skipped_files: [],
+        };
+      }
+      return {
+        choices: [
+          { skill: 'skill-a', description: 'First skill' },
+          { skill: 'skill-b', description: 'Second skill' },
+        ],
+      };
+    },
+  });
+
+  vm.runInContext(importFn, context);
+  await context.importSkill();
+
+  assert.equal(dialogCalls.length, 2);
+  assert.equal(dialogCalls[0].title, 'Import a skill');
+  assert.equal(dialogCalls[1].title, 'Choose skills');
+  assert.match(dialogCalls[1].html, /skills-toggle-all/);
+  assert.match(dialogCalls[1].html, /name="skills"/);
+  assert.match(dialogCalls[1].html, /value="skill-a"/);
+  assert.match(dialogCalls[1].html, /value="skill-b"/);
+
+  assert.equal(apiCalls.length, 2);
+  assert.deepEqual(apiCalls[1].payload.skills, ['skill-a', 'skill-b']);
+  assert.ok(notifications.some((m) => m.includes('Imported 2 skills')));
+});
+

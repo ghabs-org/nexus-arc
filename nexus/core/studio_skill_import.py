@@ -190,6 +190,56 @@ class StudioSkillImporter:
                 documents[path] = github.text(spec["owner"], spec["repo"], sha, path)
             return documents[path]
 
+        raw_skills = payload.get("skills")
+        if isinstance(raw_skills, str):
+            raw_skills = [skill_name(s) for s in raw_skills.split(",") if s.strip()]
+        elif isinstance(raw_skills, (list, tuple, set)):
+            raw_skills = [skill_name(str(s)) for s in raw_skills if str(s).strip()]
+        else:
+            raw_skills = None
+
+        if raw_skills:
+            def resolve_skill_path(wanted):
+                wanted = wanted.strip()
+                if wanted in candidates:
+                    return wanted
+                folder = [p for p in candidates if posixpath.basename(posixpath.dirname(p)) == wanted]
+                if folder:
+                    return folder[0]
+                for path in candidates[:_MAX_CANDIDATES]:
+                    if frontmatter(read(path)).get("name") == wanted:
+                        return path
+                return None
+
+            saved = []
+            all_imported = []
+            all_skipped = []
+            any_updated = False
+            for wanted in raw_skills:
+                skill_path = resolve_skill_path(wanted)
+                if not skill_path:
+                    continue
+                res = self._save(
+                    spec, ref, sha, files, skill_path, read(skill_path), github, payload
+                )
+                saved.append(res["skill"])
+                all_imported.extend(res["imported_files"])
+                all_skipped.extend(res["skipped_files"])
+                if res["updated"]:
+                    any_updated = True
+
+            if not saved:
+                raise ValueError("None of the requested skills were found in that repository")
+
+            return {
+                "skills": saved,
+                "skill": saved[0],
+                "updated": any_updated,
+                "imported_files": all_imported,
+                "skipped_files": all_skipped,
+                "count": len(saved),
+            }
+
         chosen = None
         if spec["skill"]:
             wanted = spec["skill"].strip()
