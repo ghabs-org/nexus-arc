@@ -22,13 +22,26 @@ def main():
     chat_parser.add_argument("--agent", help="Agent ID")
     chat_parser.add_argument("--provider", help="Explicit provider override")
     chat_parser.add_argument(
+        "--artifact-id",
+        action="append",
+        default=[],
+        help="Attach a saved Studio file to the next message (repeat, up to five)",
+    )
+    chat_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print one structured result; requires a message or --run-id",
+    )
+    chat_parser.add_argument(
         "--timeout", type=int, default=600, help="Maximum polling duration in seconds"
     )
     config_parser = subparsers.add_parser(
         "config", help="Validate, review and apply Studio configuration"
     )
     config_parser.add_argument(
-        "operation", choices=["validate", "plan", "apply", "export", "convert-interop", "export-interop"]
+        "operation",
+        choices=["validate", "plan", "apply", "export", "convert-interop", "export-interop"],
     )
     config_parser.add_argument(
         "file", nargs="?", help="Configuration document or reviewed plan JSON"
@@ -42,7 +55,8 @@ def main():
     config_parser.add_argument("--output", "-o", help="Write result to a private JSON file")
 
     config_parser.add_argument(
-        "--bindings", help="Explicit external model/agent/tool mappings as JSON (convert-interop only)"
+        "--bindings",
+        help="Explicit external model/agent/tool mappings as JSON (convert-interop only)",
     )
 
     # Translate

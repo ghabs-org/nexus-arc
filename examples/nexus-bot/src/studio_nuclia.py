@@ -20,10 +20,19 @@ import requests
 
 from nexus.core.models import AgentResult
 from nexus.core.studio import StudioService
+from nexus.core.studio_nuclia_interop import POLICY, convert_sam_template
 from nexus.studio import make_studio_handler
 
 
-def exercise(base="http://127.0.0.1:49873/nuclia"):
+def exercise(
+    base="http://127.0.0.1:49873/nuclia",
+    *,
+    templates=False,
+    sam_template=False,
+    evidence=False,
+    originals=False,
+):
+    templates = templates or sam_template
     url = urlparse(base)
     if url.scheme != "http" or url.hostname != "127.0.0.1" or url.username or url.password:
         raise ValueError("This example accepts only its local HTTP simulation")
@@ -35,6 +44,14 @@ def exercise(base="http://127.0.0.1:49873/nuclia"):
             return True
 
         async def execute_agent(self, context):
+            if "Evaluate the answer using only the rubric." in context.prompt:
+                assert '["Thirty days."]' in context.prompt
+                return AgentResult(
+                    success=True,
+                    output='{"score":1.0,"reason":"Grounded in saved reference context"}',
+                )
+            if evidence and len(prompts) >= 2:
+                return AgentResult(success=True, output="Thirty days.")
             prompts.append(context.prompt)
             if len(prompts) == 1:
                 return AgentResult(
@@ -47,9 +64,20 @@ def exercise(base="http://127.0.0.1:49873/nuclia"):
                                     "action": "ask",
                                     "arguments": {
                                         "query": "What is the return policy?",
-                                        "filter_expression": {
-                                            "field": {"prop": "resource", "id": "resource"}
-                                        },
+                                        **(
+                                            {
+                                                "parameters": {
+                                                    "region": "emea",
+                                                    "document": "resource",
+                                                }
+                                            }
+                                            if templates
+                                            else {
+                                                "filter_expression": {
+                                                    "field": {"prop": "resource", "id": "resource"}
+                                                }
+                                            }
+                                        ),
                                         "prompt": {"user": "Use {context} to answer {question}"},
                                         "rephrase": False,
                                     },
@@ -109,8 +137,55 @@ def exercise(base="http://127.0.0.1:49873/nuclia"):
                 raise AssertionError("Generation was enabled implicitly")
             assert attempts() == before + 1
             record = studio.catalog.save(
-                "connectors", {**record, "data": {**record["data"], "actions": ["query", "ask"]}}
+                "connectors",
+                {
+                    **record,
+                    "data": {
+                        **record["data"],
+                        "actions": ["query", "ask", *(["download_original"] if originals else [])],
+                        **({"capture_evaluation": True} if evidence else {}),
+                    },
+                },
             )
+            if templates:
+                template = {
+                    "version": 1,
+                    "parameters": [
+                        {"name": "region", "type": "string", "required": True},
+                        {"name": "document", "type": "string", "default": "resource"},
+                    ],
+                    "query_prompt": "Region: {{region}}; Question: {{query}}",
+                    "filter_expression": {"field": {"prop": "resource", "id": "{{document}}"}},
+                }
+                if sam_template:
+                    converted = convert_sam_template(
+                        {
+                            "template_parameters": template["parameters"],
+                            "prompt_rephrasing": {
+                                "template": "Region: {region}; Question: {query}"
+                            },
+                            "filter_expression_template": {
+                                "field": {"prop": "resource", "id": "{document}"}
+                            },
+                        },
+                        policy=POLICY,
+                    )
+                    assert converted["adaptations"]
+                    template = converted["template"]
+                    # Review through the same full preflight used by imported configurations.
+                    exported = studio.configuration.export(None)
+                    selected = next(
+                        row for row in exported["resources"] if row["id"] == record["id"]
+                    )
+                    selected["data"]["template"] = template
+                    selected["data"]["enabled"] = False
+                    plan = studio.configuration.plan(exported, None)
+                    studio.configuration.apply(plan["id"], plan["digest"], None)
+                    record = studio.catalog.get("connectors", record["id"])
+                record = studio.catalog.save(
+                    "connectors",
+                    {**record, "data": {**record["data"], "template": template, "enabled": True}},
+                )
             tool = next(
                 name for name in studio.operations.tools if name.endswith(":" + record["id"])
             )
@@ -131,7 +206,9 @@ def exercise(base="http://127.0.0.1:49873/nuclia"):
                 time.sleep(0.01)
             assert run["status"] == "completed", run
             assert run["output"] == "Thirty days [source:1]."
-            assert len(run["citations"]) == 1 and len(run["structured_content"]) == 2
+            assert len(run["citations"]) == 1 and len(run["structured_content"]) == (
+                3 if evidence else 2
+            )
             citation = run["citations"][0]
             assert citation["original_page"] == 4 and citation["page"] == 1
             assert (
@@ -156,9 +233,114 @@ def exercise(base="http://127.0.0.1:49873/nuclia"):
             pinned = requests.get(origin + path, timeout=5)
             pinned.raise_for_status()
             assert "Thirty days." in pinned.text and "New revision" not in pinned.text
+            if originals:
+                assert citation["original_document"]["connector_id"] == record["id"]
+                before_download = attempts()
+                original_ids = []
+                for _ in range(2):
+                    queued = requests.post(
+                        origin + "/api/studio/original-document",
+                        headers={"X-Nexus-Studio-Token": "synthetic-nuclia-csrf"},
+                        json={"source_run_id": run["id"], "source_index": 0},
+                        timeout=5,
+                    )
+                    queued.raise_for_status()
+                    download = queued.json()
+                    for _ in range(500):
+                        download = studio.run(download["id"])
+                        if download["status"] not in {"queued", "running"}:
+                            break
+                        time.sleep(0.01)
+                    assert download["status"] == "completed", download
+                    copied = json.loads(download["output"])
+                    assert copied["remote_revision_pinned"] is False
+                    artifact = copied["artifacts"][0]
+                    original_ids.append(artifact["id"])
+                    content = requests.get(
+                        origin
+                        + f"/api/catalog/artifacts/{artifact['id']}/versions/{artifact['revision']}",
+                        timeout=5,
+                    )
+                    content.raise_for_status()
+                    assert content.content == b"Original policy file: Thirty days."
+                assert original_ids[0] == original_ids[1] and attempts() == before_download + 1
+                assert studio.run(run["id"])["citations"][0] == citation
+            if evidence:
+                report = next(
+                    item
+                    for item in run["structured_content"]
+                    if item.get("filename") == "retrieval-evidence.json"
+                )
+                artifact = studio.artifacts.revision(report["artifact_id"], report["revision"])
+                document = json.loads(studio.artifacts.get(artifact))
+                assert document["contexts"] == ["Thirty days."]
+                assert document["learning_id"] == "synthetic-learning-id"
+                assert document["question"] == "What is the return policy?"
+                headers = {"X-Nexus-Studio-Token": "synthetic-nuclia-csrf"}
+                feedback = requests.post(
+                    origin + "/api/studio/feedback",
+                    headers=headers,
+                    json={"run_id": run["id"], "rating": 1},
+                    timeout=5,
+                )
+                feedback.raise_for_status()
+                promoted = requests.post(
+                    origin + "/api/studio/feedback/promote",
+                    headers=headers,
+                    json={
+                        "feedback_id": feedback.json()["id"],
+                        "name": "Grounded policy answer",
+                        "expected": "Thirty days",
+                        "target_kind": "agent",
+                        "target_id": agent["id"],
+                        "evidence": {
+                            "artifact_id": report["artifact_id"],
+                            "revision": report["revision"],
+                        },
+                        "judge": {
+                            "provider": "codex",
+                            "rubric": "Answer must follow the saved reference context",
+                        },
+                    },
+                    timeout=5,
+                )
+                promoted.raise_for_status()
+                suite = promoted.json()
+                assert suite["data"]["cases"][0]["contexts"] == ["Thirty days."]
+                evaluation = studio.start_run(
+                    {
+                        "kind": "evaluation",
+                        "evaluation_id": suite["id"],
+                        "task": "Check grounded answer",
+                    }
+                )
+                for _ in range(500):
+                    evaluation = studio.run(evaluation["id"])
+                    if evaluation["status"] not in {"queued", "running"}:
+                        break
+                    time.sleep(0.01)
+                assert evaluation["status"] == "completed", evaluation
+                evaluation_report = json.loads(evaluation["output"])
+                assert (
+                    evaluation_report["passed"] == 1 and evaluation_report["mean_judge_score"] == 1
+                )
+            if templates:
+                exported = studio.configuration.export(None)
+                configured = next(row for row in exported["resources"] if row["id"] == record["id"])
+                assert configured["data"]["template"] == record["data"]["template"]
+                count = attempts()
+                try:
+                    call("ask", {"query": "Policy?", "parameters": {"region": 12}})
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("Invalid typed value reached provider")
+                assert attempts() == count
+                data = {key: value for key, value in record["data"].items() if key != "template"}
+                record = studio.catalog.save("connectors", {**record, "data": data})
             no_context = call("ask", {"query": "fixture:empty"})
             assert no_context["status"] == "no_context" and not no_context["sources"]
-            assert len(no_context["artifacts"]) == 1
+            assert len(no_context["artifacts"]) == (2 if evidence else 1)
             failures = ["error", "missing-citation", "reject", "redirect", "bad-json", "oversized"]
             for case in failures:
                 count, artifacts = attempts(), len(studio.catalog.list("artifacts"))
@@ -197,4 +379,17 @@ def exercise(base="http://127.0.0.1:49873/nuclia"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="http://127.0.0.1:49873/nuclia")
-    print(exercise(parser.parse_args().base))
+    parser.add_argument("--templates", action="store_true")
+    parser.add_argument("--sam-template", action="store_true")
+    parser.add_argument("--evidence", action="store_true")
+    parser.add_argument("--originals", action="store_true")
+    args = parser.parse_args()
+    print(
+        exercise(
+            args.base,
+            templates=args.templates,
+            sam_template=args.sam_template,
+            evidence=args.evidence,
+            originals=args.originals,
+        )
+    )

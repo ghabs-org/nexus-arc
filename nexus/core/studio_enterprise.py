@@ -90,7 +90,14 @@ def validate_enterprise(data):
         result["allow_writes"] = data.get("allow_writes", False)
         supported = {"query", "inspect_schema"} | ({"execute"} if result["allow_writes"] else set())
     elif kind == "nuclia":
-        fields |= {"url", "allow_private", "token_env", "knowledge_box"}
+        fields |= {
+            "url",
+            "allow_private",
+            "token_env",
+            "knowledge_box",
+            "template",
+            "capture_evaluation",
+        }
         remote = validate_remote(
             {
                 "url": data.get("url"),
@@ -103,7 +110,15 @@ def validate_enterprise(data):
             allow_private=remote["allow_private"],
             token_env=remote["auth"]["token_env"],
         )
-        supported = {"query", "ask"}
+        supported = {"query", "ask", "download_original"}
+        if "capture_evaluation" in data:
+            if type(data["capture_evaluation"]) is not bool:
+                raise ValueError("Capture evaluation evidence must be true or false")
+            result["capture_evaluation"] = data["capture_evaluation"]
+        if "template" in data:
+            from nexus.core.studio_nuclia_templates import validate_template
+
+            result["template"] = validate_template(data["template"])
         result["knowledge_box"] = identifier(data.get("knowledge_box"), "Knowledge box ID")
         if "/" in result["knowledge_box"]:
             raise ValueError("Choose a knowledge box ID without a path")
@@ -169,9 +184,7 @@ def validate_enterprise(data):
             tables=[identifier(value, "DynamoDB table", 255) for value in tables],
             allow_writes=data.get("allow_writes", False),
         )
-        supported = {"inspect_schema", "query"} | (
-            {"execute"} if result["allow_writes"] else set()
-        )
+        supported = {"inspect_schema", "query"} | ({"execute"} if result["allow_writes"] else set())
     elif kind in {"opensearch", "elasticsearch"}:
         fields |= {"url", "allow_private", "token_env", "indices", "allow_writes"}
         remote = validate_remote(
@@ -196,9 +209,7 @@ def validate_enterprise(data):
             indices=cleaned_indices,
             allow_writes=data.get("allow_writes", False),
         )
-        supported = {"inspect_schema", "query"} | (
-            {"execute"} if result["allow_writes"] else set()
-        )
+        supported = {"inspect_schema", "query"} | ({"execute"} if result["allow_writes"] else set())
     elif kind == "neo4j":
         fields |= {"url", "allow_private", "token_env", "database", "allow_writes"}
         remote = validate_remote(
@@ -220,14 +231,14 @@ def validate_enterprise(data):
             database=database,
             allow_writes=data.get("allow_writes", False),
         )
-        supported = {"inspect_schema", "query"} | (
-            {"execute"} if result["allow_writes"] else set()
-        )
+        supported = {"inspect_schema", "query"} | ({"execute"} if result["allow_writes"] else set())
     else:
         raise ValueError("Unknown catalog connector")
     if set(data) - fields:
         raise ValueError("Unsupported connector fields: " + ", ".join(sorted(set(data) - fields)))
-    actions = data.get("actions", ["query"] if kind == "nuclia" else sorted(supported - {"execute"}))
+    actions = data.get(
+        "actions", ["query"] if kind == "nuclia" else sorted(supported - {"execute"})
+    )
     if not isinstance(actions, list) or set(actions) - supported:
         raise ValueError("Choose supported connector actions: " + ", ".join(sorted(supported)))
     result["actions"] = list(dict.fromkeys(actions))
@@ -559,9 +570,7 @@ class StudioEnterprise:
             access, secret = values.get(data["access_key_env"]), values.get(data["secret_key_env"])
             if not access or not secret:
                 raise PermissionError("Configure the selected account's AWS credential references")
-            session = (
-                values.get(data["session_token_env"]) if data["session_token_env"] else None
-            )
+            session = values.get(data["session_token_env"]) if data["session_token_env"] else None
             client = boto3.client(
                 "neptunedata",
                 region_name=data["region"],
@@ -612,9 +621,7 @@ class StudioEnterprise:
             access, secret = values.get(data["access_key_env"]), values.get(data["secret_key_env"])
             if not access or not secret:
                 raise PermissionError("Configure the selected account's AWS credential references")
-            session = (
-                values.get(data["session_token_env"]) if data["session_token_env"] else None
-            )
+            session = values.get(data["session_token_env"]) if data["session_token_env"] else None
             client = boto3.client(
                 "dynamodb",
                 region_name=data["region"],
@@ -673,6 +680,10 @@ class StudioEnterprise:
                 client.close()
 
     def call(self, data, identity, action, arguments, *, connector_id=None):
+        if data["type"] == "nuclia" and action == "download_original":
+            from nexus.core.studio_nuclia_documents import download_original
+
+            return download_original(self.studio, data, identity, arguments, connector_id)
         if data["type"].startswith("bedrock"):
             return self.bedrock(data, identity, arguments)
         if data["type"] == "mongodb":
@@ -690,8 +701,13 @@ class StudioEnterprise:
             headers = {"X-NUCLIA-SERVICEACCOUNT": headers["Authorization"]}
             from nexus.core.studio_nuclia import request_body
 
-            url = data["url"] + "/api/v1/kb/" + data["knowledge_box"] + ("/ask" if action == "ask" else "/find")
-            body = request_body(action, arguments)
+            url = (
+                data["url"]
+                + "/api/v1/kb/"
+                + data["knowledge_box"]
+                + ("/ask" if action == "ask" else "/find")
+            )
+            body = request_body(action, arguments, data.get("template"))
             if action == "ask":
                 headers["X-Synchronous"] = "true"
             method = "POST"
@@ -764,15 +780,29 @@ class StudioEnterprise:
         else:
             result = bounded(
                 self.studio.research.request(
-                    method, url, headers, body, private=data.get("allow_private", False),
-                    **({"timeout": 90, "response_limit": 256 * 1024}
-                       if data["type"] == "nuclia" and action == "ask" else {}),
+                    method,
+                    url,
+                    headers,
+                    body,
+                    private=data.get("allow_private", False),
+                    **(
+                        {"timeout": 90, "response_limit": 256 * 1024}
+                        if data["type"] == "nuclia" and action == "ask"
+                        else {}
+                    ),
                 )
             )
         if data["type"] == "nuclia" and action == "ask":
             from nexus.core.studio_nuclia import answer_sources, publish_answer
 
-            return publish_answer(self.studio, answer_sources(result), identity, data, connector_id)
+            return publish_answer(
+                self.studio,
+                answer_sources(result),
+                identity,
+                data,
+                connector_id,
+                question=body["query"],
+            )
         if data["type"] == "powerbi":
             return validate_powerbi_response(result, data["dataset_id"], action)
         return result

@@ -877,6 +877,11 @@ class StudioService:
         }
         if kind == "build":
             record["build_id"] = payload["build_id"]
+        if payload.get("artifact_ids") and payload.get("artifact_refs"):
+            record["artifact_refs"] = [
+                {"id": item["id"], "revision": item["revision"]}
+                for item in payload["artifact_refs"]
+            ]
         with self.lock:
             for launch_key, launch_revision in launch_revisions.items():
                 if self.resource_lifecycle.assert_launch(launch_key) != launch_revision:

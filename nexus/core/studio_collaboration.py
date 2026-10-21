@@ -60,6 +60,13 @@ class StudioCollaboration:
         if record["owner_id"] != owner(actor):
             raise PermissionError("Feedback belongs to another account")
         expected = _text(data.get("expected"), "Expected answer phrase", 1000)
+        case = {"input": record["task"], "contains": [expected]}
+        if "evidence" in data:
+            from nexus.core.studio_retrieval_evidence import promotion_context
+
+            case.update(promotion_context(self.studio, data["evidence"], record["run_id"], actor))
+        if "judge" in data:
+            case["judge"] = data["judge"]
         return self.studio.catalog.save(
             "evaluations",
             {
@@ -68,7 +75,7 @@ class StudioCollaboration:
                 "data": {
                     "target_kind": data.get("target_kind"),
                     "target_id": data.get("target_id"),
-                    "cases": [{"input": record["task"], "contains": [expected]}],
+                    "cases": [case],
                 },
             },
         )

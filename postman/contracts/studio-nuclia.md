@@ -32,3 +32,85 @@ counter are instrumentation, not a vendor API. Unsupported routes return 501.
 No live account is used. Owner mock discovery is unavailable while Postman CLI is
 signed out; Orbit discovery returned 403. Official vendor sources supplied the
 fixture shapes. See `docs/STUDIO-NUCLIA.md` for setup, migration and remaining work.
+
+Versioned connector `template` is optional. Version 1 accepts typed parameter
+schemas, a `{{query}}` query prompt and a JSON filter template. Runtime values live
+in `arguments.parameters`. Whole-value placeholders preserve JSON types;
+replacement is non-recursive. Invalid/undeclared values fail before I/O. Runtime
+filters cannot replace a configured filter. Native configuration validate/plan/
+apply/export uses the same validators; defaults never enter tool descriptions.
+The simulation's templated case additionally requires the expanded region/query
+and resource filter. Both ordinary and templated consumers retain nine requests
+per example, with invalid typed values producing no request.
+
+The optional SAM template-settings consumer now converts the frozen plugin's
+three template fields through `convert_sam_template(..., policy="nexus-strict-v1")`
+before using native configuration plan/apply. Conversion reports its behavior
+adaptations and rejects unsupported settings. It creates no API route and does
+not import complete Python tool descriptors. The third real-HTTP acceptance
+variant uses the same provider contract and retains nine provider requests;
+invalid conversion does not resolve credentials or make provider requests.
+
+## Native private evaluation evidence
+
+Nuclia connector data optionally accepts boolean `capture_evaluation`, absent or
+false by default. Only `ask` captures evidence. It adds a private
+`retrieval-evidence.json` artifact and an `evaluation_evidence` reference to the
+answer result. The versioned `nexus-retrieval-evidence/v1` document contains the
+effective query, provider answer/status, bounded optional learning ID, selected
+connector/run IDs, cited text and paragraph identities. It contains no raw
+provider metadata, credential headers, original-document URLs or ephemeral
+tokens. Context scope is explicitly `cited-paragraphs-only`.
+
+Existing `POST /api/studio/feedback/promote` optionally accepts
+`evidence: {artifact_id, revision}` and an explicit `judge` configuration. The
+artifact's current and pinned owners, generated-run provenance, format and rated
+run must match before context is copied. Unknown/foreign/unrelated uploads fail;
+failed promotion creates no evaluation. Ordinary promotion retains its old
+phrase-only behavior. No judge or provider runs during promotion.
+
+Evaluation cases optionally retain `contexts` (up to 20 nonempty passages, each
+16,000 UTF-8 bytes, 64,000 bytes combined and 96,000 serialized JSON bytes) and
+`context_source: {artifact_id, revision}` metadata. The source reference records
+where an editable copy came from; evaluation never dereferences it or grants
+artifact access. Only an explicitly configured judge receives the copied text,
+marked as untrusted reference data. Existing phrase and structured checks remain
+unchanged. Judge model usage belongs to the selected account.
+
+Capture preflight enforces the existing 40-artifact run limit, including the
+extra report. Reports are capped at 160,000 serialized bytes. Validation, late
+cancellation, revoked execution rights and changed connector settings stop
+publication before any evidence artifact is created. Native execution events
+contain only artifact/revision references, provider and status. The bounded
+learning ID remains in the private artifact/result, never content-free traces.
+
+The fourth HTTP simulation consumer exercises capture, feedback promotion and a
+synthetic explicitly selected judge. It uses the same nine Nuclia requests and
+makes no live model/account call. Existing three consumers remain compatible.
+
+## Native original-file access
+
+- Explicit optional `download_original` action; query-only defaults remain.
+- `POST /api/studio/original-document` accepts exactly `source_run_id` and
+  zero-based integer `source_index` (0..39), plus host-injected identity fields.
+  Identity always comes from the authenticated host. Returns HTTP 202 with an
+  existing `kind: tool` run; clients poll the same run rather than resubmit.
+- Saved citation must belong to a completed visible run and carry an unchanged,
+  enabled Nuclia connection reference plus a valid file-field identity.
+- Upstream route: `GET /api/v1/kb/{kb}/resource/{rid}/file/{field}/download/field`,
+  authenticated using `X-NUCLIA-SERVICEACCOUNT`, without token-bearing URLs.
+  Only HTTP 200, no redirects/range requests, maximum 16 MiB and 60 seconds.
+- Output is a private local revision with SHA-256, retrieval time, artifacts and
+  `remote_revision_pinned: false`. Remote history is not inferred.
+- Completed owner/citation/configuration receipts reuse one snapshot across
+  restart and concurrent publication. Final source/configuration/ownership,
+  job cancellation and artifact-limit checks precede saving/reference updates.
+- Browser links target local artifact revisions. Provider metadata, ephemeral
+  tokens and credential-bearing URLs are never copied to them.
+
+The fifth real-HTTP simulation consumer makes ten provider requests (the usual
+nine plus one binary download), verifies bytes and an explicit cached repeat.
+Four separate HTTP failures cover denied, redirect, partial and oversized reads.
+The new binary option on the shared bounded transport leaves JSON/text modes
+unchanged. `postman/contracts/studio-original-document.assertions.js` verifies
+the actual disposable Studio job endpoint, not a mock of that endpoint.

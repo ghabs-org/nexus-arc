@@ -254,9 +254,20 @@ class StudioOperations:
             call = self.connector_tool(identity)
 
             name = prefix + identity
-            tool_registry.register(
-                name, call, description=item["description"] or item["name"], category="connector"
-            )
+            description = item["description"] or item["name"]
+            if item["data"]["type"] == "nuclia" and item["data"].get("template"):
+                parameters = item["data"]["template"].get("parameters", [])
+                schema = [
+                    {key: parameter[key] for key in ("name", "type", "required", "nullable", "description") if key in parameter}
+                    for parameter in parameters
+                ]
+                description += (
+                    "\nNuclia selected actions: " + ", ".join(item["data"]["actions"])
+                    + ". Pass runtime values in arguments.parameters. Declared parameters: "
+                    + json.dumps(schema, ensure_ascii=False)
+                    + ". Configured defaults apply server-side; runtime filters cannot replace a stored filter."
+                )
+            tool_registry.register(name, call, description=description, category="connector")
             self.tools[name] = call
 
     def connector_tool(self, identity):

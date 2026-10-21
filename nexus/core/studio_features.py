@@ -129,6 +129,15 @@ class StudioFeatures:
         if len(parts) == 4 and parts[0] == "connectors" and parts[2:] == ["oauth", "disconnect"]:
             return 200, self.studio.oauth.disconnect(parts[1], actor)
         studio = self.studio
+        if parts == ["original-document"]:
+            from nexus.core.studio_nuclia_documents import queue_original
+
+            selection = {
+                key: value
+                for key, value in data.items()
+                if key not in {"requester_nexus_id", "_role"}
+            }
+            return 202, queue_original(studio, selection, actor)
         if len(parts) == 3 and parts[0] == "builds" and parts[2] == "review":
             return 200, studio.builder.review(parts[1], data, actor)
         if len(parts) == 3 and parts[0] == "builds" and parts[2] == "health":

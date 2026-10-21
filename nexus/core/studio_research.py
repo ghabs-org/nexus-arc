@@ -203,9 +203,12 @@ class StudioResearch:
         *,
         private=False,
         text=False,
+        binary=False,
         response_limit=512 * 1024,
         timeout=None,
     ):
+        if type(binary) is not bool or binary and text:
+            raise ValueError("Choose either binary or text response mode")
         if type(response_limit) is not int or not 1 <= response_limit <= 24 * 1024 * 1024:
             raise ValueError("Response limit exceeds supported bounds")
         if timeout is not None and (type(timeout) not in (int, float) or not 1 <= timeout <= 180):
@@ -227,12 +230,23 @@ class StudioResearch:
                 ) as response:
                     if not 200 <= response.status_code < 300:
                         raise ValueError("Research service rejected the request")
+                    if binary and response.status_code != 200:
+                        raise ValueError("Binary downloads require a complete response")
                     raw = bytearray()
                     start = time.monotonic()
                     for part in response.iter_content(16384):
                         raw.extend(part)
                         if len(raw) > response_limit or time.monotonic() - start > (timeout or 20):
                             raise ValueError("Research response exceeded its size or time limit")
+                    if binary:
+                        return {
+                            "content": bytes(raw),
+                            "content_type": response.headers.get(
+                                "Content-Type", "application/octet-stream"
+                            )
+                            .split(";", 1)[0]
+                            .lower(),
+                        }
                     if text:
                         kind = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
                         if kind not in {

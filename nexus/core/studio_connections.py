@@ -38,6 +38,7 @@ NATIVE = {
     "neo4j",
 }
 READ_ACTIONS = {
+    "download_original",
     "list_operations",
     "ask",
     "read",
@@ -302,7 +303,7 @@ class StudioConnections:
 
             class WhatsAppChannel:
                 async def send_message(self, channel_id, message):
-                    recipient = arguments_recipient = str(channel_id)
+                    recipient = str(channel_id)
                     body = {
                         "messaging_product": "whatsapp",
                         "to": recipient,

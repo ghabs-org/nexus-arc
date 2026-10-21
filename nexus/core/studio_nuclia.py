@@ -3,13 +3,18 @@
 import base64
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 
 from nexus.core.studio_catalog import _text
 from nexus.core.studio_data_tools import current_run_id
 
 
-def request_body(action, arguments):
+def request_body(action, arguments, template=None):
+    if template is not None:
+        from nexus.core.studio_nuclia_templates import prepare_arguments
+
+        arguments = prepare_arguments(template, arguments)
     allowed = {"query", "top_k", "page", "filter_expression"}
     if action == "ask":
         allowed |= {"prompt", "rephrase"}
@@ -134,22 +139,33 @@ def answer_sources(value):
         raise ValueError("Nuclia returned more than twenty cited paragraphs; narrow the query")
     if value["status"] != "success" and citations:
         raise ValueError("Nuclia no-context result cannot include cited evidence")
+    learning_id = value.get("learning_id")
+    if learning_id is not None and (
+        not isinstance(learning_id, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,200}", learning_id)
+    ):
+        raise ValueError("Nuclia returned an invalid learning identifier")
     return {
         "output": answer,
         "status": value["status"],
         "sources": selected,
         "provider_citations": citations,
         "untrusted": True,
+        **({"learning_id": learning_id} if learning_id is not None else {}),
     }
 
 
-def publish_answer(studio, result, identity, data, connector_id=None):
+def publish_answer(studio, result, identity, data, connector_id=None, *, question=None):
     """Publish through existing artifacts while holding the final execution fence."""
     actor = None
     if studio.team:
         studio.team.assert_execution(identity)
         actor = {"nexus_id": identity, "role": studio.team.bindings[identity]}
     run_id = current_run_id.get()
+    evidence = None
+    if data.get("capture_evaluation"):
+        from nexus.core.studio_retrieval_evidence import evidence_document
+
+        evidence = evidence_document(result, question, connector_id, run_id)
     with studio.lock:
         if studio.team:
             studio.team.assert_execution(identity)
@@ -161,7 +177,10 @@ def publish_answer(studio, result, identity, data, connector_id=None):
                 raise ValueError("Nuclia execution stopped before result publication")
             if len(run.get("citations", [])) + len(result["sources"]) > 40:
                 raise ValueError("Nuclia result would exceed the run citation limit")
-            if len(run.get("structured_content", [])) + len(result["sources"]) + 1 > 40:
+            if (
+                len(run.get("structured_content", [])) + len(result["sources"]) + 1 + bool(evidence)
+                > 40
+            ):
                 raise ValueError("Nuclia result would exceed the run artifact limit")
         files = []
         for index, source in enumerate(result["sources"], 1):
@@ -185,11 +204,22 @@ def publish_answer(studio, result, identity, data, connector_id=None):
                 ).decode(),
             }
         )
+        if evidence is not None:
+            files.append(
+                {
+                    "filename": "retrieval-evidence.json",
+                    "content_base64": base64.b64encode(
+                        json.dumps(evidence, ensure_ascii=False).encode()
+                    ).decode(),
+                }
+            )
         saved = studio.data_tools.publish(
             {"stdout": result["output"], "files": files}, actor, run_id
         )
         citations = list(studio.run(run_id).get("citations", [])) if run_id else []
-        for source, artifact in zip(result["sources"], saved["artifacts"][:-1], strict=True):
+        for source, artifact in zip(
+            result["sources"], saved["artifacts"][: len(result["sources"])], strict=True
+        ):
             citation = {
                 "kind": "document",
                 "artifact_id": artifact["id"],
@@ -201,9 +231,18 @@ def publish_answer(studio, result, identity, data, connector_id=None):
                 "retrieved_at": datetime.now(UTC).isoformat(),
                 "provider": "nuclia",
                 "resource_id": source["resource_id"],
+                "field_id": source["field_id"],
                 "paragraph_id": source["paragraph_id"],
                 "original_page": source["original_page"],
             }
+            if run_id and connector_id and "download_original" in data.get("actions", []):
+                from nexus.core.studio_nuclia_documents import original_reference
+
+                reference = original_reference(data, connector_id, source)
+                if reference:
+                    citation["original_document"] = reference
+                    citation["source_run_id"] = run_id
+                    citation["source_index"] = len(citations)
             citations.append(citation)
             source.update(
                 artifact_id=artifact["id"],
@@ -212,4 +251,16 @@ def publish_answer(studio, result, identity, data, connector_id=None):
             )
         if run_id:
             studio._update_run(run_id, citations=citations)
+        if evidence is not None:
+            artifact = saved["artifacts"][-1]
+            if run_id:
+                studio.execution.record(
+                    run_id,
+                    "retrieval",
+                    provider="nuclia",
+                    status=result["status"],
+                    artifact_id=artifact["id"],
+                    artifact_revision=artifact["revision"],
+                )
+            return {**result, "artifacts": saved["artifacts"], "evaluation_evidence": artifact}
         return {**result, "artifacts": saved["artifacts"]}

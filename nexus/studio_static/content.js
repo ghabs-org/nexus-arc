@@ -37,7 +37,20 @@ function showCitations(node, citations=[]) {
           showDetail(`${source.filename} · revision ${source.artifact_revision}`,"");$("detail-content").replaceChildren(previewContent(preview));
         }catch(error){if(typeof notify==="function")notify(error.message);}
       });}
-    link.target="_blank";link.rel="noopener noreferrer";details.append(link);});
+    link.target="_blank";link.rel="noopener noreferrer";details.append(link);
+    if(source.original_document&&typeof source.source_run_id==="string"&&Number.isInteger(source.source_index)&&typeof api==="function"&&typeof pollRun==="function"){
+      const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent="Save current original";button.title="Copies the current remote file. Previously cited text stays pinned.";
+      button.addEventListener("click",async()=>{
+        button.disabled=true;button.textContent="Saving original…";
+        try{
+          const run=await api("/api/studio/original-document",{source_run_id:source.source_run_id,source_index:source.source_index});
+          const completed=await pollRun(run.id),result=JSON.parse(completed.output),artifact=result.artifacts?.[0];
+          if(!artifact||typeof artifact.id!=="string"||!Number.isInteger(artifact.revision))throw new Error("Original file has no saved snapshot.");
+          const saved=document.createElement("a");saved.href=`/artifact.html?id=${encodeURIComponent(artifact.id)}&revision=${artifact.revision}&page=1`;saved.textContent="Open saved original";saved.target="_blank";saved.rel="noopener noreferrer";button.replaceWith(saved);
+        }catch(error){button.disabled=false;button.textContent="Save current original";if(typeof notify==="function")notify(error.message);}
+      });details.append(button);
+    }
+  });
   node.append(details);
 }
 function previewDocument(root, preview, options={}) {
