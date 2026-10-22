@@ -168,7 +168,22 @@ class StudioGraph:
             if edge.get("choice"):
                 choice = _text(edge["choice"], "Decision route", 64)
                 origin = next((n for n in normalized if n["id"] == source), {})
-                if origin.get("kind") != "decision" or choice not in origin["decision"]["options"]:
+                if origin.get("kind") != "decision":
+                    raise ValueError("Choice edges must name an option of their source decision")
+                decision = origin.get("decision", {})
+                if decision.get("format") == "nexus-typed-decision/v1":
+                    targets = set(decision.get("routes", {}).values()) | {
+                        decision[k] for k in ("default", "escalate") if decision.get(k)
+                    }
+                    route_on = decision.get("route_on")
+                    valid_choices = set(decision.get("routes", {}).keys()) | targets
+                    if route_on and route_on in decision.get("questions", {}):
+                        criteria = decision["questions"][route_on].get("criteria", {})
+                        if isinstance(criteria, dict):
+                            valid_choices |= set(criteria.keys())
+                    if choice not in valid_choices:
+                        raise ValueError("Choice edges must name an option of their source decision")
+                elif choice not in decision.get("options", {}):
                     raise ValueError("Choice edges must name an option of their source decision")
                 normalized_edge["choice"] = choice
             normalized_edges.append(normalized_edge)
@@ -242,10 +257,20 @@ class StudioGraph:
                 return True
             if edge.get("choice"):
                 try:
+                    origin = next((n for n in graph["nodes"] if n["id"] == edge["source"]), {})
+                    config = origin.get("decision", {})
+                    out_val = outputs.get(edge["source"], "{}")
+                    parsed = json.loads(out_val) if isinstance(out_val, str) else out_val
+                    field = "choice"
+                    if config.get("format") == "nexus-typed-decision/v1":
+                        field = (
+                            "selected_branch"
+                            if edge["target"] == config.get("escalate")
+                            else "routed_branch"
+                        )
                     return (
                         statuses.get(edge["source"]) == "completed"
-                        and json.loads(outputs.get(edge["source"], "{}"))["choice"]
-                        == edge["choice"]
+                        and parsed.get(field) == edge["choice"]
                     )
                 except (ValueError, KeyError, TypeError):
                     return False
@@ -323,10 +348,14 @@ class StudioGraph:
                             from nexus.tools import tool_registry
 
                             def render(value):
+                                prior_str = "\n\n".join(
+                                    p if isinstance(p, str) else json.dumps(p, default=str)
+                                    for p in prior
+                                )
                                 if isinstance(value, str):
                                     return value.replace(
                                         "{task}", payload.get("expanded_task", payload["task"])
-                                    ).replace("{previous}", "\n\n".join(prior))
+                                    ).replace("{previous}", prior_str)
                                 if isinstance(value, list):
                                     return [render(entry) for entry in value]
                                 if isinstance(value, dict):
@@ -348,7 +377,11 @@ class StudioGraph:
                                 task=payload.get("expanded_task", payload["task"])
                             )
                             if prior:
-                                task += "\nCompleted upstream nodes:\n" + "\n\n".join(prior)
+                                prior_str = "\n\n".join(
+                                    p if isinstance(p, str) else json.dumps(p, default=str)
+                                    for p in prior
+                                )
+                                task += "\nCompleted upstream nodes:\n" + prior_str
                             request = {
                                 key: payload[key]
                                 for key in [

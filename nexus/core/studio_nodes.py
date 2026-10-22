@@ -105,9 +105,10 @@ class StudioNodeTypes:
     async def execute(self, node, payload, run_id, prior):
         def render(value):
             if isinstance(value, str):
-                return value.replace("{task}", payload["task"]).replace(
-                    "{previous}", "\n\n".join(prior)
+                prior_text = "\n\n".join(
+                    p if isinstance(p, str) else json.dumps(p, default=str) for p in prior
                 )
+                return value.replace("{task}", payload["task"]).replace("{previous}", prior_text)
             if isinstance(value, list):
                 return [render(item) for item in value]
             if isinstance(value, dict):
@@ -120,6 +121,21 @@ class StudioNodeTypes:
                 dm = self.studio.catalog.get("decisionmodels", decision_config["decision_model_id"])
                 decision_config.setdefault("backend", dm["data"]["backend"])
                 decision_config.setdefault("model", dm["data"]["model"])
+                if "timeout_seconds" in dm["data"]:
+                    decision_config.setdefault("timeout_seconds", dm["data"]["timeout_seconds"])
+            record_id = f"{run_id}-{hashlib.sha256(node['id'].encode()).hexdigest()[:16]}"
+            if decision_config.get("format") == "nexus-typed-decision/v1":
+                from nexus.core.studio_decisions import StudioTypedDecisions
+
+                prior_text = "\n\n".join(p if isinstance(p, str) else json.dumps(p, default=str) for p in prior)
+                state = payload["task"] + ("\nPrevious results:\n" + prior_text if prior else "")
+                typed = StudioTypedDecisions(self.studio.workbench.jobs)
+                outcome = await typed.execute(decision_config, state, payload, run_id, record_id)
+                return (
+                    outcome
+                    if isinstance(outcome, str)
+                    else json.dumps(outcome, default=str, ensure_ascii=False)
+                )
             request = {
                 **decision_config,
                 "task": payload["task"]
@@ -129,7 +145,7 @@ class StudioNodeTypes:
             return await self.studio.workbench.jobs.decision(
                 run_id,
                 request,
-                record_id=f"{run_id}-{hashlib.sha256(node['id'].encode()).hexdigest()[:16]}",
+                record_id=record_id,
             )
         if node["kind"] == "delay":
             await asyncio.sleep(node["delay_seconds"])

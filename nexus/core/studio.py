@@ -321,26 +321,63 @@ class StudioService:
 
     def providers(self) -> list[dict]:
         """Installation/configuration inventory, not an authentication or quota test."""
-        return [
-            {
-                "id": identity,
-                "name": label,
-                "kind": kind,
-                "configured": bool(shutil.which(source))
-                if kind == "cli"
-                else bool(os.getenv(source)),
-                "status": "CLI installed"
-                if kind == "cli" and shutil.which(source)
+        from nexus.adapters.ai.opencode_provider import get_opencode_auth, resolve_opencode_cli
+
+        items: list[dict] = []
+        for identity, label, source, kind, setup in _PROVIDERS:
+            cli_path = None
+            if kind == "cli":
+                if identity == "opencode":
+                    cli_path = resolve_opencode_cli()
+                else:
+                    cli_path = shutil.which(source)
+                    if not cli_path:
+                        for cand in (
+                            Path.home() / ".local" / "bin" / source,
+                            Path("/opt/homebrew/bin") / source,
+                            Path("/usr/local/bin") / source,
+                        ):
+                            try:
+                                if cand.is_file() and os.access(cand, os.X_OK):
+                                    cli_path = str(cand)
+                                    break
+                            except OSError:
+                                pass
+
+            configured = bool(cli_path) if kind == "cli" else bool(os.getenv(source))
+            status = (
+                "CLI installed"
+                if kind == "cli" and cli_path
                 else "API key configured"
                 if kind == "api" and os.getenv(source)
-                else "Setup needed",
-                "setup": setup,
-                "auth_verified": False,
-                "quota": None,
-                "models": default_models(identity),
-            }
-            for identity, label, source, kind, setup in _PROVIDERS
-        ]
+                else "Setup needed"
+            )
+            setup_text = setup
+
+            if identity == "opencode":
+                auth = get_opencode_auth()
+                if auth:
+                    configured = True
+                    if cli_path:
+                        status = "CLI installed"
+                    else:
+                        status = "Logged in"
+                        setup_text = f"Logged in ({auth[0]})\nCLI (optional): npm install -g opencode-ai"
+
+            items.append(
+                {
+                    "id": identity,
+                    "name": label,
+                    "kind": kind,
+                    "configured": configured,
+                    "status": status,
+                    "setup": setup_text,
+                    "auth_verified": False,
+                    "quota": None,
+                    "models": default_models(identity),
+                }
+            )
+        return items
 
     def definitions(self, kind: str) -> list[dict]:
         if kind not in {"agents", "workflows"}:

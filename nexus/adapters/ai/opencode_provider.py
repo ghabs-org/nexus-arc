@@ -29,6 +29,82 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "opencode/muse-spark-1.3-contributor-free"
 
 
+def resolve_opencode_cli(cli_path: str | None = None) -> str | None:
+    """Find installed OpenCode CLI executable or return None."""
+    explicit = (cli_path or os.getenv("OPENCODE_CLI_PATH", "")).strip()
+    if explicit:
+        which = shutil.which(explicit)
+        if which:
+            return which
+        cand = Path(explicit).expanduser()
+        try:
+            if cand.is_file() and os.access(cand, os.X_OK):
+                return str(cand)
+        except OSError:
+            pass
+
+    which = shutil.which("opencode")
+    if which:
+        return which
+
+    for candidate in (
+        Path.home() / ".local" / "bin" / "opencode",
+        Path("/opt/homebrew/bin/opencode"),
+        Path("/usr/local/bin/opencode"),
+        Path.home() / ".opencode" / "bin" / "opencode",
+    ):
+        try:
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+        except OSError:
+            pass
+    return None
+
+
+def get_opencode_auth() -> tuple[str, str] | None:
+    """Return (source_label, key) if OpenCode authentication credentials exist, else None."""
+    for var in ("OPENCODE_API_KEY", "OPENCODE_KEY", "OPENCODE_TOKEN"):
+        val = (os.getenv(var) or "").strip()
+        if val:
+            return (f"env:{var}", val)
+
+    candidates = [
+        Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "opencode" / "auth.json",
+        Path.home() / ".local" / "share" / "opencode" / "auth.json",
+        Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "opencode" / "auth.json",
+        Path.home() / ".config" / "opencode" / "auth.json",
+        Path.home() / ".opencode" / "auth.json",
+    ]
+    seen: set[Path] = set()
+    for p in candidates:
+        try:
+            resolved = p.resolve()
+        except OSError:
+            resolved = p
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            if not p.is_file():
+                continue
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                continue
+            val = data.get("opencode")
+            if isinstance(val, dict):
+                key = val.get("key") or val.get("token") or val.get("apiKey")
+                if key and str(key).strip():
+                    return (str(p), str(key).strip())
+            elif isinstance(val, str) and val.strip():
+                return (str(p), val.strip())
+            for k in ("key", "token", "apiKey"):
+                if data.get(k) and str(data[k]).strip():
+                    return (str(p), str(data[k]).strip())
+        except Exception:
+            continue
+    return None
+
+
 def extract_run_text(raw: str) -> str:
     """Extract assistant text from ``opencode run --format json`` output.
 
@@ -72,7 +148,7 @@ def list_recent_sessions(
 
     Raises RuntimeError when the CLI call fails.
     """
-    binary = (cli_path or os.getenv("OPENCODE_CLI_PATH", "opencode")).strip() or "opencode"
+    binary = resolve_opencode_cli(cli_path) or (cli_path or os.getenv("OPENCODE_CLI_PATH", "opencode")).strip() or "opencode"
     try:
         result = subprocess.run(
             [binary, "api", "get", "/api/session"],
@@ -124,7 +200,8 @@ class OpenCodeProvider(AIProvider):
         effort: str | None = None,
     ):
         self._timeout = timeout
-        self._cli_path = (cli_path or os.getenv("OPENCODE_CLI_PATH", "opencode")).strip() or "opencode"
+        resolved = resolve_opencode_cli(cli_path)
+        self._cli_path = resolved or (cli_path or os.getenv("OPENCODE_CLI_PATH", "opencode")).strip() or "opencode"
         self._model = (model or os.getenv("OPENCODE_MODEL", "")).strip() or DEFAULT_MODEL
         self._effort = effort
         self._availability_cache: dict = {}
@@ -141,11 +218,12 @@ class OpenCodeProvider(AIProvider):
         if cached and now - cached["at"] < self._availability_ttl:
             return cached["available"]
 
-        available = bool(shutil.which(self._cli_path))
+        cli = resolve_opencode_cli(self._cli_path) or self._cli_path
+        available = bool(shutil.which(cli) or (Path(cli).is_file() and os.access(cli, os.X_OK)))
         if available:
             try:
                 result = subprocess.run(
-                    [self._cli_path, "--version"],
+                    [cli, "--version"],
                     capture_output=True,
                     timeout=10,
                 )

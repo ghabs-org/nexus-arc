@@ -2034,6 +2034,37 @@ class TestOpenCodeProvider:
         provider = self._make_provider(cli_path="opencode-definitely-missing-xyz")
         assert asyncio.run(provider.check_availability()) is False
 
+    def test_get_opencode_auth_env(self, monkeypatch):
+        from nexus.adapters.ai.opencode_provider import get_opencode_auth
+
+        monkeypatch.setenv("OPENCODE_API_KEY", "env-key-xyz")
+        assert get_opencode_auth() == ("env:OPENCODE_API_KEY", "env-key-xyz")
+
+    def test_get_opencode_auth_file(self, monkeypatch, tmp_path):
+        from nexus.adapters.ai.opencode_provider import get_opencode_auth
+
+        monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+        monkeypatch.delenv("OPENCODE_KEY", raising=False)
+        monkeypatch.delenv("OPENCODE_TOKEN", raising=False)
+        opencode_dir = tmp_path / "opencode"
+        opencode_dir.mkdir(exist_ok=True)
+        (opencode_dir / "auth.json").write_text(
+            '{"opencode": {"type": "api", "key": "file-key-abc"}}',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+        assert get_opencode_auth() == (str(opencode_dir / "auth.json"), "file-key-abc")
+
+    def test_resolve_opencode_cli(self, monkeypatch, tmp_path):
+        from nexus.adapters.ai.opencode_provider import resolve_opencode_cli
+
+        bin_file = tmp_path / "opencode"
+        bin_file.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        bin_file.chmod(0o755)
+        assert resolve_opencode_cli(str(bin_file)) == str(bin_file)
+        monkeypatch.setenv("OPENCODE_CLI_PATH", str(bin_file))
+        assert resolve_opencode_cli() == str(bin_file)
+
     def test_registry_creates_opencode(self):
         from nexus.adapters.registry import AdapterRegistry
         from nexus.adapters.ai.opencode_provider import OpenCodeProvider

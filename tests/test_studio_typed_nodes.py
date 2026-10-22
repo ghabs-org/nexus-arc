@@ -221,3 +221,93 @@ def test_readonly_integration_retry_has_attempt_traces(app):
     traces = service.records("node-traces")
     assert {t["status"] for t in traces} == {"failed", "completed"}
     assert adapter.list_open_issues.await_count == 2
+
+
+def test_multi_question_typed_decision_node_routes_and_escalates(app):
+    service, calls = app
+    decision_answers = {
+        "priority": {
+            "type": "choice",
+            "choice": "critical",
+            "confidence": 0.95,
+            "probabilities": {"critical": 0.95, "low": 0.05},
+        },
+        "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.9,
+            "probabilities": {"technical": 0.9, "billing": 0.1},
+        },
+    }
+    service.workbench.jobs.decision_client = lambda *args, **kwargs: decision_answers
+
+    graph = {
+        "nodes": [
+            {
+                "id": "classify",
+                "name": "Classify",
+                "kind": "decision",
+                "decision": {
+                    "format": "nexus-typed-decision/v1",
+                    "backend": "openrouter",
+                    "model": "typesafe/jev-1.13",
+                    "questions": {
+                        "priority": {
+                            "type": "choice",
+                            "instructions": "Urgency",
+                            "criteria": {"critical": "Outage", "low": "Question"},
+                        },
+                        "department": {
+                            "type": "choice",
+                            "instructions": "Team",
+                            "criteria": {"technical": "Dev", "billing": "Pay"},
+                        },
+                    },
+                    "route_on": "priority",
+                    "routes": {"critical": "escalate"},
+                    "default": "resolve",
+                    "escalate": "escalate",
+                    "escalation_mode": "handoff",
+                    "min_confidence": 0.8,
+                },
+            },
+            {"id": "escalate", "name": "Escalate", "agent_id": "reviewer", "prompt": "{task}"},
+            {"id": "resolve", "name": "Resolve", "kind": "delay", "delay_seconds": 0},
+        ],
+        "edges": [
+            {"source": "START", "target": "classify"},
+            {"source": "classify", "target": "escalate", "choice": "escalate"},
+            {"source": "classify", "target": "resolve", "choice": "resolve"},
+        ],
+    }
+    service.save_definition("workflows", {"name": "Triage", "graph": graph})
+    run = done(
+        service,
+        service.start_run({"kind": "workflow", "workflow_id": "triage", "task": "Database is down"}),
+    )
+    assert run["status"] == "completed", run
+    assert run["graph_nodes"]["classify"] == "completed"
+    assert run["graph_nodes"]["escalate"] == "completed"
+    assert run["graph_nodes"]["resolve"] == "skipped"
+
+    # Verify low confidence triggers escalation
+    decision_answers["priority"]["confidence"] = 0.5
+    run2 = done(
+        service,
+        service.start_run({"kind": "workflow", "workflow_id": "triage", "task": "Uncertain query"}),
+    )
+    assert run2["status"] == "completed", run2
+    assert run2["graph_nodes"]["escalate"] == "completed"
+
+    # Verify low priority with high confidence routes to default (resolve)
+    decision_answers["priority"]["choice"] = "low"
+    decision_answers["priority"]["confidence"] = 0.9
+    decision_answers["priority"]["probabilities"] = {"critical": 0.1, "low": 0.9}
+    run3 = done(
+        service,
+        service.start_run({"kind": "workflow", "workflow_id": "triage", "task": "Just a question"}),
+    )
+    assert run3["status"] == "completed", run3
+    assert run3["graph_nodes"]["resolve"] == "completed"
+    assert run3["graph_nodes"]["escalate"] == "skipped"
+

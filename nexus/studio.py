@@ -654,7 +654,56 @@ def make_studio_handler(service: StudioService, token: str):
                     return self.send_payload(403, {"error": "Invalid callback credential"})
                 except (ValueError, TypeError, KeyError, RecursionError, FileNotFoundError):
                     return self.send_payload(400, {"error": "Invalid callback notification"})
-            webhook = len(parts) == 3 and parts[:2] == ["api", "webhooks"]
+            is_gw = len(parts) >= 2 and parts[0] == "gw"
+            is_api_webhook = len(parts) >= 3 and parts[:2] == ["api", "webhooks"]
+            if is_gw or is_api_webhook:
+                if not self.trusted_host():
+                    return self.send_payload(403, {"error": "Refresh the local workspace before continuing"})
+                origin = self.headers.get("Origin")
+                if origin and origin != (
+                    service.team.public_url if service.team else f"http://{self.headers.get('Host')}"
+                ):
+                    return self.send_payload(403, {"error": "Cross-origin requests are not supported"})
+                identifier = parts[1] if is_gw else parts[2]
+                path_suffix = (
+                    "/" + "/".join(parts[2:])
+                    if is_gw and len(parts) > 2
+                    else ("/" + "/".join(parts[3:]) if is_api_webhook and len(parts) > 3 else "")
+                )
+                ep = service.operations.find_entrypoint(identifier, path_suffix)
+                if not ep:
+                    return self.send_payload(404, {"error": "Entrypoint not found"})
+                if not ep["data"].get("enabled"):
+                    return self.send_payload(403, {"error": "Entrypoint is disabled"})
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 <= length <= _MAX_BODY:
+                    return self.send_payload(413, {"error": "Request exceeds the allowed upload size"})
+                raw_body = self.rfile.read(length) if length > 0 else b""
+                auth_mode = ep["data"].get("auth_mode", "bearer")
+                if auth_mode == "hmac":
+                    authorized = service.operations.authorize_entrypoint(
+                        ep["id"], headers=dict(self.headers), raw_body=raw_body
+                    )
+                else:
+                    bearer = self.headers.get("Authorization", "").removeprefix("Bearer ")
+                    authorized = service.operations.authorize_entrypoint(ep["id"], bearer=bearer)
+                if not authorized:
+                    return self.send_payload(403, {"error": "Unauthorized entrypoint request"})
+                try:
+                    payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+                    if not isinstance(payload, dict):
+                        payload = {"task": str(payload), "payload": payload}
+                except (ValueError, UnicodeDecodeError):
+                    payload = {"task": raw_body.decode("utf-8", errors="replace")}
+                if service.team:
+                    payload.pop("requester_nexus_id", None)
+                    payload.pop("_role", None)
+                    payload.pop("owner_id", None)
+                try:
+                    result = service.operations.trigger_entrypoint(ep["id"], payload)
+                    return self.send_payload(202, result)
+                except ValueError as exc:
+                    return self.send_payload(400, {"error": str(exc)})
             if len(parts) == 3 and parts[:2] == ["api", "channel-events"]:
                 try:
                     challenge = parse_qs(urlparse(self.path).query).get("validationToken")
@@ -680,21 +729,15 @@ def make_studio_handler(service: StudioService, token: str):
                 except (ValueError, FileNotFoundError, KeyError, TypeError, AttributeError):
                     return self.send_payload(400, {"error": "Invalid incoming channel event"})
             try:
-                authorized = (
-                    service.operations.authorize_entrypoint(
-                        parts[2], self.headers.get("Authorization", "").removeprefix("Bearer ")
-                    )
-                    if webhook
-                    else secrets.compare_digest(
-                        self.headers.get("X-Nexus-Studio-Token", ""),
-                        service.team.csrf(token, self.actor)
-                        if service.team and self.actor
-                        else token,
-                    )
+                authorized = secrets.compare_digest(
+                    self.headers.get("X-Nexus-Studio-Token", ""),
+                    service.team.csrf(token, self.actor)
+                    if service.team and self.actor
+                    else token,
                 )
             except (FileNotFoundError, ValueError, TypeError):
                 authorized = False
-            if service.team and not webhook and not self.actor:
+            if service.team and not self.actor:
                 return self.send_payload(
                     401, {"error": "Nexus sign-in required", "login_url": service.team.login_url}
                 )
@@ -733,35 +776,30 @@ def make_studio_handler(service: StudioService, token: str):
                     payload.pop("requester_nexus_id", None)
                     payload.pop("_role", None)
                     payload.pop("owner_id", None)
-                    if not webhook:
-                        service.team.authorize(self.actor, route, payload)
-                        payload["requester_nexus_id"] = self.actor["nexus_id"]
-                        payload["_role"] = self.actor["role"]
-                        if len(parts) == 4 and parts[1] == "builds":
-                            self.private_record(service.builder.get(parts[2]))
-                        if len(parts) == 4 and parts[1] == "runs":
-                            self.private_record(service.run(parts[2]))
-                        if (
-                            payload.get("build_id")
-                            and service._path("builds", payload["build_id"]).exists()
-                        ):
-                            self.private_record(service.builder.get(payload["build_id"]))
-                        if (
-                            route == "/api/catalog/artifacts"
-                            and payload.get("id")
-                            and service.catalog._path("artifacts", payload["id"]).exists()
-                        ):
-                            self.private_record(
-                                service.catalog.get("artifacts", payload["id"], archived=True)
-                            )
-                        if len(parts) == 5 and parts[1:3] == ["catalog", "artifacts"]:
-                            self.private_record(
-                                service.catalog.get("artifacts", parts[3], archived=True)
-                            )
-                if webhook:
-                    return self.send_payload(
-                        202, service.operations.trigger_entrypoint(parts[2], payload)
-                    )
+                    service.team.authorize(self.actor, route, payload)
+                    payload["requester_nexus_id"] = self.actor["nexus_id"]
+                    payload["_role"] = self.actor["role"]
+                    if len(parts) == 4 and parts[1] == "builds":
+                        self.private_record(service.builder.get(parts[2]))
+                    if len(parts) == 4 and parts[1] == "runs":
+                        self.private_record(service.run(parts[2]))
+                    if (
+                        payload.get("build_id")
+                        and service._path("builds", payload["build_id"]).exists()
+                    ):
+                        self.private_record(service.builder.get(payload["build_id"]))
+                    if (
+                        route == "/api/catalog/artifacts"
+                        and payload.get("id")
+                        and service.catalog._path("artifacts", payload["id"]).exists()
+                    ):
+                        self.private_record(
+                            service.catalog.get("artifacts", payload["id"], archived=True)
+                        )
+                    if len(parts) == 5 and parts[1:3] == ["catalog", "artifacts"]:
+                        self.private_record(
+                            service.catalog.get("artifacts", parts[3], archived=True)
+                        )
                 if (
                     len(parts) == 6
                     and parts[:3] == ["api", "studio", "connectors"]

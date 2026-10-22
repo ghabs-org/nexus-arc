@@ -100,3 +100,12 @@ test('importSkill supports multi-selection of skills and submits skills array', 
   assert.ok(notifications.some((m) => m.includes('Imported 2 skills')));
 });
 
+test('integration setup buttons do not stretch vertically and retain nowrap', () => {
+  const css = fs.readFileSync('nexus/studio_static/studio.css', 'utf8');
+  assert.match(css, /\.library-row\s*\{[^}]*align-items:\s*flex-start/);
+  assert.match(css, /\.library-row>button[^}]*align-self:\s*flex-start/);
+  assert.match(css, /\.library-row>button[^}]*white-space:\s*nowrap/);
+  assert.match(css, /button\[data-integration-setup\][^}]*white-space:\s*nowrap/);
+});
+
+

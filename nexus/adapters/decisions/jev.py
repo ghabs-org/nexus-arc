@@ -63,6 +63,15 @@ def resolve_backend(
             (model or os.getenv("JEV_MODEL") or DEFAULT_MODEL).strip(),
         )
     if backend == "opencode" or opencode_key:
+        if not opencode_key and backend == "opencode":
+            try:
+                from nexus.adapters.ai.opencode_provider import get_opencode_auth
+
+                auth = get_opencode_auth()
+                if auth:
+                    opencode_key = auth[1]
+            except Exception:
+                pass
         if not opencode_key:
             return None
         return (

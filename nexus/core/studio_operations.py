@@ -157,15 +157,65 @@ class StudioOperations:
             return schedule_spec
         if kind == "entrypoints":
             target = self.target(data, targets)
-            env = _text(data.get("token_env"), "Bearer token environment variable", 96)
+            auth_mode = data.get("auth_mode", data.get("authMode", "bearer"))
+            if auth_mode not in {"bearer", "hmac"}:
+                raise ValueError("Auth mode must be 'bearer' or 'hmac'")
+            env_val = (
+                data.get("token_env")
+                or data.get("hmac_secret_env")
+                or data.get("hmacSecret")
+            )
+            if isinstance(env_val, str) and env_val.startswith("${") and env_val.endswith("}"):
+                env_val = env_val[2:-1]
+            env = _text(env_val, "Token or secret environment variable", 96)
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", env):
                 raise ValueError("Use an environment variable name, not the secret value")
-            enabled = data.get("enabled", False)
+            enabled = data.get("enabled", data.get("deploy", False))
             if type(enabled) is not bool:
                 raise ValueError("Enabled must be true or false")
-            result = {**target, "token_env": env, "enabled": enabled}
+            result = {
+                **target,
+                "token_env": env,
+                "enabled": enabled,
+                "auth_mode": auth_mode,
+            }
+            if auth_mode == "hmac":
+                slug = data.get("slug")
+                if slug is not None:
+                    if not isinstance(slug, str) or not re.fullmatch(r"[a-z0-9-_]{1,64}", slug):
+                        raise ValueError(
+                            "Slug must be 1-64 characters of lowercase alphanumeric, hyphens, or underscores"
+                        )
+                    result["slug"] = slug
+                route_path = data.get("route_path", data.get("routePath", ""))
+                if route_path:
+                    if not isinstance(route_path, str) or not route_path.startswith("/"):
+                        raise ValueError("Route path must start with '/'")
+                    result["route_path"] = route_path
+                hmac_header = data.get("hmac_header", data.get("hmacHeader", "X-Hub-Signature-256"))
+                if not isinstance(hmac_header, str) or not hmac_header.strip():
+                    raise ValueError("HMAC signature header must be a nonempty string")
+                result["hmac_header"] = hmac_header.strip()
+                algorithm = data.get("hmac_algorithm", data.get("hmacAlgorithm", "sha256")).lower()
+                if algorithm not in {"sha256", "sha1", "sha512"}:
+                    raise ValueError("Supported HMAC algorithms are sha256, sha1, and sha512")
+                result["hmac_algorithm"] = algorithm
+                result["hmac_prefix"] = data.get(
+                    "hmac_prefix",
+                    data.get("hmacPrefix", f"{algorithm}=" if algorithm == "sha256" else ""),
+                )
+                encoding = data.get("hmac_encoding", data.get("hmacEncoding", "hex")).lower()
+                if encoding not in {"hex", "base64"}:
+                    raise ValueError("Supported HMAC encodings are hex and base64")
+                result["hmac_encoding"] = encoding
+                if "input_expression" in data or "inputExpression" in data:
+                    result["input_expression"] = str(
+                        data.get("input_expression", data.get("inputExpression"))
+                    )
             a2a = data.get("a2a_enabled", False)
-            if type(a2a) is not bool or (a2a and data.get("type", "webhook") != "webhook"):
+            if type(a2a) is not bool or (
+                a2a and (data.get("type", "webhook") != "webhook" or auth_mode != "bearer")
+            ):
                 raise ValueError("A2A exposure is a boolean available only for bearer webhooks")
             result["a2a_enabled"] = a2a
             if "a2a_push" in data:
@@ -175,7 +225,9 @@ class StudioOperations:
                     raise ValueError("Enable A2A before configuring callback destinations")
                 result["a2a_push"] = settings(data["a2a_push"])
             mcp = data.get("mcp_enabled", False)
-            if type(mcp) is not bool or (mcp and data.get("type", "webhook") != "webhook"):
+            if type(mcp) is not bool or (
+                mcp and (data.get("type", "webhook") != "webhook" or auth_mode != "bearer")
+            ):
                 raise ValueError("MCP exposure is a boolean available only for bearer webhooks")
             result["mcp_enabled"] = mcp
             if data.get("type", "webhook") != "webhook":
@@ -260,29 +312,86 @@ class StudioOperations:
             }
         )
 
+    def find_entrypoint(self, identifier, path_suffix=""):
+        entrypoints = self.studio.catalog.list("entrypoints")
+        for ep in entrypoints:
+            data = ep.get("data", {})
+            if ep["id"] == identifier or data.get("slug") == identifier:
+                expected_route = data.get("route_path", "")
+                if expected_route:
+                    norm_expected = expected_route.strip("/")
+                    norm_suffix = path_suffix.strip("/")
+                    if norm_expected != norm_suffix:
+                        continue
+                return ep
+        return None
+
     def trigger_entrypoint(self, identity, payload):
         record = self.studio.catalog.get("entrypoints", identity)
         if not record["data"]["enabled"]:
             raise ValueError("Entrypoint is disabled")
         self.studio.resource_lifecycle.assert_launch("entrypoints:" + identity)
+        context = {key: payload[key] for key in ("artifact_ids", "workflow_input") if key in payload}
+        if "workflow_input" not in context and isinstance(payload, dict):
+            context["workflow_input"] = {
+                **payload,
+                "text": payload["text"] if "text" in payload else json.dumps(payload, ensure_ascii=False),
+                "payload": payload,
+            }
+        task = payload.get("task")
+        if not task:
+            if "text" in payload and isinstance(payload["text"], str) and payload["text"].strip():
+                task = payload["text"]
+            elif isinstance(payload, dict) and payload:
+                task = json.dumps(payload, ensure_ascii=False)
         return self.launch_target(
             record["data"],
-            payload.get("task"),
+            task,
             payload.get("requester_nexus_id") or record.get("owner_id"),
-            {key: payload[key] for key in ("artifact_ids", "workflow_input") if key in payload},
+            context,
         )
 
-    def authorize_entrypoint(self, identity, bearer):
+    def authorize_entrypoint(self, identity, bearer="", headers=None, raw_body=None):
+        import base64
+        import hashlib
+        import hmac
         import secrets
 
         data = self.studio.catalog.get("entrypoints", identity)["data"]
         secret = os.getenv(data["token_env"], "")
-        allowed = bool(
-            data.get("type", "webhook") == "webhook"
-            and data["enabled"]
-            and len(secret) >= 24
-            and secrets.compare_digest(bearer, secret)
-        )
+        if not data.get("enabled"):
+            return False
+        auth_mode = data.get("auth_mode", "bearer")
+        if auth_mode == "hmac":
+            if not secret or len(secret) < 16 or headers is None or raw_body is None:
+                return False
+            header_name = data.get("hmac_header", "X-Hub-Signature-256").lower()
+            normalized_headers = {k.lower(): v for k, v in headers.items()}
+            sig_header = normalized_headers.get(header_name, "")
+            if not sig_header:
+                return False
+            prefix = data.get("hmac_prefix", "")
+            if prefix and sig_header.startswith(prefix):
+                sig_header = sig_header[len(prefix):]
+            algo = {
+                "sha256": hashlib.sha256,
+                "sha1": hashlib.sha1,
+                "sha512": hashlib.sha512,
+            }.get(data.get("hmac_algorithm", "sha256"), hashlib.sha256)
+            digest = hmac.new(secret.encode(), raw_body, algo)
+            encoding = data.get("hmac_encoding", "hex")
+            expected_sig = (
+                base64.b64encode(digest.digest()).decode()
+                if encoding == "base64"
+                else digest.hexdigest()
+            )
+            allowed = secrets.compare_digest(sig_header, expected_sig)
+        else:
+            allowed = bool(
+                data.get("type", "webhook") == "webhook"
+                and len(secret) >= 24
+                and secrets.compare_digest(bearer, secret)
+            )
         if allowed:
             try:
                 self.studio.resource_lifecycle.assert_launch("entrypoints:" + identity)

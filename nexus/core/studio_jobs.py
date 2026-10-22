@@ -334,6 +334,15 @@ class StudioJobs:
                     "openai": "OPENAI_API_KEY",
                 }[backend]
             )
+            if not key and backend == "opencode":
+                try:
+                    from nexus.adapters.ai.opencode_provider import get_opencode_auth
+
+                    auth = get_opencode_auth()
+                    if auth:
+                        key = auth[1]
+                except Exception:
+                    pass
             model = payload.get("model")
         if not key:
             raise ValueError("Selected decision service needs its configured API key")

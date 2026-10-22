@@ -200,6 +200,46 @@ def test_provider_inventory_never_claims_authentication_or_unlimited_quota(studi
     assert next(p for p in providers if p["id"] == "claude-code")["status"] == "CLI installed"
 
 
+def test_opencode_provider_detects_login_credentials(studio, monkeypatch, tmp_path):
+    service, _ = studio
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_TOKEN", raising=False)
+    monkeypatch.setattr("nexus.adapters.ai.opencode_provider.resolve_opencode_cli", lambda *args: None)
+    monkeypatch.setattr("nexus.core.studio.shutil.which", lambda name: None)
+
+    fake_auth = tmp_path / "auth.json"
+    fake_auth.write_text('{"opencode": {"key": "test-key-123"}}', encoding="utf-8")
+    monkeypatch.setattr(
+        "nexus.adapters.ai.opencode_provider.get_opencode_auth",
+        lambda: (str(fake_auth), "test-key-123"),
+    )
+
+    providers = {p["id"]: p for p in service.providers()}
+    opencode = providers["opencode"]
+    assert opencode["configured"] is True
+    assert opencode["status"] == "Logged in"
+    assert "Logged in" in opencode["setup"]
+    assert opencode["auth_verified"] is False
+
+    # When neither CLI nor auth is found
+    monkeypatch.setattr("nexus.adapters.ai.opencode_provider.get_opencode_auth", lambda: None)
+    providers = {p["id"]: p for p in service.providers()}
+    opencode_unconfigured = providers["opencode"]
+    assert opencode_unconfigured["configured"] is False
+    assert opencode_unconfigured["status"] == "Setup needed"
+
+    # When CLI is installed
+    monkeypatch.setattr(
+        "nexus.adapters.ai.opencode_provider.resolve_opencode_cli",
+        lambda *args: "/usr/local/bin/opencode",
+    )
+    providers = {p["id"]: p for p in service.providers()}
+    opencode_cli = providers["opencode"]
+    assert opencode_cli["configured"] is True
+    assert opencode_cli["status"] == "CLI installed"
+
+
 def test_every_provider_lists_default_model_suggestions(studio):
     service, _ = studio
     providers = {p["id"]: p for p in service.providers()}
