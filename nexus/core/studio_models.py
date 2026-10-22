@@ -52,10 +52,9 @@ DEFAULT_MODELS: dict[str, tuple[tuple[str, str], ...]] = {
         for model, label in (
             *_CLAUDE,
             ("gpt-6.1-sol", "GPT-6.1-Sol"),
-            ("gpt-6-sol", "GPT-6-Sol"),
-            ("gpt-5.6-sol", "GPT-5.6-Sol"),
             ("gemini-4-argon", "Gemini 4 Argon"),
             ("gemini-3.8-flash", "Gemini 3.8 Flash"),
+            ("glm-5.3-flash-free", "GLM 5.3 Flash (free)"),
         )
     ),
 }
