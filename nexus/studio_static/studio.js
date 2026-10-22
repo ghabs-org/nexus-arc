@@ -130,10 +130,11 @@ function agentSkillOptions(selected=[], extraSkills=[]){
 function createSkillDialog(){
   return new Promise(resolve=>{
     const dialog=document.createElement("dialog");dialog.className="feature-dialog";
-    dialog.innerHTML=`<form><header class="dialog-heading"><h2>Create a new skill</h2><button type="button" class="quiet close-dialog" data-dismiss aria-label="Close">×</button></header><label>Skill name<input name="name" required placeholder="e.g. Content Strategy Guidelines" maxlength="200"></label><label>Description (optional)<input name="description" placeholder="Short description of this skill" maxlength="500"></label><label>Instructions<textarea name="content" rows="6" required placeholder="Detailed guidelines and instructions this skill provides to the agent..."></textarea></label><p class="form-error" role="alert"></p><footer><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">Create skill</button></footer></form>`;
+    dialog.innerHTML=`<form><header class="dialog-heading"><h2>Create a new skill</h2><button type="button" class="quiet close-dialog" data-dismiss aria-label="Close">×</button></header><div class="dialog-hint-row"><span>Have an existing skill repository or SKILL.md?</span><button type="button" class="secondary import-skill-trigger">Import skill…</button></div><label>Skill name<input name="name" required placeholder="e.g. Content Strategy Guidelines" maxlength="200"></label><label>Description (optional)<input name="description" placeholder="Short description of this skill" maxlength="500"></label><label>Instructions<textarea name="content" rows="6" required placeholder="Detailed guidelines and instructions this skill provides to the agent..."></textarea></label><p class="form-error" role="alert"></p><footer><button type="button" class="secondary import-skill-trigger" style="margin-right:auto">Import skill…</button><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">Create skill</button></footer></form>`;
     document.body.append(dialog);let resolved=false;
     const finish=val=>{if(!resolved){resolved=true;dialog.close();dialog.remove();resolve(val);}};
     dialog.querySelectorAll("[data-dismiss]").forEach(b=>b.onclick=()=>finish(null));
+    dialog.querySelectorAll(".import-skill-trigger").forEach(b=>b.onclick=()=>finish({importRequested:true}));
     dialog.addEventListener("cancel",()=>finish(null));
     dialog.querySelector("form").onsubmit=event=>{event.preventDefault();const fd=new FormData(event.target);finish({name:fd.get("name")?.trim(),description:fd.get("description")?.trim(),content:fd.get("content")?.trim()});};
     dialog.showModal();dialog.querySelector('input[name="name"]')?.focus();
@@ -141,7 +142,38 @@ function createSkillDialog(){
 }
 async function promptNewSkill(targetSelect=null, extraSkills=[]){
   const answer=await createSkillDialog();
-  if(!answer||!answer.name||!answer.content){
+  if(!answer){
+    if(targetSelect&&targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
+    return null;
+  }
+  if(answer.importRequested){
+    if(typeof importSkill==="function"){
+      const imported=await importSkill();
+      if(imported){
+        const importedIds=imported.skills?.map(s=>s.id)||(imported.skill?[imported.skill.id]:[]);
+        if(typeof loadSkills==="function")await loadSkills().catch(()=>{});
+        if(targetSelect&&importedIds.length){
+          document.querySelectorAll(".agent-skill-select").forEach(sel=>{
+            const val=sel===targetSelect?importedIds[0]:sel.value;
+            sel.innerHTML=skillOptions(val,extraSkills);
+            sel.value=val;
+            sel.dataset.prevValue=val;
+          });
+          targetSelect.dispatchEvent(new Event("change",{bubbles:true}));
+        }
+        const agentList=$("agent-skills-list");
+        if(agentList){
+          const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+          importedIds.forEach(id=>{if(!checked.includes(id))checked.push(id);});
+          agentList.innerHTML=agentSkillOptions(checked,extraSkills);
+        }
+        return imported;
+      }
+    }
+    if(targetSelect&&targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
+    return null;
+  }
+  if(!answer.name||!answer.content){
     if(targetSelect&&targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
     return null;
   }
@@ -219,6 +251,23 @@ document.addEventListener("click",async event=>{
       extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
     }
     await promptNewSkill(select,extraSkills);
+  }
+  const importBtn=event.target.closest(".import-skill-btn");
+  if(importBtn){
+    event.preventDefault();
+    if(typeof importSkill==="function"){
+      const imported=await importSkill();
+      if(imported){
+        const importedIds=imported.skills?.map(s=>s.id)||(imported.skill?[imported.skill.id]:[]);
+        if(typeof loadSkills==="function")await loadSkills().catch(()=>{});
+        const agentList=$("agent-skills-list");
+        if(agentList){
+          const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+          importedIds.forEach(id=>{if(!checked.includes(id))checked.push(id);});
+          agentList.innerHTML=agentSkillOptions(checked);
+        }
+      }
+    }
   }
 });
 window.addEventListener("studio-resource-saved",event=>{
@@ -323,7 +372,7 @@ async function openEditor(kind,identity){
   const fields=$("editor-fields");
   if(kind==="agent"||kind==="agent-edit"){
     $("editor-kicker").textContent="NEW SPECIALIST";$("editor-title").textContent="Create an agent";$("editor-save").textContent="Create agent";
-    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<div class="agent-skills-section"><div class="skills-select-header"><label>Skills (optional)</label><button type="button" class="quiet new-skill-btn">+ New skill…</button></div><div class="skills-select-list agent-skills-list" id="agent-skills-list">${agentSkillOptions()}</div></div>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
+    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<div class="agent-skills-section"><div class="skills-select-header"><label>Skills (optional)</label><div class="skills-select-actions"><button type="button" class="secondary new-skill-btn">+ New skill…</button><button type="button" class="secondary import-skill-btn">Import skill…</button></div></div><div class="skills-select-list agent-skills-list" id="agent-skills-list">${agentSkillOptions()}</div></div>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
   }else if(kind==="workflow"||kind==="workflow-edit"){
     if(!state.agents.some(a=>a.document)){notify("Create an agent before building a workflow.");location.hash="agents";return;}
     const isEdit=kind==="workflow-edit";

@@ -85,7 +85,7 @@ async function designResource(){
     await api(`/api/catalog/${kind==="prompt"?"prompts":"schedules"}`,proposal);window.dispatchEvent(new CustomEvent("studio-resource-saved",{detail:{kind:kind==="prompt"?"prompts":"schedules"}}));$("detail").close();await refreshLibrary();return;
   }
 }
-async function rateResponse(runId,rating){const form=await fieldsDialog(rating>0?"Helpful response":"Improve this response",'<label>Comment (optional)<textarea name="comment" maxlength="2000" rows="4"></textarea></label>',"Save feedback");if(form)await featureApi("feedback",{run_id:runId,rating,comment:form.get("comment")});}
+async function rateResponse(runId,rating){const form=await fieldsDialog(rating>0?"Helpful response":"Improve this response",'<label>Comment (optional)<textarea name="comment" maxlength="2000" rows="4"></textarea></label>',"Save feedback");if(form){await featureApi("feedback",{run_id:runId,rating,comment:form.get("comment")});notify("Feedback saved.");return true;}return false;}
 async function shareConversation(){
   if(!state.sessionId)throw new Error("Start a conversation first");
   const form=await fieldsDialog("Share conversation",'<p>Create a read-only snapshot of current messages.</p><label>Nexus recipient IDs (comma separated)<input name="recipients"></label><label>Expires after (hours)<input name="expires" type="number" value="168" min="1" max="8760" required></label><label class="check-label"><input name="public" type="checkbox">Create public link (owner must enable first)</label>',"Create snapshot");if(!form)return;
@@ -111,7 +111,15 @@ document.addEventListener("click",async event=>{const b=event.target.closest("bu
   }
   if(b.id==="design-resource")await designResource();
   if(b.id==="share-conversation")await shareConversation();
-  if(b.dataset.rate)await rateResponse(b.closest(".message").dataset.runId,Number(b.dataset.rate));
+  if(b.dataset.rate){
+    const msg=b.closest(".message");
+    const ok=await rateResponse(msg?.dataset.runId,Number(b.dataset.rate));
+    if(ok&&msg){
+      msg.querySelectorAll(".rate-btn").forEach(btn=>{btn.classList.remove("active");btn.removeAttribute("aria-pressed");});
+      b.classList.add("active");
+      b.setAttribute("aria-pressed","true");
+    }
+  }
 }catch(error){notify(error.message);}});
 function initializeFeatures(){
   if($("share-conversation")){refreshFeatureViews().catch(e=>notify(e.message));return;}
@@ -119,7 +127,7 @@ function initializeFeatures(){
   const design=document.createElement("button");design.id="design-resource";design.className="secondary";design.textContent="Build with AI";$("library-create").after(design);
   new MutationObserver(()=>{$("design-resource").hidden=!["prompts","schedules"].includes(library.kind);}).observe($("library-heading"),{childList:true});
   refreshFeatureViews().catch(e=>notify(e.message));
-  new MutationObserver(()=>document.querySelectorAll(".message[data-run-id]").forEach(message=>{if(message.querySelector(".response-actions"))return;const actions=document.createElement("div");actions.className="response-actions";actions.innerHTML='<button class="secondary" data-rate="1">Helpful</button><button class="secondary" data-rate="-1">Needs improvement</button>';message.append(actions);})).observe($("messages"),{subtree:true,attributes:true,attributeFilter:["data-run-id"],childList:true});
+  new MutationObserver(()=>document.querySelectorAll(".message[data-run-id]").forEach(message=>{if(message.querySelector(".response-actions"))return;const actions=document.createElement("div");actions.className="response-actions";actions.innerHTML='<button class="secondary rate-btn" data-rate="1" title="Helpful" aria-label="Helpful"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg></button><button class="secondary rate-btn" data-rate="-1" title="Needs improvement" aria-label="Needs improvement"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path></svg></button>';message.append(actions);})).observe($("messages"),{subtree:true,attributes:true,attributeFilter:["data-run-id"],childList:true});
 }
 if(state.ready)initializeFeatures();else window.addEventListener("studio-ready",initializeFeatures);
 window.addEventListener("hashchange",()=>{if(["chat","projects","feedback","sharing"].includes(view()))refreshFeatureViews().catch(e=>notify(e.message));});
@@ -222,27 +230,85 @@ async function speakResponse(text){
   const run=await featureApi("speech",options);notify("Generating speech…");const completed=await pollRun(run.id);
   const preview=await api(`/api/catalog/artifacts/${completed.speech_artifact_id}/preview`);showDetail("Spoken response","");$("detail-content").replaceChildren(previewContent(preview));
 }
-function playOnDevice(text){
+const PLAY_DEVICE_SVG='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+const PAUSE_SVG='<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>';
+const RESUME_SVG='<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>';
+const STOP_SVG='<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>';
+
+let activeSpeechMessage=null,activeUtterance=null;
+
+function resetSpeechControls(message=null){
+  const target=message||activeSpeechMessage;
+  if(target){
+    const slot=target.querySelector(".speech-playback-slot");
+    if(slot){
+      slot.innerHTML=`<button class="secondary device-speak-btn" data-speak="device" title="Play on device">${PLAY_DEVICE_SVG}<span>Play on device</span></button>`;
+    }
+  }
+  if(!message||message===activeSpeechMessage){
+    activeSpeechMessage=null;activeUtterance=null;
+  }
+}
+
+function stopDeviceSpeech(){
+  if(window.speechSynthesis)window.speechSynthesis.cancel();
+  resetSpeechControls();
+}
+
+function playOnDevice(text,message=null){
   if(!window.speechSynthesis)throw new Error("Device speech is unavailable in this browser");
   const voices=speechSynthesis.getVoices().filter(v=>v.localService);if(!voices.length)throw new Error("No local device voice is available. Choose server speech instead.");
-  speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.voice=voices.find(v=>v.voiceURI===$("device-speech-voice")?.value)||voices[0];utterance.rate=Number($("device-speech-rate")?.value||1);speechSynthesis.speak(utterance);
+  stopDeviceSpeech();
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.voice=voices.find(v=>v.voiceURI===$("device-speech-voice")?.value)||voices[0];
+  utterance.rate=Number($("device-speech-rate")?.value||1);
+  activeUtterance=utterance;
+  activeSpeechMessage=message;
+  if(message){
+    const slot=message.querySelector(".speech-playback-slot");
+    if(slot){
+      slot.innerHTML=`<button class="secondary speech-control-btn" data-speech-cmd="toggle" title="Pause playback">${PAUSE_SVG}<span>Pause</span></button><button class="secondary speech-control-btn" data-speech-cmd="stop" title="Stop playback">${STOP_SVG}<span>Stop</span></button>`;
+    }
+  }
+  utterance.onend=()=>resetSpeechControls(message);
+  utterance.onerror=()=>resetSpeechControls(message);
+  speechSynthesis.speak(utterance);
 }
 function initializeVoicePlayback(){
   if($("record-voice"))return;
   const button=document.createElement("button");button.id="record-voice";button.type="button";button.className="secondary";button.textContent="Record voice";button.setAttribute("aria-pressed","false");$("chat-project").closest(".chat-controls").append(button);
-  const prefs=document.createElement("details");prefs.className="speech-preferences";prefs.innerHTML='<summary>Voice playback</summary><label>Device voice<select id="device-speech-voice"></select></label><label>Playback speed<select id="device-speech-rate"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><label><input id="speech-autoplay" type="checkbox">Automatically play completed responses using a local device voice</label><button class="secondary" type="button" id="stop-speech">Stop playback</button>';
+  const prefs=document.createElement("details");prefs.className="speech-preferences";prefs.innerHTML='<summary class="speech-summary"><div class="speech-summary-title"><svg class="speech-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg><span>Voice playback</span></div><div class="speech-summary-meta"><span class="speech-badge">Device speech</span><span class="speech-chevron" aria-hidden="true">▾</span></div></summary><div class="speech-body"><div class="speech-grid"><label class="speech-field"><span class="speech-field-label">Device voice</span><select id="device-speech-voice" aria-label="Device voice"></select></label><label class="speech-field speech-field-rate"><span class="speech-field-label">Playback speed</span><select id="device-speech-rate" aria-label="Playback speed"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div><div class="speech-footer"><label class="check-label speech-autoplay-label"><input id="speech-autoplay" type="checkbox"><span>Automatically play completed responses</span></label><button class="secondary speech-stop-btn" type="button" id="stop-speech"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg><span>Stop playback</span></button></div></div>';
   $("chat-form").before(prefs);
-  new MutationObserver(()=>document.querySelectorAll(".response-actions").forEach(actions=>{if(actions.querySelector("[data-speak]"))return;const buttons=document.createElement("span");buttons.innerHTML='<button class="secondary" data-speak="device">Play on device</button><button class="secondary" data-speak="server">Generate speech</button>';actions.append(buttons);})).observe($("messages"),{childList:true,subtree:true});
+  new MutationObserver(()=>document.querySelectorAll(".response-actions").forEach(actions=>{if(actions.querySelector("[data-speak]"))return;const buttons=document.createElement("span");buttons.className="speech-actions";buttons.innerHTML=`<span class="speech-playback-slot"><button class="secondary device-speak-btn" data-speak="device" title="Play on device">${PLAY_DEVICE_SVG}<span>Play on device</span></button></span><button class="secondary" data-speak="server">Generate speech</button>`;actions.append(buttons);})).observe($("messages"),{childList:true,subtree:true});
 }
 if(state.ready)initializeVoicePlayback();else window.addEventListener("studio-ready",initializeVoicePlayback);
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
   if(button.id==="record-voice")await beginRecording();
-  if(button.id==="stop-speech"){window.speechSynthesis?.cancel();document.querySelectorAll("audio").forEach(a=>a.pause());}
-  if(button.dataset.speak){const text=button.closest(".message").querySelector(".message-body").innerText;if(button.dataset.speak==="device")playOnDevice(text);else await speakResponse(text);}
+  if(button.id==="stop-speech"){stopDeviceSpeech();document.querySelectorAll("audio").forEach(a=>a.pause());}
+  if(button.dataset.speechCmd){
+    const cmd=button.dataset.speechCmd;
+    if(cmd==="stop"){
+      stopDeviceSpeech();
+    }else if(cmd==="toggle"){
+      if(window.speechSynthesis){
+        if(window.speechSynthesis.paused){
+          window.speechSynthesis.resume();
+          button.innerHTML=`${PAUSE_SVG}<span>Pause</span>`;
+          button.title="Pause playback";
+        }else{
+          window.speechSynthesis.pause();
+          button.innerHTML=`${RESUME_SVG}<span>Play</span>`;
+          button.title="Resume playback";
+        }
+      }
+    }
+    return;
+  }
+  if(button.dataset.speak){const msg=button.closest(".message");const text=msg?.querySelector(".message-body")?.innerText||"";if(button.dataset.speak==="device")playOnDevice(text,msg);else await speakResponse(text);}
 }catch(error){notify(error.message);}});
-window.addEventListener("pagehide",()=>{voiceStream?.getTracks().forEach(t=>t.stop());window.speechSynthesis?.cancel();});
+window.addEventListener("pagehide",()=>{voiceStream?.getTracks().forEach(t=>t.stop());stopDeviceSpeech();});
 
-window.addEventListener("studio-response-completed",event=>{if($("speech-autoplay")?.checked){try{playOnDevice(event.detail.text);}catch(error){notify(error.message);}}});
+window.addEventListener("studio-response-completed",event=>{if($("speech-autoplay")?.checked){try{const msg=$("messages")?.lastElementChild;playOnDevice(event.detail.text,msg);}catch(error){notify(error.message);}}});
 function refreshDeviceVoices(){const root=$("device-speech-voice");if(!root||!window.speechSynthesis)return;root.replaceChildren();speechSynthesis.getVoices().filter(v=>v.localService).forEach(voice=>{const option=document.createElement("option");option.value=voice.voiceURI;option.textContent=voice.name+" · "+voice.lang;root.append(option);});}
 if(state.ready)refreshDeviceVoices();else window.addEventListener("studio-ready",refreshDeviceVoices);window.speechSynthesis?.addEventListener("voiceschanged",refreshDeviceVoices);
 function executionGraph(data,cursor=data.timeline.length){

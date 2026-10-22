@@ -132,6 +132,9 @@ def main():
         assistant_spec = service.assistant.spec()
         assert assistant_spec.get("tool_ids"), "Studio assistant must provide built-in tools"
         # Example change justification: "The plain html \"choose files\" button is very ugly and I don't get why the list of files is shown as text"
+        # Example change justification: "Please try to fix all the ugly plain html elements still present in the entire Studio"
+        # Example change justification: "Why this \"New skill\" button is so big? Plus, on the new skill modal there should anyway be the possibility to import a skill"
+        # Example change justification: "Here the last two buttons are too close. Plus, I would instead use the classic thumbs up and down buttons (with maybe the hover \"Helpful\" and \"Needs improvement\") and Play on device should have the Play/Pause + stop buttons when clicked"
         # File artifacts catalog provides visual artifact cards and structured upload attachments for chat.
         artifacts = service.catalog.list("artifacts")
         assert isinstance(artifacts, list), "Artifacts catalog must be accessible for conversations"

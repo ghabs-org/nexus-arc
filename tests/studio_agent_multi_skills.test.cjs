@@ -168,10 +168,64 @@ test("importSkill in library dispatches studio-resource-saved event and triggers
     librarySource.indexOf('$("library-import").addEventListener')
   );
   vm.runInContext(importFn, context);
-  await context.importSkill();
+  const result = await context.importSkill();
 
   assert.equal(skillsLoaded, true);
   assert.equal(dispatched.length, 1);
   assert.equal(dispatched[0].type, "studio-resource-saved");
   assert.equal(dispatched[0].detail.kind, "skills");
+  assert.equal(result.skill.name, "single-skill");
+});
+
+test("createSkillDialog markup provides option to import skill directly", () => {
+  const cssSource = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
+  assert.match(studioSource, /class="secondary import-skill-trigger"/);
+  assert.match(studioSource, /Have an existing skill repository or SKILL\.md\?/);
+  assert.match(cssSource, /\.skills-select-header button/);
+  assert.match(cssSource, /button\.new-skill-btn/);
+  assert.match(cssSource, /font-size:11px!important/);
+});
+
+test("promptNewSkill bridges to importSkill when importRequested is true", async () => {
+  let importSkillCalled = false;
+  let skillsLoaded = false;
+  const agentListMock = {
+    querySelectorAll: () => [{ value: "existing-skill" }],
+    innerHTML: "",
+  };
+
+  const context = vm.createContext({
+    escapeHtml,
+    createSkillDialog: async () => ({ importRequested: true }),
+    importSkill: async () => {
+      importSkillCalled = true;
+      return { skill: { id: "imported-skill", name: "Imported Skill" } };
+    },
+    loadSkills: async () => {
+      skillsLoaded = true;
+    },
+    $: (id) => (id === "agent-skills-list" ? agentListMock : null),
+    agentSkillOptions: (checked) => `checked:${checked.join(",")}`,
+    notify: () => {},
+  });
+
+  const promptFn = studioSource.slice(
+    studioSource.indexOf("async function promptNewSkill("),
+    studioSource.indexOf("// Model fields are rendered by many views")
+  );
+  vm.runInContext(promptFn, context);
+
+  const res = await context.promptNewSkill();
+  assert.equal(importSkillCalled, true);
+  assert.equal(skillsLoaded, true);
+  assert.equal(res.skill.id, "imported-skill");
+  assert.equal(agentListMock.innerHTML, "checked:existing-skill,imported-skill");
+});
+
+test("agent editor renders compact new skill and import skill buttons in skills header", () => {
+  assert.match(
+    studioSource,
+    /class="skills-select-actions"><button type="button" class="secondary new-skill-btn">\+ New skill…<\/button><button type="button" class="secondary import-skill-btn">Import skill…<\/button>/
+  );
+  assert.doesNotMatch(studioSource, /class="quiet new-skill-btn"/);
 });

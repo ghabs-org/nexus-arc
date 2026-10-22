@@ -89,8 +89,8 @@ $("library-create").addEventListener("click",()=>openLibraryEditor().catch(error
 // Import reads a public GitHub skill; commands are parsed, never run.
 async function importSkill(){
   const form=await fieldsDialog("Import a skill",`<p>Paste a GitHub link to a repository, folder or SKILL.md, or a command such as <code>npx skills add https://github.com/owner/repo --skill name</code>. Studio reads the skill from GitHub; nothing is installed or run. SKILL.md and its Markdown references are imported; scripts and media are listed as not imported.</p><label>Source<input name="source" required maxlength="2000" placeholder="https://github.com/owner/repo"></label>`,"Import");
-  if(!form)return;const payload={source:form.get("source")};
-  $("library-import").disabled=true;notify("Importing skill from GitHub…");
+  if(!form)return null;const payload={source:form.get("source")};
+  const libImport=$("library-import");if(libImport)libImport.disabled=true;notify("Importing skill from GitHub…");
   try{
     let result=await api("/api/catalog/skills/import",payload);
     if(result.choices){
@@ -122,9 +122,9 @@ async function importSkill(){
         }
       },0);
       const pick=await fieldsDialog("Choose skills",`<p>This source holds ${result.choices.length} skills${result.truncated?" (showing the first 30)":""}. Select one or more skills to import.</p><div class="skills-select-header"><label class="check-label"><input type="checkbox" id="skills-toggle-all"> <strong>Select all</strong></label><span id="skills-selected-count" class="badge">0 selected</span></div><div class="skills-select-list">${result.choices.map(choice=>`<label class="skills-select-item check-label"><input type="checkbox" name="skills" value="${escapeHtml(choice.skill)}"><div class="skills-select-meta"><span class="skills-select-name">${escapeHtml(choice.skill)}</span>${choice.description?`<span class="skills-select-desc">${escapeHtml(choice.description.slice(0,140))}</span>`:""}</div></label>`).join("")}</div>`,"Import");
-      if(!pick)return;
+      if(!pick)return null;
       const chosenSkills=pick.getAll("skills").filter(Boolean);
-      if(!chosenSkills.length)return;
+      if(!chosenSkills.length)return null;
       result=await api("/api/catalog/skills/import",{...payload,skills:chosenSkills});
     }
     const count=result.skills?result.skills.length:(result.skill?1:0);
@@ -140,8 +140,9 @@ async function importSkill(){
     }
     if(typeof loadSkills==="function")await loadSkills().catch(()=>{});
     await refreshLibrary();
-  }catch(error){notify(error.message);}
-  finally{$("library-import").disabled=false;}
+    return result;
+  }catch(error){notify(error.message);return null;}
+  finally{const libImport=$("library-import");if(libImport)libImport.disabled=false;}
 }
 $("library-import").addEventListener("click",()=>importSkill());
 $("library-archived").addEventListener("change",renderLibrary);
