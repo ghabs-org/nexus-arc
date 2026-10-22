@@ -334,8 +334,9 @@ def render_setup_form(
     existing_keys_note: str,
     identity_rows: list[tuple[str, str]] | None = None,
     session_ref: str = "",
+    opencode_key_set: bool = False,
 ) -> str:
-    """The account setup screen body: identity, AI accounts, Copilot, API keys, save."""
+    """The account setup screen body: identity, AI accounts, Copilot, OpenCode, API keys, save."""
     identity = ""
     if identity_rows or session_ref:
         cells = "".join(
@@ -371,6 +372,15 @@ def render_setup_form(
     </div>
   </section>"""
 
+    # OpenCode has no account sign-in here: its API key is the login, in every auth mode.
+    opencode = f"""
+  <section class="setting" aria-labelledby="opencode-h">
+    <div class="label"><h2 id="opencode-h">OpenCode</h2><p>OpenCode runs on your own OpenCode API key from opencode.ai. Its free models work only inside the OpenCode app.</p></div>
+    <div class="panel fields">
+      {_api_key_field("opencode_api_key", "OpenCode API key", "sk-…", opencode_key_set)}
+    </div>
+  </section>"""
+
     keys = ""
     if show_api_key_inputs:
         keys = f"""
@@ -390,6 +400,7 @@ def render_setup_form(
   {accounts}
   {identity}
   {copilot}
+  {opencode}
   {keys}
   <div class="form-foot">
     <p class="note">{existing_keys_note}</p>

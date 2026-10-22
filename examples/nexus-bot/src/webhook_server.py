@@ -852,6 +852,7 @@ def _render_ai_key_form(
     agy_account_enabled: bool = False,
     identity_rows: list[tuple[str, str]] | None = None,
     session_ref: str = "",
+    opencode_key_set: bool = False,
 ) -> str:
     return _auth_pages.render_setup_form(
         session_id=session_id,
@@ -870,6 +871,7 @@ def _render_ai_key_form(
         existing_keys_note=existing_keys_note,
         identity_rows=identity_rows,
         session_ref=session_ref,
+        opencode_key_set=opencode_key_set,
     )
 
 
@@ -960,6 +962,7 @@ def _render_account_setup_page(
         claude_account_enabled=bool(setup.get("claude_account_enabled")),
         copilot_account_enabled=bool(setup.get("copilot_account_enabled")),
         agy_account_enabled=bool(setup.get("agy_account_enabled")),
+        opencode_key_set=bool(setup.get("opencode_key_set")),
         existing_keys_note=note,
         identity_rows=identity_rows,
         session_ref=session_ref,
@@ -1379,6 +1382,9 @@ def auth_ai_keys():
     copilot_github_token = str(
         request.form.get("copilot_github_token") or payload.get("copilot_github_token") or ""
     ).strip()
+    opencode_api_key = str(
+        request.form.get("opencode_api_key") or payload.get("opencode_api_key") or ""
+    ).strip()
     raw_use_copilot = request.form.get("use_copilot")
     if raw_use_copilot is None:
         raw_use_copilot = payload.get("use_copilot")
@@ -1428,6 +1434,10 @@ def auth_ai_keys():
     copilot_token_supplied = ("copilot_github_token" in request.form) or (
         isinstance(payload, dict) and "copilot_github_token" in payload
     )
+    # The OpenCode key is that provider's login, so account mode still accepts it.
+    opencode_supplied = ("opencode_api_key" in request.form) or (
+        isinstance(payload, dict) and "opencode_api_key" in payload
+    )
     api_keys_allowed = _allow_api_keys_in_web_setup()
     if (
         not api_keys_allowed
@@ -1453,6 +1463,7 @@ def auth_ai_keys():
             codex_api_key=(codex_api_key if codex_supplied else None),
             claude_api_key=(claude_api_key if claude_supplied else None),
             copilot_github_token=(copilot_github_token if copilot_token_supplied else None),
+            opencode_api_key=(opencode_api_key if opencode_supplied else None),
             allow_copilot=use_copilot,
             use_codex_account=use_codex_account,
             use_claude_account=use_claude_account,
