@@ -1689,6 +1689,7 @@ def store_ai_provider_keys(
     codex_api_key: str | None = None,
     claude_api_key: str | None = None,
     copilot_github_token: str | None = None,
+    opencode_api_key: str | None = None,
     allow_copilot: bool = False,
     use_codex_account: bool | None = None,
     use_claude_account: bool | None = None,
@@ -1708,9 +1709,11 @@ def store_ai_provider_keys(
     codex_provided = codex_api_key is not None
     claude_provided = claude_api_key is not None
     copilot_provided = copilot_github_token is not None
+    opencode_provided = opencode_api_key is not None
     codex_candidate = str(codex_api_key or "").strip()
     claude_candidate = str(claude_api_key or "").strip()
     copilot_candidate = str(copilot_github_token or "").strip()
+    opencode_candidate = str(opencode_api_key or "").strip()
     record = get_user_credentials(session_record.nexus_id)
     existing_ai_key_set = bool(
         record
@@ -1750,7 +1753,7 @@ def store_ai_provider_keys(
             "Copilot account mode requires linked GitHub OAuth. Run `/login github` first."
         )
 
-    if not codex_candidate and not claude_candidate and allow_copilot:
+    if not codex_candidate and not claude_candidate and not opencode_candidate and allow_copilot:
         copilot_available = bool(
             has_github_for_copilot
             or has_stored_copilot_token
@@ -1766,6 +1769,7 @@ def store_ai_provider_keys(
     codex_encrypted: str | None = None
     claude_encrypted: str | None = None
     copilot_encrypted: str | None = None
+    opencode_encrypted: str | None = None
 
     if codex_provided and not codex_candidate:
         codex_encrypted = ""
@@ -1798,11 +1802,19 @@ def store_ai_provider_keys(
             raise ValueError("Copilot Token is too short")
         copilot_encrypted = encrypt_secret(copilot_candidate, key_version=_key_version())
 
+    if opencode_provided and not opencode_candidate:
+        opencode_encrypted = ""
+    elif opencode_candidate:
+        if len(opencode_candidate) < 16:
+            raise ValueError("OpenCode API key is too short")
+        opencode_encrypted = encrypt_secret(opencode_candidate, key_version=_key_version())
+
     upsert_ai_provider_keys(
         nexus_id=session_record.nexus_id,
         codex_api_key_enc=codex_encrypted,
         claude_api_key_enc=claude_encrypted,
         copilot_github_token_enc=copilot_encrypted,
+        opencode_api_key_enc=opencode_encrypted,
         codex_account_enabled=codex_account_enabled,
         claude_account_enabled=claude_account_enabled,
         copilot_account_enabled=copilot_account_enabled,

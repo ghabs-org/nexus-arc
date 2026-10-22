@@ -45,11 +45,11 @@ model_profiles:
   fast:
     copilot: gpt-4o-mini
     codex: gpt-5-mini
-    opencode: opencode/muse-spark-1.3-contributor-free
+    opencode: opencode/glm-5.3-flash-free
   reasoning:
     copilot: gpt-5.3-codex
     codex: gpt-5.3-codex
-    opencode: opencode/muse-spark-1.3-contributor-free
+    opencode: opencode/glm-5.3-flash-free
 
 # Optional: profile-specific provider order used when provider=auto
 profile_provider_priority:
@@ -149,11 +149,11 @@ nexus:
     fast:
       copilot: gpt-4o-mini
       codex: gpt-5-mini
-      opencode: opencode/muse-spark-1.3-contributor-free
+      opencode: opencode/glm-5.3-flash-free
     reasoning:
       copilot: gpt-5.3-codex
       codex: gpt-5.3-codex
-      opencode: opencode/muse-spark-1.3-contributor-free
+      opencode: opencode/glm-5.3-flash-free
   profile_provider_priority:
     fast: [ opencode, copilot, codex ]
     reasoning: [ opencode, codex, copilot ]

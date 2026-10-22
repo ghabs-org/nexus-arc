@@ -7,6 +7,10 @@ ARG CLAUDE_CODE_VERSION
 # official release manifest (see deploy/studio/README.md). Empty skips agy.
 ARG AGY_URL=
 ARG AGY_SHA512=
+# Optional OpenCode CLI: the versioned Linux archive URL and SHA-256 from the official
+# release (see deploy/studio/README.md). Empty skips opencode.
+ARG OPENCODE_URL=
+ARG OPENCODE_SHA256=
 # Slim Node images ship no CA bundle. Node has its own roots, but Codex (Rust)
 # verifies TLS against the system store and fails every request without one.
 RUN apt-get update \
@@ -23,7 +27,15 @@ RUN if [ -n "$AGY_URL" ]; then \
       && install -m 0755 /tmp/antigravity /usr/local/bin/agy \
       && rm -f /tmp/agy.tgz /tmp/antigravity; \
     fi
-ENV DISABLE_AUTOUPDATER=1
+RUN if [ -n "$OPENCODE_URL" ]; then \
+      test -n "$OPENCODE_SHA256" \
+      && node -e 'fetch(process.env.OPENCODE_URL).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); }).then(b => require("fs").writeFileSync("/tmp/opencode.tgz", Buffer.from(b)))' \
+      && echo "$OPENCODE_SHA256  /tmp/opencode.tgz" | sha256sum -c - \
+      && tar -xzf /tmp/opencode.tgz -C /tmp opencode \
+      && install -m 0755 /tmp/opencode /usr/local/bin/opencode \
+      && rm -f /tmp/opencode.tgz /tmp/opencode; \
+    fi
+ENV DISABLE_AUTOUPDATER=1 OPENCODE_DISABLE_AUTOUPDATE=1
 WORKDIR /workspace
 # Studio supplies the numeric service UID and per-user mounts at invocation.
 CMD ["codex", "--version"]

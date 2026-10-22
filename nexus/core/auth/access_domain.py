@@ -702,6 +702,7 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
             "git_provider_linked": False,
             "codex_key_set": False,
             "claude_key_set": False,
+            "opencode_key_set": False,
             "codex_account_enabled": False,
             "claude_account_enabled": False,
             "copilot_account_enabled": False,
@@ -729,11 +730,12 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
     codex_key_set = bool(record and record.codex_api_key_enc)
     claude_key_set = bool(record and record.claude_api_key_enc)
     copilot_token_set = bool(record and record.copilot_github_token_enc)
+    opencode_key_set = bool(record and getattr(record, "opencode_api_key_enc", None))
     codex_account_enabled = bool(record and getattr(record, "codex_account_enabled", False))
     claude_account_enabled = bool(record and getattr(record, "claude_account_enabled", False))
     copilot_account_enabled = bool(record and getattr(record, "copilot_account_enabled", False))
     agy_account_enabled = bool(record and getattr(record, "agy_account_enabled", False))
-    ai_provider_key_set = bool(codex_key_set or claude_key_set)
+    ai_provider_key_set = bool(codex_key_set or claude_key_set or opencode_key_set)
     # Copilot is available with linked GitHub OAuth or an explicit Copilot GitHub token.
     copilot_ready = bool(github_linked or copilot_token_set or (account_mode_enabled and copilot_account_enabled))
     account_provider_ready = bool(
@@ -766,6 +768,7 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
         "git_provider_linked": git_provider_linked,
         "codex_key_set": codex_key_set,
         "claude_key_set": claude_key_set,
+        "opencode_key_set": opencode_key_set,
         "codex_account_enabled": codex_account_enabled,
         "claude_account_enabled": claude_account_enabled,
         "copilot_account_enabled": copilot_account_enabled,
@@ -811,7 +814,9 @@ def has_setup_ready_user_for_project(project_key: str) -> bool:
             gitlab_linked = bool(record.gitlab_token_enc and record.gitlab_username)
             git_provider_linked = bool(github_linked or gitlab_linked)
             ai_provider_key_set = bool(
-                record.codex_api_key_enc or record.claude_api_key_enc
+                record.codex_api_key_enc
+                or record.claude_api_key_enc
+                or getattr(record, "opencode_api_key_enc", None)
             )
             copilot_ready = bool(
                 github_linked
@@ -1067,6 +1072,7 @@ def prepare_execution_env(
         bool(str(prepared_env.get("OPENAI_API_KEY") or "").strip())
         or bool(str(prepared_env.get("ANTHROPIC_API_KEY") or "").strip())
         or bool(str(prepared_env.get("CLAUDE_API_KEY") or "").strip())
+        or bool(str(prepared_env.get("OPENCODE_API_KEY") or "").strip())
     )
     if normalized_purpose == "agent_run" and not ai_key_present and not account_auth_providers:
         return (
@@ -1161,6 +1167,12 @@ def build_execution_env(
             env["CLAUDE_API_KEY"] = claude_key
         except Exception:
             return {}, "Stored Claude API key could not be decrypted."
+
+    if getattr(record, "opencode_api_key_enc", None):
+        try:
+            env["OPENCODE_API_KEY"] = decrypt_secret(record.opencode_api_key_enc)
+        except Exception:
+            return {}, "Stored OpenCode API key could not be decrypted."
 
     account_mode_enabled = _cli_account_mode_enabled()
     account_auth_providers: list[str] = []

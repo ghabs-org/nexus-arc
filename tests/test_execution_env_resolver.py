@@ -101,3 +101,30 @@ def test_setup_status_counts_agy_account_as_ai_provider(monkeypatch):
 
     assert status["agy_account_enabled"] is True
     assert status["account_provider_ready"] is True
+
+
+def test_build_execution_env_passes_the_users_opencode_key(monkeypatch):
+    from types import SimpleNamespace
+
+    record = SimpleNamespace(
+        github_token_enc="enc::ghu_test",
+        gitlab_token_enc=None,
+        copilot_github_token_enc=None,
+        codex_api_key_enc=None,
+        claude_api_key_enc=None,
+        opencode_api_key_enc="enc::sk-opencode",
+        codex_account_enabled=False,
+        claude_account_enabled=False,
+        copilot_account_enabled=False,
+        agy_account_enabled=False,
+    )
+    monkeypatch.setattr(access_svc, "get_user_credentials", lambda _nid: record)
+    monkeypatch.setattr(access_svc, "decrypt_secret", lambda value: value.removeprefix("enc::"))
+    monkeypatch.setattr(access_svc, "_ensure_private_runtime_dir", lambda _path: None)
+    monkeypatch.setattr(access_svc, "NEXUS_RUNTIME_DIR", "/tmp/nexus-test-runtime")
+
+    env, error = access_svc.build_execution_env("nexus-alice")
+
+    # An OpenCode key alone is enough AI credential for an agent run.
+    assert error is None
+    assert env["OPENCODE_API_KEY"] == "sk-opencode"

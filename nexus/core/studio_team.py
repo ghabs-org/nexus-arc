@@ -30,8 +30,9 @@ from nexus.adapters.ai.base import split_model_effort
 from nexus.core.models import AgentResult
 
 ROLES = {"viewer": 0, "operator": 1, "builder": 2, "owner": 3}
-# Subscription CLIs that run in the isolated runner_image. agy has no API-key mode.
-WORKER_CLIS = {"codex", "claude-code", "agy"}
+# Subscription CLIs that run in the isolated runner_image. agy has no API-key mode;
+# OpenCode runs only with the user's own OpenCode API key.
+WORKER_CLIS = {"codex", "claude-code", "agy", "opencode"}
 ACCOUNT_ONLY_PROVIDERS = {"agy"}
 
 
@@ -265,6 +266,7 @@ class NexusTeamPolicy:
             "openai": "OPENAI_API_KEY",
             "claude": "ANTHROPIC_API_KEY",
             "copilot": "COPILOT_GITHUB_TOKEN",
+            "opencode": "OPENCODE_API_KEY",
         }
         if (
             provider not in keys
@@ -289,6 +291,7 @@ class NexusTeamPolicy:
             "openai": "OPENAI_API_KEY",
             "claude": "ANTHROPIC_API_KEY",
             "copilot": "COPILOT_GITHUB_TOKEN",
+            "opencode": "OPENCODE_API_KEY",
         }
         result = []
         for original in records:
@@ -324,7 +327,7 @@ class NexusTeamPolicy:
             )
         if name not in WORKER_CLIS:
             raise ValueError(
-                "Shared subscription workers support Codex, Claude Code and Antigravity"
+                "Shared subscription workers support Codex, Claude Code, Antigravity and OpenCode"
             )
         return ContainerCLIProvider(name, env, self.runner_image, builder=builder)
 
@@ -354,6 +357,14 @@ _CLAUDE_TOOLS = {
     "none": [],
     "web": ["WebSearch", "WebFetch"],
     "shell": ["WebSearch", "WebFetch", "Bash", "Read", "Glob", "Grep"],
+}
+
+
+# OpenCode permissions per tool level. "--auto" approves only what is not denied.
+_OPENCODE_PERMISSIONS = {
+    "none": {"*": "deny"},
+    "web": {"*": "deny", "webfetch": "allow", "websearch": "allow"},
+    "shell": {},
 }
 
 
@@ -425,6 +436,34 @@ class CodexStream:
                 or event.get("message")
                 or "Codex turn failed"
             )
+
+
+class OpenCodeStream:
+    """Turn ``opencode run --format json`` events into messages and tool activity."""
+
+    def __init__(self, on_delta):
+        self.on_delta, self.texts, self.error, self.tools = on_delta, {}, None, set()
+
+    @property
+    def output(self):
+        return "\n".join(self.texts.values()).strip()
+
+    def feed(self, event):
+        part = event.get("part") or {}
+        if event.get("type") == "error":
+            error = event.get("error")
+            self.error = str(
+                (error.get("message") if isinstance(error, dict) else error) or "OpenCode run failed"
+            )
+        elif part.get("type") == "text" and part.get("text"):
+            # Each text part arrives complete; a repeated part replaces the earlier copy.
+            key = part.get("id") or len(self.texts)
+            if key not in self.texts:
+                self.on_delta(str(part["text"]) + "\n")
+            self.texts[key] = str(part["text"])
+        elif part.get("type") == "tool" and part.get("id") not in self.tools:
+            self.tools.add(part.get("id"))
+            self.on_delta(_tool_activity(part.get("tool"), (part.get("state") or {}).get("input")))
 
 
 class ContainerCLIProvider:
@@ -511,6 +550,22 @@ class ContainerCLIProvider:
             mounts["CODEX_HOME"] = "/run/credentials/codex"
         elif self.name == "claude-code":
             mounts["CLAUDE_HOME"] = "/run/credentials/claude"
+        elif self.name == "opencode":
+            # The API key is the only credential; OpenCode state lives on the tmpfs.
+            mounts = {}
+            container_env.update(
+                HOME="/tmp/home",
+                XDG_DATA_HOME="/tmp/home/.local/share",
+                XDG_CONFIG_HOME="/tmp/home/.config",
+                XDG_CACHE_HOME="/tmp/home/.cache",
+                XDG_STATE_HOME="/tmp/home/.local/state",
+                OPENCODE_DISABLE_AUTOUPDATE="1",
+                OPENCODE_DISABLE_CLAUDE_CODE="1",
+                OPENCODE_DISABLE_PROJECT_CONFIG="1",
+                OPENCODE_CONFIG_CONTENT=json.dumps(
+                    {"permission": _OPENCODE_PERMISSIONS[tools]}, separators=(",", ":")
+                ),
+            )
         else:
             # Antigravity keeps its login and state in $HOME/.gemini under the
             # user's dedicated AGY_HOME, so that home becomes the container HOME.
@@ -530,6 +585,7 @@ class ContainerCLIProvider:
             "codex": ["OPENAI_API_KEY"],
             "claude-code": ["ANTHROPIC_API_KEY"],
             "agy": [],
+            "opencode": ["OPENCODE_API_KEY"],
         }[self.name]
         for key, value in container_env.items():
             command += ["--env", f"{key}={value}"]
@@ -571,6 +627,12 @@ class ContainerCLIProvider:
                 timeout = int(context.timeout or 600)
                 # --sandbox restricts terminal tools; the workspace is an empty read-only dir.
                 command += ["agy", *agy_print_args(timeout, model, effort), "--sandbox"]
+            elif self.name == "opencode":
+                model, effort = split_model_effort(context.model_override, context.effort)
+                # The prompt comes from stdin; explicit denies hold under --auto.
+                command += ["opencode", "run", "--standalone", "--auto", "--format", "json"]
+                if model:
+                    command += ["--model", f"{model}#{effort}" if effort else model]
             else:
                 command += [
                     "claude",
@@ -588,9 +650,9 @@ class ContainerCLIProvider:
                     "--mcp-config",
                     '{"mcpServers":{}}',
                 ]
-            if context.model_override and self.name != "agy":
+            if context.model_override and self.name not in {"agy", "opencode"}:
                 command += ["--model", context.model_override]
-            if context.effort and self.name != "agy":
+            if context.effort and self.name not in {"agy", "opencode"}:
                 if self.name == "codex":
                     command += ["-c", f'model_reasoning_effort="{context.effort}"']
                 elif self.name == "claude-code":
@@ -632,7 +694,19 @@ class ContainerCLIProvider:
                 text = stdout.decode(errors="replace")
                 success = process.returncode == 0
                 detail = stderr
-                if self.name == "claude-code":
+                if self.name == "opencode":
+                    parser = OpenCodeStream(lambda _delta: None)
+                    for line in text.splitlines():
+                        try:
+                            event = json.loads(line)
+                        except ValueError:
+                            continue
+                        if isinstance(event, dict):
+                            parser.feed(event)
+                    text = parser.output
+                    success = success and not parser.error
+                    detail = parser.error or detail
+                elif self.name == "claude-code":
                     try:
                         parsed = json.loads(text or "{}")
                     except ValueError:
@@ -678,7 +752,9 @@ class ContainerCLIProvider:
         process.stdin.write(prompt_bytes)
         await process.stdin.drain()
         process.stdin.close()
-        parser = (ClaudeStream if self.name == "claude-code" else CodexStream)(on_delta)
+        parser = {"claude-code": ClaudeStream, "opencode": OpenCodeStream}.get(
+            self.name, CodexStream
+        )(on_delta)
         while line := await process.stdout.readline():
             try:
                 event = json.loads(line)

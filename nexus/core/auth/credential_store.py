@@ -106,6 +106,7 @@ if _SA_AVAILABLE:
         gemini_api_key_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
         claude_api_key_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
         copilot_github_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        opencode_api_key_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
         # Social platform tokens
         linkedin_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
         linkedin_token_expires_at: sa.orm.Mapped[datetime | None] = sa.orm.mapped_column(
@@ -257,6 +258,7 @@ class CredentialRecord:
     last_access_sync_at: datetime | None
     key_version: int
     agy_account_enabled: bool = False
+    opencode_api_key_enc: str | None = None
 
 
 @dataclass
@@ -352,6 +354,7 @@ def _run_schema_migrations(engine: Any) -> None:
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS gemini_api_key_enc TEXT",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS claude_api_key_enc TEXT",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS copilot_github_token_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS opencode_api_key_enc TEXT",
         # Social platform tokens
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS linkedin_token_enc TEXT",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS linkedin_token_expires_at TIMESTAMPTZ",
@@ -481,6 +484,7 @@ def _row_to_credential(row: Any) -> CredentialRecord:
         gemini_api_key_enc=row.gemini_api_key_enc,
         claude_api_key_enc=row.claude_api_key_enc,
         copilot_github_token_enc=row.copilot_github_token_enc,
+        opencode_api_key_enc=getattr(row, "opencode_api_key_enc", None),
         linkedin_token_enc=getattr(row, "linkedin_token_enc", None),
         linkedin_token_expires_at=getattr(row, "linkedin_token_expires_at", None),
         linkedin_author_urn=getattr(row, "linkedin_author_urn", None),
@@ -877,6 +881,7 @@ def upsert_ai_provider_keys(
     gemini_api_key_enc: str | None = None,
     claude_api_key_enc: str | None = None,
     copilot_github_token_enc: str | None = None,
+    opencode_api_key_enc: str | None = None,
     codex_account_enabled: bool | None = None,
     gemini_account_enabled: bool | None = None,
     claude_account_enabled: bool | None = None,
@@ -903,6 +908,8 @@ def upsert_ai_provider_keys(
             row.claude_api_key_enc = str(claude_api_key_enc or "").strip() or None
         if copilot_github_token_enc is not None:
             row.copilot_github_token_enc = str(copilot_github_token_enc or "").strip() or None
+        if opencode_api_key_enc is not None:
+            row.opencode_api_key_enc = str(opencode_api_key_enc or "").strip() or None
         if codex_account_enabled is not None:
             row.codex_account_enabled = bool(codex_account_enabled)
         if gemini_account_enabled is not None:

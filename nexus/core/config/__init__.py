@@ -613,7 +613,7 @@ def _get_orchestrator_config():
             "claude_model": os.getenv("CLAUDE_MODEL", "").strip(),
             "opencode_cli_path": os.getenv("OPENCODE_CLI_PATH", "opencode"),
             "opencode_model": os.getenv(
-                "OPENCODE_MODEL", "opencode/muse-spark-1.3-contributor-free"
+                "OPENCODE_MODEL", "opencode/glm-5.3-flash-free"
             ).strip(),
             "ai_tool_preferences_strict": os.getenv("AI_TOOL_PREFERENCES_STRICT", "false").lower()
             == "true",

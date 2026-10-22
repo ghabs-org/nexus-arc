@@ -1230,3 +1230,33 @@ def test_submit_provider_account_login_code_sends_line_to_claude(monkeypatch, tm
     assert "Claude CLI" in result["message"]
     with auth_mod._DEVICE_AUTH_LOCK:
         auth_mod._DEVICE_AUTH_JOBS.pop(key, None)
+
+
+def test_store_ai_provider_keys_saves_and_clears_opencode_key(monkeypatch):
+    import pytest
+
+    import nexus.core.auth.oauth_onboarding_domain as auth_mod
+
+    session = SimpleNamespace(
+        session_id="session-1",
+        expires_at=datetime.now(tz=UTC) + timedelta(minutes=5),
+        status="oauth_done",
+        nexus_id="nexus-user-1",
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(auth_mod, "resolve_login_session_id", lambda value: value)
+    monkeypatch.setattr(auth_mod, "get_auth_session", lambda _session_id: session)
+    monkeypatch.setattr(auth_mod, "get_user_credentials", lambda _nexus_id: None)
+    monkeypatch.setattr(auth_mod, "encrypt_secret", lambda value, key_version=1: f"enc::{value}")
+    monkeypatch.setattr(auth_mod, "upsert_ai_provider_keys", lambda **kwargs: captured.update(kwargs))
+    monkeypatch.setattr(auth_mod, "update_auth_session", lambda **kwargs: None)
+    monkeypatch.setattr(auth_mod, "get_setup_status", lambda _nexus_id: {"ready": True})
+
+    auth_mod.store_ai_provider_keys(session_id="session-1", opencode_api_key="sk-opencode-key-123456")
+    assert captured["opencode_api_key_enc"] == "enc::sk-opencode-key-123456"
+    auth_mod.store_ai_provider_keys(session_id="session-1", opencode_api_key="")
+    assert captured["opencode_api_key_enc"] == ""
+    auth_mod.store_ai_provider_keys(session_id="session-1")
+    assert captured["opencode_api_key_enc"] is None
+    with pytest.raises(ValueError, match="OpenCode API key is too short"):
+        auth_mod.store_ai_provider_keys(session_id="session-1", opencode_api_key="short")

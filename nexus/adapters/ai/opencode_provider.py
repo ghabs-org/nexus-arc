@@ -4,7 +4,7 @@ Delegates to the installed ``opencode`` CLI (``opencode run``) using the
 caller's account authentication, so Nexus can use account-backed models —
 including free tiers — with no API key configuration::
 
-    OpenCodeProvider()  # -> opencode/muse-spark-1.3-contributor-free (free)
+    OpenCodeProvider()  # -> opencode/glm-5.3-flash-free (free)
     OpenCodeProvider(model="opencode/gpt-5.3-codex-spark")
 
 Override with ``OPENCODE_MODEL`` env var or ``context.model_override``.
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Free-tier default; verified cost=0 via the local OpenCode model catalog.
 # ponytail: single pinned default, add config surface if model rotation matters.
-DEFAULT_MODEL = "opencode/muse-spark-1.3-contributor-free"
+DEFAULT_MODEL = "opencode/glm-5.3-flash-free"
 
 
 def resolve_opencode_cli(cli_path: str | None = None) -> str | None:

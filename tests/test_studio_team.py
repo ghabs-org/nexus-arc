@@ -569,6 +569,118 @@ def test_agy_requires_account_login_and_worker_image(monkeypatch):
     assert no_image.providers(record, "owner")[0]["configured"] is False
 
 
+def _opencode_run(tmp_path, environment, stdout, *, tools="none", returncode=0, **context):
+    process = MagicMock(returncode=returncode)
+    process.communicate = AsyncMock(return_value=(stdout, b""))
+    cleanup = MagicMock(returncode=0)
+    cleanup.wait = AsyncMock(return_value=0)
+    with (
+        patch("nexus.core.studio_team.shutil.which", return_value="/usr/bin/docker"),
+        patch(
+            "nexus.core.studio_team.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=[process, cleanup]),
+        ) as spawn,
+    ):
+        result = asyncio.run(
+            ContainerCLIProvider(
+                "opencode", environment, "trusted-worker@sha256:" + "a" * 64
+            ).execute_agent(
+                ExecutionContext(
+                    "test",
+                    "private prompt",
+                    tmp_path / "server-project",
+                    metadata={"worker_tools": tools},
+                    **context,
+                )
+            )
+        )
+    return result, spawn, process
+
+
+def test_shared_opencode_runs_with_its_api_key_and_no_mounted_home(tmp_path):
+    user_home = tmp_path / "user-home"
+    user_home.mkdir()
+    environment = {
+        "HOME": str(user_home),
+        "OPENCODE_API_KEY": "alice-opencode-key",
+        "OPENAI_API_KEY": "alice-private-key",
+    }
+    stdout = (
+        b'{"type":"step_start","part":{"type":"step-start"}}\n'
+        b'{"type":"text","part":{"id":"p1","type":"text","text":"Safe response"}}\n'
+    )
+    result, spawn, process = _opencode_run(
+        tmp_path, environment, stdout, model_override="opencode/gpt-6.1-sol", effort="high"
+    )
+    assert result.success and result.output == "Safe response"
+    args = spawn.call_args_list[0].args
+    joined = " ".join(args)
+    assert "private prompt" not in joined and str(tmp_path / "server-project") not in joined
+    # The key travels by name only; no credential home is mounted.
+    assert "alice-opencode-key" not in joined and str(user_home) not in joined
+    assert "--env" in args and "OPENCODE_API_KEY" in args
+    env = spawn.call_args_list[0].kwargs["env"]
+    assert env["OPENCODE_API_KEY"] == "alice-opencode-key" and "OPENAI_API_KEY" not in env
+    assert "HOME=/tmp/home" in args and "XDG_DATA_HOME=/tmp/home/.local/share" in args
+    worker = list(args[args.index("trusted-worker@sha256:" + "a" * 64) + 1 :])
+    assert worker[:6] == ["opencode", "run", "--standalone", "--auto", "--format", "json"]
+    assert worker[worker.index("--model") + 1] == "opencode/gpt-6.1-sol#high"
+    assert worker.count("--model") == 1 and "--effort" not in worker
+    assert process.communicate.await_args.args[0] == b"private prompt"
+
+
+def test_shared_opencode_reports_its_error_event(tmp_path):
+    stdout = (
+        b'{"type":"error","error":{"type":"provider.auth",'
+        b'"message":"This API key has expired."}}\n'
+    )
+    result, _, _ = _opencode_run(tmp_path, {"OPENCODE_API_KEY": "k"}, stdout)
+    assert not result.success
+    assert result.error == "Isolated provider execution failed: This API key has expired."
+
+
+def test_opencode_tool_levels_set_permissions():
+    def permissions(tools):
+        _, spawn, _ = _opencode_run(
+            Path("/tmp"),
+            {"OPENCODE_API_KEY": "k"},
+            b'{"type":"text","part":{"id":"p","type":"text","text":"ok"}}\n',
+            tools=tools,
+        )
+        args = spawn.call_args_list[0].args
+        value = next(a for a in args if a.startswith("OPENCODE_CONFIG_CONTENT="))
+        return json.loads(value.split("=", 1)[1])["permission"]
+
+    assert permissions("none") == {"*": "deny"}
+    assert permissions("web") == {"*": "deny", "webfetch": "allow", "websearch": "allow"}
+    assert permissions("shell") == {}
+
+
+def test_opencode_requires_the_users_own_api_key(monkeypatch):
+    def policy(values):
+        return NexusTeamPolicy(
+            project_key="sample",
+            public_url="https://studio.example.test",
+            login_url="https://studio.example.test/login?next=/",
+            bindings={"owner": "owner"},
+            manager=NexusIdentity(),
+            environment_resolver=lambda identity: (values, None),
+            runner_image="trusted-worker@sha256:" + "a" * 64,
+        )
+
+    record = [{"id": "opencode", "kind": "cli"}]
+    monkeypatch.setattr("nexus.core.studio_team.shutil.which", lambda name: "/usr/bin/docker")
+    other = policy({"OPENAI_API_KEY": "key", "NEXUS_ACCOUNT_AUTH_PROVIDERS": "codex"})
+    with pytest.raises(PermissionError):
+        other.environment("owner", "opencode")
+    assert other.providers(record, "owner")[0]["configured"] is False
+    own = policy({"OPENCODE_API_KEY": "key"})
+    assert own.providers(record, "owner")[0]["configured"] is True
+    assert isinstance(
+        own.provider("opencode", {"requester_nexus_id": "owner"}), ContainerCLIProvider
+    )
+
+
 def test_evaluations_and_approval_runs_keep_creator_identity(team):
     service, policy, manager, request, calls = team
     status, suite = request(
@@ -1131,3 +1243,20 @@ def test_stream_parsers_report_text_and_tool_activity():
     assert codex.output == "Done" and codex.error is None
     codex.feed({"type": "turn.failed", "error": {"message": "usage limit"}})
     assert codex.error == "usage limit"
+
+    from nexus.core.studio_team import OpenCodeStream
+
+    seen.clear()
+    opencode = OpenCodeStream(seen.append)
+    tool = {"id": "t1", "type": "tool", "tool": "webfetch", "state": {"input": {"url": "https://x.test"}}}
+    for event in (
+        {"type": "tool_use", "part": tool},
+        {"type": "tool_use", "part": {**tool, "state": {"status": "completed", "input": {"url": "https://x.test"}}}},
+        {"type": "text", "part": {"id": "p1", "type": "text", "text": "Done"}},
+        {"type": "text", "part": {"id": "p1", "type": "text", "text": "Done"}},
+    ):
+        opencode.feed(event)
+    assert seen == ["\n› webfetch: https://x.test\n", "Done\n"]
+    assert opencode.output == "Done" and opencode.error is None
+    opencode.feed({"type": "error", "error": {"message": "usage limit"}})
+    assert opencode.error == "usage limit"

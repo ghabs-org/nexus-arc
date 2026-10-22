@@ -374,6 +374,8 @@ def test_provider_connect_setup_form_hides_api_keys_in_account_mode():
     for field in ("codex_api_key", "claude_api_key", "copilot_github_token"):
         assert f'name="{field}"' not in rendered
     assert 'id="accounts-h"' in rendered
+    # OpenCode's API key is its login, so it stays available in account mode.
+    assert 'name="opencode_api_key"' in rendered
 
 
 def test_auth_start_rejects_unconfigured_provider(monkeypatch):
@@ -614,6 +616,29 @@ def test_ai_keys_form_saves_antigravity_account_toggle(monkeypatch):
     client.post("/auth/ai-keys", data={"session_id": "lsr_session-123", "use_agy_account": "1"})
 
     assert captured["use_agy_account"] is True
+
+
+def test_ai_keys_form_saves_opencode_key_in_account_mode(monkeypatch):
+    import webhook_server
+
+    monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
+    monkeypatch.setenv("NEXUS_CLI_AUTH_MODE", "account")
+    captured: dict = {}
+
+    def _store(**kwargs):
+        captured.update(kwargs)
+        return {"ready": True, "session_id": kwargs["session_id"]}
+
+    monkeypatch.setattr(webhook_server, "_svc_store_ai_provider_keys", _store)
+
+    client = webhook_server.app.test_client()
+    response = client.post(
+        "/auth/ai-keys",
+        data={"session_id": "lsr_session-123", "opencode_api_key": "sk-opencode-key-123456"},
+    )
+
+    assert response.status_code != 400
+    assert captured["opencode_api_key"] == "sk-opencode-key-123456"
 
 
 def test_auth_setup_reopens_account_page_for_finished_session(monkeypatch):
