@@ -205,6 +205,7 @@ def test_studio_assistant_run_execution(service_env):
         {"kind": "chat", "studio_assistant": True, "task": "Where are files?"}
     )
     assert run["status"] in {"queued", "running", "completed"}
+    assert run.get("studio_assistant") is True
 
     # Studio assistant with custom agent_id rejected
     with pytest.raises(ValueError, match="without a custom agent"):
@@ -436,6 +437,8 @@ def test_assistant_ai_invokes_read_only_help_and_finishes_with_verified_context(
             ),
         )
         assert result["status"] == "completed", result
+        assert result.get("studio_assistant") is True
+        assert service.session(result["session_id"]).get("studio_assistant") is True
         assert "server workspace" in result["output"]
         assert len(seen) == 2
         assert len(service.records("runs")) == 1

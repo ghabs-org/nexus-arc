@@ -35,10 +35,10 @@ def test_guide_state_lifecycle_and_privacy_guardrails(tmp_path):
     studio = StudioService(tmp_path, provider_factory=lambda _: UnexpectedProvider())
     try:
         initial = studio.workbench.get(["guide"], None)
-        assert initial["version"] == GUIDE_VERSION == 1
+        assert initial["version"] == GUIDE_VERSION == 2
         assert initial["status"] == "new"
         assert initial["seen_version"] == 0
-        assert len(initial["steps"]) == 13
+        assert len(initial["steps"]) == 15
         assert [step["id"] for step in initial["steps"]] == [s["id"] for s in GUIDE_STEPS]
         assert "no saved agents or workflows yet" in initial["steps"][0]["capability_note"]
 
@@ -101,13 +101,13 @@ def test_guide_version_upgrade_never_resets_dismissal_or_completion(tmp_path):
         key = studio.workbench.settings_key(None)
         path = studio._path("onboarding-guide", key)
         record = studio._read(path)
-        record["seen_version"] = 0
+        record["seen_version"] = 1
         studio._write(path, record)
 
         upgraded = studio.workbench.get(["guide"], None)
         assert upgraded["status"] == "dismissed"
         assert upgraded["upgrade_available"] is True
-        assert upgraded["new_steps"] == [s["id"] for s in GUIDE_STEPS]
+        assert upgraded["new_steps"] == ["workspace-files", "studio-assistant"]
 
         _, acknowledged = studio.workbench.post(
             ["guide"], {"action": "acknowledge_upgrade"}, None
@@ -219,4 +219,4 @@ def test_nexus_bot_example_consumes_interactive_guide_configuration(tmp_path):
         check=True,
         timeout=15,
     )
-    assert "Interactive guide: v1 (in_progress, 13 steps)" in result.stdout
+    assert "Interactive guide: v2 (in_progress, 15 steps)" in result.stdout

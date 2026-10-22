@@ -496,3 +496,73 @@ def test_missing_legacy_history_preserves_completed_progress_until_reviewed_timi
         assert not manager.details(rescheduled["id"])["state"].get("legacy_timing_unverified")
     finally:
         app.close()
+
+
+def test_schedule_ready_made_workflow_without_task_and_with_input(tmp_path):
+    calls = []
+    app = service(tmp_path, calls, workers=0)
+    try:
+        app.save_definition(
+            "workflows",
+            {
+                "id": "content-pipeline",
+                "name": "Content Pipeline",
+                "description": "Generate and review content",
+                "steps": [{"name": "Step 1", "agent_type": "assistant"}],
+            },
+        )
+        now = datetime(2026, 10, 19, 7, tzinfo=UTC)
+        # Agent schedule still requires a task
+        with pytest.raises(ValueError, match="Task"):
+            app.catalog.save(
+                "schedules",
+                {
+                    "name": "Agent Schedule Missing Task",
+                    "data": {
+                        "target_kind": "agent",
+                        "target_id": "assistant",
+                        "run_at": now.isoformat(),
+                        "enabled": True,
+                        "interval_seconds": 0,
+                    },
+                },
+            )
+
+        # Ready-made workflow schedule succeeds without explicit task and accepts workflow_input
+        saved = app.catalog.save(
+            "schedules",
+            {
+                "name": "Workflow Schedule",
+                "data": {
+                    "target_kind": "workflow",
+                    "target_id": "content-pipeline",
+                    "workflow_input": {"topic": "AI agents"},
+                    "run_at": now.isoformat(),
+                    "enabled": True,
+                    "interval_seconds": 0,
+                },
+            },
+        )
+        assert saved["data"]["task"] == "Generate and review content"
+        assert saved["data"]["workflow_input"] == {"topic": "AI agents"}
+
+        launched = []
+        original_start_run = app.start_run
+
+        def tracking_start_run(payload, **kwargs):
+            launched.append(dict(payload))
+            return original_start_run(payload, **kwargs)
+
+        app.start_run = tracking_start_run
+
+        app.operations.tick(now)
+        runs = app.records("runs")
+        assert len(runs) == 1
+        assert len(launched) == 1
+        assert launched[0]["kind"] == "workflow"
+        assert launched[0]["workflow_id"] == "content-pipeline"
+        assert launched[0]["task"] == "Generate and review content"
+        assert launched[0]["workflow_input"] == {"topic": "AI agents"}
+    finally:
+        app.close()
+

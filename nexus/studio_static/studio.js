@@ -35,23 +35,42 @@ function providerOptions(selected="codex", optional=false){return (optional?'<op
 function effortOptions(selected=""){return [["","Default"],["low","Low"],["medium","Medium"],["high","High"],["xhigh","Extra high"],["max","Max"]].map(([val,label])=>`<option value="${val}" ${val===selected?"selected":""}>${label}</option>`).join("");}
 function empty(title,copy,action,label){return `<div class="empty-state"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p>${action?`<button data-action="${action}">${escapeHtml(label)}</button>`:""}</div>`;}
 function view(){const name=location.hash.slice(1).split("/")[0]||"chat";if(["connectors","entrypoints","schedules","evaluations","models","externalagents"].includes(name))return "library";return ["chat","agents","workflows","providers","tools","activity","inbox","quick-build","library","workspace","workbench","projects","feedback","sharing","files","assistant"].includes(name)?name:"chat";}
-function showView(){if(!$("team-login").hidden)return;const name=view();document.querySelectorAll(".view").forEach(section=>section.hidden=section.id!==`view-${name}`);document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")===`#${location.hash.slice(1).split("/")[0]||name}`));$("view-title").textContent={files:"Workspace files",assistant:"Studio assistant",projects:"Knowledge projects",feedback:"Response feedback",sharing:"Conversation sharing",inbox:"Approval inbox",workbench:"Workspace tools",workspace:"Workspace & event mesh",library:"Library","quick-build":"Quick Build",chat:"Conversations",agents:"Agents",workflows:"Workflows",providers:"Providers & models",tools:"Tools",activity:"Activity"}[name];if(name==="tools")api("/api/tools").then(data=>{state.tools=data.items;renderTools();}).catch(error=>notify(error.message));if(name==="activity")refreshRuns().catch(error=>notify(error.message));}
+function showView(){if(!$("team-login").hidden)return;const name=view();document.querySelectorAll(".view").forEach(section=>section.hidden=section.id!==`view-${name}`);document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")===`#${location.hash.slice(1).split("/")[0]||name}`));$("view-title").textContent={files:"Workspace files",assistant:"Studio assistant",projects:"Knowledge projects",feedback:"Response feedback",sharing:"Conversation sharing",inbox:"Approval inbox",workbench:"Workspace tools",workspace:"Workspace & event mesh",library:"Library","quick-build":"Quick Build",chat:"Conversations",agents:"Agents",workflows:"Workflows",providers:"Providers & models",tools:"Tools",activity:"Activity"}[name];if(name==="tools")api("/api/tools").then(data=>{state.tools=data.items;renderTools();}).catch(error=>notify(error.message));if(name==="agents"||name==="quick-build")loadSkills().catch(()=>{});if(name==="activity")refreshRuns().catch(error=>notify(error.message));if(name==="chat")loadKnowledgeProjects().catch(()=>{});if(name==="chat"&&typeof renderChatArtifacts==="function")renderChatArtifacts();}
+function agentOptions(selected=""){
+  let html='<optgroup label="Built-in specialists">';
+  html+=`<option value="" ${selected===""?"selected":""}>General assistant</option>`;
+  html+=`<option value="studio-assistant" ${selected==="studio-assistant"?"selected":""}>Studio assistant</option>`;
+  html+='</optgroup>';
+  const custom=(state.agents||[]).filter(a=>a.document);
+  if(custom.length){
+    html+='<optgroup label="Custom specialists">';
+    for(const a of custom){
+      const isSel=a.id===selected?"selected":"";
+      html+=`<option value="${escapeHtml(a.id)}" ${isSel}>${escapeHtml(a.document.metadata?.name||a.id)}</option>`;
+    }
+    html+='</optgroup>';
+  }
+  return html;
+}
 function renderAgents(){
   $("agent-count").textContent=state.agents.length;
-  $("agents-content").innerHTML=state.agents.length?`<div class="resource-grid">${state.agents.map(item=>{
+  const builtinHtml=`<div class="section-subheading" style="margin-bottom:14px"><span class="eyebrow">STANDARD ROLES</span><h2 style="font-size:18px;margin:4px 0 0">Built-in specialists</h2><p style="font-size:12px;color:var(--muted);margin:4px 0 0">Ready-made platform assistants available in every workspace.</p></div><div class="resource-grid"><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>General assistant</span></div><h2>General assistant</h2><p>Direct conversation with your selected provider and tools. Flexible general-purpose assistant for any task.</p><div class="card-meta"><span>Provider default model</span><span>· Interactive chat</span></div><div class="card-actions"><button data-agent="">Start conversation</button></div></article><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>Platform help</span></div><h2>Studio assistant</h2><p>Answers platform questions using built-in documentation and authorized workspace metadata.</p><div class="card-meta"><span>Platform documentation</span><span>· Read-only tools</span></div><div class="card-actions"><button data-agent="studio-assistant">Start conversation</button><a class="button-link secondary" href="#assistant">Help center</a></div></article></div>`;
+  const customCards=state.agents.length?`<div class="resource-grid">${state.agents.map(item=>{
     const doc=item.document||{},meta=doc.metadata||{},spec=doc.spec||{};
     if(item.error)return `<article class="resource-card"><h2>${escapeHtml(item.id)}</h2>${badge("Invalid definition","failed")}<p>${escapeHtml(item.error)}</p></article>`;
-    return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span>${(spec.skill_ids||[]).length?`<span>· Skill: ${escapeHtml(spec.skill_ids[0])}</span>`:""}</div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="agents">Delete</button></div></article>`;
-  }).join("")}</div>`:empty("Give your team its first specialist","Create an agent with a clear purpose, then choose which provider does the work.","create-agent","Create an agent");
+    return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span>${(spec.skill_ids||[]).length?`<span>· ${(spec.skill_ids.length>1?`Skills: ${escapeHtml(spec.skill_ids.join(", "))}`:`Skill: ${escapeHtml(spec.skill_ids[0])}`)}</span>`:""}</div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-schedule-agent="${escapeHtml(item.id)}">Schedule</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="agents">Delete</button></div></article>`;
+  }).join("")}</div>`:empty("Give your team its first custom specialist","Create an agent with a clear purpose, then choose which provider does the work.","create-agent","Create an agent");
+  const customHtml=`<div class="section-subheading" style="margin:28px 0 14px"><span class="eyebrow">WORKSPACE SPECIALISTS</span><h2 style="font-size:18px;margin:4px 0 0">Custom specialists</h2><p style="font-size:12px;color:var(--muted);margin:4px 0 0">Agents configured for specific tasks, models, or workflows.</p></div>${customCards}`;
+  $("agents-content").innerHTML=builtinHtml+customHtml;
   const selected=$("chat-agent").value;
-  $("chat-agent").innerHTML='<option value="">General assistant</option>'+state.agents.filter(a=>a.document).map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.document.metadata?.name||a.id)}</option>`).join("");
-  $("chat-agent").value=selected;
+  $("chat-agent").innerHTML=agentOptions(selected);
+  if(selected)$("chat-agent").value=selected;
 }
 function renderWorkflows(){
   $("workflow-count").textContent=state.workflows.length;
   $("workflows-content").innerHTML=state.workflows.length?`<div class="resource-grid">${state.workflows.map(item=>{
     const doc=item.document||{},steps=doc.steps||doc.graph?.nodes||[];
-    return `<article class="resource-card"><div class="card-meta">${badge(item.error?"Invalid definition":doc.graph?"GRAPH WORKFLOW":"WORKFLOW",item.error?"failed":"")}<span>${steps.length} steps</span></div><h2>${escapeHtml(doc.metadata?.name||item.id)}</h2><p>${escapeHtml(item.error||doc.metadata?.description||(doc.graph?steps.slice(0,4).map(s=>s.name||s.kind||s.id).join(" · ")+(steps.length>4?` · ${steps.length-4} more`:""):steps.map(s=>s.agent_type).join(" → ")))}</p><div class="card-actions"><button data-run-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Run workflow</button>${doc.graph?`<button class="secondary" data-edit-graph="${escapeHtml(item.id)}">Edit canvas</button>`:`<button class="secondary" data-edit-workflow="${escapeHtml(item.id)}">Edit</button>`}<button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="workflows">Versions</button><button class="secondary" data-workflow="${escapeHtml(item.id)}">View & validate</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="workflows">Delete</button></div></article>`;
+    return `<article class="resource-card"><div class="card-meta">${badge(item.error?"Invalid definition":doc.graph?"GRAPH WORKFLOW":"WORKFLOW",item.error?"failed":"")}<span>${steps.length} steps</span></div><h2>${escapeHtml(doc.metadata?.name||item.id)}</h2><p>${escapeHtml(item.error||doc.metadata?.description||(doc.graph?steps.slice(0,4).map(s=>s.name||s.kind||s.id).join(" · ")+(steps.length>4?` · ${steps.length-4} more`:""):steps.map(s=>s.agent_type).join(" → ")))}</p><div class="card-actions"><button data-run-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Run workflow</button><button class="secondary" data-schedule-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Schedule</button>${doc.graph?`<button class="secondary" data-edit-graph="${escapeHtml(item.id)}">Edit canvas</button>`:`<button class="secondary" data-edit-workflow="${escapeHtml(item.id)}">Edit</button>`}<button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="workflows">Versions</button><button class="secondary" data-workflow="${escapeHtml(item.id)}">View & validate</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="workflows">Delete</button></div></article>`;
   }).join("")}</div>`:empty("Connect your agents into a workflow","Define the handoffs between specialists. Each step can use its agent’s own provider and model.","create-workflow","Create a workflow");
 }
 // Default model suggestions per provider; model inputs stay free text.
@@ -61,6 +80,21 @@ function modelProvider(input){if(input.id==="chat-model")return $("chat-provider
 function linkModelInputs(){document.querySelectorAll(MODEL_INPUTS).forEach(input=>{const provider=modelProvider(input);if(provider&&document.getElementById("models-"+provider))input.setAttribute("list","models-"+provider);else input.removeAttribute("list");if(!input.placeholder)input.placeholder="Provider default · pick or type a model";});}
 function firstModelForProvider(providerId){const p=(state.providers||[]).find(p=>p.id===providerId);return p?.models?.[0]?.id||"";}
 async function loadSkills(){try{const res=await api("/api/catalog/skills");state.skills=(res.items||[]).filter(item=>!item.archived);return state.skills;}catch{return state.skills||[];}}
+async function loadKnowledgeProjects(){
+  try{
+    const res=await api("/api/studio/projects");
+    state.knowledgeProjects=res.items||[];
+    state.knowledgeRetrievalOptions=res.retrieval_options;
+    const select=$("chat-project");
+    if(select){
+      const selected=select.value;
+      select.innerHTML='<option value="">No project</option>'+state.knowledgeProjects.filter(p=>!p.archived).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+      select.value=selected;
+      if(typeof updateKnowledgeDisclosure==="function")updateKnowledgeDisclosure();
+    }
+    return state.knowledgeProjects;
+  }catch{return state.knowledgeProjects||[];}
+}
 function skillOptions(selected="", extraSkills=[]){
   const allSkills=[...(state.skills||[])];
   for(const s of extraSkills){if(s&&!allSkills.some(item=>item.id===s.id))allSkills.push(s);}
@@ -76,6 +110,23 @@ function skillOptions(selected="", extraSkills=[]){
   options+='<option value="__new__">+ New skill…</option>';
   return options;
 }
+function agentSkillOptions(selected=[], extraSkills=[]){
+  const allSkills=[...(state.skills||[])];
+  for(const s of extraSkills){if(s&&!allSkills.some(item=>item.id===s.id))allSkills.push(s);}
+  for(const id of selected){
+    if(id&&!allSkills.some(s=>s.id===id)){
+      allSkills.push({id,name:id,description:"(not in catalog)"});
+    }
+  }
+  if(!allSkills.length){
+    return '<p class="empty-note" style="padding:8px;font-size:12px;color:var(--muted)">No skills in catalog yet. Click "+ New skill…" or import from Library.</p>';
+  }
+  return allSkills.map(s=>{
+    const isChecked=selected.includes(s.id)?"checked":"";
+    const label=s.name?`${s.name} (${s.id})`:s.id;
+    return `<label class="skills-select-item check-label"><input type="checkbox" name="skill_ids" value="${escapeHtml(s.id)}" ${isChecked}><div class="skills-select-meta"><span class="skills-select-name">${escapeHtml(label)}</span>${s.description?`<span class="skills-select-desc">${escapeHtml(s.description)}</span>`:""}</div></label>`;
+  }).join("");
+}
 function createSkillDialog(){
   return new Promise(resolve=>{
     const dialog=document.createElement("dialog");dialog.className="feature-dialog";
@@ -88,28 +139,36 @@ function createSkillDialog(){
     dialog.showModal();dialog.querySelector('input[name="name"]')?.focus();
   });
 }
-async function promptNewSkill(targetSelect, extraSkills=[]){
+async function promptNewSkill(targetSelect=null, extraSkills=[]){
   const answer=await createSkillDialog();
   if(!answer||!answer.name||!answer.content){
-    if(targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
+    if(targetSelect&&targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
     return null;
   }
   try{
     const payload={name:answer.name,description:answer.description||"",data:{content:answer.content||""}};
     const created=await api("/api/catalog/skills",payload);
     await loadSkills();
-    document.querySelectorAll(".agent-skill-select").forEach(sel=>{
-      const val=sel===targetSelect?created.id:sel.value;
-      sel.innerHTML=skillOptions(val,extraSkills);
-      sel.value=val;
-      sel.dataset.prevValue=val;
-    });
-    targetSelect.dispatchEvent(new Event("change",{bubbles:true}));
+    if(targetSelect){
+      document.querySelectorAll(".agent-skill-select").forEach(sel=>{
+        const val=sel===targetSelect?created.id:sel.value;
+        sel.innerHTML=skillOptions(val,extraSkills);
+        sel.value=val;
+        sel.dataset.prevValue=val;
+      });
+      targetSelect.dispatchEvent(new Event("change",{bubbles:true}));
+    }
+    const agentList=$("agent-skills-list");
+    if(agentList){
+      const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+      if(!checked.includes(created.id))checked.push(created.id);
+      agentList.innerHTML=agentSkillOptions(checked,extraSkills);
+    }
     notify("Skill created and assigned.");
     return created;
   }catch(error){
     notify(error.message);
-    if(targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
+    if(targetSelect&&targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
     return null;
   }
 }
@@ -155,16 +214,24 @@ document.addEventListener("click",async event=>{
     event.preventDefault();
     const targetId=btn.dataset.skillTarget;
     const select=targetId?$(targetId):btn.closest(".agent-skill-field,label,div")?.querySelector(".agent-skill-select");
-    if(select){
-      let extraSkills=[];
-      if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
-        extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
-      }
-      await promptNewSkill(select,extraSkills);
+    let extraSkills=[];
+    if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
+      extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
     }
+    await promptNewSkill(select,extraSkills);
   }
 });
-window.addEventListener("studio-resource-saved",event=>{if(event.detail?.kind==="skills")loadSkills().catch(()=>{});});
+window.addEventListener("studio-resource-saved",event=>{
+  if(event.detail?.kind==="skills"){
+    loadSkills().then(()=>{
+      const agentList=$("agent-skills-list");
+      if(agentList){
+        const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+        agentList.innerHTML=agentSkillOptions(checked);
+      }
+    }).catch(()=>{});
+  }
+});
 document.addEventListener("focusin",event=>{if(event.target instanceof HTMLInputElement&&event.target.matches(MODEL_INPUTS))linkModelInputs();});
 function renderProviders(){
   renderModelLists();
@@ -188,8 +255,13 @@ function addMessage(role,text,provider="",runId=null,citations=[],structured=[],
   node.innerHTML=`<div class="message-label">${role==="user"?"You":"Nexus"}<span class="message-provider">${escapeHtml(provider)}</span></div><div class="message-body"></div>`;
   renderContent(node.querySelector(".message-body"),text);if(runId)node.dataset.runId=runId;showCitations(node,citations);renderStructuredContent(node,structured);renderRetrievalNotice(node,retrievalNotice);$("messages").appendChild(node);$("messages").scrollTop=$("messages").scrollHeight;return node;
 }
-function selectAgent(){const item=state.agents.find(a=>a.id===$("chat-agent").value);if(item){$("chat-provider").value=item.document.spec.provider;$("chat-model").value=item.document.spec.model||"";if($("chat-effort"))$("chat-effort").value=item.document.spec.effort||"";}}
-function newChat(){if(state.busy){notify("Let the current conversation finish first.");return;}state.sessionId=null;$("messages").replaceChildren();addMessage("assistant","Ready when you are. Describe the task you’d like to work on.");location.hash="chat";$("chat-task").focus();}
+function selectAgent(){
+  const val=$("chat-agent").value;
+  if(val==="studio-assistant"){if($("chat-tools"))$("chat-tools").value="none";return;}
+  const item=state.agents.find(a=>a.id===val);
+  if(item){$("chat-provider").value=item.document.spec.provider;$("chat-model").value=item.document.spec.model||"";if($("chat-effort"))$("chat-effort").value=item.document.spec.effort||"";}
+}
+function newChat(){if(state.busy){notify("Let the current conversation finish first.");return;}state.sessionId=null;$("messages").replaceChildren();const select=$("chat-artifacts");if(select&&select.options){for(const opt of select.options)opt.selected=false;if(typeof renderChatArtifacts==="function")renderChatArtifacts();}addMessage("assistant","Ready when you are. Describe the task you’d like to work on.");location.hash="chat";$("chat-task").focus();}
 const watchedRuns=new Map();
 const disconnectedRuns=new Set();
 let recoveryKey="";
@@ -202,6 +274,8 @@ async function pollRun(runId,onUpdate=()=>{}){
   monitor.promise=(async()=>{let failures=0;try{while(true){let run;try{run=await api(`/api/runs/${encodeURIComponent(runId)}`);}catch(error){if(!error.retryable)throw error;failures++;disconnectedRuns.add(runId);connectionStatus();await waitForConnection(Math.min(15000,1000*2**Math.min(failures-1,4)));continue;}if(failures)window.dispatchEvent(new Event("studio-connection-restored"));failures=0;disconnectedRuns.delete(runId);connectionStatus();monitor.last=run;for(const listener of monitor.listeners){try{listener(run);}catch(error){console.error("Run display failed",error);}}if(!["running","queued"].includes(run.status)){if(!["completed","waiting","cancelled"].includes(run.status)){const error=new Error(run.error||`Run ${run.status}`);error.run=run;throw error;}return run;}await waitForConnection(document.hidden?4000:750);}}
     finally{watchedRuns.delete(runId);disconnectedRuns.delete(runId);saveWatchedRuns();connectionStatus();}})();return monitor.promise;
 }
+const watchRun=pollRun;
+if(typeof window!=="undefined"){window.watchRun=pollRun;window.pollRun=pollRun;}
 async function restoreRunMonitoring(){
   recoveryKey=`nexus-runs:${state.mode}:${state.user?.nexus_id||"desktop"}:${$("workspace-name").textContent}`;
   let saved=[];try{saved=JSON.parse(sessionStorage.getItem(recoveryKey)||"[]");}catch{}if(!Array.isArray(saved))saved=[];
@@ -216,8 +290,23 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)window.dis
 async function sendMessage(event){
   event.preventDefault();if(state.busy||state.attachmentUpload)return;const task=$("chat-task").value.trim();if(!task)return;
   if(location.pathname==="/agent.html"&&!state.agents.some(agent=>agent.id===new URLSearchParams(location.search).get("agent"))){notify("This embedded agent is unavailable. Open Nexus Studio to choose an agent.");return;}
-  const payload={task,provider:$("chat-provider").value,model:$("chat-model").value.trim(),...($("chat-tools")?{worker_tools:$("chat-tools").value}:{}),...($("chat-effort")?.value?{effort:$("chat-effort").value}:{}),agent_id:$("chat-agent").value||null,session_id:state.sessionId,knowledge_project_id:$("chat-project")?.value||null,artifact_ids:[...$("chat-artifacts").selectedOptions].map(item=>item.value)};
-  try{payload.prompt_values=await resolvePromptValues(task);}catch(error){notify(error.message);return;}state.busy=true;$("send-message").disabled=true;$("chat-task").value="";addMessage("user",task);
+  const agentVal=$("chat-agent").value;
+  const isStudioAssistant=agentVal==="studio-assistant";
+  const payload={
+    task,
+    provider:$("chat-provider").value,
+    model:$("chat-model").value.trim(),
+    ...($("chat-tools")?{worker_tools:isStudioAssistant?"none":$("chat-tools").value}:{}),
+    ...($("chat-effort")?.value?{effort:$("chat-effort").value}:{}),
+    agent_id:isStudioAssistant?null:(agentVal||null),
+    ...(isStudioAssistant?{studio_assistant:true}:{}),
+    session_id:state.sessionId,
+    knowledge_project_id:$("chat-project")?.value||null,
+    artifact_ids:[...$("chat-artifacts").selectedOptions].map(item=>item.value)
+  };
+  try{payload.prompt_values=await resolvePromptValues(task);}catch(error){notify(error.message);return;}state.busy=true;$("send-message").disabled=true;$("chat-task").value="";
+  const select=$("chat-artifacts");if(select&&select.options){for(const opt of select.options)opt.selected=false;if(typeof renderChatArtifacts==="function")renderChatArtifacts();}
+  addMessage("user",task);
   const reply=addMessage("assistant","Working…",providerName(payload.provider));const body=reply.querySelector(".message-body");
   try{
     const queued=await api("/api/runs",payload);state.sessionId=queued.session_id;
@@ -228,12 +317,13 @@ async function sendMessage(event){
   finally{state.busy=false;$("send-message").disabled=false;refreshRuns().catch(()=>{});}
 }
 function inputField(name,label,value="",type="text"){return `<label>${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}" ${["name","task"].includes(name)?"required":""}></label>`;}
-function openEditor(kind,identity){
+async function openEditor(kind,identity){
+  if(kind==="agent"||kind==="agent-edit")await loadSkills().catch(()=>{});
   state.editor={kind,identity};$("editor-error").textContent="";
   const fields=$("editor-fields");
   if(kind==="agent"||kind==="agent-edit"){
     $("editor-kicker").textContent="NEW SPECIALIST";$("editor-title").textContent="Create an agent";$("editor-save").textContent="Create agent";
-    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<label>Skill (optional)<select name="skill_ids" class="agent-skill-select">${skillOptions()}</select></label>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
+    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<div class="agent-skills-section"><div class="skills-select-header"><label>Skills (optional)</label><button type="button" class="quiet new-skill-btn">+ New skill…</button></div><div class="skills-select-list agent-skills-list" id="agent-skills-list">${agentSkillOptions()}</div></div>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
   }else if(kind==="workflow"||kind==="workflow-edit"){
     if(!state.agents.some(a=>a.document)){notify("Create an agent before building a workflow.");location.hash="agents";return;}
     const isEdit=kind==="workflow-edit";
@@ -257,12 +347,10 @@ function openEditor(kind,identity){
     $("editor-title").textContent="Edit agent";$("editor-save").textContent="Save changes";
     const values={name:doc.metadata?.name||identity,description:doc.metadata?.description||"",provider:spec.provider,model:spec.model||"",effort:spec.effort||"",instructions:spec.purpose||"",timeout_seconds:spec.timeout_seconds||600,tool_ids:(spec.tool_ids||[]).join(", "),guardrails_json:JSON.stringify(spec.guardrails||{},null,2)};
     for(const [name,value] of Object.entries(values)){const field=fields.querySelector(`[name="${name}"]`);if(field)field.value=value;}
-    const currentSkill=(spec.skill_ids||[])[0]||"";
-    const skillSelect=fields.querySelector(".agent-skill-select");
-    if(skillSelect){
-      skillSelect.innerHTML=skillOptions(currentSkill);
-      skillSelect.value=currentSkill;
-      skillSelect.dataset.prevValue=currentSkill;
+    const currentSkills=spec.skill_ids||[];
+    const skillsList=fields.querySelector("#agent-skills-list");
+    if(skillsList){
+      skillsList.innerHTML=agentSkillOptions(currentSkills);
     }
     const agentType=document.createElement("input");agentType.type="hidden";agentType.name="agent_type";agentType.value=spec.agent_type||identity;fields.appendChild(agentType);
   }
@@ -300,7 +388,7 @@ async function saveEditor(event){
       if(!data.effort)delete data.effort;
       if(data.guardrails_json&&data.guardrails_json.trim()!=="{}")data.guardrails=JSON.parse(data.guardrails_json);
       delete data.guardrails_json;
-      if(data.skill_ids&&data.skill_ids!=="__new__"){data.skill_ids=[data.skill_ids];}else{data.skill_ids=[];}
+      data.skill_ids=new FormData(event.target).getAll("skill_ids").filter(id=>id&&id!=="__new__");
       if(kind==="agent-edit"){data.revision=state.editor.revision;await api(`/api/agents/${encodeURIComponent(identity)}/update`,data);}else await api("/api/agents",data);
       $("editor").close();await refreshDefinitions();location.hash="agents";notify(kind==="agent-edit"?"Agent updated.":"Agent created.");
     }
@@ -370,12 +458,30 @@ document.addEventListener("click",async event=>{
       }
     }
     if(button.dataset.prompt){$("chat-task").value=button.dataset.prompt;$("chat-task").focus();}
-    if(button.dataset.agent){if(state.busy){notify("Let the current conversation finish first.");return;}newChat();$("chat-agent").value=button.dataset.agent;selectAgent();}
-    if(button.dataset.session){if(state.busy){notify("Let the current conversation finish first.");return;}const session=await api(`/api/sessions/${encodeURIComponent(button.dataset.session)}`);state.sessionId=session.id;$("chat-project").value=session.knowledge_project_id||"";if(typeof updateKnowledgeDisclosure==="function")updateKnowledgeDisclosure();$("messages").replaceChildren();session.messages.forEach(m=>{const node=addMessage(m.role,m.content,providerName(m.provider||""),m.run_id,m.citations||[],m.structured_content||[],m.retrieval_notice);if(m.status==="failed")node.classList.add("error");});$("chat-agent").value=session.agent_id||"";$("chat-provider").value=session.provider||"codex";$("chat-model").value=session.model||"";if($("chat-effort"))$("chat-effort").value=session.effort||"";location.hash="chat";}
+    if(button.dataset.agent !== undefined){if(state.busy){notify("Let the current conversation finish first.");return;}newChat();$("chat-agent").value=button.dataset.agent;selectAgent();}
+    if(button.dataset.session){if(state.busy){notify("Let the current conversation finish first.");return;}const session=await api(`/api/sessions/${encodeURIComponent(button.dataset.session)}`);state.sessionId=session.id;$("chat-project").value=session.knowledge_project_id||"";if(typeof updateKnowledgeDisclosure==="function")updateKnowledgeDisclosure();$("messages").replaceChildren();session.messages.forEach(m=>{const node=addMessage(m.role,m.content,providerName(m.provider||""),m.run_id,m.citations||[],m.structured_content||[],m.retrieval_notice);if(m.status==="failed")node.classList.add("error");});$("chat-agent").value=session.studio_assistant?"studio-assistant":(session.agent_id||"");$("chat-provider").value=session.provider||"codex";$("chat-model").value=session.model||"";if($("chat-effort"))$("chat-effort").value=session.effort||"";location.hash="chat";}
     if(button.dataset.definition){const item=state[button.dataset.kind].find(a=>a.id===button.dataset.definition);showDetail(item.document.metadata?.name||item.id,`<p>${escapeHtml(item.document.metadata?.description||"")}</p><pre>${escapeHtml(item.document.spec?.purpose||JSON.stringify(item.document,null,2))}</pre>`);}
     if(button.dataset.provider){const provider=state.providers.find(p=>p.id===button.dataset.provider);showDetail(provider.name,`<p class="callout">${state.mode==="team"?"Use your existing Nexus login and provider setup. Shared CLI workers receive your account configuration and submitted prompt content.":provider.kind==="cli"?"Sign in through the provider’s official CLI. Nexus uses that executable and does not collect or copy its account tokens.":"Configure the API key in the environment before starting Nexus Studio. It will be read by the existing provider adapter."}</p><pre>${escapeHtml(provider.setup)}</pre><p class="card-meta">Account authorization and usage limits are verified by the provider when you run a task.</p>`);}
     if(button.dataset.workflow){const item=state.workflows.find(w=>w.id===button.dataset.workflow);const validation=await api(`/api/workflows/${encodeURIComponent(item.id)}/validate`);showDetail(item.document?.metadata?.name||item.id,`${badge(validation.valid?"Valid workflow":"Needs attention",validation.valid?"ready":"failed")}${(item.document?.steps||[]).map((s,i)=>`<div class="flow-step"><b>${i+1}</b><div>${escapeHtml(s.name||s.id)}<small>${escapeHtml(s.agent_type)}</small></div></div>`).join("")}<pre>${escapeHtml([...validation.errors,...validation.warnings,...validation.flow].join("\n"))}</pre>`);}
     if(button.dataset.runWorkflow)openEditor("workflow-run",button.dataset.runWorkflow);
+    if(button.dataset.scheduleWorkflow){
+      const wfId=button.dataset.scheduleWorkflow;
+      const item=(state.workflows||[]).find(w=>w.id===wfId);
+      const name=item?.document?.metadata?.name||wfId;
+      library.kind="schedules";
+      location.hash="schedules";
+      await refreshLibrary();
+      await openLibraryEditor(null,{name:`${name} Schedule`,data:{target_kind:"workflow",target_id:wfId,enabled:true}});
+    }
+    if(button.dataset.scheduleAgent){
+      const agentId=button.dataset.scheduleAgent;
+      const item=(state.agents||[]).find(a=>a.id===agentId);
+      const name=item?.document?.metadata?.name||agentId;
+      library.kind="schedules";
+      location.hash="schedules";
+      await refreshLibrary();
+      await openLibraryEditor(null,{name:`${name} Schedule`,data:{target_kind:"agent",target_id:agentId,enabled:true}});
+    }
     if(button.dataset.tool)openEditor("tool",button.dataset.tool);
     if(button.dataset.run)showRun(await api(`/api/runs/${encodeURIComponent(button.dataset.run)}`));
     if(button.id==="refresh-activity")await refreshRuns();
@@ -390,7 +496,7 @@ async function bootstrap(){
   if(bootstrapInFlight)return;bootstrapInFlight=true;clearTimeout(bootstrapRetryTimer);
   try{const data=await api("/api/bootstrap");if(state.user&&data.user?.nexus_id!==state.user.nexus_id){location.reload();return;}bootstrapFailures=0;state.workspacePath=data.workspace.path;disconnectedRuns.delete("bootstrap");connectionStatus();state.accountUrl=data.account_url;state.token=data.token;state.mode=data.mode;state.user=data.user;state.providers=data.providers;$("team-login").hidden=true;$("send-message").disabled=false;
     if(data.mode==="team"){$("deployment-mode").textContent="TEAM";$("runtime-label").textContent=`${data.user.nexus_id} · ${data.user.role}`;$("composer-hint").textContent="Uses your Nexus provider configuration";$("view-providers").querySelector(".callout").textContent="Providers use your existing Nexus account setup. Shared Codex and Claude Code runs use isolated prompt-only containers. Complete provider setup through Nexus login.";}
-    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
+    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills(),loadKnowledgeProjects()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
   catch(error){if(error.retryable){disconnectedRuns.add("bootstrap");connectionStatus();}if($("team-login").hidden)notify(`Could not load the workspace: ${error.message}`);$("send-message").disabled=true;if(error.retryable&&$("team-login").hidden)bootstrapRetryTimer=setTimeout(bootstrap,Math.min(15000,1000*2**Math.min(bootstrapFailures++,4)));}
   finally{bootstrapInFlight=false;}
 }

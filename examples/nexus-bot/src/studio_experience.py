@@ -86,6 +86,7 @@ def main():
                 and time.monotonic() < deadline
             ):
                 time.sleep(0.05)
+        # Example change justification: "Ok add them please"
         guide = (
             app.workbench.onboarding.guide_state(None)
             if args.guide == "status"

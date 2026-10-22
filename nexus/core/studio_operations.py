@@ -110,14 +110,29 @@ class StudioOperations:
                 next_occurrence(data["cron"], timezone, _timestamp(initial))
             else:
                 initial = data.get("run_at")
-            return {
+            task = data.get("task")
+            if target["target_kind"] == "workflow" and not (isinstance(task, str) and task.strip()):
+                doc = self.studio.definition("workflows", target["target_id"])
+                if isinstance(doc, dict):
+                    doc = doc.get("document", doc)
+                task = (
+                    doc.get("metadata", {}).get("description")
+                    or doc.get("metadata", {}).get("name")
+                    or f"Run workflow {target['target_id']}"
+                )
+            else:
+                task = _text(task, "Task", 16000)
+            schedule_spec = {
                 **target,
                 **calendar,
                 "enabled": enabled,
-                "task": _text(data.get("task"), "Task", 16000),
+                "task": task,
                 "run_at": _timestamp(initial).isoformat(),
                 "interval_seconds": interval,
             }
+            if "workflow_input" in data and data["workflow_input"] is not None:
+                schedule_spec["workflow_input"] = data["workflow_input"]
+            return schedule_spec
         if kind == "entrypoints":
             target = self.target(data, targets)
             env = _text(data.get("token_env"), "Bearer token environment variable", 96)
@@ -197,13 +212,29 @@ class StudioOperations:
         raise ValueError("Unknown operation collection")
 
     def launch_target(self, data, task, requester=None, context=None):
+        effective_task = task or data.get("task")
+        if data.get("target_kind") == "workflow" and not (
+            isinstance(effective_task, str) and effective_task.strip()
+        ):
+            doc = self.studio.definition("workflows", data["target_id"])
+            if isinstance(doc, dict):
+                doc = doc.get("document", doc)
+            effective_task = (
+                doc.get("metadata", {}).get("description")
+                or doc.get("metadata", {}).get("name")
+                or f"Run workflow {data['target_id']}"
+            )
+        extra = {}
+        if "workflow_input" in data and data["workflow_input"] is not None:
+            extra["workflow_input"] = data["workflow_input"]
         return self.studio.start_run(
             {
                 **(context or {}),
                 "kind": "chat" if data["target_kind"] == "agent" else "workflow",
                 "agent_id" if data["target_kind"] == "agent" else "workflow_id": data["target_id"],
-                "task": _text(task, "Task", 16000),
+                "task": _text(effective_task, "Task", 16000),
                 "requester_nexus_id": requester,
+                **extra,
             }
         )
 

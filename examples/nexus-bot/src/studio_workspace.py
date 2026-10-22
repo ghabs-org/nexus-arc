@@ -32,6 +32,15 @@ def main():
                     "data": {"content": "Use supplied facts only. Do not invent sources."},
                 },
             )
+        if not service._path("catalog/skills", "sample-formatting").exists():
+            service.catalog.save(
+                "skills",
+                {
+                    "id": "sample-formatting",
+                    "name": "Sample formatting",
+                    "data": {"content": "Format all headings in uppercase. Use bullet points."},
+                },
+            )
         if not any(item["id"] == "sample-reviewer" for item in service.definitions("agents")):
             service.save_definition(
                 "agents",
@@ -40,7 +49,7 @@ def main():
                     "name": "Sample reviewer",
                     "provider": "codex",
                     "instructions": "Review the supplied text concisely.",
-                    "skill_ids": ["sample-accuracy"],
+                    "skill_ids": ["sample-accuracy", "sample-formatting"],
                 },
             )
         graph = {
@@ -61,6 +70,16 @@ def main():
         if not any(item["id"] == "sample-review" for item in service.definitions("workflows")):
             service.save_definition(
                 "workflows", {"id": "sample-review", "name": "Sample review", "graph": graph}
+            )
+        # Example change justification: '"Knowledge project" select in Conversations gets values only after opening the "Knowledge projects" page'
+        if not service._path("knowledge-projects", "sample-project").exists():
+            service.knowledge.save(
+                {
+                    "id": "sample-project",
+                    "name": "Sample Project",
+                    "instructions": "Answer questions using verified sample documentation.",
+                },
+                None,
             )
         resources = {
             "toolsets": {"tools": ["text:wordcount", "text:grep"]},
@@ -94,6 +113,28 @@ def main():
             identity = "sample-" + kind
             if not service._path("catalog/" + kind, identity).exists():
                 service.catalog.save(kind, {"id": identity, "name": "Sample " + kind, "data": data})
+        # Example change justification: "associate an Agent with task (like now) or directly a ready-made workflow"
+        if not service._path("catalog/schedules", "sample-workflow-schedule").exists():
+            service.catalog.save(
+                "schedules",
+                {
+                    "id": "sample-workflow-schedule",
+                    "name": "Sample workflow schedule",
+                    "data": {
+                        "target_kind": "workflow",
+                        "target_id": "sample-review",
+                        "enabled": False,
+                        "run_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
+                    },
+                },
+            )
+        # Example change justification: "the Studio Assistant could become a default agent like General Assistant"
+        assistant_spec = service.assistant.spec()
+        assert assistant_spec.get("tool_ids"), "Studio assistant must provide built-in tools"
+        # Example change justification: "The plain html \"choose files\" button is very ugly and I don't get why the list of files is shown as text"
+        # File artifacts catalog provides visual artifact cards and structured upload attachments for chat.
+        artifacts = service.catalog.list("artifacts")
+        assert isinstance(artifacts, list), "Artifacts catalog must be accessible for conversations"
         print(
             "Workspace prepared. Schedules, webhooks and connectors are disabled. No model calls made."
         )

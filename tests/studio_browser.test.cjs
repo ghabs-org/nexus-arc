@@ -132,7 +132,7 @@ test("typed decision details show separate answer probabilities without internal
 
 test("interactive guide respects non-interruption rules, steps through views, and restores origin",async()=>{
   const source=fs.readFileSync("nexus/studio_static/experience.js","utf8");
-  const guideSlice=source.slice(source.indexOf("const GUIDE_VERSION = 1;"),source.indexOf('document.addEventListener("click", async event =>'));
+  const guideSlice=source.slice(source.indexOf("const GUIDE_VERSION = 2;"),source.indexOf('document.addEventListener("click", async event =>'));
   const elements=new Map();
   function makeEl(id){
     return {
@@ -205,14 +205,14 @@ test("interactive guide respects non-interruption rules, steps through views, an
   await vm.runInContext("startInteractiveGuide({restart:true})",context);
   assert.equal($("guide-welcome").open,false);
   assert.equal($("guide-callout").hidden,false);
-  assert.equal($("guide-step-progress").textContent,"STEP 1 OF 13");
+  assert.equal($("guide-step-progress").textContent,"STEP 1 OF 15");
   assert.equal($("guide-step-title").textContent,"Workspace navigation");
 
-  // Stepping forward navigates through all 13 steps and restores #workflows on completion.
-  for(let i=0;i<12;i++){
+  // Stepping forward navigates through all 15 steps and restores #workflows on completion.
+  for(let i=0;i<14;i++){
     await vm.runInContext("stepInteractiveGuide(1)",context);
   }
-  assert.equal($("guide-step-progress").textContent,"STEP 13 OF 13");
+  assert.equal($("guide-step-progress").textContent,"STEP 15 OF 15");
   assert.equal($("guide-next").textContent,"Finish guide");
   await vm.runInContext("stepInteractiveGuide(1)",context);
   assert.equal($("guide-callout").hidden,true);

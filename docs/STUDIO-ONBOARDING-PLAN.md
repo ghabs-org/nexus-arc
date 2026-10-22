@@ -1,6 +1,6 @@
 # Nexus Studio interactive guide
 
-Status: implemented (`GUIDE_VERSION = 1`).
+Status: implemented (`GUIDE_VERSION = 2`, 15 steps).
 Requested: 20 October 2026.
 Placement: reusable Studio framework UI (`nexus/core/studio_onboarding.py`, `nexus/core/studio_workbench.py`, `nexus/studio_static/index.html`, `nexus/studio_static/studio.css`, `nexus/studio_static/experience.js`), with the `examples/nexus-bot/src/studio_experience.py` consumer.
 
@@ -33,23 +33,25 @@ remaining work and separates implementation from account/device/VM validation.
 ## Walkthrough
 
 Use short explanations anchored to real controls, with progress, a quick-jump step
-selector, Back, Next and Skip/Finish across all Studio screens (13 steps total,
+selector, Back, Next and Skip/Finish across all Studio screens (15 steps total,
 plus optional deeper branches and disposable local practice previews):
 
 1. Workspace navigation (`#chat` / `#workspace-navigation`): conversations, agents and reusable resources.
 2. Provider/account selection (`#providers` / `#view-providers`): subscription-backed CLI versus API billing;
    show the currently available options without initiating authentication.
-3. Conversations (`#chat` / `#chat-form`): choose an agent, model/effort, attach selected files and inspect results.
+3. Conversations (`#chat` / `#chat-form`): choose an agent (including built-in Studio Assistant), model/effort, attach files with drag-and-drop dropzone or artifact cards, and inspect results.
 4. Quick Build (`#quick-build` / `#builder-form`): describe a use case, review generated components and differences.
-5. Agents (`#agents` / `#view-agents`): create and version specialists with instructions, tools, skills and guardrails.
-6. Workflows (`#workflows` / `#view-workflows`): inspect branches, visual canvas nodes, inputs, testing and saved definitions.
+5. Agents (`#agents` / `#view-agents`): create and version specialists with instructions, tools, multi-skill assignments, and guardrails, or use ready-made built-in specialists.
+6. Workflows (`#workflows` / `#view-workflows`): inspect branches, visual canvas nodes, inputs, testing, saved definitions, and trigger workflows directly from schedules.
 7. Knowledge projects (`#projects` / `#view-projects`): group project instructions, reference documents and cited conversations.
-8. Library and connectors (`#connectors` / `#integrations-panel`): prompts, skills, artifacts, schedules, evaluations, external A2A agents and revision-bound read-only connector checks.
-9. Registered tools (`#tools` / `#view-tools`): inspect and test registered Nexus tools available to agents and workflow nodes.
-10. Workspace tools (`#workbench` / `#view-workbench`): memory, SQLite checkpoints, agent coordination, publishing campaigns, audit analytics, audio transcription, typed decisions, file storage, prompt/launch controls and deployment checks.
-11. Workspace, mesh, and sharing (`#workspace` / `#view-workspace`): local runtime queue health, live execution events, portable workspace export, Response feedback (`#feedback`) and Conversation sharing (`#sharing`).
-12. Activity and approval inbox (`#inbox` / `#view-inbox`): inspect `#activity` execution traces and review pending workflow gates or external changes.
-13. Where to find Help and reopen the guide (`#open-interactive-guide` / `#help-guide-button`).
+8. Workspace files (`#files` / `#view-files`): browse and preview files in allowed server folders, upload documents up to 16 MiB, or create folders directly on the Studio VM.
+9. Library and connectors (`#connectors` / `#integrations-panel`): prompts, skills (batch import from GitHub), artifacts, schedules (targeting agents or workflows), evaluations, external A2A agents and revision-bound read-only connector checks.
+10. Registered tools (`#tools` / `#view-tools`): inspect and test registered Nexus tools available to agents and workflow nodes.
+11. Workspace tools (`#workbench` / `#view-workbench`): memory, SQLite checkpoints, agent coordination, publishing campaigns, audit analytics, audio transcription, typed decisions, file storage, prompt/launch controls and deployment checks.
+12. Workspace, mesh, and sharing (`#workspace` / `#view-workspace`): local runtime queue health, live execution events, portable workspace export, Response feedback (`#feedback`) and Conversation sharing (`#sharing`).
+13. Activity and approval inbox (`#inbox` / `#view-inbox`): inspect `#activity` execution traces and review pending workflow gates or external changes.
+14. Studio assistant (`#assistant` / `#view-assistant`): ask how Studio works or find agents, workflows, and server files using built-in documentation with zero provider tokens.
+15. Where to find Help and reopen the guide (`#open-interactive-guide` / `#help-guide-button`).
 
 Use installed capabilities and the user's permissions to choose valid steps.
 Explain unavailable features or omit the optional branch; do not point at missing
@@ -96,11 +98,9 @@ Verify:
 
 Do not mark this feature complete based on documentation or menu visibility alone.
 
-## Implementation and migration notes (v1)
+## Implementation and migration notes (v2)
 
-- **Server & storage scope**: `StudioOnboarding.guide_state` and `save_guide_state` in `nexus/core/studio_onboarding.py` persist per-user/per-workspace progress in the `onboarding-guide` state collection (`GET /api/workbench/guide` and `POST /api/workbench/guide`), keyed by `StudioWorkbench.settings_key(actor)`. In shared team deployments, all authenticated roles (`viewer`, `operator`, `builder`, `owner`) may read and update their own guide progress (`nexus/core/studio_team.py`).
-- **Browser fallback**: `nexus/studio_static/experience.js` mirrors progress to a workspace- and user-scoped `localStorage`/`sessionStorage`/in-memory key (`nexus-guide:<mode>:<user>:<workspace>`) so offline or storage-restricted sessions remain usable without blocking Studio.
-- **Version upgrades**: `GUIDE_VERSION = 1` is tracked independently of `SCHEMA_VERSION`. When `seen_version < GUIDE_VERSION` for an already completed or dismissed user, `upgrade_available` highlights **Help → Interactive guide** (`Updated` badge) without resetting dismissal or auto-opening a modal.
+- **Version upgrades**: `GUIDE_VERSION = 2` (15 steps) is tracked independently of `SCHEMA_VERSION`. Added steps 8 (`workspace-files`) and 14 (`studio-assistant`), plus enriched guidance for conversations, multi-skill agent assignment, and workflow schedules. When `seen_version < GUIDE_VERSION` for an already completed or dismissed user, `upgrade_available` highlights **Help → Interactive guide** (`Updated` badge) and steps directly through the new steps without resetting dismissal or auto-opening a modal.
 - **Example consumer**: `examples/nexus-bot/src/studio_experience.py` accepts `--guide {status,start,complete,dismiss,reset}` to inspect or pre-configure the workspace onboarding guide state via framework APIs.
 
 ## Planned provider addition: Gemini API key (Google AI Studio vs. Vertex AI)

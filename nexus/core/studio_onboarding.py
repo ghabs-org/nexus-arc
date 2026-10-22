@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from nexus.core.studio_team import ROLES
 
-GUIDE_VERSION = 1
+GUIDE_VERSION = 2
 
 GUIDE_STEPS = (
     {
@@ -71,13 +71,13 @@ GUIDE_STEPS = (
         "fallback_target": "#view-chat",
         "min_role": "operator",
         "summary": (
-            "Pick an assistant, provider, model, and reasoning effort, attach relevant workspace files, "
-            "and inspect structured answers and run history in one thread."
+            "Pick an assistant (including the built-in Studio Assistant), provider, model, and reasoning effort, "
+            "attach workspace files with drag-and-drop chips and artifact cards, and inspect structured answers and run history in one thread."
         ),
         "branch_title": "Working with attachments & effort",
         "branch_body": (
-            "Attach only the files needed for your question, and adjust Effort when a provider supports "
-            "deeper reasoning levels."
+            "Drop files onto the upload target or select indexed workspace artifacts. "
+            "Choose Studio Assistant for zero-config workspace help without using provider tokens."
         ),
         "practice": {
             "label": "Try sample conversation preview",
@@ -121,19 +121,19 @@ GUIDE_STEPS = (
         "fallback_target": "#agents-content",
         "min_role": "builder",
         "summary": (
-            "Create and manage specialist agents with their own instructions, default provider, "
-            "model, reasoning effort, allowed tools, skills, and output guardrails."
+            "Create and manage specialist agents with instructions, provider, model, allowed tools, "
+            "multiple skill assignments, and output guardrails, or use ready-made built-in specialists."
         ),
-        "branch_title": "Versioning and instructions",
+        "branch_title": "Versioning, multi-skills, and instructions",
         "branch_body": (
-            "Every saved change records a version snapshot so you can compare revisions or restore "
-            "an earlier specialist configuration at any time."
+            "Every saved change records a version snapshot. You can assign multiple skills to an agent, "
+            "import skill bundles from GitHub, or consult built-in specialists like Studio Assistant."
         ),
         "practice": {
             "label": "Preview sample agent card",
             "preview": (
                 "Sample specialist (local preview only): 'Release Auditor' using Claude Code (high effort) "
-                "with read-only repository tools and a 600s timeout."
+                "with read-only repository tools, multiple skills, and a 600s timeout."
             ),
         },
     },
@@ -147,12 +147,12 @@ GUIDE_STEPS = (
         "min_role": "builder",
         "summary": (
             "Inspect multi-step workflows, conditional branches, visual canvas nodes, input forms, "
-            "and saved YAML definitions, or validate a workflow before running it."
+            "and saved YAML definitions, or trigger workflows directly from schedules."
         ),
         "branch_title": "Canvas, YAML, and checkpoints",
         "branch_body": (
-            "Switch between the step builder, visual canvas, and YAML view. Paused or interrupted runs "
-            "can capture a checkpoint and resume after review."
+            "Switch between the step builder, visual canvas, and YAML view. Edit or remove steps, "
+            "resume checkpoints, or schedule workflows with custom input payloads."
         ),
         "practice": {
             "label": "Preview sample workflow branch",
@@ -188,6 +188,31 @@ GUIDE_STEPS = (
         },
     },
     {
+        "id": "workspace-files",
+        "version": 2,
+        "title": "Workspace files",
+        "view": "files",
+        "target": "#view-files",
+        "fallback_target": "#files-list",
+        "min_role": "builder",
+        "summary": (
+            "Browse and preview files in allowed server folders, upload documents up to 16 MiB, "
+            "or create folders directly on the Studio VM."
+        ),
+        "branch_title": "Allowed roots and server security",
+        "branch_body": (
+            "Only explicitly configured folders (such as agents, workflows, and authorized project roots) "
+            "can be opened. Files stay on the server until explicitly shared or attached."
+        ),
+        "practice": {
+            "label": "Preview workspace file browser",
+            "preview": (
+                "Sample browser (local preview only): Root 'agents' → Lists specialist markdown specs "
+                "with file sizes and instant previews."
+            ),
+        },
+    },
+    {
         "id": "connectors-knowledge",
         "version": 1,
         "title": "Library and connectors",
@@ -199,10 +224,10 @@ GUIDE_STEPS = (
             "Manage reusable Prompts, Skills, Artifacts, Toolsets, Connectors, Entrypoints, Schedules, "
             "Evaluations, External A2A agents, and Model profiles in the Library."
         ),
-        "branch_title": "Permissions & read-only verification",
+        "branch_title": "Schedules, skills, and connector checks",
         "branch_body": (
-            "Enabling a connector requires an owner check on the exact saved revision so credentials "
-            "and scopes are verified without sending live messages."
+            "Schedules can trigger either an agent or a ready-made workflow with custom inputs. "
+            "Skills support multi-selection import from GitHub, and connectors require read-only verification before enabling."
         ),
         "practice": {
             "label": "Preview connector readiness states",
@@ -314,6 +339,31 @@ GUIDE_STEPS = (
         },
     },
     {
+        "id": "studio-assistant",
+        "version": 2,
+        "title": "Studio assistant",
+        "view": "assistant",
+        "target": "#view-assistant",
+        "fallback_target": "#studio-help-form",
+        "min_role": "viewer",
+        "summary": (
+            "Ask how Studio works or find your agents, workflows, and server files. "
+            "Uses built-in documentation and authorized workspace metadata with zero provider tokens."
+        ),
+        "branch_title": "Local help vs Ask AI",
+        "branch_body": (
+            "Find local answer uses built-in documentation and current resource names without API keys. "
+            "Ask AI optionally routes the question to your configured provider."
+        ),
+        "practice": {
+            "label": "Preview Studio help search",
+            "preview": (
+                "Sample query (local preview only): 'Where are my agents saved?' → "
+                "Points directly to server folder path and links to the Agents editor."
+            ),
+        },
+    },
+    {
         "id": "help-reopen",
         "version": 1,
         "title": "Help and reopening the guide",
@@ -347,6 +397,8 @@ _VALID_VIEWS = {
     "library",
     "workflows",
     "projects",
+    "files",
+    "assistant",
     "tools",
     "workspace",
     "feedback",

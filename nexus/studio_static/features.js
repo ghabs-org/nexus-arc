@@ -113,15 +113,16 @@ document.addEventListener("click",async event=>{const b=event.target.closest("bu
   if(b.id==="share-conversation")await shareConversation();
   if(b.dataset.rate)await rateResponse(b.closest(".message").dataset.runId,Number(b.dataset.rate));
 }catch(error){notify(error.message);}});
-window.addEventListener("studio-ready",()=>{
+function initializeFeatures(){
   if($("share-conversation")){refreshFeatureViews().catch(e=>notify(e.message));return;}
   const share=document.createElement("button");share.id="share-conversation";share.className="secondary";share.textContent="Share snapshot";$("chat-project").closest(".chat-controls").append(share);
   const design=document.createElement("button");design.id="design-resource";design.className="secondary";design.textContent="Build with AI";$("library-create").after(design);
   new MutationObserver(()=>{$("design-resource").hidden=!["prompts","schedules"].includes(library.kind);}).observe($("library-heading"),{childList:true});
   refreshFeatureViews().catch(e=>notify(e.message));
   new MutationObserver(()=>document.querySelectorAll(".message[data-run-id]").forEach(message=>{if(message.querySelector(".response-actions"))return;const actions=document.createElement("div");actions.className="response-actions";actions.innerHTML='<button class="secondary" data-rate="1">Helpful</button><button class="secondary" data-rate="-1">Needs improvement</button>';message.append(actions);})).observe($("messages"),{subtree:true,attributes:true,attributeFilter:["data-run-id"],childList:true});
-});
-window.addEventListener("hashchange",()=>{if(["projects","feedback","sharing"].includes(view()))refreshFeatureViews().catch(e=>notify(e.message));});
+}
+if(state.ready)initializeFeatures();else window.addEventListener("studio-ready",initializeFeatures);
+window.addEventListener("hashchange",()=>{if(["chat","projects","feedback","sharing"].includes(view()))refreshFeatureViews().catch(e=>notify(e.message));});
 
 const originalLibraryEditor=openLibraryEditor;
 openLibraryEditor=async function(id,template){
@@ -151,7 +152,11 @@ const originalOperationFormData=operationFormData;
 operationFormData=function(form){
   if(library.kind==="schedules"&&String(form.get("cron")||"").trim()){
     const [target_kind,...target]=String(form.get("target")||"").split(":");
-    return {target_kind,target_id:target.join(":"),task:form.get("task"),cron:String(form.get("cron")).trim(),timezone:form.get("timezone"),interval_seconds:0,enabled:form.has("enabled")};
+    const rawTask=form.get("task")?.trim()||"";
+    const wfInputRaw=form.get("workflow_input_json")?.trim();
+    let wfInput=undefined;
+    if(wfInputRaw){try{wfInput=JSON.parse(wfInputRaw);}catch{}}
+    return {target_kind,target_id:target.join(":"),task:rawTask,cron:String(form.get("cron")).trim(),timezone:form.get("timezone")||"UTC",interval_seconds:0,enabled:form.has("enabled"),...(wfInput!==undefined?{workflow_input:wfInput}:{})};
   }
   const data=originalOperationFormData(form);
   if(library.kind==="schedules")data.timezone=form.get("timezone")||"UTC";
@@ -222,13 +227,14 @@ function playOnDevice(text){
   const voices=speechSynthesis.getVoices().filter(v=>v.localService);if(!voices.length)throw new Error("No local device voice is available. Choose server speech instead.");
   speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.voice=voices.find(v=>v.voiceURI===$("device-speech-voice")?.value)||voices[0];utterance.rate=Number($("device-speech-rate")?.value||1);speechSynthesis.speak(utterance);
 }
-window.addEventListener("studio-ready",()=>{
+function initializeVoicePlayback(){
   if($("record-voice"))return;
   const button=document.createElement("button");button.id="record-voice";button.type="button";button.className="secondary";button.textContent="Record voice";button.setAttribute("aria-pressed","false");$("chat-project").closest(".chat-controls").append(button);
   const prefs=document.createElement("details");prefs.className="speech-preferences";prefs.innerHTML='<summary>Voice playback</summary><label>Device voice<select id="device-speech-voice"></select></label><label>Playback speed<select id="device-speech-rate"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><label><input id="speech-autoplay" type="checkbox">Automatically play completed responses using a local device voice</label><button class="secondary" type="button" id="stop-speech">Stop playback</button>';
   $("chat-form").before(prefs);
   new MutationObserver(()=>document.querySelectorAll(".response-actions").forEach(actions=>{if(actions.querySelector("[data-speak]"))return;const buttons=document.createElement("span");buttons.innerHTML='<button class="secondary" data-speak="device">Play on device</button><button class="secondary" data-speak="server">Generate speech</button>';actions.append(buttons);})).observe($("messages"),{childList:true,subtree:true});
-});
+}
+if(state.ready)initializeVoicePlayback();else window.addEventListener("studio-ready",initializeVoicePlayback);
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
   if(button.id==="record-voice")await beginRecording();
   if(button.id==="stop-speech"){window.speechSynthesis?.cancel();document.querySelectorAll("audio").forEach(a=>a.pause());}
@@ -238,7 +244,7 @@ window.addEventListener("pagehide",()=>{voiceStream?.getTracks().forEach(t=>t.st
 
 window.addEventListener("studio-response-completed",event=>{if($("speech-autoplay")?.checked){try{playOnDevice(event.detail.text);}catch(error){notify(error.message);}}});
 function refreshDeviceVoices(){const root=$("device-speech-voice");if(!root||!window.speechSynthesis)return;root.replaceChildren();speechSynthesis.getVoices().filter(v=>v.localService).forEach(voice=>{const option=document.createElement("option");option.value=voice.voiceURI;option.textContent=voice.name+" · "+voice.lang;root.append(option);});}
-window.addEventListener("studio-ready",refreshDeviceVoices);window.speechSynthesis?.addEventListener("voiceschanged",refreshDeviceVoices);
+if(state.ready)refreshDeviceVoices();else window.addEventListener("studio-ready",refreshDeviceVoices);window.speechSynthesis?.addEventListener("voiceschanged",refreshDeviceVoices);
 function executionGraph(data,cursor=data.timeline.length){
   const box=document.createElement("div");box.className="execution-graph";box.tabIndex=0;box.setAttribute("role","region");box.setAttribute("aria-label","Scrollable execution graph");box.style.maxHeight="28rem";box.style.overflow="auto";const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg"),nodes=data.graph.nodes;
   if(!nodes.length)return box;
@@ -348,6 +354,7 @@ window.addEventListener("studio-ready",()=>{
     if($(id))continue;const button=document.createElement("button");button.id=id;button.className="secondary";button.textContent="Integration catalog";target.append(button);
   }
 });
+if(typeof state!=="undefined"&&state.ready)for(const [id,target] of [["tools-integrations",$("view-tools").querySelector(".section-heading")],["library-integrations",$("library-create").parentElement]]){if(!$(id)){const button=document.createElement("button");button.id=id;button.className="secondary";button.textContent="Integration catalog";target.append(button);}}
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
   if(["tools-integrations","library-integrations"].includes(button.id))await showIntegrationCatalog();
   if(button.dataset.integrationSetup)await configureIntegration(button.dataset.integrationSetup);
@@ -394,14 +401,15 @@ function attachPromptSuggestions(input){
   input.addEventListener('keydown',event=>{if(list.hidden||event.shiftKey)return;if(['ArrowDown','ArrowUp','Enter','Escape'].includes(event.key)){event.preventDefault();event.stopImmediatePropagation();if(event.key==='Escape')close();else if(event.key==='Enter')insert(active);else{active=(active+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length;render();}}},true);
   input.addEventListener('blur',()=>setTimeout(()=>{if(!list.contains(document.activeElement))close();},150));
 }
-window.addEventListener('studio-ready',()=>{
+function initializeFeatureControls(){
   refreshPromptSuggestions().catch(error=>notify(error.message));['chat-task','builder-task'].forEach(id=>attachPromptSuggestions($(id)));
   if($('mobile-chat-options'))return;
   const controls=$('chat-project').closest('.chat-controls'),actions=document.createElement('div');actions.className='chat-extra-actions';
   const button=document.createElement('button');button.id='mobile-chat-options';button.type='button';button.className='secondary mobile-chat-options';button.textContent='Options';button.setAttribute('aria-expanded','false');button.onclick=()=>{const expanded=controls.classList.toggle('options-expanded');button.setAttribute('aria-expanded',String(expanded));};
   actions.append(button);['share-conversation','record-voice'].forEach(id=>{if($(id))actions.append($(id));});controls.append(actions);
   controls.querySelectorAll('label').forEach(label=>{if(!label.contains($('chat-project'))&&!label.contains($('chat-agent')))label.classList.add('chat-advanced-setting');});
-});
+}
+if(state.ready)initializeFeatureControls();else window.addEventListener('studio-ready',initializeFeatureControls);
 window.addEventListener('studio-resource-saved',event=>{if(event.detail.kind==='prompts')refreshPromptSuggestions().catch(error=>notify(error.message));});
 
 const calendarEditor=openLibraryEditor;

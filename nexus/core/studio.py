@@ -609,6 +609,7 @@ class StudioService:
                 agent_id=data.get("agent_id"),
                 model=data.get("model") or "",
                 effort=data.get("effort") or "",
+                studio_assistant=bool(data.get("studio_assistant")),
             )
             self._write(path, session)
 
@@ -904,6 +905,8 @@ class StudioService:
             "created_at": _now(),
             "updated_at": _now(),
         }
+        if payload.get("studio_assistant"):
+            record["studio_assistant"] = True
         if kind == "build":
             record["build_id"] = payload["build_id"]
         if payload.get("artifact_ids") and payload.get("artifact_refs"):
@@ -1314,6 +1317,7 @@ class StudioService:
                 agent_id=payload.get("agent_id"),
                 model=payload.get("model") or "",
                 effort=payload.get("effort") or "",
+                studio_assistant=bool(payload.get("studio_assistant")),
             )
             with self.lock:
                 if self.run(run_id).get("cancel_requested"):

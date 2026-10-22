@@ -25,10 +25,11 @@ function renderLibrary(){
 async function openLibraryEditor(id,template){
   const item=id?await api(`/api/catalog/${library.kind}/${encodeURIComponent(id)}`):null;
   library.editing=item;
-  const draft=item||(template?{name:template.name,data:{type:template.id}}:null);
+  const draft=item||(template?{name:template.name,data:template.data||{type:template.id}}:null);
   $("library-editor-title").textContent=`${item?"Edit":"Create"} ${libraryNames[library.kind]}`;
   $("library-form-error").textContent="";
   $("library-fields").innerHTML=inputField("name","Name",draft?.name||"")+inputField("description","Description",draft?.description||"")+(operationKinds.includes(library.kind)?operationFields(draft):library.kind==="artifacts"?'<label>File (maximum 16 MiB)<input type="file" name="file" required></label>':library.kind==="toolsets"?`<fieldset class="toolset-options"><legend>Registered tools</legend>${state.tools.map(tool=>`<label><input type="checkbox" name="tools" value="${escapeHtml(tool.id)}" ${item?.data.tools.includes(tool.id)?"checked":""}>${escapeHtml(tool.id)}<small>${escapeHtml(tool.description)}</small></label>`).join("")}</fieldset>`:`<label>${library.kind==="skills"?"Instructions":"Prompt content"}<textarea name="content" rows="8" required>${escapeHtml(item?.data.content||"")}</textarea></label>`);
+  if(typeof updateScheduleTargetFields==="function")updateScheduleTargetFields();
   $("library-editor").showModal();
 }
 async function fileContent(file){
@@ -134,6 +135,10 @@ async function importSkill(){
     }else if(result.skill){
       notify(`${result.updated?"Updated":"Imported"} skill ${result.skill.name}: ${importedCount} file${importedCount===1?"":"s"} imported${skipped?`, ${skipped} not imported (scripts, data or media)`:""}.`);
     }
+    if(typeof window!=="undefined"&&window.dispatchEvent){
+      window.dispatchEvent(new CustomEvent("studio-resource-saved",{detail:{kind:"skills"}}));
+    }
+    if(typeof loadSkills==="function")await loadSkills().catch(()=>{});
     await refreshLibrary();
   }catch(error){notify(error.message);}
   finally{$("library-import").disabled=false;}

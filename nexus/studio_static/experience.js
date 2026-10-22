@@ -71,7 +71,7 @@ document.addEventListener("submit",async event=>{
   try{const values=new FormData(form);if(form.id==="connection-guide-form"){const type=form.dataset.type,data=Object.fromEntries(values);delete data.name;Object.assign(data,{type,enabled:false,allow_private:values.has("allow_private"),persistent:values.has("persistent")});if(type==="mcp"){data.args=JSON.parse(values.get("args")||"[]");data.env=JSON.parse(values.get("env")||"{}");data.actions=["discover"];data.tools=[];data.read_only_tools=[];}else if(["github","gitlab"].includes(type))data.actions=["list_issues"];else if(!["http","sqlite"].includes(type))data.actions=["status"];connectionGuide.record=await api("/api/catalog/connectors",{name:values.get("name"),data});showConnectionCheck();}else{await api(`/api/workbench/onboarding/${encodeURIComponent(connectionGuide.record.id)}/enable`,{digest:connectionGuide.check.digest,confirm:values.has("confirm")});$("detail").close();notify("Connection enabled. Edit its settings to grant specific actions or tools.");}if(library.kind==="connectors")await refreshLibrary();}catch(error){$("connection-guide-error").textContent=error.message;}finally{button.disabled=false;}
 });
 
-const GUIDE_VERSION = 1;
+const GUIDE_VERSION = 2;
 const DEFAULT_GUIDE_STEPS = [
   {
     id: "workspace-navigation",
@@ -113,9 +113,9 @@ const DEFAULT_GUIDE_STEPS = [
     target: "#chat-form",
     fallback_target: "#view-chat",
     min_role: "operator",
-    summary: "Pick an assistant, provider, model, and reasoning effort, attach relevant workspace files, and inspect structured answers and run history in one thread.",
+    summary: "Pick an assistant (including the built-in Studio Assistant), provider, model, and reasoning effort, attach workspace files with drag-and-drop chips and artifact cards, and inspect structured answers and run history in one thread.",
     branch_title: "Working with attachments & effort",
-    branch_body: "Attach only the files needed for your question, and adjust Effort when a provider supports deeper reasoning levels.",
+    branch_body: "Drop files onto the upload target or select indexed workspace artifacts. Choose Studio Assistant for zero-config workspace help without using provider tokens.",
     practice: {
       label: "Try sample conversation preview",
       preview: "Sample prompt (not sent to any provider): 'Summarize open release risks in CHANGELOG.md and list three verification checks.' → Produces a structured checklist in the conversation panel."
@@ -145,12 +145,12 @@ const DEFAULT_GUIDE_STEPS = [
     target: "#view-agents",
     fallback_target: "#agents-content",
     min_role: "builder",
-    summary: "Create and manage specialist agents with their own instructions, default provider, model, reasoning effort, allowed tools, skills, and output guardrails.",
-    branch_title: "Versioning and instructions",
-    branch_body: "Every saved change records a version snapshot so you can compare revisions or restore an earlier specialist configuration at any time.",
+    summary: "Create and manage specialist agents with instructions, provider, model, allowed tools, multiple skill assignments, and output guardrails, or use ready-made built-in specialists.",
+    branch_title: "Versioning, multi-skills, and instructions",
+    branch_body: "Every saved change records a version snapshot. You can assign multiple skills to an agent, import skill bundles from GitHub, or consult built-in specialists like Studio Assistant.",
     practice: {
       label: "Preview sample agent card",
-      preview: "Sample specialist (local preview only): 'Release Auditor' using Claude Code (high effort) with read-only repository tools and a 600s timeout."
+      preview: "Sample specialist (local preview only): 'Release Auditor' using Claude Code (high effort) with read-only repository tools, multiple skills, and a 600s timeout."
     }
   },
   {
@@ -161,9 +161,9 @@ const DEFAULT_GUIDE_STEPS = [
     target: "#view-workflows",
     fallback_target: "#create-workflow",
     min_role: "builder",
-    summary: "Inspect multi-step workflows, conditional branches, visual canvas nodes, input forms, and saved YAML definitions, or validate a workflow before running it.",
+    summary: "Inspect multi-step workflows, conditional branches, visual canvas nodes, input forms, and saved YAML definitions, or trigger workflows directly from schedules.",
     branch_title: "Canvas, YAML, and checkpoints",
-    branch_body: "Switch between the step builder, visual canvas, and YAML view. Paused or interrupted runs can capture a checkpoint and resume after review.",
+    branch_body: "Switch between the step builder, visual canvas, and YAML view. Edit or remove steps, resume checkpoints, or schedule workflows with custom input payloads.",
     practice: {
       label: "Preview sample workflow branch",
       preview: "Sample workflow (local preview only): Step 1 'Analyze request' → Branch on confidence → Step 2 'Prepare response' or pause at an approval gate."
@@ -186,6 +186,22 @@ const DEFAULT_GUIDE_STEPS = [
     }
   },
   {
+    id: "workspace-files",
+    version: 2,
+    title: "Workspace files",
+    view: "files",
+    target: "#view-files",
+    fallback_target: "#files-list",
+    min_role: "builder",
+    summary: "Browse and preview files in allowed server folders, upload documents up to 16 MiB, or create folders directly on the Studio VM.",
+    branch_title: "Allowed roots and server security",
+    branch_body: "Only explicitly configured folders (such as agents, workflows, and authorized project roots) can be opened. Files stay on the server until explicitly shared or attached.",
+    practice: {
+      label: "Preview workspace file browser",
+      preview: "Sample browser (local preview only): Root 'agents' → Lists specialist markdown specs with file sizes and instant previews."
+    }
+  },
+  {
     id: "connectors-knowledge",
     version: 1,
     title: "Library and connectors",
@@ -194,8 +210,8 @@ const DEFAULT_GUIDE_STEPS = [
     fallback_target: "#view-library",
     min_role: "owner",
     summary: "Manage reusable Prompts, Skills, Artifacts, Toolsets, Connectors, Entrypoints, Schedules, Evaluations, External A2A agents, and Model profiles in the Library.",
-    branch_title: "Permissions & read-only verification",
-    branch_body: "Enabling a connector requires an owner check on the exact saved revision so credentials and scopes are verified without sending live messages.",
+    branch_title: "Schedules, skills, and connector checks",
+    branch_body: "Schedules can trigger either an agent or a ready-made workflow with custom inputs. Skills support multi-selection import from GitHub, and connectors require read-only verification before enabling.",
     practice: {
       label: "Preview connector readiness states",
       preview: "Sample readiness (local preview only): Draft configuration → Read-only revision check → Explicit owner confirmation → Enabled for selected agents."
@@ -263,6 +279,22 @@ const DEFAULT_GUIDE_STEPS = [
     practice: {
       label: "Preview sample approval item",
       preview: "Sample inbox item (local preview only): Waiting gate 'Publish release summary'. Inspect proposed output, then Approve or Reject without leaving Studio."
+    }
+  },
+  {
+    id: "studio-assistant",
+    version: 2,
+    title: "Studio assistant",
+    view: "assistant",
+    target: "#view-assistant",
+    fallback_target: "#studio-help-form",
+    min_role: "viewer",
+    summary: "Ask how Studio works or find your agents, workflows, and server files. Uses built-in documentation and authorized workspace metadata with zero provider tokens.",
+    branch_title: "Local help vs Ask AI",
+    branch_body: "Find local answer uses built-in documentation and current resource names without API keys. Ask AI optionally routes the question to your configured provider.",
+    practice: {
+      label: "Preview Studio help search",
+      preview: "Sample query (local preview only): 'Where are my agents saved?' → Points directly to server folder path and links to the Agents editor."
     }
   },
   {
