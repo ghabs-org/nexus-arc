@@ -6,7 +6,7 @@ const vm = require("node:vm");
 const source = fs.readFileSync("nexus/studio_static/workspace-access.js", "utf8");
 
 function setupContext() {
-  const elements = new Map();
+  const elements = new Map(), handlers = new Map();
   const context = vm.createContext({
     escapeHtml: (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
     $: (id) => {
@@ -23,7 +23,7 @@ function setupContext() {
           querySelectorAll() {
             return [];
           },
-          addEventListener() {},
+          addEventListener(event, handler) { handlers.set(`${id}:${event}`, handler); },
           replaceChildren() {},
         });
       }
@@ -38,7 +38,7 @@ function setupContext() {
     location: { hash: "files" },
     state: { ready: false, busy: false, providers: [] },
   });
-  return { context, elements };
+  return { context, elements, handlers };
 }
 
 test("fileQuery encodes root and path parameters correctly", () => {
@@ -130,3 +130,33 @@ test("renderStudioHelp populates answer, notice, workspace path and resource lin
   assert.ok(answerEl.innerHTML.includes("None saved yet."));
 });
 
+
+test("Ask AI monitors the submitted run through the existing poller without resubmission", async () => {
+  const {context,elements,handlers}=setupContext();
+  const submissions=[],polls=[];
+  context.api=async(path,payload)=>{submissions.push([path,payload]);return {id:"help-run"};};
+  context.pollRun=async(id,update)=>{polls.push(id);update({id,status:"running"});update({id,status:"completed",output:"Saved on your VM"});};
+  vm.runInContext(source,context);
+  context.$("studio-help-question").value="Where are agents?";
+  context.$("studio-help-provider").value="codex";
+  await handlers.get("studio-help-ai:click")();
+  assert.equal(submissions.length,1);
+  assert.equal(submissions[0][0],"/api/runs");
+  assert.equal(submissions[0][1].studio_assistant,true);
+  assert.deepEqual(polls,["help-run"]);
+  assert.equal(elements.get("studio-help-answer").textContent,"Saved on your VM");
+  assert.equal(elements.get("studio-help-error").textContent,"");
+});
+
+test("Ask AI retains the inspection link when monitoring fails and never resends",async()=>{
+  const {context,elements,handlers}=setupContext();let submitted=0;
+  context.api=async()=>{submitted++;return {id:"known-run"};};
+  context.pollRun=async()=>{throw new Error("Connection lost; inspect the existing run");};
+  vm.runInContext(source,context);
+  context.$("studio-help-question").value="Help";
+  await handlers.get("studio-help-ai:click")();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(submitted,1);
+  assert.match(elements.get("studio-help-answer").innerHTML,/known-run/);
+  assert.match(elements.get("studio-help-error").textContent,/Connection lost/);
+});

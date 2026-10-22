@@ -7,13 +7,14 @@ import threading
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
-from pathlib import Path
 
 import pytest
 
 from nexus.core.models import AgentResult
 from nexus.core.studio import StudioService
 from nexus.studio import make_studio_handler
+from tests.test_studio_team import team as team
+from tests.test_studio_team import wait
 
 
 @pytest.fixture
@@ -23,7 +24,9 @@ def service_env(tmp_path):
             return True
 
         async def execute_agent(self, context):
-            return AgentResult(success=True, output="Platform help verified: " + context.prompt[:50])
+            return AgentResult(
+                success=True, output="Platform help verified: " + context.prompt[:50]
+            )
 
     service = StudioService(tmp_path, provider_factory=lambda name: DummyProvider())
     service.save_definition(
@@ -168,9 +171,7 @@ def test_workspace_files_upload_listing_preview_and_snapshot(service_env):
 
     # Stale revision snapshot rejected
     with pytest.raises(ValueError, match="File changed"):
-        files.snapshot(
-            {"root": "files", "path": "sample.txt", "revision": "wrong-revision-hash"}
-        )
+        files.snapshot({"root": "files", "path": "sample.txt", "revision": "wrong-revision-hash"})
 
 
 def test_workspace_files_path_filtering_and_security(service_env):
@@ -213,15 +214,11 @@ def test_studio_assistant_run_execution(service_env):
 
     # Studio assistant with non-chat kind rejected
     with pytest.raises(ValueError, match="without a custom agent"):
-        service_env.start_run(
-            {"kind": "workflow", "studio_assistant": True, "task": "Test"}
-        )
+        service_env.start_run({"kind": "workflow", "studio_assistant": True, "task": "Test"})
 
     # Non-boolean studio_assistant rejected
     with pytest.raises(ValueError, match="must be true or false"):
-        service_env.start_run(
-            {"kind": "chat", "studio_assistant": "yes", "task": "Test"}
-        )
+        service_env.start_run({"kind": "chat", "studio_assistant": "yes", "task": "Test"})
 
 
 def test_studio_workspace_access_http_endpoints(service_env):
@@ -305,3 +302,160 @@ def test_studio_workspace_access_http_endpoints(service_env):
     finally:
         server.shutdown()
         server.server_close()
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/etc/passwd",
+        "../secret",
+        "sub/../../secret",
+        "sub/.env",
+        "a\\b",
+        "a//b",
+        "a/",
+        "credentials.json",
+        "secret.pem",
+        "nul\x00.txt",
+    ],
+)
+def test_file_routes_reject_unsafe_path_inputs(service_env, path):
+    with pytest.raises(ValueError):
+        service_env.workspace_files.read("files", path)
+
+
+def test_symlinks_hardlinks_and_fifo_are_not_exposed(service_env, tmp_path):
+    root = service_env.root / "files"
+    root.mkdir()
+    secret = tmp_path / "outside.txt"
+    secret.write_text("PRIVATE")
+    (root / "link.txt").symlink_to(secret)
+    os.link(secret, root / "hard.txt")
+    os.mkfifo(root / "pipe")
+    (root / "escape").symlink_to(tmp_path, target_is_directory=True)
+    assert not service_env.workspace_files.listing()["items"]
+    for name in ["link.txt", "hard.txt", "pipe", "escape/outside.txt"]:
+        with pytest.raises(ValueError):
+            service_env.workspace_files.preview("files", name)
+
+
+@pytest.mark.parametrize("kind", ["agents", "workflows"])
+def test_additional_root_alias_cannot_make_definition_folders_writable(service_env, kind):
+    from nexus.core.studio_workspace_files import StudioWorkspaceFiles
+
+    with pytest.raises(ValueError, match="read-only"):
+        StudioWorkspaceFiles(
+            service_env, roots={"alias": {"path": str(service_env.root / kind), "writable": True}}
+        )
+
+
+def test_read_rejects_folder_symlink_swapped_after_configuration(service_env, tmp_path):
+    files = service_env.root / "files"
+    files.mkdir()
+    (files / "sub").mkdir()
+    (files / "sub").rmdir()
+    (files / "sub").symlink_to(tmp_path)
+    (tmp_path / "outside.txt").write_text("PRIVATE")
+    with pytest.raises(ValueError):
+        service_env.workspace_files.read("files", "sub/outside.txt")
+
+
+def test_shared_file_permissions_and_private_snapshot_ownership(team):
+    service, policy, _, request, _ = team
+    assert request("/api/studio/assistant", user="viewer")[0] == 200
+    assert (
+        request(
+            "/api/studio/assistant/answer", {"question": "Where are workflows?"}, user="viewer"
+        )[0]
+        == 200
+    )
+    assert request("/api/studio/files", user="viewer")[0] == 403
+    assert request("/api/studio/files", user="bob")[0] == 403
+    assert request("/api/studio/files")[0] == 401
+    code, created = request(
+        "/api/studio/files/upload",
+        {
+            "filename": "shared.txt",
+            "content_base64": base64.b64encode(b"Workspace evidence").decode(),
+        },
+        user="alice",
+    )
+    assert code == 201
+    assert request("/api/studio/files/preview?root=files&path=shared.txt", user="bob")[0] == 403
+    code, saved = request(
+        "/api/studio/files/snapshot",
+        {"root": "files", "path": "shared.txt", "revision": created["revision"]},
+        user="alice",
+    )
+    assert code == 201
+    assert request(saved["download_url"], user="alice") == (200, b"Workspace evidence")
+    assert request(saved["download_url"], user="bob")[0] == 403
+    policy.bindings["alice"] = "operator"
+    assert request("/api/studio/files", user="alice")[0] == 403
+
+
+def test_assistant_ai_invokes_read_only_help_and_finishes_with_verified_context(tmp_path):
+    seen = []
+    service = None
+
+    class Provider:
+        async def check_availability(self):
+            return True
+
+        async def execute_agent(self, context):
+            seen.append(context)
+            assert context.metadata["worker_tools"] == "none"
+            if len(seen) == 1:
+                name = service.assistant.spec()["tool_ids"][0]
+                return AgentResult(
+                    success=True,
+                    output=json.dumps(
+                        {
+                            "tool_call": {
+                                "name": name,
+                                "arguments": {"question": "Where are agents saved?"},
+                            }
+                        }
+                    ),
+                )
+            assert str(service.root / "agents") in context.prompt
+            assert "PRIVATE FILE CONTENT" not in context.prompt
+            return AgentResult(
+                success=True,
+                output='{"final":"Agents are YAML in the server workspace. Open Workspace files."}',
+            )
+
+    service = StudioService(tmp_path, provider_factory=lambda _: Provider())
+    try:
+        (tmp_path / "files").mkdir()
+        (tmp_path / "files" / "private.txt").write_text("PRIVATE FILE CONTENT")
+        result = wait(
+            service,
+            service.start_run(
+                {"studio_assistant": True, "task": "Where are agents?", "worker_tools": "shell"}
+            ),
+        )
+        assert result["status"] == "completed", result
+        assert "server workspace" in result["output"]
+        assert len(seen) == 2
+        assert len(service.records("runs")) == 1
+    finally:
+        service.close()
+
+
+def test_runtime_configuration_exposes_only_explicit_extra_roots(tmp_path):
+    from nexus.core.studio_runtime import load_runtime_configuration
+
+    root = tmp_path / "workspace"
+    extra = tmp_path / "selected-documents"
+    extra.mkdir()
+    config = tmp_path / "runtime.json"
+    config.write_text(json.dumps({"workspace_files": {"documents": {"path": str(extra)}}}))
+    config.chmod(0o600)
+    options = load_runtime_configuration(config, root)
+    service = StudioService(root, **options)
+    try:
+        assert not service.workspace_files.roots["documents"]["writable"]
+        assert "documents" in service.workspace_files.roots
+    finally:
+        service.close()

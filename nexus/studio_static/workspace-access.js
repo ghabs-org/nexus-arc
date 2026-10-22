@@ -81,7 +81,10 @@ $("studio-help-ai").addEventListener("click",async()=>{
   try{
     const run=await api("/api/runs",{kind:"chat",studio_assistant:true,provider:$("studio-help-provider").value,task:question});
     $("studio-help-answer").innerHTML=`<p>AI question submitted. Reopening Activity never resubmits it.</p><button type="button" class="secondary" data-run="${escapeHtml(run.id)}">View answer in Activity</button>`;
-    watchRun(run.id,updated=>{if(updated.status==="completed")$("studio-help-answer").textContent=updated.output;});
+    pollRun(run.id,updated=>{
+      if(updated.status==="completed")$("studio-help-answer").textContent=updated.output;
+      else if(!["queued","running"].includes(updated.status))$("studio-help-error").textContent=updated.error||`Run ${run.id}: ${updated.status}. Review it in Activity.`;
+    }).catch(error=>{$("studio-help-error").textContent=error.message;});
   }catch(error){$("studio-help-error").textContent=error.message;}finally{button.disabled=false;}
 });
 async function refreshWorkspaceAccess(){

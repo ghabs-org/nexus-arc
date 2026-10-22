@@ -24,7 +24,8 @@ Workspace filesystem access requires builder/owner in shared mode, including
 registered read-only tools. Exposed folders are workspace-shared for these roles;
 private uploads belong in Library artifacts instead. Agents/workflows are
 read-only; edits use existing validated editors. The managed `files/` root is
-writable. Additional administrator-configured roots default read-only. Hidden
+writable. Additional administrator-configured roots default read-only; writable aliases of
+agent/workflow directories reject before use. Hidden
 paths, traversal, symbolic links, hard-linked files, special files, private state
 and common credential filenames are excluded. File contents remain untrusted.
 Listing/preview never sends files to a model. Snapshotting does not run an agent.

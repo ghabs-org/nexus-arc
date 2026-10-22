@@ -77,7 +77,7 @@ class StudioAssistant:
             "List one configured server workspace folder. Arguments: root (default files), path (relative directory). Builder permission required. No arbitrary host paths.",
             "Read a bounded untrusted preview of an explicitly requested server file. Arguments: root, path. Builder permission required. No writes or execution.",
         ]
-        for (name, function), description in zip(self.names.items(), descriptions):
+        for (name, function), description in zip(self.names.items(), descriptions, strict=True):
             tool_registry.register(
                 name, function, category="Studio assistance", description=description
             )

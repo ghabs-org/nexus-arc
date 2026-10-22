@@ -96,6 +96,10 @@ class StudioWorkspaceFiles:
                     "File roots cannot expose the workspace root or private Studio state"
                 )
             item["path"] = path
+            if item["writable"] and any(
+                path.is_relative_to(studio.root / kind) for kind in ("agents", "workflows")
+            ):
+                raise ValueError("Definition folders must remain read-only in the file browser")
 
     def authorize(self, actor):
         if self.studio.team:
