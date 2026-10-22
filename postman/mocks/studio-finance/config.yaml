@@ -1,0 +1,10 @@
+version: 1
+name: yfinance quote and fundamental SDK contract
+slug: studio-finance
+protocol: http
+port: 49874
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

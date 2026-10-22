@@ -326,6 +326,27 @@ class StudioCatalog:
                 {"id": identity, "revision": self.get("artifacts", identity)["revision"]}
                 for identity in payload["artifact_ids"]
             ]
+        if "expected_artifact_refs" in payload:
+            expected = payload["expected_artifact_refs"]
+            if (
+                not isinstance(expected, list)
+                or len(expected) > 5
+                or any(
+                    not isinstance(ref, dict)
+                    or set(ref) != {"id", "revision"}
+                    or not isinstance(ref.get("id"), str)
+                    or type(ref.get("revision")) is not int
+                    or ref["revision"] < 1
+                    for ref in expected
+                )
+            ):
+                raise ValueError(
+                    "Expected attachments must name up to five IDs and positive revisions"
+                )
+            if expected != (payload.get("artifact_refs", []) if identities else []):
+                raise ValueError(
+                    "Attachment selection or revision changed; select files explicitly before resubmitting"
+                )
         # Remote attachments travel as pinned binary parts, not text extraction.
         context = self.context(
             {**payload, "artifact_ids": []} if payload.get("kind") == "external" else payload,

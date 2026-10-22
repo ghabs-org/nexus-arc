@@ -18,9 +18,19 @@ def main():
         "--session-env", help="Environment reference for an existing Nexus session"
     )
     chat_parser.add_argument("--session-id", help="Continue an existing conversation")
+    chat_parser.add_argument(
+        "--new-session",
+        action="store_true",
+        help="Start interactive chat without restoring the saved selection",
+    )
     chat_parser.add_argument("--run-id", help="Inspect an existing run without submitting anything")
     chat_parser.add_argument("--agent", help="Agent ID")
     chat_parser.add_argument("--provider", help="Explicit provider override")
+    chat_parser.add_argument(
+        "--plain",
+        action="store_true",
+        help="Disable Markdown rendering and enhanced terminal input",
+    )
     chat_parser.add_argument(
         "--artifact-id",
         action="append",

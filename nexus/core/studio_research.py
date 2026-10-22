@@ -68,7 +68,14 @@ def public_url(value):
 
 
 class StudioResearch:
-    def __init__(self, studio, config=None, request_client=None, finance_client=None):
+    def __init__(
+        self,
+        studio,
+        config=None,
+        request_client=None,
+        finance_client=None,
+        finance_info_client=None,
+    ):
         self.studio = studio
         self.config = config or {}
         if not isinstance(self.config, dict) or set(self.config) - {
@@ -113,6 +120,7 @@ class StudioResearch:
                 raise ValueError("Hosted search adapters use their fixed provider endpoint")
         self.request_client = request_client
         self.finance_client = finance_client
+        self.finance_info_client = finance_info_client
         self.names = {}
         namespace = hashlib.sha256(str(studio.state).encode()).hexdigest()[:12]
         from nexus.tools import tool_registry
@@ -123,7 +131,7 @@ class StudioResearch:
             "web_fetch": "Fetch a public URL without credentials or redirects; arguments: url. Returns bounded untrusted page text and source citation.",
             "research": "Collect a cited research bundle using up to four supplied queries and four page fetches; arguments: queries (list), optional fetch_limit (0–4). No automatic provider fallback.",
             "ip_location": "Look up a public IP with explicitly enabled ipapi.co; arguments: optional ip. An empty IP looks up the Studio server's public location.",
-            "finance": "Read up to one year of daily prices using explicitly enabled yfinance; arguments: ticker and optional period (1mo, 3mo, 6mo, 1y). No trading operations.",
+            "finance": "Read explicitly enabled yfinance data. Arguments: ticker, operation (history/default, price, fundamentals). Only history accepts period (1mo, 3mo, 6mo, 1y). Quotes may be delayed; metrics retain source units. No trades.",
         }
         descriptions.update(
             {
@@ -153,13 +161,24 @@ class StudioResearch:
 
     def inventory(self):
         ready = bool(self.search)
-        finance = self.config.get("finance", False) and (
-            self.finance_client is not None or importlib.util.find_spec("yfinance") is not None
-        )
+        sdk = importlib.util.find_spec("yfinance") is not None
+        finance_operations = {
+            "history": bool(
+                self.config.get("finance") and (self.finance_client is not None or sdk)
+            ),
+            "price": bool(
+                self.config.get("finance") and (self.finance_info_client is not None or sdk)
+            ),
+            "fundamentals": bool(
+                self.config.get("finance") and (self.finance_info_client is not None or sdk)
+            ),
+        }
+        finance = any(finance_operations.values())
         return {
             "items": [
                 {
                     "id": name,
+                    **({"operations": dict(finance_operations)} if action == "finance" else {}),
                     "configured": self.config.get("geographic", False)
                     if action in {"city_to_coordinates", "city_to_timezone", "get_weather"}
                     else ready
@@ -402,15 +421,31 @@ class StudioResearch:
     def finance(self, args):
         if not self.config.get("finance"):
             raise ValueError("Explicitly enable the finance adapter in private runtime settings")
+        operation = args.get("operation", "history")
+        if not isinstance(operation, str) or operation not in {"history", "price", "fundamentals"}:
+            raise ValueError("Choose finance operation history, price or fundamentals")
+        if operation != "history" and "period" in args:
+            raise ValueError("Finance period is used only for history")
         ticker, period = args.get("ticker"), args.get("period", "1mo")
         if (
             not isinstance(ticker, str)
             or not re.fullmatch(r"[A-Za-z0-9^=.-]{1,24}", ticker)
+            or not isinstance(period, str)
             or period not in {"1mo", "3mo", "6mo", "1y"}
         ):
             raise ValueError("Choose a ticker and period: 1mo, 3mo, 6mo or 1y")
-        if self.finance_client:
+        from nexus.core.studio_finance import stock_result
+
+        if operation == "history" and self.finance_client:
             return self.finance_client(ticker, period)
+        if operation != "history" and self.finance_info_client:
+            try:
+                info = self.finance_info_client(ticker.upper())
+            except Exception:
+                raise ValueError(
+                    "Finance service failed; no trading action was performed"
+                ) from None
+            return stock_result(ticker, operation, info)
         if importlib.util.find_spec("yfinance") is None:
             raise ValueError("Install the studio-research extra to use yfinance")
         with tempfile.TemporaryDirectory(prefix="nexus-finance-") as directory:
@@ -422,6 +457,7 @@ class StudioResearch:
                         str(Path(__file__).with_name("studio_finance_worker.py")),
                         ticker,
                         period,
+                        operation,
                     ],
                     cwd=directory,
                     env={"PATH": os.defpath, "HOME": directory},
@@ -431,7 +467,12 @@ class StudioResearch:
                 )
                 if len(process.stdout) > 256 * 1024:
                     raise ValueError
-                return json.loads(process.stdout)
+                result = json.loads(process.stdout)
+                return (
+                    result
+                    if operation == "history"
+                    else stock_result(ticker, operation, result["info"])
+                )
             except Exception:
                 raise ValueError(
                     "Finance service failed; no trading action was performed"

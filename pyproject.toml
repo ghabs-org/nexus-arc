@@ -36,6 +36,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+studio-terminal = ["rich>=14.1,<15", "prompt-toolkit>=3.0.52,<4"]
 studio-oauth = ["mcp>=1.0", "httpx>=0.27", "cryptography>=42.0"]
 studio-grpc = ["a2a-sdk[grpc]==1.1.5"]
 studio-a2a-push = ["httpx>=0.27", "cryptography>=42.0"]

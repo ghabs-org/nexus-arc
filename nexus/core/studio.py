@@ -47,6 +47,13 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _session_summary(record):
+    return {
+        **{key: value for key, value in record.items() if key != "messages"},
+        "message_count": len(record.get("messages", [])),
+    }
+
+
 def _identity(value: Any) -> str:
     value = str(value or "")
     if not _ID.fullmatch(value):
@@ -585,7 +592,7 @@ class StudioService:
         if self.sql_state:
             values = self.sql_state.records(collection)
             if collection == "sessions":
-                values = [{k: v for k, v in item.items() if k != "messages"} for item in values]
+                values = [_session_summary(item) for item in values]
             return sorted(values, key=lambda item: item.get("updated_at", ""), reverse=True)[:limit]
         records = []
         directory = self._path(collection, "index").parent
@@ -593,7 +600,7 @@ class StudioService:
             try:
                 value = self._read(path)
                 if collection == "sessions":
-                    value = {k: v for k, v in value.items() if k != "messages"}
+                    value = _session_summary(value)
                 records.append(value)
             except (ValueError, OSError):
                 continue
@@ -602,7 +609,7 @@ class StudioService:
     def _new_session(self, session_id: str, payload: dict) -> dict:
         return {
             "id": session_id,
-            "title": payload["task"][:70],
+            "title": payload.get("session_title") or payload["task"][:70],
             "messages": [],
             "created_at": _now(),
             "owner_id": payload.get("requester_nexus_id"),
@@ -779,6 +786,16 @@ class StudioService:
     def start_run(self, payload: dict, *, callback_origin=None) -> dict:
         """Queue an explicitly selected agent/chat/workflow/tool; no implicit provider fallback."""
         payload = dict(payload)
+        if "session_title" in payload:
+            from nexus.core.studio_catalog import _text
+
+            if payload.get("kind", "chat") != "chat" or payload.get("session_id"):
+                raise ValueError(
+                    "Use a title only when creating a new chat; rename saved conversations instead"
+                )
+            payload["session_title"] = _text(
+                payload["session_title"], "Conversation name", 200
+            ).strip()
         if type(payload.get("studio_assistant", False)) is not bool:
             raise ValueError("Studio assistant selection must be true or false")
         if payload.get("studio_assistant"):

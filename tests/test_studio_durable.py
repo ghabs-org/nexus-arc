@@ -31,6 +31,50 @@ def done(app, run):
     pytest.fail("Durable job did not finish")
 
 
+def test_named_session_metadata_survives_sql_restart_without_rewriting_history(tmp_path):
+    class Provider:
+        async def check_availability(self):
+            return True
+
+        async def execute_agent(self, context):
+            return AgentResult(success=True, output="SQL evidence")
+
+    app = StudioService(
+        tmp_path / "project",
+        state_options=options(tmp_path, workers=1),
+        provider_factory=lambda _: Provider(),
+    )
+    try:
+        run = done(
+            app,
+            app.start_run(
+                {"kind": "chat", "task": "Evidence", "session_title": "SQL Investigation"}
+            ),
+        )
+        assert run["status"] == "completed"
+        session = app.records("sessions")[0]
+        assert session["title"] == "SQL Investigation" and session["message_count"] == 2
+        assert "message_count" not in app.session(session["id"])
+        with pytest.raises(ValueError, match="rename saved conversations"):
+            app.start_run(
+                {
+                    "kind": "chat",
+                    "task": "Rename attempt",
+                    "session_id": session["id"],
+                    "session_title": "Changed",
+                }
+            )
+        assert len(app.records("runs")) == 1
+    finally:
+        app.close()
+    restored = StudioService(tmp_path / "project", state_options=options(tmp_path))
+    try:
+        assert restored.records("sessions")[0]["message_count"] == 2
+        assert restored.session(session["id"])["title"] == "SQL Investigation"
+    finally:
+        restored.close()
+
+
 def test_queued_job_survives_controller_shutdown_and_another_process_consumes(tmp_path):
     app = StudioService(tmp_path / "project", state_options=options(tmp_path))
     app.save_definition("agents", {"name": "Reviewer", "instructions": "Review"})

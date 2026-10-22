@@ -198,7 +198,8 @@ def setup_metadata(row):
             packages = ["yfinance"]
             requirements = [
                 "Explicit research.finance opt-in and access to the selected market-data service.",
-                "Market-data availability and terms remain provider-dependent.",
+                "Choose history (default), price or fundamentals; only history accepts period. Quotes may be delayed and metrics retain provider units.",
+                "Market-data availability and terms remain provider-dependent. No trading operations.",
             ]
             template = {"private_runtime": {"research": {"finance": True}}}
             billing = (

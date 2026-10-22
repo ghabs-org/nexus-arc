@@ -1,0 +1,5 @@
+simulation: studio-finance
+routing: path
+mocks:
+  - routeKey: yahoo
+    path: ../mocks/studio-finance/config.yaml

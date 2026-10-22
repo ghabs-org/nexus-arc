@@ -333,6 +333,7 @@ def make_studio_handler(service: StudioService, token: str):
                             else None,
                             "mode": "team" if service.team else "desktop",
                             "workspace": {"name": service.root.name, "path": str(service.root)},
+                            "capabilities": {"expected_artifact_refs": True, "session_title": True},
                             "providers": service.team.providers(
                                 service.providers(), self.actor["nexus_id"]
                             )

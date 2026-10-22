@@ -358,8 +358,22 @@ def test_runs_sessions_and_artifact_context_cannot_cross_user_boundaries(team):
     )
     assert status == 201 and artifact["owner_id"] == "alice"
     assert request(f"/api/catalog/artifacts/{artifact['id']}/download", user="bob")[0] == 403
+    assert request(f"/api/catalog/artifacts/{artifact['id']}/versions/1", user="bob")[0] == 403
+    assert request(f"/api/catalog/artifacts/{artifact['id']}/versions/1", user="alice")[0] == 200
     assert (
         request("/api/runs", {"task": "Read", "artifact_ids": [artifact["id"]]}, user="bob")[0]
+        == 403
+    )
+    assert (
+        request(
+            "/api/runs",
+            {
+                "task": "Retry",
+                "artifact_ids": [artifact["id"]],
+                "expected_artifact_refs": [{"id": artifact["id"], "revision": 1}],
+            },
+            user="bob",
+        )[0]
         == 403
     )
     assert (
@@ -506,7 +520,14 @@ def test_shared_agy_runs_with_its_own_home_and_stream_json_input(tmp_path):
     assert "alice-private-key" not in joined
     assert "OPENAI_API_KEY" not in spawn.call_args_list[0].kwargs["env"]
     worker = list(args[args.index("trusted-worker@sha256:" + "a" * 64) + 1 :])
-    assert worker[:6] == ["agy", "-p=", "--input-format", "stream-json", "--output-format", "stream-json"]
+    assert worker[:6] == [
+        "agy",
+        "-p=",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+    ]
     assert "--sandbox" in worker and "--disable-slash-commands" in worker
     assert worker[worker.index("--model") + 1] == "gemini-3-pro"
     assert worker[worker.index("--effort") + 1] == "high"
@@ -1083,10 +1104,16 @@ def test_stream_parsers_report_text_and_tool_activity():
         {
             "type": "assistant",
             "message": {
-                "content": [{"type": "tool_use", "name": "WebFetch", "input": {"url": "https://x.test"}}]
+                "content": [
+                    {"type": "tool_use", "name": "WebFetch", "input": {"url": "https://x.test"}}
+                ]
             },
         },
-        {"type": "stream_event", "parent_tool_use_id": "t1", "event": {"delta": {"type": "text_delta", "text": "sub"}}},
+        {
+            "type": "stream_event",
+            "parent_tool_use_id": "t1",
+            "event": {"delta": {"type": "text_delta", "text": "sub"}},
+        },
         {"type": "result", "result": "Final"},
     ):
         claude.feed(event)
