@@ -99,8 +99,8 @@ class StudioJobs:
                 raise ValueError("Confidence threshold must be between 0 and 1")
             if payload.get("default") not in options:
                 raise ValueError("Choose a default from the listed options")
-            if payload.get("backend") not in {"openrouter", "opencode"}:
-                raise ValueError("Choose OpenRouter or OpenCode for typed decisions")
+            if payload.get("backend") not in {"openrouter", "opencode", "openai"}:
+                raise ValueError("Choose OpenRouter, OpenCode or OpenAI for typed decisions")
             if payload.get("model") and (
                 not isinstance(payload["model"], str) or len(payload["model"]) > 200
             ):

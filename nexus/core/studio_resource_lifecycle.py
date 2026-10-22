@@ -84,6 +84,8 @@ def dependencies(kind, document):
                     refs.add(component_key("connectors", node["connector_id"]))
                 if str(node.get("tool_id", "")).startswith("connector:"):
                     refs.add(component_key("connectors", node["tool_id"].rsplit(":", 1)[-1]))
+                if isinstance(node.get("decision"), dict) and node["decision"].get("decision_model_id"):
+                    refs.add(component_key("decisionmodels", node["decision"]["decision_model_id"]))
                 walk(node.get("body"))
             for field in ("on_success", "on_error"):
                 walk(value.get(field))

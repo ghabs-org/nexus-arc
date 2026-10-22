@@ -36,10 +36,19 @@ class StudioNodeTypes:
                     "threshold",
                     "backend",
                     "model",
+                    "decision_model_id",
+                    "timeout_seconds",
                 }
             ):
                 raise ValueError("Decision node requires typed choice configuration")
-            self.validate_decision(decision)
+            decision_effective = dict(decision)
+            if decision.get("decision_model_id"):
+                dm = self.studio.catalog.get("decisionmodels", decision["decision_model_id"])
+                decision_effective.setdefault("backend", dm["data"]["backend"])
+                decision_effective.setdefault("model", dm["data"]["model"])
+                if "timeout_seconds" in dm["data"]:
+                    decision_effective.setdefault("timeout_seconds", dm["data"]["timeout_seconds"])
+            self.validate_decision(decision_effective)
             result["decision"] = decision
         elif kind == "integration":
             record = (connections or {}).get(node.get("connector_id"))
@@ -106,8 +115,13 @@ class StudioNodeTypes:
             return value
 
         if node["kind"] == "decision":
+            decision_config = dict(node["decision"])
+            if decision_config.get("decision_model_id"):
+                dm = self.studio.catalog.get("decisionmodels", decision_config["decision_model_id"])
+                decision_config.setdefault("backend", dm["data"]["backend"])
+                decision_config.setdefault("model", dm["data"]["model"])
             request = {
-                **node["decision"],
+                **decision_config,
                 "task": payload["task"]
                 + ("\nPrevious results:\n" + "\n\n".join(prior) if prior else ""),
                 "requester_nexus_id": payload.get("requester_nexus_id"),

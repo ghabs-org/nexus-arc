@@ -660,6 +660,7 @@ class StudioService:
                     "skills",
                     "toolsets",
                     "models",
+                    "decisionmodels",
                     "connectors",
                     "entrypoints",
                     "schedules",

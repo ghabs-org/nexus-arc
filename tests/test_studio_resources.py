@@ -575,3 +575,71 @@ def test_graph_evaluation_cases_execute_independently(app):
     assert "First unique input" in calls[0].prompt
     assert "Second unique input" in calls[1].prompt
     assert "First unique input" not in calls[1].prompt
+
+
+def test_decision_model_catalog_validation_persistence_and_export(app):
+    service, _ = app
+    dm = save(
+        service,
+        "decisionmodels",
+        {
+            "backend": "openrouter",
+            "model": "anthropic/claude-3.5-sonnet",
+            "timeout_seconds": 25,
+        },
+        name="Router Sonnet",
+    )
+    assert dm["data"]["backend"] == "openrouter"
+    assert dm["data"]["model"] == "anthropic/claude-3.5-sonnet"
+    assert dm["data"]["timeout_seconds"] == 25
+
+    dm_openai = save(
+        service,
+        "decisionmodels",
+        {"backend": "openai", "model": "gpt-6-luna", "timeout_seconds": 10},
+        name="Native Luna",
+    )
+    assert dm_openai["data"]["backend"] == "openai"
+    assert dm_openai["data"]["model"] == "gpt-6-luna"
+
+    dm_default_timeout = save(
+        service,
+        "decisionmodels",
+        {"backend": "opencode", "model": "local-model"},
+        name="OpenCode Default",
+    )
+    assert dm_default_timeout["data"]["timeout_seconds"] == 10
+
+    with pytest.raises(ValueError, match="Decision alias requires an explicit existing backend"):
+        save(service, "decisionmodels", {"backend": "unsupported", "model": "m"})
+
+    with pytest.raises(ValueError, match="The native OpenAI decision profile requires gpt-6-luna"):
+        save(service, "decisionmodels", {"backend": "openai", "model": "gpt-4o"})
+
+    with pytest.raises(ValueError, match="Decision call timeout must be 1–300 seconds"):
+        save(
+            service,
+            "decisionmodels",
+            {"backend": "openrouter", "model": "m", "timeout_seconds": 0},
+        )
+
+    with pytest.raises(ValueError, match="Decision call timeout must be 1–300 seconds"):
+        save(
+            service,
+            "decisionmodels",
+            {"backend": "openrouter", "model": "m", "timeout_seconds": 400},
+        )
+
+    assert any(item["id"] == dm["id"] for item in service.catalog.list("decisionmodels"))
+    retrieved = service.catalog.get("decisionmodels", dm["id"])
+    assert retrieved["name"] == "Router Sonnet"
+
+    archived = service.catalog.archive("decisionmodels", dm["id"], {"revision": dm["revision"]})
+    assert not any(item["id"] == dm["id"] for item in service.catalog.list("decisionmodels"))
+    service.catalog.archive(
+        "decisionmodels", dm["id"], {"revision": archived["revision"], "archived": False}
+    )
+    assert any(item["id"] == dm["id"] for item in service.catalog.list("decisionmodels"))
+
+    exported = service.export_definitions()
+    assert "decisionmodels" in exported["catalog"]

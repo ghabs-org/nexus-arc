@@ -69,6 +69,28 @@ class StudioOperations:
                     raise ValueError(f"Effort must be one of {', '.join(EFFORT_LEVELS)}")
                 model_spec["effort"] = effort
             return model_spec
+        if kind == "decisionmodels":
+            from nexus.core.studio_decisions import finite, validate_binding
+
+            backend = str(data.get("backend", "")).strip()
+            model = str(data.get("model", "")).strip()
+            validate_binding({"backend": backend, "model": model})
+            timeout = data.get("timeout_seconds", 10)
+            if isinstance(timeout, str):
+                try:
+                    timeout = float(timeout)
+                except (ValueError, TypeError):
+                    raise ValueError("Decision call timeout must be 1–300 seconds")
+            if not finite(timeout, 1, 300):
+                raise ValueError("Decision call timeout must be 1–300 seconds")
+            return {
+                "backend": backend,
+                "model": model,
+                "timeout_seconds": int(timeout)
+                if isinstance(timeout, int)
+                or (isinstance(timeout, float) and timeout.is_integer())
+                else float(timeout),
+            }
         if kind == "evaluations":
             target = self.target(data, targets)
             cases = data.get("cases")

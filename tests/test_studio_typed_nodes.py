@@ -86,6 +86,64 @@ def test_decision_node_routes_exact_named_choice_and_keeps_trace(app):
     assert len(service.records("node-traces")) == 2
 
 
+def test_decision_node_resolves_catalog_decision_model_and_tracks_lifecycle_dependency(app):
+    service, calls = app
+    service.catalog.save(
+        "decisionmodels",
+        {
+            "id": "saved-router",
+            "name": "Saved Router",
+            "data": {
+                "backend": "openrouter",
+                "model": "anthropic/claude-3.5-sonnet",
+                "timeout_seconds": 20,
+            },
+        },
+    )
+    graph = {
+        "nodes": [
+            {
+                "id": "choose",
+                "name": "Choose",
+                "kind": "decision",
+                "decision": {
+                    "instructions": "Choose route",
+                    "options": {"review": "Check", "research": "Gather"},
+                    "default": "research",
+                    "decision_model_id": "saved-router",
+                    "threshold": 0.7,
+                },
+            },
+            {"id": "review", "name": "Review", "agent_id": "reviewer", "prompt": "{task}"},
+            {"id": "research", "name": "Research", "kind": "delay", "delay_seconds": 0},
+        ],
+        "edges": [
+            {"source": "START", "target": "choose"},
+            {"source": "choose", "target": "review", "choice": "review"},
+            {"source": "choose", "target": "research", "choice": "research"},
+        ],
+    }
+    wf = service.save_definition(
+        "workflows",
+        {"id": "route-with-model", "name": "Route With Model", "graph": graph},
+    )
+
+    from nexus.core.studio_resource_lifecycle import dependencies
+
+    deps = dependencies("workflows", wf["document"])
+    assert "decisionmodels:saved-router" in deps
+
+    run = done(
+        service,
+        service.start_run(
+            {"kind": "workflow", "workflow_id": "route-with-model", "task": "Check evidence"}
+        ),
+    )
+    assert run["status"] == "completed", run
+    assert run["graph_nodes"]["choose"] == "completed"
+    assert run["graph_nodes"]["review"] == "completed"
+
+
 def test_mutating_integration_requires_gate_and_is_never_retried(app):
     service, _ = app
     adapter = AsyncMock()

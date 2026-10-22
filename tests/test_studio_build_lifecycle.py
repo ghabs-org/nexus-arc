@@ -451,6 +451,16 @@ def test_every_configuration_resource_can_be_authored_refined_and_activated(stud
                 "data": {"provider": "openai", "model": "fixture-model"},
             },
             {
+                "kind": "decisionmodels",
+                "id": "decision-model",
+                "name": "Decision model",
+                "data": {
+                    "backend": "openrouter",
+                    "model": "anthropic/claude-3.5-sonnet",
+                    "timeout_seconds": 15,
+                },
+            },
+            {
                 "kind": "toolsets",
                 "id": "tools",
                 "name": "Local tools",

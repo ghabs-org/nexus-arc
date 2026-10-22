@@ -84,6 +84,11 @@ def main():
         resources = {
             "toolsets": {"tools": ["text:wordcount", "text:grep"]},
             "models": {"provider": "codex", "model": "provider-model-id"},
+            "decisionmodels": {
+                "backend": "openrouter",
+                "model": "anthropic/claude-3.5-sonnet",
+                "timeout_seconds": 15,
+            },
             "evaluations": {
                 "target_kind": "agent",
                 "target_id": "sample-reviewer",
@@ -135,6 +140,7 @@ def main():
         # Example change justification: "Please try to fix all the ugly plain html elements still present in the entire Studio"
         # Example change justification: "Why this \"New skill\" button is so big? Plus, on the new skill modal there should anyway be the possibility to import a skill"
         # Example change justification: "Here the last two buttons are too close. Plus, I would instead use the classic thumbs up and down buttons (with maybe the hover \"Helpful\" and \"Needs improvement\") and Play on device should have the Play/Pause + stop buttons when clicked"
+        # Example change justification: "Do decision models have their own category in the Studio? How could we add them?"
         # File artifacts catalog provides visual artifact cards and structured upload attachments for chat.
         artifacts = service.catalog.list("artifacts")
         assert isinstance(artifacts, list), "Artifacts catalog must be accessible for conversations"

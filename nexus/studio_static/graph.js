@@ -22,10 +22,11 @@ function renderGraphCanvas(){
 }
 function selectGraphNode(id){
   graphEditor.selected=id;const node=graphEditor.nodes.find(node=>node.id===id);renderGraphCanvas();
-  $("graph-node-fields").innerHTML=node?`<div class="graph-node-settings"><label>Node name<input id="graph-node-name" value="${escapeHtml(node.name)}"></label>${node.kind==="agent"?`<label>Saved agent<select id="graph-node-agent">${state.agents.filter(item=>item.document).map(item=>`<option value="${escapeHtml(item.id)}" ${node.agent_id===item.id?"selected":""}>${escapeHtml(item.document.metadata?.name||item.id)}</option>`).join("")}</select></label><label class="graph-node-prompt">Instructions · use {task}<textarea id="graph-node-prompt">${escapeHtml(node.prompt||"{task}")}</textarea></label>`:node.kind==="tool"?`<label>Registered tool<select id="graph-node-tool">${state.tools.map(tool=>`<option value="${escapeHtml(tool.id)}" ${node.tool_id===tool.id?"selected":""}>${escapeHtml(tool.id)}</option>`).join("")}</select></label><label class="graph-node-prompt">${graphEditor.meta.version===2?"Keyword arguments (JSON; data references supported)":"Keyword arguments (JSON) · {task} and {previous} supported"}<textarea id="graph-node-arguments">${escapeHtml(graphEditor.argumentText[node.id]??JSON.stringify(node.kwargs||{},null,2))}</textarea></label>`:node.kind==="approval"?'<p>Workflow stops here until an operator approves. Rejecting cancels the run.</p>':""}${["decision","integration","delay"].includes(node.kind)?`<label class="graph-node-prompt">Step configuration (JSON)<textarea id="graph-node-config">${escapeHtml(graphEditor.argumentText[node.id]??JSON.stringify(Object.fromEntries(Object.entries(node).filter(([key])=>!["id","name","kind","position","retries","input","input_schema","output_schema","timeout_seconds","depends_on"].includes(key))),null,2))}</textarea></label><p>Integration changes must directly follow approval gates. Decision edges match the named choice exactly.</p>`:""}<label>Automatic retries (0–3)<input id="graph-node-retries" type="number" min="0" max="3" value="${node.retries||0}"></label><button type="button" class="secondary" id="graph-remove-node">Remove node</button></div>`:"";
+  $("graph-node-fields").innerHTML=node?`<div class="graph-node-settings"><label>Node name<input id="graph-node-name" value="${escapeHtml(node.name)}"></label>${node.kind==="agent"?`<label>Saved agent<select id="graph-node-agent">${state.agents.filter(item=>item.document).map(item=>`<option value="${escapeHtml(item.id)}" ${node.agent_id===item.id?"selected":""}>${escapeHtml(item.document.metadata?.name||item.id)}</option>`).join("")}</select></label><label class="graph-node-prompt">Instructions · use {task}<textarea id="graph-node-prompt">${escapeHtml(node.prompt||"{task}")}</textarea></label>`:node.kind==="tool"?`<label>Registered tool<select id="graph-node-tool">${state.tools.map(tool=>`<option value="${escapeHtml(tool.id)}" ${node.tool_id===tool.id?"selected":""}>${escapeHtml(tool.id)}</option>`).join("")}</select></label><label class="graph-node-prompt">${graphEditor.meta.version===2?"Keyword arguments (JSON; data references supported)":"Keyword arguments (JSON) · {task} and {previous} supported"}<textarea id="graph-node-arguments">${escapeHtml(graphEditor.argumentText[node.id]??JSON.stringify(node.kwargs||{},null,2))}</textarea></label>`:node.kind==="approval"?'<p>Workflow stops here until an operator approves. Rejecting cancels the run.</p>':""}${node.kind==="decision"?`<label>Decision model preset<select id="graph-node-decision-model"><option value="">Custom / inline configuration</option>${(state.decisionmodels||[]).map(dm=>`<option value="${escapeHtml(dm.id)}" ${(node.decision?.decision_model_id===dm.id||node.decision_model_id===dm.id)?"selected":""}>${escapeHtml(dm.name)} (${escapeHtml(dm.data.backend)} · ${escapeHtml(dm.data.model)})</option>`).join("")}</select></label>`:""}${["decision","integration","delay"].includes(node.kind)?`<label class="graph-node-prompt">Step configuration (JSON)<textarea id="graph-node-config">${escapeHtml(graphEditor.argumentText[node.id]??JSON.stringify(Object.fromEntries(Object.entries(node).filter(([key])=>!["id","name","kind","position","retries","input","input_schema","output_schema","timeout_seconds","depends_on"].includes(key))),null,2))}</textarea></label><p>Integration changes must directly follow approval gates. Decision edges match the named choice exactly.</p>`:""}<label>Automatic retries (0–3)<input id="graph-node-retries" type="number" min="0" max="3" value="${node.retries||0}"></label><button type="button" class="secondary" id="graph-remove-node">Remove node</button></div>`:"";
   renderAdvancedNodeSettings(node);
 }
 async function openGraph(id){
+  if(typeof loadDecisionModels==="function")await loadDecisionModels().catch(()=>{});
   graphEditor.policy=(await api("/api/studio/workflow-policy")).effective;
   graphEditor.stack=[];graphEditor.fieldText={};graphEditor.graphText={};
   graphEditor.argumentText={};graphEditor.meta={version:2};graphEditor.id=id||null;graphEditor.revision=null;
@@ -187,4 +188,27 @@ document.addEventListener("input",event=>{
   if(element.dataset.nodeJson){const id=element.dataset.nodeOwner;graphEditor.fieldText[id]??={};graphEditor.fieldText[id][element.dataset.nodeJson]=element.value;}
   if(element.dataset.nodeNumber){const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);if(node)node[element.dataset.nodeNumber]=Number(element.value);}
 });
-document.addEventListener("change",event=>{if(event.target.hasAttribute("data-node-workflow")){const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);if(node)node.workflow_id=event.target.value;}});
+document.addEventListener("change",event=>{
+  if(event.target.hasAttribute("data-node-workflow")){const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);if(node)node.workflow_id=event.target.value;}
+  if(event.target.id==="graph-node-decision-model"){
+    const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);
+    if(!node||node.kind!=="decision")return;
+    const modelId=event.target.value;
+    const chosen=(state.decisionmodels||[]).find(m=>m.id===modelId);
+    node.decision=node.decision||{};
+    if(chosen){
+      node.decision.decision_model_id=chosen.id;
+      node.decision.backend=chosen.data.backend;
+      node.decision.model=chosen.data.model;
+      if(chosen.data.timeout_seconds)node.decision.timeout_seconds=chosen.data.timeout_seconds;
+    }else{
+      delete node.decision.decision_model_id;
+    }
+    const configArea=$("graph-node-config");
+    if(configArea){
+      const data=Object.fromEntries(Object.entries(node).filter(([k])=>!["id","name","kind","position","retries","input","input_schema","output_schema","timeout_seconds","depends_on"].includes(k)));
+      configArea.value=JSON.stringify(data,null,2);
+      graphEditor.argumentText[node.id]=configArea.value;
+    }
+  }
+});

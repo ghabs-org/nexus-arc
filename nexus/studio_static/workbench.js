@@ -1,6 +1,17 @@
 "use strict";
 const wb={area:"memory",data:{},campaign:null,checkpoint:null,controlsRevision:0,areas:["memory","checkpoints","agents","campaigns","analytics","transcription","decisions","controls","storage","readiness"]};
 const wbPlatformNames={linkedin:"LinkedIn",discord:"Discord",x:"X",meta_facebook:"Facebook",meta_instagram:"Instagram"};
+let decisionModels=[];
+async function refreshDecisionPresets(){
+  const select=$("wb-decision-preset");if(!select)return;
+  try{
+    const items=typeof loadDecisionModels==="function"?await loadDecisionModels():(await api("/api/catalog/decisionmodels")).items.filter(item=>!item.archived);
+    decisionModels=items;
+    const current=select.value;
+    select.innerHTML='<option value="">Custom backend & model</option>'+decisionModels.map(m=>`<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)} (${escapeHtml(m.data.backend)} · ${escapeHtml(m.data.model)})</option>`).join("");
+    if(current)select.value=current;
+  }catch{}
+}
 function openWorkbench(area){wb.area=wb.areas.includes(area)?area:"memory";const target="#workbench/"+wb.area;if(location.hash===target)refreshWorkbench();else location.hash=target;}
 function wbError(error){$("wb-error").textContent=error.message||String(error);}
 function wbRows(items,render,copy="No records yet."){return items.length?items.map(render).join(""):`<p class="integration-empty">${escapeHtml(copy)}</p>`;}
@@ -40,7 +51,7 @@ function renderDecisions(items){
   });
 }
 function renderControls(data){wb.controlsRevision=data.revision;const form=$("wb-controls-form");for(const name of ["max_prompt_chars","summary_max_chars","cooldown_seconds"])form.elements[name].value=data[name];form.elements.prompt_budget_enabled.checked=data.prompt_budget_enabled;$("wb-cooldown-status").textContent=`${data.active_cooldowns} active matching-task cooldowns. Settings apply to your own runs.`;}
-async function refreshWorkbench(){if(view()!=="workbench")return;const area=location.hash.split("/")[1]||wb.area;wb.area=wb.areas.includes(area)?area:"memory";document.querySelectorAll("[data-wb-panel]").forEach(panel=>panel.hidden=panel.dataset.wbPanel!==wb.area);document.querySelectorAll(".workbench-tabs [data-wb-area]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.wbArea===wb.area)));$("wb-error").textContent="";wbAgentChoices();try{const route=wb.area==="transcription"?"transcriptions":wb.area;const query=route==="analytics"?`?hours=${$("wb-analytics-hours").value}`:"";const data=await api(`/api/workbench/${route}${query}`);if(wb.area!==area&&area)return;if(route==="readiness"){$("deployment-checks").innerHTML=data.items.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.detail)}</p></div>${badge(({needs_setup:"Needs setup",not_verified:"Not verified",checked:"Checked",configured:"Configured",failed:"Failed"})[item.status],item.status==="checked"?"ready":item.status==="failed"?"failed":"")}</article>`).join("");}else if(route==="memory"){wb.data.memory=data.items;renderMemory();const sources=await api("/api/workbench/memorysources");$("wb-memory-sources").innerHTML=wbRows(sources.items,source=>`<button class="secondary" data-memory-source="${escapeHtml(source.id)}">Browse ${escapeHtml(source.name)}</button>`,"No legacy source is mapped to your account.");}else if(route==="checkpoints")renderCheckpoints(data);else if(route==="agents")$("wb-peers-list").innerHTML=wbRows(data.peers,item=>`<article class="library-row"><div><h3>${escapeHtml(item.agent_id||item.name)}</h3><p>${escapeHtml(item.description)} · ${escapeHtml(item.provider||"peer provider")} · ${escapeHtml(new Date(item.last_seen*1000).toLocaleTimeString())}</p></div>${badge(item.state,item.state==="running"?"running":"")}</article>`,"No recent peer announcements. Saved agents above are available for delegation.");else if(route==="campaigns")renderCampaigns(data.items);else if(route==="analytics")renderAnalytics(data);else if(route==="transcriptions")renderTranscriptions(data.items);else if(route==="decisions")renderDecisions(data.items);else if(route==="storage")$("wb-storage-list").innerHTML=wbRows(data.profiles,item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)} ${item.id===data.active?badge("Active","ready"):""}</h3><p>${escapeHtml(item.kind)} · ${escapeHtml(item.bucket)}</p></div><div class="card-actions"><button class="secondary" data-storage-test="${escapeHtml(item.id)}">Test with a temporary object</button><button data-storage-activate="${escapeHtml(item.id)}" ${item.id===data.active?"disabled":""}>Use for new files</button></div></article>`);else if(route==="controls"){renderControls(data);await refreshEffects();}}catch(error){wbError(error);}}
+async function refreshWorkbench(){if(view()!=="workbench")return;const area=location.hash.split("/")[1]||wb.area;wb.area=wb.areas.includes(area)?area:"memory";document.querySelectorAll("[data-wb-panel]").forEach(panel=>panel.hidden=panel.dataset.wbPanel!==wb.area);document.querySelectorAll(".workbench-tabs [data-wb-area]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.wbArea===wb.area)));$("wb-error").textContent="";wbAgentChoices();try{const route=wb.area==="transcription"?"transcriptions":wb.area;const query=route==="analytics"?`?hours=${$("wb-analytics-hours").value}`:"";const data=await api(`/api/workbench/${route}${query}`);if(wb.area!==area&&area)return;if(route==="readiness"){$("deployment-checks").innerHTML=data.items.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.detail)}</p></div>${badge(({needs_setup:"Needs setup",not_verified:"Not verified",checked:"Checked",configured:"Configured",failed:"Failed"})[item.status],item.status==="checked"?"ready":item.status==="failed"?"failed":"")}</article>`).join("");}else if(route==="memory"){wb.data.memory=data.items;renderMemory();const sources=await api("/api/workbench/memorysources");$("wb-memory-sources").innerHTML=wbRows(sources.items,source=>`<button class="secondary" data-memory-source="${escapeHtml(source.id)}">Browse ${escapeHtml(source.name)}</button>`,"No legacy source is mapped to your account.");}else if(route==="checkpoints")renderCheckpoints(data);else if(route==="agents")$("wb-peers-list").innerHTML=wbRows(data.peers,item=>`<article class="library-row"><div><h3>${escapeHtml(item.agent_id||item.name)}</h3><p>${escapeHtml(item.description)} · ${escapeHtml(item.provider||"peer provider")} · ${escapeHtml(new Date(item.last_seen*1000).toLocaleTimeString())}</p></div>${badge(item.state,item.state==="running"?"running":"")}</article>`,"No recent peer announcements. Saved agents above are available for delegation.");else if(route==="campaigns")renderCampaigns(data.items);else if(route==="analytics")renderAnalytics(data);else if(route==="transcriptions")renderTranscriptions(data.items);else if(route==="decisions"){renderDecisions(data.items);await refreshDecisionPresets();}else if(route==="storage")$("wb-storage-list").innerHTML=wbRows(data.profiles,item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)} ${item.id===data.active?badge("Active","ready"):""}</h3><p>${escapeHtml(item.kind)} · ${escapeHtml(item.bucket)}</p></div><div class="card-actions"><button class="secondary" data-storage-test="${escapeHtml(item.id)}">Test with a temporary object</button><button data-storage-activate="${escapeHtml(item.id)}" ${item.id===data.active?"disabled":""}>Use for new files</button></div></article>`);else if(route==="controls"){renderControls(data);await refreshEffects();}}catch(error){wbError(error);}}
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
  if(button.dataset.wbArea){const mapping={budgets:"controls"};openWorkbench(mapping[button.dataset.wbArea]||button.dataset.wbArea);}
  if(button.id==="wb-refresh")await refreshWorkbench();
@@ -78,7 +89,7 @@ document.addEventListener("submit",async event=>{const form=event.target;if(!for
  if(form.id==="wb-budget-preview"){const result=await api("/api/workbench/controls/preview",{text:data.text});$("wb-budget-result").textContent=`${result.original_chars} → ${result.final_chars} characters · summarized ${result.summarized} · truncated ${result.truncated}\n\n${result.text}`;}
 }catch(error){wbError(error);notify(error.message);}finally{if(button)button.disabled=false;}});
 window.addEventListener("hashchange",()=>{if(view()==="workbench")refreshWorkbench();});
-function initializeWorkbench(){newCampaign();addDecisionOption("research","Research and gather evidence");addDecisionOption("review","Check the proposed answer");wbAgentChoices();if(view()==="workbench")refreshWorkbench();}
+function initializeWorkbench(){newCampaign();addDecisionOption("research","Research and gather evidence");addDecisionOption("review","Check the proposed answer");wbAgentChoices();refreshDecisionPresets();if(view()==="workbench")refreshWorkbench();}
 if(state.ready)initializeWorkbench();else window.addEventListener("studio-ready",initializeWorkbench,{once:true});
 
 async function externalInputFields(){
@@ -123,3 +134,18 @@ async function remoteCallbackStatus(id){
  showDetail("Callback updates",`<p>Status: ${escapeHtml(status.status)}</p><p>Notifications trigger verified status reads. They never submit tasks or approve actions.</p>${status.expires_at?`<p>Expires: ${escapeHtml(new Date(status.expires_at*1000).toLocaleString())}</p>`:""}<button class="secondary" data-remote-callbacks="${escapeHtml(id)}">Refresh status</button>${status.enabled?`<button class="secondary" data-remote-callback-revoke="${escapeHtml(id)}">Revoke callback access</button>`:""}`);
 }
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{if(button.dataset.remoteCallbacks)await remoteCallbackStatus(button.dataset.remoteCallbacks);if(button.dataset.remoteCallbackRevoke){await api(`/api/studio/external-runs/${encodeURIComponent(button.dataset.remoteCallbackRevoke)}/callbacks/revoke`,{});await remoteCallbackStatus(button.dataset.remoteCallbackRevoke);}}catch(error){notify(error.message);}});
+document.addEventListener("change",event=>{
+  if(event.target.id==="wb-decision-preset"){
+    const chosen=decisionModels.find(m=>m.id===event.target.value);
+    if(chosen){
+      const form=$("wb-decision-form");
+      if(form){
+        if(form.elements.backend)form.elements.backend.value=chosen.data.backend;
+        if(form.elements.model)form.elements.model.value=chosen.data.model;
+      }
+    }
+  }
+});
+window.addEventListener("studio-resource-saved",event=>{
+  if(event.detail?.kind==="decisionmodels"&&typeof refreshDecisionPresets==="function")refreshDecisionPresets();
+});

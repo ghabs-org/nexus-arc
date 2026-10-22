@@ -19,6 +19,7 @@ KINDS = (
     "entrypoints",
     "models",
     "externalagents",
+    "decisionmodels",
 )
 
 
