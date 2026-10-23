@@ -12,7 +12,7 @@ security:
 paths:
   /message:send:
     post:
-      description: Accept SendMessageRequest directly, no JSON-RPC envelope. Stable messageId deduplicates across bindings. Structured workflow/provider results use data parts, explicit pinned output artifacts use inline raw bytes with filename/mediaType. Input attachments are never implicitly returned. Text output remains available. acceptedOutputModes is a bounded list of supported MIME types; it is a preference, not a filter. Existing owner-approved gates cannot be approved by bearer continuation. All inline inputs are validated before persistence; continuation contextId must match its task.
+      description: Accept SendMessageRequest directly, no JSON-RPC envelope. Stable messageId deduplicates across bindings. Text-only messages preserve joined text as workflow input without an entrypoint JSON wrapper. Structured input remains typed JSON. Structured workflow/provider results use data parts, explicit pinned output artifacts use inline raw bytes with filename/mediaType. Input attachments are never implicitly returned. Text output remains available. acceptedOutputModes is a bounded list of supported MIME types; it is a preference, not a filter. Existing owner-approved gates cannot be approved by bearer continuation. All inline inputs are validated before persistence; continuation contextId must match its task.
       responses:
         '200': {description: SendMessageResponse containing task}
         '400': {description: Invalid argument, unsupported mode/version or disabled push request}

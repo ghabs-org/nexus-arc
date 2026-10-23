@@ -6,10 +6,15 @@
   "activation": {
     "onStartup": true
   },
+  "contracts": {"tools": ["nexus_studio"]},
+  "toolMetadata": {"nexus_studio": {"optional": true}},
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
+      "studioUrl": {"type": "string", "minLength": 1},
+      "studioEntrypoint": {"type": "string", "minLength": 1},
+      "studioSecretEnv": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
       "bridgeUrl": {
         "type": "string",
         "minLength": 1
@@ -63,6 +68,9 @@
     }
   },
   "uiHints": {
+    "studioUrl": {"label": "Studio HTTPS or local URL"},
+    "studioEntrypoint": {"label": "Studio OpenClaw entrypoint ID"},
+    "studioSecretEnv": {"label": "Studio signing secret environment variable"},
     "bridgeUrl": {
       "label": "Nexus Bridge URL",
       "placeholder": "http://127.0.0.1:8091"

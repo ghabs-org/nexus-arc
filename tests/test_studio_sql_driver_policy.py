@@ -97,6 +97,16 @@ def test_each_dialect_reviews_writes_scopes_pools_and_recovers_errors(team, monk
         return engine
 
     monkeypatch.setattr(sa, "create_engine", create)
+    # This contract injects pools rather than loading a real database driver.
+    # Live driver/server acceptance remains a separate optional validation group.
+    from importlib.metadata import version
+
+    monkeypatch.setattr(
+        "nexus.core.studio_activation_setup.version",
+        lambda package: (
+            "synthetic-test-driver" if package in {"pymssql", "oracledb"} else version(package)
+        ),
+    )
     monkeypatch.setattr(
         sa,
         "inspect",

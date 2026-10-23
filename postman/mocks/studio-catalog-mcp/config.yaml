@@ -1,0 +1,10 @@
+version: 1
+name: Catalog MCP transport contract
+slug: studio-catalog-mcp
+protocol: http
+port: 49911
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

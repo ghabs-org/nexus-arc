@@ -1,0 +1,20 @@
+{
+  "name": "@nexus-arc/studio-desktop",
+  "version": "1.0.0",
+  "description": "Nexus Studio standalone desktop application shell (Tauri 2)",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "preflight": "python3 -m nexus.cli desktop preflight",
+    "package-sidecar": "python3 build_desktop.py --sidecar-only"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-single-instance": "^2.0.0"
+  }
+}

@@ -46,6 +46,7 @@ def validate_template(value):
             "nullable",
             "default",
             "description",
+            "context_path",
         }:
             raise ValueError("Invalid Nuclia template parameter")
         name = parameter.get("name")
@@ -60,6 +61,17 @@ def validate_template(value):
                 "Nuclia parameter names must be unique typed identifiers; query is reserved"
             )
         names.add(name)
+        if "context_path" in parameter:
+            path = parameter["context_path"]
+            if (
+                not isinstance(path, list)
+                or not 1 <= len(path) <= 8
+                or any(
+                    not isinstance(key, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", key)
+                    for key in path
+                )
+            ):
+                raise ValueError("Nuclia context path needs one to eight plain object keys")
         if any(type(parameter.get(key, False)) is not bool for key in ("required", "nullable")):
             raise ValueError("Nuclia parameter required/nullable flags must be boolean")
         if "description" in parameter and (
@@ -118,7 +130,7 @@ def validate_template(value):
     return copy.deepcopy(value)
 
 
-def prepare_arguments(template, arguments):
+def prepare_arguments(template, arguments, *, context=None):
     template = validate_template(template)
     supplied = arguments.get("parameters", {})
     definitions = {parameter["name"]: parameter for parameter in template.get("parameters", [])}
@@ -126,7 +138,20 @@ def prepare_arguments(template, arguments):
         raise ValueError("Supply only declared Nuclia runtime parameters")
     values = {"query": _text(arguments.get("query"), "Search query", 4000)}
     for name, parameter in definitions.items():
-        if name in supplied:
+        missing = object()
+        contextual = missing
+        if "context_path" in parameter:
+            if name in supplied:
+                raise ValueError("Runtime values cannot override server context: " + name)
+            contextual = context
+            for key in parameter["context_path"]:
+                if not isinstance(contextual, dict) or key not in contextual:
+                    contextual = missing
+                    break
+                contextual = contextual[key]
+        if contextual is not missing:
+            value = contextual
+        elif name in supplied:
             value = supplied[name]
         elif "default" in parameter:
             value = parameter["default"]

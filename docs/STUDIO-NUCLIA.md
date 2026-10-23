@@ -46,6 +46,13 @@ and response JSON stay unchanged.
 
 ## Evidence and output
 
+Citations can also refer to provider-augmented paragraphs or complete field text.
+Nexus saves exact cited text and its augmentation type in private revisions;
+uncited augmented text stays out of answers' evidence and evaluation datasets.
+Malformed or ambiguous augmented identities fail before publication. Conversation
+text evidence is supported; downloading conversation binary attachments remains
+a separate open catalog capability.
+
 A successful answer returns `output`, explicit `status`, `sources`,
 `provider_citations`, `artifacts` and `untrusted: true`. Nuclia's answer-span
 mapping is retained; Nexus does not invent or reinterpret those offsets.
@@ -119,6 +126,27 @@ publishing is excluded; native cited-only evaluation evidence is described below
 Live Nuclia generation quality, predicate behavior, account permissions,
 original-document access and billing remain unverified. Milestones 7 and 8 remain
 open.
+
+## Server-bound template context
+
+Template parameters may declare `context_path: ["workspace", "name"]` or
+`["identity", "nexus_id"]`. These values come from the selected server workspace
+and authenticated execution identity. They are omitted from the agent's tool
+parameter description. A caller cannot override them through `arguments.parameters`.
+Missing values follow the existing explicit default/required/nullable rules;
+wrong types fail before the HTTP request. Paths contain one to eight plain
+object keys, with no attribute access, function calls or executable expressions.
+
+The explicit template converter now maps plain dotted `context_expression`
+values to native paths. Other expression syntax is rejected. Applications can
+provide `connection_options.enterprise_options.context_resolver(identity,
+connector_id)` as a server callback for additional explicitly selected metadata.
+No files, environment variables, credential stores or arbitrary run state are
+included automatically. Do not place secrets in metadata selected for remote queries.
+There is no caller-supplied context argument on the HTTP/tool surface.
+
+Run `examples/nexus-bot/src/studio_nuclia_context.py` against the existing Nuclia
+simulation to verify actual forwarding and override rejection before networking.
 
 Sources:
 
@@ -229,7 +257,8 @@ The frozen Python model's default `nullable: true` is made explicit. Declared
 required/type/default values still pass the native validator. Named scalar
 `{name}` placeholders become `{{name}}`; escaped braces remain literal when
 unambiguous. Attribute/index lookups, format specifications, conversions,
-undeclared variables and ambiguous escaped braces fail. Context expressions,
+undeclared variables and ambiguous escaped braces fail. Plain dotted context
+expressions now become server-bound object-key paths; executable expressions,
 audit metadata, connection settings and all unknown fields fail rather than
 being discarded. Supply only the three template settings above, not an entire
 tool descriptor. No original provider defaults, credentials, account ID or
@@ -372,7 +401,7 @@ No schema/credential migration is required. New citations optionally retain a
 configuration digest, file-field identity and source selector. Older citations
 remain readable. The version-1 `source-originals` receipts use existing state,
 artifact, backup and authorization services. Public shell cache version is 40.
-Complete reference descriptor/context-expression mapping, augmented or conversation
-attachment originals, vendor ephemeral-link equivalence, historical original
+Complete reference descriptor mapping, conversation binary attachment originals,
+vendor ephemeral-link equivalence, historical original
 revisions and live Nuclia/VM acceptance remain open. Milestones 7 and 8 are not
 complete.

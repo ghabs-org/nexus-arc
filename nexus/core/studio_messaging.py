@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import time
 from urllib.parse import parse_qs
@@ -46,6 +47,16 @@ def validate_channel(data):
     ):
         raise ValueError("Choose the allowed incoming channel IDs")
     result = {"type": kind, "identity_map": mapping, "allowed_channels": channels}
+    if "operator_targets" in data:
+        targets = data["operator_targets"]
+        if (
+            kind != "openclaw" or not isinstance(targets, list) or len(targets) > 100
+            or any(not isinstance(target, str) or not re.fullmatch(
+                r"(?:agents|workflows):[A-Za-z0-9][A-Za-z0-9_-]{0,95}", target
+            ) for target in targets)
+        ):
+            raise ValueError("OpenClaw operator_targets must list up to 100 agent/workflow references")
+        result["operator_targets"] = list(dict.fromkeys(targets))
     for name in ("auto_reply", "approval_notifications"):
         result[name] = data.get(name, False)
         if type(result[name]) is not bool:
@@ -382,9 +393,21 @@ class StudioMessaging:
                         self.studio._write(self.studio._path("channel-events", event["id"]), latest)
 
     def notify(self, event, data, run):
-        waiting = run["status"] == "waiting" and run.get("awaiting_approval")
+        operator = event.get("openclaw_operator", False)
+        waiting = run["status"] == "waiting" and (
+            run.get("awaiting_approval") or operator and run.get("awaiting_input")
+        )
         if not data["approval_notifications" if waiting else "auto_reply"]:
             return
+        if operator:
+            current = self.studio.catalog.get("entrypoints", event["entrypoint_id"])["data"]
+            if (current != data or not current["enabled"]
+                    or current["identity_map"].get(event["sender"]) != (event["requester_nexus_id"] or "desktop")
+                    or event["channel"] not in current["allowed_channels"]):
+                raise PermissionError("OpenClaw notification mapping changed")
+            self.studio.openclaw.bound_run(run["id"], {
+                key: event[key] for key in ("entrypoint_id", "sender", "channel", "requester_nexus_id")
+            }, current)
         connection = self.studio.catalog.get("connectors", data["notification_connector_id"])[
             "data"
         ]
@@ -393,7 +416,7 @@ class StudioMessaging:
                 "Notification connection must match the verified incoming channel"
             )
         buttons = []
-        if waiting:
+        if waiting and not operator:
             for decision in ("approve", "reject"):
                 token = secrets.token_hex(16)
                 self.studio._write(
@@ -413,9 +436,12 @@ class StudioMessaging:
                 buttons.append({"label": decision.title(), "callback_data": "nexus:" + token})
         text = (
             ("Approval requested: " + ", ".join(gate["name"] for gate in run["awaiting_approval"]))
-            if waiting
+            if waiting and not operator
             else (run.get("output") or f"Run {run['status']}")
         )
+        if operator:
+            text = f"Studio run {run['id']}: {run['status']}\n" + str(run.get("output") or "")[:12000]
+            text += f"\nInspect results or pending gates: /nexus studio status {run['id']}"
         asyncio.run(
             self.studio.connections.execute(
                 data["notification_connector_id"],

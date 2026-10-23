@@ -199,6 +199,9 @@ class StudioService:
         from nexus.core.studio_messaging import StudioMessaging
 
         self.messaging = StudioMessaging(self)
+        from nexus.core.studio_openclaw import StudioOpenClaw
+
+        self.openclaw = StudioOpenClaw(self)
         from nexus.core.studio_versions import StudioVersions
 
         self.versions = StudioVersions(self)

@@ -283,7 +283,8 @@ def validate_powerbi_response(value, dataset_id, action):
 
 
 class StudioEnterprise:
-    def __init__(self, studio, client_factories=None, request_client=None):
+    def __init__(self, studio, client_factories=None, request_client=None, context_resolver=None):
+        self.context_resolver = context_resolver
         self.studio = studio
         self.factories = client_factories or {}
         self.request_client = request_client
@@ -707,7 +708,20 @@ class StudioEnterprise:
                 + data["knowledge_box"]
                 + ("/ask" if action == "ask" else "/find")
             )
-            body = request_body(action, arguments, data.get("template"))
+            context = None
+            if any(
+                "context_path" in parameter
+                for parameter in data.get("template", {}).get("parameters", [])
+            ):
+                context = (
+                    self.context_resolver(identity, connector_id)
+                    if self.context_resolver
+                    else {
+                        "identity": {"nexus_id": identity},
+                        "workspace": {"name": self.studio.root.name},
+                    }
+                )
+            body = request_body(action, arguments, data.get("template"), context=context)
             if action == "ask":
                 headers["X-Synchronous"] = "true"
             method = "POST"

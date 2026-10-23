@@ -1,3 +1,6 @@
+import {handleStudioCommand, registerStudioTool, studioConfigProperties} from "./studio.ts";
+import type {StudioContext, StudioToolApi} from "./studio.ts";
+
 const PLUGIN_ID = "nexus-arc";
 const PLUGIN_VERSION = "0.2.0";
 const DEFAULT_BRIDGE_URL = "http://127.0.0.1:8091";
@@ -16,7 +19,7 @@ type PluginConfig = {
     acceptedPollAttempts?: number;
 };
 
-type CommandHandlerContext = {
+type CommandHandlerContext = StudioContext & {
     senderId?: string;
     senderName?: string;
     channel?: string;
@@ -34,7 +37,7 @@ type CommandResponse = {
     text: string;
 };
 
-type RegisterCommandApi = {
+type RegisterCommandApi = StudioToolApi & {
     registerCommand: (command: {
         name: string;
         description: string;
@@ -1245,6 +1248,8 @@ async function maybePollAcceptedWorkflow(
 }
 
 async function handleNexusCommand(ctx: CommandHandlerContext): Promise<CommandResponse> {
+    const studio = (ctx.args || "").trim().match(/^studio(?:\s+([\s\S]*))?$/);
+    if (studio) return handleStudioCommand(ctx, studio[1] || "");
     const config = resolvePluginConfig(ctx);
     maybeWarnConfig(config);
     const capabilities = await getBridgeCapabilities(config);
@@ -1509,6 +1514,7 @@ const plugin = {
         type: "object",
         additionalProperties: false,
         properties: {
+            ...studioConfigProperties,
             bridgeUrl: {type: "string"},
             authToken: {type: "string"},
             timeoutMs: {type: "integer"},
@@ -1526,6 +1532,7 @@ const plugin = {
         }
     },
     register(api: RegisterCommandApi): void {
+        registerStudioTool(api);
         api.registerCommand({
             name: "nexus",
             description: "Forward commands to the Nexus ARC command bridge",

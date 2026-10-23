@@ -63,6 +63,24 @@ def run_example(image=None, context=None):
                 data_tool_options={"profiles": workers},
             )
         ) as studio:
+            # Disabled drafts need no optional executable. Explicit enabling
+            # shares passive prerequisite checks with reviewed build activation.
+            connection = studio.recipes.configure(
+                "filesystem", {"command": str(studio.root / "not-installed-mcp")}, None
+            )
+            try:
+                studio.catalog.save(
+                    "connectors",
+                    {
+                        **connection,
+                        "data": {**connection["data"], "enabled": True},
+                    },
+                )
+            except ValueError as error:
+                assert "setup required" in str(error)
+            else:
+                raise AssertionError("Missing filesystem executable was enabled")
+            assert not studio.catalog.get("connectors", connection["id"])["data"]["enabled"]
             run = studio.start_run(
                 {"kind": "build", "task": "Create a reviewable local analysis workflow"}
             )

@@ -1,5 +1,19 @@
 # Nuclia opt-in generation contract
 
+Server-bound template parameters can declare `context_path` as one to eight plain
+object keys. The server supplies selected workspace/identity metadata; runtime
+arguments cannot override it. The converter accepts only plain dotted context
+expressions. Such parameters are omitted from the agent parameter description.
+Missing/invalid required values reject before HTTP. No automatic file, credential
+or environment metadata is included.
+
+Ask responses may cite validated `augmented_context.paragraphs` or `.fields`.
+Each cited text block becomes a private revision with exact text, provider page,
+SHA-256 and augmentation type. Unknown/missing identities, conflicting duplicate
+sources and malformed blocks reject before artifact publication. Only cited text
+enters evaluation context. Conversation/field text evidence does not imply that
+its remote binary attachments have been downloaded.
+
 Existing connector fields and default `query` permissions stay unchanged.
 `ask` is a newly selected read action using the same configured knowledge box
 and identity-scoped credential reference. It is never enabled by catalog browsing.

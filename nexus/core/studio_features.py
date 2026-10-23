@@ -195,6 +195,20 @@ class StudioFeatures:
                 if key not in {"requester_nexus_id", "_role"}
             }
             return 200, studio.configuration.export_interop(request, actor)
+        if parts == ["configuration", "manifest", "convert"]:
+            request = {
+                key: value
+                for key, value in data.items()
+                if key not in {"requester_nexus_id", "_role"}
+            }
+            return 200, studio.configuration.convert_manifest(request, actor)
+        if parts == ["configuration", "manifest", "export"]:
+            request = {
+                key: value
+                for key, value in data.items()
+                if key not in {"requester_nexus_id", "_role"}
+            }
+            return 200, studio.configuration.export_manifest(request, actor)
         if parts == ["configuration", "validate"]:
             return 200, studio.configuration.validate(data.get("document"), actor)
         if parts == ["configuration", "plan"]:

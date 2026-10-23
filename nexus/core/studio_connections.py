@@ -221,6 +221,22 @@ class StudioConnections:
         self.enterprise.close()
         self.mcp_sessions.close()
 
+    def assert_local_setup(self, identity, data):
+        """Check direct enable operations using the same passive build prerequisites.
+
+        Disabled drafts stay editable without optional dependencies. This check
+        never resolves accounts, imports SDKs, starts workers or installs software.
+        Remote entitlement and credentials remain execution-time checks.
+        """
+        if not data.get("enabled"):
+            return
+        from nexus.core.studio_activation_setup import local_prerequisites
+
+        result = local_prerequisites(self.studio, "connectors:" + identity, {"data": data})
+        issues = list(result["issues"])
+        if issues:
+            raise ValueError("Connection setup required before enabling: " + ", ".join(issues))
+
     def credentials(self, data, identity):
         if self.studio.team:
             self.studio.team.assert_execution(identity)

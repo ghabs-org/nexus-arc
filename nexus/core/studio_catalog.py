@@ -161,6 +161,8 @@ class StudioCatalog:
             supplied = payload.get("revision", 0)
             if type(supplied) is not int or supplied != revision:
                 raise ValueError("Resource changed. Reopen its latest revision before saving.")
+            if kind == "connectors":
+                self.studio.connections.assert_local_setup(identity, data)
             now = datetime.now(UTC).isoformat()
             record = {
                 "id": identity,
@@ -197,6 +199,8 @@ class StudioCatalog:
             archived = payload.get("archived", True)
             if type(archived) is not bool:
                 raise ValueError("Archived must be true or false")
+            if kind == "connectors" and not archived:
+                self.studio.connections.assert_local_setup(identity, record["data"])
             self.studio._write(
                 self.studio._path(f"catalog-history/{kind}/{identity}", str(record["revision"])),
                 record,

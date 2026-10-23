@@ -642,6 +642,30 @@ def make_studio_handler(service: StudioService, token: str):
                 return self.handle_a2a(route)
             if route.startswith("/api/mcp/"):
                 return self.handle_mcp(route)
+            if len(parts) == 3 and parts[:2] == ["api", "openclaw"]:
+                from nexus.core.studio_openclaw import OpenClawConflictError
+
+                if self.headers.get("Origin"):
+                    return self.send_payload(403, {"error": "Browser origins are not supported"})
+                if self.headers.get_content_type() != "application/json":
+                    return self.send_payload(415, {"error": "Expected JSON"})
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= _MAX_BODY:
+                        return self.send_payload(413, {"error": "Request exceeds one MiB"})
+                    return self.send_payload(200, service.openclaw.receive(
+                        parts[2], dict(self.headers), self.rfile.read(length)
+                    ))
+                except OpenClawConflictError as exc:
+                    return self.send_payload(409, {"error": str(exc)})
+                except PermissionError:
+                    return self.send_payload(403, {"error": "OpenClaw access denied; check current mappings and permissions"})
+                except FileNotFoundError:
+                    return self.send_payload(404, {"error": "OpenClaw resource not found"})
+                except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+                    return self.send_payload(400, {"error": "Invalid OpenClaw request; inspect its target, arguments and current run"})
+                except Exception:
+                    return self.send_payload(500, {"error": "OpenClaw request outcome uncertain; inspect Studio before retrying"})
             if len(parts) == 3 and parts[:2] == ["api", "a2a-callbacks"]:
                 try:
                     if self.headers.get_content_type() != "application/json":

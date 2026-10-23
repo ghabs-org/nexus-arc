@@ -11,6 +11,15 @@ from nexus.adapters.git import GitHubPlatform
 
 # Adapter exports
 from nexus.adapters.storage import FileStorage
+from nexus.core.agent_mesh import (
+    AgentMesh,
+    AgentMeshEnvelope,
+    AgentMeshError,
+    AgentMeshTopic,
+    MeshTimeoutError,
+    NoCapablePeerError,
+    RoutingStrategy,
+)
 from nexus.core.completion import (
     CompletionSummary,
     DetectedCompletion,
@@ -49,6 +58,14 @@ def __getattr__(name):
 __all__ = [
     # Version
     "__version__",
+    # Agent Mesh
+    "AgentMesh",
+    "AgentMeshEnvelope",
+    "AgentMeshTopic",
+    "RoutingStrategy",
+    "AgentMeshError",
+    "NoCapablePeerError",
+    "MeshTimeoutError",
     # Core
     "WorkflowEngine",
     "WorkflowDefinition",

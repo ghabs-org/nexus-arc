@@ -13,6 +13,93 @@ from tests.test_studio_team import team as team
 IMAGE = "sha256:" + "a" * 64
 
 
+def test_reviewed_build_and_direct_enable_share_mcp_executable_readiness(tmp_path, monkeypatch):
+    studio = StudioService(tmp_path)
+    try:
+        record = studio.recipes.configure("filesystem", {"command": "/missing/fs-server"}, None)
+        result = local_prerequisites(studio, "connectors:" + record["id"], record)
+        assert "mcp_executable_missing" in result["issues"]
+        assert {"name": "MCP server executable", "status": "missing"} in result["checks"]
+        monkeypatch.setattr("nexus.core.studio_activation_setup.shutil.which", lambda _: "/fixture/installed-fs")
+        changed = local_prerequisites(studio, "connectors:" + record["id"], record)
+        assert "mcp_executable_missing" not in changed["issues"]
+        assert changed["fingerprint"] != result["fingerprint"]
+        assert not studio.records("runs")
+    finally:
+        studio.close()
+
+
+def test_direct_connector_enable_checks_software_before_writing(tmp_path, monkeypatch):
+    studio = StudioService(tmp_path)
+    try:
+        draft = studio.recipes.configure("filesystem", {"command": "/missing/fs-server"}, None)
+        before = studio.catalog.get("connectors", draft["id"])
+        monkeypatch.setattr("shutil.which", lambda *args, **kwargs: None)
+        with pytest.raises(ValueError, match="mcp_executable_missing"):
+            studio.catalog.save("connectors", {**draft, "data": {**draft["data"], "enabled": True}})
+        assert studio.catalog.get("connectors", draft["id"]) == before
+        assert not studio.catalog.history("connectors", draft["id"])
+        assert not studio.records("runs")
+    finally:
+        studio.close()
+
+
+def test_direct_connector_enable_reuses_dependency_metadata_without_import_or_network(
+    tmp_path, monkeypatch
+):
+    studio = StudioService(tmp_path)
+    try:
+        record = studio.recipes.configure("tavily", {}, None)
+
+        def missing(_):
+            raise PackageNotFoundError("mcp")
+
+        monkeypatch.setattr("nexus.core.studio_activation_setup.version", missing)
+        with pytest.raises(ValueError, match="optional_dependency_missing:mcp"):
+            studio.catalog.save(
+                "connectors", {**record, "data": {**record["data"], "enabled": True}}
+            )
+        assert studio.catalog.get("connectors", record["id"]) == record
+        monkeypatch.setattr("nexus.core.studio_activation_setup.version", lambda _: "2.3.0")
+        saved = studio.catalog.save(
+            "connectors", {**record, "data": {**record["data"], "enabled": True}}
+        )
+        assert saved["data"]["enabled"] and saved["revision"] == record["revision"] + 1
+    finally:
+        studio.close()
+
+
+def test_unarchive_cannot_bypass_setup_and_disabled_drafts_remain_editable(tmp_path, monkeypatch):
+    studio = StudioService(tmp_path)
+    try:
+        monkeypatch.setattr("nexus.core.studio_activation_setup.version", lambda _: "2.3.0")
+        record = studio.recipes.configure("tavily", {}, None)
+        record = studio.catalog.save(
+            "connectors", {**record, "data": {**record["data"], "enabled": True}}
+        )
+        record = studio.catalog.archive(
+            "connectors", record["id"], {"revision": record["revision"]}
+        )
+        history = studio.catalog.history("connectors", record["id"])
+
+        def missing(_):
+            raise PackageNotFoundError("mcp")
+
+        monkeypatch.setattr("nexus.core.studio_activation_setup.version", missing)
+        with pytest.raises(ValueError, match="setup required"):
+            studio.catalog.archive(
+                "connectors", record["id"], {"revision": record["revision"], "archived": False}
+            )
+        assert studio.catalog.get("connectors", record["id"], archived=True) == record
+        assert studio.catalog.history("connectors", record["id"]) == history
+        saved = studio.catalog.save(
+            "connectors", {**record, "data": {**record["data"], "enabled": False}}
+        )
+        assert not saved["archived"] and not saved["data"]["enabled"]
+    finally:
+        studio.close()
+
+
 def worker_build(studio, action="python"):
     name = next(n for n in studio.data_tools.names if n.endswith(":" + action))
     document = proposal()

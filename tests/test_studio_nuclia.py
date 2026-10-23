@@ -39,6 +39,66 @@ def response():
 
 
 @pytest.mark.parametrize(
+    "collection,identity,kind",
+    [
+        ("paragraphs", "r/f/file/12-24", "neighbouring_paragraphs"),
+        ("fields", "r/c/discussion", "conversation"),
+    ],
+)
+def test_augmented_citations_keep_exact_text_and_provenance(collection, identity, kind):
+    value = response()
+    value["citations"] = {identity: [[0, 12]]}
+    value["augmented_context"] = {
+        collection: {
+            identity: {
+                "id": identity,
+                "text": "Additional cited evidence.",
+                "position": {"page_number": 7},
+                "augmentation_type": kind,
+            }
+        }
+    }
+    parsed = answer_sources(value)
+    assert len(parsed["sources"]) == 1
+    source = parsed["sources"][0]
+    assert source["text"] == "Additional cited evidence."
+    assert source["augmentation_type"] == kind and source["original_page"] == 7
+    assert source["field_id"] == "/".join(identity.split("/")[1:3])
+    from nexus.core.studio_retrieval_evidence import evidence_document
+
+    evidence = evidence_document(parsed, "Policy?", "knowledge", "run")
+    assert evidence["contexts"] == [source["text"]]
+    assert evidence["context_scope"] == "cited-text-blocks-only"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"id": "different"},
+        {"position": {"page_number": -1}},
+        {"augmentation_type": "unknown"},
+        {"text": ""},
+    ],
+)
+def test_malformed_augmented_citations_fail_before_publication(change):
+    value = response()
+    identity = "r/f/file/12-24"
+    value["citations"] = {identity: [[0, 12]]}
+    value["augmented_context"] = {
+        "paragraphs": {
+            identity: {
+                "id": identity,
+                "text": "Cited text",
+                "augmentation_type": "neighbouring_paragraphs",
+                **change,
+            }
+        }
+    }
+    with pytest.raises(ValueError):
+        answer_sources(value)
+
+
+@pytest.mark.parametrize(
     "change",
     [
         {"top_k": True},

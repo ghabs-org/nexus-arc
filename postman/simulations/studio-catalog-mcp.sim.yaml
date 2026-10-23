@@ -1,0 +1,5 @@
+simulation: studio-catalog-mcp
+routing: path
+mocks:
+  - routeKey: mcp
+    path: ../mocks/studio-catalog-mcp/config.yaml

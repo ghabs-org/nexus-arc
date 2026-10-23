@@ -79,3 +79,18 @@ suite. Set `NEXUS_ACCEPTANCE_WORKER_IMAGE`, `NEXUS_ACCEPTANCE_VISION_IMAGE`,
 and contain Python without Plotly/Kaleido/Chromium. The suite fails on absent
 prerequisites rather than silently skipping them. It checks all seven worker tool
 profiles, missing-image/software rejection and the actual example consumer.
+# Direct connector configuration
+
+Direct saves and unarchive operations now check required local SDK/driver
+metadata before enabling. Stdio MCP also requires an executable already present
+on the server. Failed checks preserve the current revision and history. Disabled
+drafts remain editable without optional software. No installation, credential
+resolution, remote account probe or worker launch occurs during these checks.
+The existing reviewed-build activation path retains its stronger worker probes.
+
+No record migration is required. Existing active records remain readable. An
+edit that keeps a connection enabled must satisfy local prerequisites; disabling
+it remains possible even after an optional dependency is removed.
+Pending stdio MCP activation plans require fresh review because their setup
+fingerprint now includes executable availability. Completed transition receipts
+retain their existing replay behavior.

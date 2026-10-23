@@ -35,11 +35,21 @@ def evidence_document(result, question, connector_id, run_id):
         "sources": [
             {
                 key: source[key]
-                for key in ("resource_id", "field_id", "paragraph_id", "sha256", "original_page")
+                for key in (
+                    "resource_id",
+                    "field_id",
+                    "paragraph_id",
+                    "sha256",
+                    "original_page",
+                    "augmentation_type",
+                )
+                if key in source
             }
             for source in result["sources"]
         ],
-        "context_scope": "cited-paragraphs-only",
+        "context_scope": "cited-text-blocks-only"
+        if any("augmentation_type" in source for source in result["sources"])
+        else "cited-paragraphs-only",
     }
     if len(json.dumps(document, ensure_ascii=False).encode()) > 160000:
         raise ValueError("Retrieval evidence exceeds 160000 bytes; narrow the retrieval")

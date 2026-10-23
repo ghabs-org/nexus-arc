@@ -1,0 +1,207 @@
+{
+  "format": "nexus-studio-closure-checkpoint/v1",
+  "date": "2026-10-24",
+  "whole_plan_complete": false,
+  "scope": "Completion-claim reconciliation and native setup/context/citation/protocol fixes; desktop remains last.",
+  "implemented": [
+    "Direct enable and unarchive use passive shared software prerequisites before changing records/history; disabled drafts remain editable.",
+    "Stdio MCP executable availability is checked and fingerprinted in reviewed activation and direct configuration.",
+    "Tavily Streamable HTTP, Bright Data SSE and Zapier SSE recipes invoke actual SDK clients against local independent protocol fixtures with synthetic authentication and no action replay.",
+    "Nuclia plain dotted context expressions become typed server-bound paths; caller overrides are rejected and server parameters are hidden from agent descriptions.",
+    "Nuclia augmented paragraph/field citations preserve exact private source revisions, pages, augmentation provenance and cited-only evaluation context.",
+    "Text-only A2A messages preserve text workflow input; typed JSON parts remain typed.",
+    "Milestone 8 local integration runs an actual experiment/tool-backed chat, inspects generated traces and stops writers before backup.",
+    "False aggregate completion labels were withdrawn; a read-only consistency audit rejects contradictory totals or premature completion claims."
+  ],
+  "validation": {
+    "studio_regressions": {
+      "tests": 1847,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 1847,
+      "report": "/private/tmp/nexus-studio-final-closure-regressions.xml"
+    },
+    "affected_transport_and_context": {
+      "tests": 259,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 259,
+      "report": "/private/tmp/nexus-closure-final-focused.xml"
+    },
+    "final_shared_readiness_and_integration": {
+      "tests": 85,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 85,
+      "report": "/private/tmp/nexus-closure-final-readiness.xml"
+    },
+    "frontend_logic": {
+      "passed": 143,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-studio-closure-node.log"
+    },
+    "postman_simulations": {
+      "mcp": {
+        "log": "/private/tmp/nexus-catalog-mcp-simulation.ndjson",
+        "response_status_counts": {
+          "200": 72,
+          "202": 138
+        }
+      },
+      "nuclia": {
+        "log": "/private/tmp/nexus-nuclia-context-simulation.ndjson",
+        "response_status_counts": {
+          "200": 12
+        }
+      }
+    },
+    "examples": [
+      "A2A HTTP+JSON/JSON-RPC with SQLite: one task, output 3, completed cancellation rejected.",
+      "Activation setup: missing local worker/executable blocks activation without dispatching actions.",
+      "Catalog helper: SDK/toolset wheel/report-template configuration/packaging scenario passed."
+    ],
+    "completion_consistency": "passed; --require-complete intentionally exits 1 while recorded gates remain open",
+    "scope_note": "Suites overlap; do not sum counts as unique tests. Full Studio run preceded final shared executable-check extraction; the 85-test final group exercises that extraction and milestone 8 cleanup. Frontend tests are logic fixtures, not real-device/browser proof.",
+    "unrelated_existing_lint": "nexus/core/studio_operations.py:83 B904 is unchanged; affected runtime/new-test lint and diff whitespace checks pass."
+  },
+  "inventory": {
+    "format": "nexus-studio-completion-audit/v1",
+    "scope": "Recorded-claim consistency only; this command does not run acceptance tests or certify runtime behavior.",
+    "total": 135,
+    "accepted": 98,
+    "open": 37,
+    "open_ids": [
+      "M07-EXIT",
+      "M08-01",
+      "M08-02",
+      "M08-08",
+      "M08-EXIT",
+      "BASE-01",
+      "BASE-02",
+      "BASE-03",
+      "BASE-04",
+      "BASE-05",
+      "DEFAULT-01",
+      "DEFAULT-02",
+      "DEFAULT-03",
+      "DEFAULT-04",
+      "DEFAULT-05",
+      "ARCH-01",
+      "ARCH-02",
+      "ARCH-03",
+      "ARCH-04",
+      "ARCH-05",
+      "ARCH-06",
+      "ARCH-07",
+      "ARCH-08",
+      "ARCH-09",
+      "TEST-01",
+      "TEST-02",
+      "TEST-03",
+      "TEST-04",
+      "TEST-05",
+      "TEST-06",
+      "TEST-07",
+      "TEST-08",
+      "DELIVERY-01",
+      "DELIVERY-02",
+      "DELIVERY-03",
+      "DELIVERY-04",
+      "CAT-01-reference-nuclia-tool"
+    ],
+    "milestones": {
+      "1": {
+        "accepted": 6,
+        "total": 6
+      },
+      "2": {
+        "accepted": 8,
+        "total": 8
+      },
+      "3": {
+        "accepted": 8,
+        "total": 8
+      },
+      "4": {
+        "accepted": 7,
+        "total": 7
+      },
+      "5": {
+        "accepted": 10,
+        "total": 10
+      },
+      "6": {
+        "accepted": 9,
+        "total": 9
+      },
+      "7": {
+        "accepted": 9,
+        "total": 10
+      },
+      "8": {
+        "accepted": 5,
+        "total": 9
+      }
+    },
+    "checkpoints_complete": {
+      "7": false,
+      "8": false,
+      "9": false,
+      "10": true,
+      "11": false,
+      "12": false
+    },
+    "plan_complete": false,
+    "inconsistencies": []
+  },
+  "remaining_implementation": [
+    "Complete Nuclia descriptor/configuration adaptation and conversation binary original attachments; reconcile frozen document/evaluation equivalence.",
+    "Interactive input/approval continuation for named experiments remains an added-scope integration gap.",
+    "Provider-aware object backup and SQL-to-SQL restore remain open; existing stopped-workspace logical restore stays inactive and file-based.",
+    "Finish cross-cutting schema, isolation, recovery, clean-install and delivery evidence; no blanket acceptance promotions.",
+    "Desktop startup/session/ownership integration, bundled Python, native features, updates and clean per-OS installers remain unimplemented or unverified. Keep milestone 9 last."
+  ],
+  "validation_pending": [
+    "Personal HTTPS VM endpoint is unavailable: install/TLS/auth/upgrade/full restore drill not run.",
+    "Physical phone/tablet microphone, touch, accessibility and playback checks not run.",
+    "Real local voice models and selected external account/service quality, permissions and billing checks not certified.",
+    "Live database-family, remote object-store and desktop platform installation checks remain separate from injected contract fixtures."
+  ],
+  "migration": "No bulk state rewrite. Existing templates and text/structured task contracts stay readable. Optional native context_path parameters extend template v1. Pending stdio MCP activation plans require fresh setup review; completed transition receipts retain replay behavior.",
+  "source_sha256": {
+    "nexus/core/studio_activation_setup.py": "3c095c59c6ba5d1cd189bc4b721a9b4488377d876cbbabe98cac09bf4416d9ad",
+    "nexus/core/studio_connections.py": "54ac91696c662f145003bc31e956bad69e40545ca265485534c6e6eb425ac082",
+    "nexus/core/studio_catalog.py": "e9d7a88883db410048c4352f4dca3bc41dafe6b82cfc9b4a30d7c63c9d6de9bc",
+    "nexus/core/studio_a2a_server.py": "5cac0fb33caad29b2657d1e55ca0cef8c3a43ebb13e1720bd6bef11d812b0472",
+    "nexus/core/studio_enterprise.py": "52b867ea82f3a8fb6f8076995a39c4014c222a23ce31e7735e82d1c64861fe5c",
+    "nexus/core/studio_nuclia.py": "abde43b0b78694ded060b7b98a7234b3244edf976b7afd03702fece739c14206",
+    "nexus/core/studio_nuclia_templates.py": "110ee331ed618e696b42e9f705ce120d5750855efb3e7db579f915fdada2e5b9",
+    "nexus/core/studio_nuclia_interop.py": "e449bccdd046cde28d28f566fb41065c19cad3c9cb37156145d33f256e2dd50c",
+    "nexus/core/studio_retrieval_evidence.py": "bdd6770ecc11884fbd64e68997c938d17d793a793f65534659cf13f14d3421af",
+    "nexus/core/studio_operations.py": "42d153992c20c62dbf4aea0750998cf2e2ae2c4428559a993ae7e185e44a1242",
+    "tests/studio_catalog_mcp_acceptance.py": "d4c740cbe8e9b6ca284bdfd638bc19986f2a99a9897d3a0507a867de3fa7f9c3",
+    "tests/studio_nuclia_context_acceptance.py": "2d052274d32dd043cc976a8493357d42cf493c6322c569e9c36feb55c017b7cf",
+    "tests/studio_m8_exit_acceptance.py": "e963e25786d2dc2c0e673ec91fb7cc8b50a0a8ae581591da2f2ae37f8640f149",
+    "tests/studio_completion_audit.py": "d2d841e0c2614ea08307860afe35586c4d69ed4de2d51af20c1608dac357078f",
+    "tests/test_studio_completion_audit.py": "fbbb5523035653b5757d26e75e265de9bc60d838f85a4f0b2486e3dcc649a027",
+    "examples/nexus-bot/src/studio_nuclia_context.py": "47f2b9c625b2652d9184746ecfd844366e1c402a380bb94b7848c9983c960a64",
+    "examples/nexus-bot/src/studio_activation_setup.py": "6bc0810d6dc30a5dc9739c146eb0d578ea282c4e14a983ada9edf7c001ed373a",
+    "postman/mocks/studio-catalog-mcp/default.js": "5693f6dc22185603052faefe5837c44e3c37dbb6ab93678f7db1fe5712cd73e7",
+    "postman/mocks/studio-nuclia/default.js": "b600d2fc61fd2de69e490f0cbeab46d67e422548342fe8e692e3a27ebf16579a",
+    "tests/test_studio_activation_setup.py": "09d9de87448f9e40ba97005cb390ff540cd2d7e804d80ae0247990bd8b84b3bb",
+    "tests/test_studio_nuclia_templates.py": "493103047dff47d485476800c676a59d38885a206216bf876b69e022c3bc0d90",
+    "tests/test_studio_nuclia.py": "9298532f2fc54f9326dbdaba8e686f1a5ee1fb69664b37fc4b78b69ced548005",
+    "tests/test_studio_sql_driver_policy.py": "3cc7b16d54ffb818a0c176638e3ad98de4488e5e1c7e283ae41f3f1f24adb809",
+    "tests/test_studio_connections.py": "7e49942fce5b37605e9e4af861e0ceb2f6fb5457750f5f5c18e0aa02d0affe54"
+  },
+  "temporary_services_stopped": {
+    "mcp_port_49911": true,
+    "nuclia_port_49912": true
+  },
+  "user_studio_restarted": false,
+  "real_account_requests_performed": false
+}

@@ -77,6 +77,16 @@ class StudioConfiguration:
 
         return StudioPortableConfiguration(self).export(data, actor)
 
+    def convert_manifest(self, data, actor):
+        from nexus.core.studio_manifest import StudioManifestTranslator
+
+        return StudioManifestTranslator(self).convert(data, actor)
+
+    def export_manifest(self, data, actor):
+        from nexus.core.studio_manifest import StudioManifestTranslator
+
+        return StudioManifestTranslator(self).export(data, actor)
+
     def normalize(self, document):
         if (
             not isinstance(document, dict)

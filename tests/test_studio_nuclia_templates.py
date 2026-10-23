@@ -8,6 +8,125 @@ from nexus.core.studio import StudioService
 from nexus.core.studio_enterprise import validate_enterprise
 from nexus.core.studio_nuclia import request_body
 from nexus.core.studio_nuclia_templates import prepare_arguments, validate_template
+from tests.test_studio_team import team as team
+
+
+def test_context_uses_current_identity_and_never_advertises_server_parameters(team):
+    import asyncio
+
+    from nexus.tools import tool_registry
+
+    studio, _, manager, _, _ = team
+    bodies = []
+    studio.connections.enterprise.request_client = lambda method, url, headers, body: (
+        bodies.append(body) or {"query": body["query"]}
+    )
+    saved = studio.catalog.save(
+        "connectors",
+        {
+            "name": "Identity knowledge",
+            "data": {
+                "type": "nuclia",
+                "url": "https://example.org",
+                "knowledge_box": "selected",
+                "token_env": "OPENAI_API_KEY",
+                "actions": ["query"],
+                "enabled": True,
+                "template": {
+                    "version": 1,
+                    "parameters": [
+                        {
+                            "name": "server_user",
+                            "type": "string",
+                            "required": True,
+                            "context_path": ["identity", "nexus_id"],
+                        }
+                    ],
+                    "query_prompt": "{{server_user}}: {{query}}",
+                },
+            },
+        },
+    )
+    name = next(name for name in studio.operations.tools if name.endswith(":" + saved["id"]))
+    assert "server_user" not in tool_registry.get(name).description
+    assert "context_path" not in tool_registry.get(name).description
+    for identity in ("alice", "bob"):
+        result = asyncio.run(
+            studio.connections.execute(
+                saved["id"],
+                {
+                    "action": "query",
+                    "arguments": {"query": "Policy?"},
+                },
+                identity,
+            )
+        )
+        assert result["query"] == identity + ": Policy?"
+    manager.revoked.add("alice")
+    with pytest.raises(PermissionError):
+        asyncio.run(
+            studio.connections.execute(
+                saved["id"],
+                {
+                    "action": "query",
+                    "arguments": {"query": "Policy?"},
+                },
+                "alice",
+            )
+        )
+    assert len(bodies) == 2
+
+
+def test_server_context_parameters_are_typed_not_overridable_and_never_evaluated():
+    from nexus.core.studio_nuclia_interop import POLICY, convert_template_settings
+
+    config = convert_template_settings(
+        {
+            "template_parameters": [
+                {"name": "user", "required": True, "context_expression": "identity.nexus_id"}
+            ],
+            "prompt_rephrasing": {"template": "User {user}: {query}"},
+        },
+        policy=POLICY,
+    )["template"]
+    assert config["parameters"][0]["context_path"] == ["identity", "nexus_id"]
+    assert (
+        request_body(
+            "ask", {"query": "Policy?"}, config, context={"identity": {"nexus_id": "alice"}}
+        )["query"]
+        == "User alice: Policy?"
+    )
+    with pytest.raises(ValueError, match="override server context"):
+        request_body(
+            "ask",
+            {"query": "Policy?", "parameters": {"user": "bob"}},
+            config,
+            context={"identity": {"nexus_id": "alice"}},
+        )
+    with pytest.raises(ValueError, match="required"):
+        request_body("ask", {"query": "Policy?"}, config)
+    with pytest.raises(ValueError, match="declared type"):
+        request_body(
+            "ask",
+            {"query": "Policy?"},
+            config,
+            context={"identity": {"nexus_id": {"private": "not-a-scalar"}}},
+        )
+    for expression in (
+        "identity.__class__",
+        "identity[nexus_id]",
+        "identity.nexus_id()",
+        "x:" + "identity",
+    ):
+        with pytest.raises(ValueError, match="object-key"):
+            convert_template_settings(
+                {
+                    "template_parameters": [
+                        {"name": "user", "context_expression": expression},
+                    ]
+                },
+                policy=POLICY,
+            )
 
 
 def template():

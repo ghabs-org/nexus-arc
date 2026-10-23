@@ -279,7 +279,7 @@ class StudioA2AServer:
                         },
                     )
                 artifact_ids.append(artifact_id)
-            request = {"task": text, "artifact_ids": artifact_ids}
+            request = {"task": text, "workflow_input": text, "artifact_ids": artifact_ids}
             if structured:
                 request["workflow_input"] = structured[0] if len(structured) == 1 else structured
             run = self.studio.operations.trigger_entrypoint(record["id"], request)

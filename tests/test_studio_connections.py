@@ -83,6 +83,7 @@ async def test_mcp_discovery_named_calls_allowlists_and_minimal_environment(tmp_
     calling = AsyncMock(return_value="Found evidence")
     monkeypatch.setattr("nexus.tools.mcp.list_server_tools", listing)
     monkeypatch.setattr("nexus.tools.mcp.call_server_tool", calling)
+    monkeypatch.setattr("shutil.which", lambda command: "/fixture/trusted-server")
     try:
         app.catalog.save(
             "connectors",

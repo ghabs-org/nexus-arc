@@ -28,8 +28,16 @@ http.createServer((req, res) => {
   if (!body?.query || body.top_k !== 10) return reply(400, {});
   if (body.filter_expression && body.filter_expression.field?.id !== 'resource') return reply(400, {});
   if (body.query.startsWith('Region:') && body.query !== 'Region: emea; Question: What is the return policy?') return reply(400, {});
+  if (body.query.startsWith('Workspace:') && body.query !== 'Workspace: workspace; Question: What is the return policy?') return reply(400, {});
   if (req.url.endsWith('/find')) return reply(200, {...retrieval, page_number:body.page_number||0});
   if (req.headers['x-synchronous'] !== 'true' || body.citations !== 'default') return reply(400, {});
+  if (body.query === 'fixture:augmented') {
+    const id = 'resource/f/document/12-24';
+    return reply(200, {status: 'success', answer: 'Neighbouring evidence.',
+      retrieval_results: {resources: {}}, citations: {[id]: [[0, 21]]},
+      augmented_context: {paragraphs: {[id]: {id, text: 'Neighbouring evidence.',
+        position: {page_number: 6}, augmentation_type: 'neighbouring_paragraphs'}}}});
+  }
   if (body.query === 'fixture:reject') return reply(429, {error:'PRIVATE_PROVIDER_DETAIL'});
   if (body.query === 'fixture:redirect') {res.writeHead(307, {Location:'https://example.invalid/never-fetch'});return res.end();}
   if (body.query === 'fixture:bad-json') {res.writeHead(200, {'Content-Type':'application/json'});return res.end('not-json');}

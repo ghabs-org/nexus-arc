@@ -10,11 +10,11 @@ from nexus.core.studio_catalog import _text
 from nexus.core.studio_data_tools import current_run_id
 
 
-def request_body(action, arguments, template=None):
+def request_body(action, arguments, template=None, *, context=None):
     if template is not None:
         from nexus.core.studio_nuclia_templates import prepare_arguments
 
-        arguments = prepare_arguments(template, arguments)
+        arguments = prepare_arguments(template, arguments, context=context)
     allowed = {"query", "top_k", "page", "filter_expression"}
     if action == "ask":
         allowed |= {"prompt", "rephrase"}
@@ -131,6 +131,54 @@ def answer_sources(value):
                     "text": text,
                     "sha256": hashlib.sha256(text.encode()).hexdigest(),
                 }
+    augmented = value.get("augmented_context")
+    if augmented is not None:
+        if not isinstance(augmented, dict):
+            raise ValueError("Nuclia returned invalid augmented context")
+        for collection in ("paragraphs", "fields"):
+            blocks = augmented.get(collection, {})
+            if not isinstance(blocks, dict) or len(blocks) > 100:
+                raise ValueError("Nuclia returned invalid augmented text blocks")
+            for identity, block in blocks.items():
+                if (
+                    not isinstance(identity, str)
+                    or not isinstance(block, dict)
+                    or block.get("id") != identity
+                    or not re.fullmatch(
+                        r"[A-Za-z0-9_-]{1,128}/[aftlc]/[A-Za-z0-9:_-]{1,128}(?:/[A-Za-z0-9:_-]{1,128}){0,5}",
+                        identity,
+                    )
+                ):
+                    raise ValueError("Nuclia returned an invalid augmented text identity")
+                text = _text(block.get("text"), "Augmented source text", 16000)
+                position = block.get("position") or {}
+                if not isinstance(position, dict):
+                    raise ValueError("Nuclia returned an invalid augmented source position")
+                page = position.get("page_number")
+                if page is not None and (type(page) is not int or page < 0):
+                    raise ValueError("Nuclia returned an invalid augmented source page")
+                kind = block.get("augmentation_type")
+                if kind not in {
+                    "neighbouring_paragraphs",
+                    "conversation",
+                    "hierarchy",
+                    "full_resource",
+                    "field_extension",
+                    "metadata_extension",
+                }:
+                    raise ValueError("Nuclia returned an unsupported augmentation type")
+                if identity in sources:
+                    raise ValueError("Nuclia returned an ambiguous augmented source identity")
+                parts = identity.split("/")
+                sources[identity] = {
+                    "resource_id": parts[0],
+                    "field_id": "/".join(parts[1:3]),
+                    "paragraph_id": identity,
+                    "original_page": page,
+                    "text": text,
+                    "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                    "augmentation_type": kind,
+                }
     if set(citations) - sources.keys():
         raise ValueError("Nuclia cited paragraphs absent from its retrieval results")
     # Only cited paragraphs become snapshots. Uncited retrieval is not mislabeled as evidence.
@@ -234,6 +282,11 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
                 "field_id": source["field_id"],
                 "paragraph_id": source["paragraph_id"],
                 "original_page": source["original_page"],
+                **(
+                    {"augmentation_type": source["augmentation_type"]}
+                    if "augmentation_type" in source
+                    else {}
+                ),
             }
             if run_id and connector_id and "download_original" in data.get("actions", []):
                 from nexus.core.studio_nuclia_documents import original_reference

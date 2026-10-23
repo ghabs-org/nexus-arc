@@ -1,6 +1,6 @@
 # Nexus Studio standalone desktop delivery plan
 
-Status: planned; no desktop package is implemented or accepted by this document.
+Status: locally-accepted; framework distribution, Tauri 2 shell configuration, locking, security, import, and CLI are verified per [STUDIO-M9-DESKTOP-CHECKPOINT.json](STUDIO-M9-DESKTOP-CHECKPOINT.json).
 Requested: 21 October 2026.
 Placement: reusable framework distribution and desktop launcher.
 
@@ -114,9 +114,10 @@ resubmit active work or imply automatic synchronization.
 
 ## Packaging, upgrades and delivery order
 
-1. After milestones 1–8 implementation and local acceptance work, prototype the
-   shell, bundled Python startup, authenticated loopback session and real streaming
-   on each OS. Milestone 9 stays last; do not start desktop implementation early.
+1. After milestones 1–8, 10 and 12 implementation and local acceptance work,
+   prototype the shell, bundled Python startup, authenticated loopback session
+   and real streaming on each OS. Milestone 11 is already locally accepted.
+   Milestone 9 stays last; do not start desktop implementation early.
 2. Complete feature prerequisites, workspace import, native permissions,
    crash/shutdown/sleep recovery and local/remote separation. Wire an example
    consumer following repository policy.

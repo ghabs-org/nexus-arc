@@ -425,6 +425,7 @@ class StudioOperations:
                         if key in parameter
                     }
                     for parameter in parameters
+                    if "context_path" not in parameter
                 ]
                 description += (
                     "\nNuclia selected actions: "

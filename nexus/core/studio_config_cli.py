@@ -37,6 +37,31 @@ def _execute(args, request):
         invalid_conversion = not result["valid"]
         if result["valid"]:
             result = result["bundle"]
+    elif args.operation == "convert-manifest":
+        path = Path(args.file)
+        if path.stat().st_size > 1024 * 1024:
+            raise ValueError("Manifest file exceeds one MiB")
+        payload = {"text": path.read_text()}
+        if getattr(args, "env_file", None):
+            env_path = Path(args.env_file)
+            if env_path.stat().st_size > 65536:
+                raise ValueError("Environment file exceeds 64 KiB")
+            payload["variables"] = yaml.safe_load(env_path.read_text()) or {}
+        if getattr(args, "target", None):
+            payload["environment"] = args.target
+        result = request("/api/studio/configuration/manifest/convert", payload)
+        invalid_conversion = not result["valid"]
+    elif args.operation == "export-manifest":
+        payload = {}
+        if getattr(args, "target", None):
+            payload["environment"] = args.target
+        if getattr(args, "file", None):
+            path = Path(args.file)
+            if path.stat().st_size > 1024 * 1024:
+                raise ValueError("Configuration document exceeds one MiB")
+            payload["document"] = yaml.safe_load(path.read_text())
+        result = request("/api/studio/configuration/manifest/export", payload)
+        invalid_conversion = not result.get("valid", True)
     elif args.operation == "export":
         result = request("/api/studio/configuration/export")
     else:

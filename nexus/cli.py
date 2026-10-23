@@ -10,8 +10,12 @@ def build_parser():
     parser = argparse.ArgumentParser(prog="nexus", description="Nexus ARC CLI")
     subparsers = parser.add_subparsers(dest="command")
     from nexus.core.studio_authoring_skills import add_parser as add_authoring_parser
+    from nexus.core.studio_toolset_cli import add_parser as add_toolset_parser
+    from nexus.core.studio_desktop_cli import add_parser as add_desktop_parser
 
     add_authoring_parser(subparsers)
+    add_toolset_parser(subparsers)
+    add_desktop_parser(subparsers)
     chat_parser = subparsers.add_parser(
         "chat", help="Chat through an authenticated Studio workspace"
     )
@@ -54,10 +58,19 @@ def build_parser():
     )
     config_parser.add_argument(
         "operation",
-        choices=["validate", "plan", "apply", "export", "convert-interop", "export-interop"],
+        choices=[
+            "validate",
+            "plan",
+            "apply",
+            "export",
+            "convert-interop",
+            "export-interop",
+            "convert-manifest",
+            "export-manifest",
+        ],
     )
     config_parser.add_argument(
-        "file", nargs="?", help="Configuration document or reviewed plan JSON"
+        "file", nargs="?", help="Configuration document, reviewed plan, or manifest YAML"
     )
     config_parser.add_argument(
         "--url", default="http://127.0.0.1:5003", help="Running Studio origin"
@@ -70,6 +83,15 @@ def build_parser():
     config_parser.add_argument(
         "--bindings",
         help="Explicit external model/agent/tool mappings as JSON (convert-interop only)",
+    )
+    config_parser.add_argument(
+        "--target",
+        choices=["desktop", "personal-vm"],
+        help="Target environment (convert-manifest and export-manifest)",
+    )
+    config_parser.add_argument(
+        "--env-file",
+        help="YAML or JSON file providing variables for interpolation (convert-manifest)",
     )
 
     # Translate
@@ -173,6 +195,20 @@ def main():
         except (ValueError, OSError) as exc:
             parser.exit(2, f"{exc}\n")
         return
+    if args.command == "toolset":
+        from nexus.core.studio_toolset_cli import toolset_command
+
+        code = toolset_command(args)
+        if code != 0:
+            parser.exit(code)
+        return
+    if args.command == "desktop":
+        from nexus.core.studio_desktop_cli import desktop_command
+
+        code = desktop_command(args)
+        if code != 0:
+            parser.exit(code)
+        return
     if args.command == "chat":
         from nexus.core.studio_chat_cli import chat_command
 
@@ -181,8 +217,10 @@ def main():
     if args.command == "config":
         from nexus.core.studio_config_cli import configuration_command
 
-        if args.operation not in {"export", "export-interop"} and not args.file:
-            parser.error("config validate/plan/apply/convert-interop requires a file")
+        if args.operation not in {"export", "export-interop", "export-manifest"} and not args.file:
+            parser.error(
+                "config validate/plan/apply/convert-interop/convert-manifest requires a file"
+            )
         configuration_command(args)
         return
 

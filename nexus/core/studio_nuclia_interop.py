@@ -26,7 +26,7 @@ def convert_template_settings(source, *, policy):
     """Return a native template and declared adaptations after explicit policy selection.
 
     Only named scalar placeholders are portable. Attribute/index lookups, format
-    specifications, conversions, context expressions and unknown fields fail.
+    specifications, conversions, executable context expressions and unknown fields fail.
     The returned template still passes ordinary configuration preflight; calling
     this function never writes records, resolves credentials or activates tools.
     """
@@ -58,11 +58,20 @@ def convert_template_settings(source, *, policy):
             "nullable",
             "default",
             "description",
+            "context_expression",
         }:
             raise ValueError(
                 "Unsupported reference Nuclia parameter fields; context expressions need manual adaptation"
             )
-        normalized.append({"nullable": True, **copy.deepcopy(parameter)})
+        native_parameter = {"nullable": True, **copy.deepcopy(parameter)}
+        expression = native_parameter.pop("context_expression", None)
+        if expression is not None:
+            if not isinstance(expression, str) or not re.fullmatch(
+                r"[A-Za-z][A-Za-z0-9_]{0,63}(?:\.[A-Za-z][A-Za-z0-9_]{0,63}){0,7}", expression
+            ):
+                raise ValueError("Nuclia context expressions support plain object-key paths only")
+            native_parameter["context_path"] = expression.split(".")
+        normalized.append(native_parameter)
 
     def translate(value, depth=0):
         if depth > 8:

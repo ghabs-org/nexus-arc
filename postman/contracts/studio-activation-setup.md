@@ -36,3 +36,13 @@ Existing request fields, release journals, rollback/deactivation and runtime
 permission checks retain their behavior. This contract covers reviewed build
 activation. Direct resource configuration and remaining account-specific readiness
 continue under their existing validators/permissions and separate acceptance.
+# Direct connector enable operations
+
+Saving an enabled connector and restoring an archived enabled connector reuse
+the same passive local software checks as reviewed build activation. Disabled
+drafts remain editable without optional packages or executable installation.
+Missing SDK/driver metadata or a missing stdio MCP executable rejects the update
+before any current record/history write. No network request, SDK import, worker
+probe, credential resolution or installation is performed by this check.
+Remote account access remains an execution-time check. The existing HTTP route,
+optimistic revision and authorization rules are unchanged.

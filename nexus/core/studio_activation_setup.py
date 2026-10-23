@@ -108,6 +108,19 @@ def local_prerequisites(studio, key, value, *, probe_workers=False, worker_cache
         if studio.research.finance_client is None:
             packages.append("yfinance")
     checks, issues, snapshot = [], [], {"packages": {}, "workers": {}, "tools": {}}
+    if (
+        kind == "connectors"
+        and data.get("type") == "mcp"
+        and data.get("transport", "stdio") == "stdio"
+        and data.get("command")
+    ):
+        executable = shutil.which(data["command"])
+        snapshot["executables"] = {"mcp": executable}
+        checks.append(
+            {"name": "MCP server executable", "status": "installed" if executable else "missing"}
+        )
+        if not executable:
+            issues.append("mcp_executable_missing")
     for name in sorted(set(packages)):
         try:
             installed = version(name)
