@@ -1,11 +1,16 @@
 """Passive catalog setup facts; never resolve credentials or execute plugins."""
 
+import hashlib
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 from nexus.plugins.catalog import PluginSetup
 
-OFFICIAL_REVISION = "7599710a38318a336c47cf605e4774d4add24d8e"
-COMMUNITY_REVISION = "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4"
+SOURCE_REVISION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+SOURCE = (
+    "https://github.com/ghabs-org/nexus-arc/blob/main/nexus/core/studio_catalog_setup.py"
+    "#sha256=" + SOURCE_REVISION
+)
 PINS = {
     "mcp": "2.3.0",
     "boto3": "1.43.116",
@@ -19,14 +24,6 @@ PINS = {
 
 def setup_metadata(row):
     identity, mode = row["id"], row["mode"]
-    official = identity.startswith("community-")
-    source_id = "sam-" + identity.removeprefix("community-") if official else identity
-    revision = OFFICIAL_REVISION if official else COMMUNITY_REVISION
-    repository = (
-        "SolaceLabs/solace-agent-mesh-core-plugins"
-        if official
-        else "solacecommunity/solace-agent-mesh-plugins"
-    )
     packages, requirements, installation = [], [], []
     billing = "Local Nexus service; selected AI provider billing remains separate."
     template = {"open": row.get("target", "tools")}
@@ -293,8 +290,8 @@ def setup_metadata(row):
         tuple(requirements),
         tuple(installation),
         template,
-        f"https://github.com/{repository}/tree/{revision}/{source_id}",
-        revision,
+        SOURCE,
+        SOURCE_REVISION,
         alias,
     ), packages
 

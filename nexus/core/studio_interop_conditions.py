@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from nexus.core.studio_interop_mappings import TOKEN
 from nexus.core.studio_interop_values import (
-    MissingSAMValueError,
+    MissingPortableValueError,
     import_value,
     reference_value,
     text,
@@ -201,7 +201,7 @@ def evaluate_condition(tree, context):
                 return item
             value = reference_value(item["interop_ref"], context)
             if value is None:
-                raise MissingSAMValueError()
+                raise MissingPortableValueError()
             return value
         if "text" in part:
             values = []
@@ -211,7 +211,7 @@ def evaluate_condition(tree, context):
                 else:
                     value = reference_value(item["interop_ref"], context)
                     if value is None:
-                        raise MissingSAMValueError()
+                        raise MissingPortableValueError()
                     values.append(text(value))
             return "".join(values)
         return [operand(item) for item in part["list"]]
@@ -271,7 +271,7 @@ def evaluate_condition(tree, context):
                 "endswith": lambda: left.endswith(right),
             }
             return Answer(bool(operations[op]()))
-        except MissingSAMValueError as missing:
+        except MissingPortableValueError as missing:
             return Answer(None, missing.stale)
         except TypeError:
             raise ValueError("External comparison values have incompatible types") from None

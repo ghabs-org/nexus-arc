@@ -6,8 +6,9 @@ const vm = require("node:vm");
 const source = fs.readFileSync("nexus/studio_static/workspace-access.js", "utf8");
 
 function setupContext() {
-  const elements = new Map(), handlers = new Map();
+  const elements = new Map(), handlers = new Map(), rendered = [];
   const context = vm.createContext({
+    renderContent: (node,text) => { rendered.push({node,text});node.textContent=text; },
     escapeHtml: (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
     $: (id) => {
       if (!elements.has(id)) {
@@ -17,8 +18,10 @@ function setupContext() {
           textContent: "",
           innerHTML: "",
           value: "",
+          classList: { add() {} },
           querySelector(sel) {
-            return { textContent: "", set innerHTML(val) {} };
+            if(!this.child)this.child={textContent:"",classList:{add(){}},querySelectorAll(){return [];}};
+            return this.child;
           },
           querySelectorAll() {
             return [];
@@ -38,7 +41,7 @@ function setupContext() {
     location: { hash: "files" },
     state: { ready: false, busy: false, providers: [] },
   });
-  return { context, elements, handlers };
+  return { context, elements, handlers, rendered };
 }
 
 test("fileQuery encodes root and path parameters correctly", () => {
@@ -103,8 +106,8 @@ test("fileBase64 encodes buffer correctly and rejects files larger than 16 MiB",
   );
 });
 
-test("renderStudioHelp populates answer, notice, workspace path and resource links", () => {
-  const { context, elements } = setupContext();
+test("renderStudioHelp formats local help and retains notice, workspace and resource links", () => {
+  const { context, elements, rendered } = setupContext();
   vm.runInContext(
     source.slice(source.indexOf("function renderStudioHelp"), source.indexOf('$("studio-help-form").addEventListener')),
     context
@@ -128,14 +131,17 @@ test("renderStudioHelp populates answer, notice, workspace path and resource lin
   assert.ok(answerEl.innerHTML.includes("Where agents are saved"));
   assert.ok(answerEl.innerHTML.includes("Coder Agent"));
   assert.ok(answerEl.innerHTML.includes("None saved yet."));
+  assert.equal(rendered.length,1);
+  assert.equal(rendered[0].text,data.answer);
 });
 
 
 test("Ask AI monitors the submitted run through the existing poller without resubmission", async () => {
-  const {context,elements,handlers}=setupContext();
+  const {context,elements,handlers,rendered}=setupContext();
   const submissions=[],polls=[];
   context.api=async(path,payload)=>{submissions.push([path,payload]);return {id:"help-run"};};
-  context.pollRun=async(id,update)=>{polls.push(id);update({id,status:"running"});update({id,status:"completed",output:"Saved on your VM"});};
+  const output="## Your workspace\n\n- **Agents**: [Open](#agents)\n- Saved on your VM";
+  context.pollRun=async(id,update)=>{polls.push(id);update({id,status:"running"});update({id,status:"completed",output});};
   vm.runInContext(source,context);
   context.$("studio-help-question").value="Where are agents?";
   context.$("studio-help-provider").value="codex";
@@ -144,7 +150,9 @@ test("Ask AI monitors the submitted run through the existing poller without resu
   assert.equal(submissions[0][0],"/api/runs");
   assert.equal(submissions[0][1].studio_assistant,true);
   assert.deepEqual(polls,["help-run"]);
-  assert.equal(elements.get("studio-help-answer").textContent,"Saved on your VM");
+  assert.equal(rendered.length,1);
+  assert.equal(rendered[0].text,output);
+  assert.equal(rendered[0].node,elements.get("studio-help-answer").child);
   assert.equal(elements.get("studio-help-error").textContent,"");
 });
 
@@ -159,4 +167,17 @@ test("Ask AI retains the inspection link when monitoring fails and never resends
   assert.equal(submitted,1);
   assert.match(elements.get("studio-help-answer").innerHTML,/known-run/);
   assert.match(elements.get("studio-help-error").textContent,/Connection lost/);
+});
+
+test("formatted assistant keeps workspace links in the current tab",()=>{
+  const {context}=setupContext();
+  const removed=[],classes=[];
+  context.node={classList:{add(...names){classes.push(...names);}},querySelectorAll(selector){
+    assert.equal(selector,'a[href^="#"]');
+    return [{removeAttribute(name){removed.push(name);}}];
+  }};
+  vm.runInContext(source.slice(source.indexOf("function renderStudioHelpContent"),source.indexOf('$("studio-help-form").addEventListener')),context);
+  vm.runInContext('renderStudioHelpContent(node,"[Agents](#agents)")',context);
+  assert.deepEqual(classes,["message-body","workspace-help-text"]);
+  assert.deepEqual(removed,["target"]);
 });

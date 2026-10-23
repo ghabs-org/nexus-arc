@@ -1,4 +1,4 @@
-"""Explicit, non-executing adaptation of frozen SAM Nuclia template settings.
+"""Explicit, non-executing adaptation of frozen reference Nuclia template settings.
 
 This converts template settings only, not a complete Python tool descriptor.
 Connection credentials, provider defaults and resource activation remain native
@@ -22,7 +22,7 @@ ADAPTATIONS = (
 )
 
 
-def convert_sam_template(source, *, policy):
+def convert_template_settings(source, *, policy):
     """Return a native template and declared adaptations after explicit policy selection.
 
     Only named scalar placeholders are portable. Attribute/index lookups, format
@@ -38,17 +38,17 @@ def convert_sam_template(source, *, policy):
         or set(source) - {"template_parameters", "prompt_rephrasing", "filter_expression_template"}
     ):
         raise ValueError(
-            "Supply only SAM Nuclia template settings; adapt other tool settings separately"
+            "Supply only reference Nuclia template settings; adapt other tool settings separately"
         )
     try:
         encoded = json.dumps(source, allow_nan=False).encode()
     except (TypeError, ValueError, RecursionError):
-        raise ValueError("SAM Nuclia template must contain finite JSON values") from None
+        raise ValueError("reference Nuclia template must contain finite JSON values") from None
     if len(encoded) > 16384:
-        raise ValueError("SAM Nuclia template exceeds 16 KiB")
+        raise ValueError("reference Nuclia template exceeds 16 KiB")
     parameters = source.get("template_parameters", [])
     if not isinstance(parameters, list) or len(parameters) > 30:
-        raise ValueError("SAM Nuclia template supports up to thirty parameters")
+        raise ValueError("reference Nuclia template supports up to thirty parameters")
     normalized = []
     for parameter in parameters:
         if not isinstance(parameter, dict) or set(parameter) - {
@@ -60,13 +60,13 @@ def convert_sam_template(source, *, policy):
             "description",
         }:
             raise ValueError(
-                "Unsupported SAM Nuclia parameter fields; context expressions need manual adaptation"
+                "Unsupported reference Nuclia parameter fields; context expressions need manual adaptation"
             )
         normalized.append({"nullable": True, **copy.deepcopy(parameter)})
 
     def translate(value, depth=0):
         if depth > 8:
-            raise ValueError("SAM Nuclia template exceeds nesting limit")
+            raise ValueError("reference Nuclia template exceeds nesting limit")
         if isinstance(value, str):
             parts = []
             try:
@@ -84,7 +84,7 @@ def convert_sam_template(source, *, policy):
                         parts.append("{{" + name + "}}")
             except ValueError:
                 raise ValueError(
-                    "Use named scalar placeholders only in SAM Nuclia templates"
+                    "Use named scalar placeholders only in reference Nuclia templates"
                 ) from None
             result = "".join(parts)
             # Adjacent escaped braces must not turn literal text into a native variable.
@@ -97,7 +97,7 @@ def convert_sam_template(source, *, policy):
             return result
         if isinstance(value, dict):
             if any(not isinstance(key, str) for key in value):
-                raise ValueError("SAM Nuclia template keys must be strings")
+                raise ValueError("reference Nuclia template keys must be strings")
             return {key: translate(child, depth + 1) for key, child in value.items()}
         if isinstance(value, list):
             return [translate(child, depth + 1) for child in value]
@@ -111,7 +111,7 @@ def convert_sam_template(source, *, policy):
             or set(prompt) != {"template"}
             or not isinstance(prompt["template"], str)
         ):
-            raise ValueError("SAM Nuclia prompt rephrasing requires only template text")
+            raise ValueError("reference Nuclia prompt rephrasing requires only template text")
         native["query_prompt"] = translate(prompt["template"])
     expression = source.get("filter_expression_template")
     if expression is not None:

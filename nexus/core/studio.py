@@ -286,6 +286,8 @@ class StudioService:
                     )
                     self._write(self._path("channel-events", event["id"]), event)
 
+        self.speech.cleanup()
+
     def _path(self, collection: str, identity: str, suffix: str = "json") -> Path:
         path = self.state / collection / f"{_identity(identity)}.{suffix}"
         if not (
@@ -806,6 +808,7 @@ class StudioService:
         payload.pop("_evaluation_case", None)
         payload.pop("_workflow_limits", None)
         payload.pop("_callback_origin", None)
+        payload.pop("_speech_profile_snapshot", None)
         if type(payload.get("external_callbacks", False)) is not bool:
             raise ValueError("Callback updates must be true or false")
         if payload.get("external_callbacks"):
@@ -876,6 +879,8 @@ class StudioService:
         if kind == "evaluation":
             self.operations.evaluation_request(payload)
             payload["task"] = "Evaluate " + payload["suite_snapshot"]["name"]
+        if kind == "speech":
+            self.speech.prepare(payload)
         if kind != "tool" and not str(payload.get("task") or "").strip():
             raise ValueError("A task is required")
         launch_revisions = {}
@@ -962,6 +967,12 @@ class StudioService:
         }
         if payload.get("studio_assistant"):
             record["studio_assistant"] = True
+        if kind == "speech":
+            record.update(
+                speech_profile=payload["speech_profile"],
+                speech_action=payload["_speech_profile_snapshot"]["settings"]["action"],
+                speech_profile_revision=payload["_speech_profile_snapshot"]["digest"],
+            )
         if kind == "build":
             record["build_id"] = payload["build_id"]
         if payload.get("artifact_ids") and payload.get("artifact_refs"):
@@ -997,6 +1008,8 @@ class StudioService:
             claim = None
             try:
                 claim = self.workbench.reserve_launch(payload)
+                if kind == "speech":
+                    self.speech.bind_input(run_id, payload)
                 self._write(self._path("runs", run_id), record)
                 self.executor.submit(self._execute, run_id, dict(payload), session_id)
             except BaseException:
@@ -1130,6 +1143,8 @@ class StudioService:
                             self.executor.submit(self._execute, run_id, receipt["payload"], "")
                         else:
                             pending.unlink()
+            if payload.get("kind") == "speech" and not self.sql_state:
+                self.speech.cleanup()
 
     async def _invoke(self, payload: dict, task: str, run_id: str, history: list | None = None):
         if payload.get("knowledge_snapshot"):
@@ -1435,6 +1450,8 @@ class StudioService:
             active = self.active_tasks.get(identity)
             if active:
                 active[0].call_soon_threadsafe(active[1].cancel)
+            if run.get("kind") == "speech":
+                self.speech.cleanup()
             return self.run(identity)
 
     def validate_workflow(self, identity: str) -> dict:
@@ -1486,6 +1503,7 @@ class StudioService:
                 )
         if not self.sql_state:
             self.workbench.jobs.cleanup_audio()
+        self.speech.cleanup()
         self.transport.close()
         if self.sql_state:
             self.sql_state.engine.dispose()

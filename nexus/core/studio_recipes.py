@@ -343,7 +343,7 @@ class StudioRecipes:
                     "description": description,
                     "configured": False,
                     "live_verified": False,
-                    "catalog_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+                    "catalog_commit": "",
                     **next(
                         (
                             {

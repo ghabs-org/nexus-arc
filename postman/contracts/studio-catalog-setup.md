@@ -5,7 +5,7 @@
 supported rows adds:
 
 - `setup_metadata`: billing, requirements, display-only installation instructions,
-  reference-only configuration template, frozen source/revision and optional
+  reference-only configuration template, native framework source/revision and optional
   `alias_of`. Four agreed vendor exclusions remain excluded.
 - `readiness.state`: `dependencies-missing`, `configuration-present` or
   `setup-required`. Configuration presence is the existing row fact, not proof
@@ -14,6 +14,13 @@ supported rows adds:
   installation pins. `installed` never claims that an account/model works or that
   another installed version has passed acceptance.
 - `readiness.live_verified`: always false for this passive inspection.
+
+`source` now points to the Nexus framework implementation. `source_revision` is
+the SHA-256 of the installed catalog-setup module, also present in the source
+link's fragment; it is a content digest, not a remote Git commit. Existing
+resource identities, response fields and configuration routes stay unchanged.
+The legacy `catalog_commit` field remains an empty string when a native Git
+commit is unavailable; it no longer reports an unrelated repository revision.
 
 No credential resolution, environment-value reads, external requests, executable
 launches, plugin factories, lifecycle hooks or installations run while listing.

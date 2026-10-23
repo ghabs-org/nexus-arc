@@ -3,16 +3,46 @@
 import asyncio
 import base64
 import binascii
+import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import uuid
+from copy import deepcopy
 from pathlib import Path
 
 from nexus.core.studio_catalog import _text
+
+PROFILE_FORMAT = "nexus-speech-profile/v1"
+TEMPORARY_AUDIO = re.compile(r"[0-9a-f]{32}\.(?:webm|wav|mp3|mp4|m4a|ogg)")
+
+
+def profile_digest(snapshot):
+    return hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, allow_nan=False).encode()
+    ).hexdigest()
+
+
+async def local_process(*args, **kwargs):
+    """Keep temporary files until the bounded child process has actually stopped."""
+    worker = asyncio.create_task(asyncio.to_thread(subprocess.run, *args, **kwargs))
+    cancelled = False
+    while not worker.done():
+        try:
+            await asyncio.shield(worker)
+        except asyncio.CancelledError:
+            cancelled = True
+        except Exception:
+            break  # Retrieve the child failure below without masking cancellation.
+    if cancelled:
+        worker.exception()
+        raise asyncio.CancelledError
+    return worker.result()
+
 
 DEFAULT_PROFILES = {
     "local-whisper": {"kind": "whisper", "action": "transcribe", "model_path": ""},
@@ -36,7 +66,7 @@ DEFAULT_PROFILES = {
 class StudioSpeech:
     def __init__(self, studio, profiles=None, client_factory=None):
         self.studio = studio
-        self.profiles = {**DEFAULT_PROFILES, **(profiles or {})}
+        self.profiles = deepcopy({**DEFAULT_PROFILES, **(profiles or {})})
         self.client_factory = client_factory
         self.directory = studio.state / "speech-inputs"
         self.directory.mkdir(mode=0o700, exist_ok=True)
@@ -68,8 +98,113 @@ class StudioSpeech:
             )
         return {"items": result}
 
+    def prepare(self, payload):
+        """Replace any client snapshot with bounded, credential-reference-only settings."""
+        name = payload.get("speech_profile")
+        profile = self.profiles.get(name) if isinstance(name, str) else None
+        if not isinstance(profile, dict) or set(profile) - {
+            "kind",
+            "action",
+            "model_path",
+            "model",
+            "token_env",
+            "voices",
+        }:
+            raise ValueError("Choose a configured speech profile with supported settings")
+        settings = deepcopy(profile)
+        if settings.get("kind") in {"whisper", "piper"}:
+            path = settings.get("model_path", "")
+            if not isinstance(path, str) or len(path) > 4096 or "\0" in path:
+                raise ValueError("Speech model path must be bounded text")
+            settings["model_path"] = str(Path(path).expanduser().resolve()) if path else ""
+        else:
+            settings.setdefault("token_env", "OPENAI_API_KEY")
+        self.validate_settings(settings)
+        voice = payload.get("speech_voice")
+        if settings["action"] == "speak":
+            voices = settings.get("voices", [])
+            voice = voice or (voices[0] if voices else None)
+            if voices and voice not in voices:
+                raise ValueError("Select a configured speech voice")
+            if settings["kind"] == "openai" and (
+                not isinstance(voice, str) or not 1 <= len(voice) <= 80
+            ):
+                raise ValueError("Select a configured speech voice")
+        language = payload.get("speech_language", "")
+        if not isinstance(language, str) or len(language) > 20:
+            raise ValueError("Speech language must be text up to 20 characters")
+        payload["speech_voice"], payload["speech_language"] = voice, language
+        snapshot = {"format": PROFILE_FORMAT, "profile_id": name, "settings": settings}
+        payload["_speech_profile_snapshot"] = {**snapshot, "digest": profile_digest(snapshot)}
+
+    @staticmethod
+    def validate_settings(settings):
+        kind, action = settings.get("kind"), settings.get("action")
+        if (
+            kind not in {"whisper", "piper", "openai"}
+            or action not in {"speak", "transcribe"}
+            or (kind == "whisper" and action != "transcribe")
+            or (kind == "piper" and action != "speak")
+        ):
+            raise ValueError("Unsupported speech profile kind or action")
+        voices = settings.get("voices", [])
+        if (
+            not isinstance(voices, list)
+            or len(voices) > 40
+            or any(not isinstance(v, str) or not 1 <= len(v) <= 80 for v in voices)
+        ):
+            raise ValueError("Speech voices must be a bounded list of names")
+        if kind == "openai":
+            model, token = settings.get("model"), settings.get("token_env")
+            if (
+                not isinstance(model, str)
+                or not 1 <= len(model) <= 200
+                or not isinstance(token, str)
+                or len(token) > 128
+                or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", token)
+                or set(settings) - {"kind", "action", "model", "token_env", "voices"}
+            ):
+                raise ValueError("API speech requires a model and credential environment reference")
+        elif (
+            set(settings) - {"kind", "action", "model_path", "voices"}
+            or not isinstance(settings.get("model_path"), str)
+            or len(settings["model_path"]) > 4096
+            or "\0" in settings["model_path"]
+        ):
+            raise ValueError("Local speech requires a bounded model path")
+
+    def pinned_profile(self, payload):
+        snapshot = payload.get("_speech_profile_snapshot")
+        if snapshot is None:
+            raise ValueError("Voice job predates pinned settings; review and submit a new request")
+        try:
+            if (
+                not isinstance(snapshot, dict)
+                or set(snapshot) != {"format", "profile_id", "settings", "digest"}
+                or snapshot["format"] != PROFILE_FORMAT
+                or snapshot["profile_id"] != payload.get("speech_profile")
+                or not isinstance(snapshot["settings"], dict)
+            ):
+                raise ValueError
+            body = {key: value for key, value in snapshot.items() if key != "digest"}
+            if snapshot["digest"] != profile_digest(body):
+                raise ValueError
+            self.validate_settings(snapshot["settings"])
+            return deepcopy(snapshot["settings"])
+        except (ValueError, TypeError, RecursionError):
+            raise ValueError(
+                "Pinned speech settings are invalid; review and submit a new request"
+            ) from None
+
     def queue(self, data, actor):
-        profile = self.profiles.get(data.get("profile"))
+        # Registration and dispatch share the existing workspace transaction so a
+        # second process cannot collect a recording while it is being accepted.
+        with self.studio.lock:
+            return self._queue(data, actor)
+
+    def _queue(self, data, actor):
+        name = data.get("profile")
+        profile = self.profiles.get(name) if isinstance(name, str) else None
         if profile is None:
             raise ValueError("Choose a configured speech profile")
         action = profile["action"]
@@ -98,27 +233,97 @@ class StudioSpeech:
             if suffix not in {"webm", "wav", "mp3", "mp4", "m4a", "ogg"}:
                 raise ValueError("Unsupported audio recording format")
             path = self.directory / (uuid.uuid4().hex + "." + suffix)
-            with path.open("xb") as file:
-                os.chmod(path, 0o600)
-                file.write(content)
-            request["speech_input"] = path.name
-            self.studio._write(
-                self.studio._path("speech-input-owners", path.stem),
-                {"owner_id": request["requester_nexus_id"] or "desktop", "filename": path.name},
-            )
         else:
             voices = profile.get("voices", [])
             voice = data.get("voice") or (voices[0] if voices else None)
             if voices and voice not in voices:
                 raise ValueError("Select a configured speech voice")
             request["speech_voice"] = voice
+        created = False
         try:
+            if path:
+                with path.open("xb") as file:
+                    created = True
+                    os.chmod(path, 0o600)
+                    file.write(content)
+                request["speech_input"] = path.name
+                self.studio._write(
+                    self.studio._path("speech-input-owners", path.stem),
+                    {"owner_id": request["requester_nexus_id"] or "desktop", "filename": path.name},
+                )
             return self.studio.start_run(request)
         except BaseException:
-            if path:
+            if created:
                 path.unlink(missing_ok=True)
                 self.studio._path("speech-input-owners", path.stem).unlink(missing_ok=True)
             raise
+
+    def bind_input(self, run_id, payload):
+        """Bind owned input before dispatch while the workspace lock is held."""
+        name = payload.get("speech_input")
+        if not name and payload["_speech_profile_snapshot"]["settings"]["action"] != "transcribe":
+            return
+        if not isinstance(name, str) or not TEMPORARY_AUDIO.fullmatch(name):
+            raise ValueError("Invalid temporary audio reference")
+        path = self.studio._path("speech-input-owners", Path(name).stem)
+        record = self.studio._read(path)
+        if (
+            record.get("owner_id") != (payload.get("requester_nexus_id") or "desktop")
+            or record.get("filename") != name
+        ):
+            raise PermissionError("Audio input belongs to another account")
+        if record.get("run_id"):
+            raise ValueError("Audio input already belongs to an accepted job")
+        self.studio._write(path, {**record, "run_id": run_id})
+
+    def cleanup(self):
+        """Collect managed audio only when no accepted or leased job needs it."""
+        removed = {"files": 0, "records": 0}
+        with self.studio.lock:
+            live = {
+                run["id"]
+                for run in self.studio.records("runs", limit=None)
+                if run["status"] in {"queued", "running"}
+            } | set(self.studio.active_tasks)
+            protected = set()
+            store = self.studio.sql_state
+            if store:
+                with store.transaction() as connection:
+                    jobs = connection.execute(
+                        store.sa.select(store.jobs).where(
+                            store.jobs.c.namespace == store.namespace,
+                            store.jobs.c.status.in_(["queued", "running"]),
+                        )
+                    ).mappings()
+                    for job in jobs:
+                        if job["status"] == "running" or job["run_id"] in live:
+                            live.add(job["run_id"])
+                            protected.add(job["payload"].get("speech_input"))
+            owners = self.studio.records("speech-input-owners", limit=None)
+            for record in owners:
+                if record.get("run_id") in live:
+                    protected.add(record.get("filename"))
+            for path in self.directory.iterdir():
+                if (
+                    TEMPORARY_AUDIO.fullmatch(path.name)
+                    and path.name not in protected
+                    and (path.is_symlink() or path.is_file())
+                ):
+                    path.unlink(missing_ok=True)
+                    removed["files"] += 1
+            for record in owners:
+                name = record.get("filename", "")
+                if (
+                    isinstance(name, str)
+                    and TEMPORARY_AUDIO.fullmatch(name)
+                    and name not in protected
+                    and not (self.directory / name).exists()
+                ):
+                    self.studio._path("speech-input-owners", Path(name).stem).unlink(
+                        missing_ok=True
+                    )
+                    removed["records"] += 1
+        return removed
 
     def _client(self, profile, payload):
         if self.client_factory:
@@ -138,11 +343,11 @@ class StudioSpeech:
         return OpenAI(api_key=token, timeout=60, max_retries=0)
 
     async def execute(self, run_id, payload):
-        profile = self.profiles[payload["speech_profile"]]
         source = self.directory / payload.get("speech_input", "unused")
         if source.parent != self.directory or source.name != payload.get("speech_input", "unused"):
             raise ValueError("Invalid temporary audio reference")
         try:
+            profile = self.pinned_profile(payload)
             if profile["action"] == "transcribe":
                 record = self.studio._read(self.studio._path("speech-input-owners", source.stem))
                 if (
@@ -158,8 +363,7 @@ class StudioSpeech:
                         raise ValueError(
                             "Configure an installed local Whisper model; automatic model download is disabled"
                         )
-                    result = await asyncio.to_thread(
-                        subprocess.run,
+                    result = await local_process(
                         [
                             sys.executable,
                             "-m",
@@ -193,9 +397,21 @@ class StudioSpeech:
                         "Configure Piper and an installed voice model for local speech"
                     )
                 output = self.directory / (uuid.uuid4().hex + ".wav")
+                created = False
                 try:
-                    await asyncio.to_thread(
-                        subprocess.run,
+                    with self.studio.lock:
+                        with output.open("xb"):
+                            created = True
+                            os.chmod(output, 0o600)
+                        self.studio._write(
+                            self.studio._path("speech-input-owners", output.stem),
+                            {
+                                "filename": output.name,
+                                "owner_id": payload.get("requester_nexus_id") or "desktop",
+                                "run_id": run_id,
+                            },
+                        )
+                    await local_process(
                         [executable, "--model", str(model.resolve()), "--output_file", str(output)],
                         input=payload["task"].encode(),
                         stdout=subprocess.DEVNULL,
@@ -207,7 +423,11 @@ class StudioSpeech:
                         raise ValueError("Generated audio exceeds 16 MiB")
                     content, suffix = output.read_bytes(), "wav"
                 finally:
-                    output.unlink(missing_ok=True)
+                    if created:
+                        output.unlink(missing_ok=True)
+                        self.studio._path("speech-input-owners", output.stem).unlink(
+                            missing_ok=True
+                        )
             else:
                 client = self._client(profile, payload)
                 try:

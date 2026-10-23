@@ -129,6 +129,14 @@ def run_example():
             result = settled(studio, run["id"])
             assert result["status"] == "completed" and result["citations"]
             assert result["stream"]["status"] == "completed" and result["structured_content"]
+            shared = studio.collaboration.share(
+                {"session_id": run["session_id"], "artifact_ids": [artifact["id"]]}, None
+            )
+            assert not shared["public"] and len(shared["artifacts"]) == 1
+            included = studio.collaboration.shared_artifact(shared["id"], artifact["id"])
+            assert included["filename"] == "returns.pptx"
+            assert base64.b64decode(included["content_base64"])
+            studio.collaboration.revoke(shared["id"], None)
             review = studio.start_run(
                 {
                     "kind": "workflow",
@@ -149,7 +157,10 @@ def run_example():
             terminal = settled(studio, failed["id"])
             assert terminal["status"] == "failed"
             assert studio.session(failed["session_id"])["messages"][-1]["status"] == "failed"
-            print("Cited reply, pinned Office section, approval replay and failure receipt verified.")
+            print(
+                "Cited reply, selected snapshot files, pinned Office section, "
+                "approval replay and failure receipt verified."
+            )
         finally:
             studio.close()
 

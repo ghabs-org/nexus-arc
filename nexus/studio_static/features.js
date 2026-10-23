@@ -9,14 +9,14 @@ async function showA2ADeliveryHealth(identity,after=null,existing=[]){
 }
 document.addEventListener("click",async event=>{const button=event.target.closest("[data-a2a-health]");if(!button)return;try{await showA2ADeliveryHealth(button.dataset.a2aHealth);}catch(error){notify(error.message);}});
 const featureApi=(path,data)=>api(`/api/studio/${path}`,data);
-function fieldsDialog(title,html,label="Save") {
+function fieldsDialog(title,html,label="Save",validate=null) {
   return new Promise(resolve=>{
     const dialog=document.createElement("dialog");dialog.className="feature-dialog";
     dialog.innerHTML=`<form><header class="dialog-heading"><h2>${escapeHtml(title)}</h2><button type="button" data-dismiss aria-label="Close">×</button></header>${html}<p class="form-error" role="alert"></p><footer><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">${escapeHtml(label)}</button></footer></form>`;
     document.body.append(dialog);let result=null;
     dialog.querySelectorAll("[data-dismiss]").forEach(b=>b.onclick=()=>dialog.close());
     dialog.addEventListener("close",()=>{dialog.remove();resolve(result);},{once:true});
-    dialog.querySelector("form").onsubmit=event=>{event.preventDefault();result=new FormData(event.target);dialog.close();};dialog.showModal();
+    dialog.querySelector("form").onsubmit=event=>{event.preventDefault();const values=new FormData(event.target),error=validate?.(values);if(error){dialog.querySelector(".form-error").textContent=error;return;}result=values;dialog.close();};dialog.showModal();
   });
 }
 function downloadJson(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -88,10 +88,13 @@ async function designResource(){
 async function rateResponse(runId,rating){const form=await fieldsDialog(rating>0?"Helpful response":"Improve this response",'<label>Comment (optional)<textarea name="comment" maxlength="2000" rows="4"></textarea></label>',"Save feedback");if(form){await featureApi("feedback",{run_id:runId,rating,comment:form.get("comment")});notify("Feedback saved.");return true;}return false;}
 async function shareConversation(){
   if(!state.sessionId)throw new Error("Start a conversation first");
-  const form=await fieldsDialog("Share conversation",'<p>Create a read-only snapshot of current messages.</p><label>Nexus recipient IDs (comma separated)<input name="recipients"></label><label>Expires after (hours)<input name="expires" type="number" value="168" min="1" max="8760" required></label><label class="check-label"><input name="public" type="checkbox">Create public link (owner must enable first)</label>',"Create snapshot");if(!form)return;
-  const result=await featureApi("shares",{session_id:state.sessionId,recipients:String(form.get("recipients")||"").split(",").map(v=>v.trim()).filter(Boolean),public:form.has("public"),expires_hours:Number(form.get("expires"))});
+  const sessionId=state.sessionId;
+  const files=(await api("/api/catalog/artifacts")).items.filter(file=>!file.archived);
+  const selection=`<fieldset class="share-files"><legend>Include saved files</legend><p id="share-files-help">Optional. Choose up to ten files from your library. No files are selected automatically. Each file's latest revision is frozen when the snapshot is created.</p><div class="share-file-options">${files.length?files.map(file=>`<label class="share-file-option"><input type="checkbox" name="artifacts" value="${escapeHtml(file.id)}" aria-describedby="share-files-help"><span>${escapeHtml(file.data.filename)}<small>${escapeHtml(file.name)}</small></span></label>`).join(""):"<p>No saved files available. Upload files in Library → Artifacts first.</p>"}</div></fieldset>`;
+  const form=await fieldsDialog("Share conversation",'<p>Create a read-only snapshot of current messages. Recipients can download included files.</p>'+selection+'<label>Nexus recipient IDs (comma separated)<input name="recipients"></label><label>Expires after (hours)<input name="expires" type="number" value="168" min="1" max="8760" required></label><label class="check-label"><input name="public" type="checkbox">Create public link (owner must enable first)</label>',"Create snapshot",values=>values.getAll("artifacts").length>10?"Choose up to ten files, or leave every file unchecked to share messages only.":"");if(!form)return;
+  const result=await featureApi("shares",{session_id:sessionId,artifact_ids:form.getAll("artifacts"),recipients:String(form.get("recipients")||"").split(",").map(v=>v.trim()).filter(Boolean),public:form.has("public"),expires_hours:Number(form.get("expires"))});
   const url=new URL(result.token?`/shared.html#public/${result.token}`:`/shared.html#private/${result.id}`,location.href);
-  showDetail("Snapshot created",`<p>Snapshot includes current messages. Revoke it under Conversation sharing.</p><a class="button-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Open shared snapshot</a><label>Snapshot link<input readonly value="${escapeHtml(url.href)}"></label>`);
+  showDetail("Snapshot created",`<p>Snapshot includes current messages and ${result.artifacts.length} selected file${result.artifacts.length===1?"":"s"}. Revoke it under Conversation sharing.</p>${result.artifacts.length?`<ul>${result.artifacts.map(file=>`<li>${escapeHtml(file.filename)} · revision ${file.revision}</li>`).join("")}</ul>`:""}<a class="button-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Open shared snapshot</a><label>Snapshot link<input readonly value="${escapeHtml(url.href)}"></label>`);
 }
 document.addEventListener("click",async event=>{const b=event.target.closest("button");if(!b)return;try{
   if(b.id==="project-import"){
@@ -496,10 +499,10 @@ updateConnectionFields=function(){
 document.addEventListener('change',event=>{if(event.target.name==='mcp_transport')updateConnectionFields();});
 
 function interopDiagnostics(report){return `<p role="alert">Resolve these settings before continuing. Nothing was saved.</p><ul>${report.diagnostics.map(item=>`<li><code>${escapeHtml(item.path)}</code>: ${escapeHtml(item.message)}</li>`).join("")}</ul>`;}
-async function importSAMConfiguration(draft={}){
+async function importPortableConfiguration(draft={}){
   const form=await fieldsDialog("Import external agents and workflows",`<p>Paste external YAML, JSON or an exported bundle. Conversion runs locally and checks every field before review.</p><label>External configuration<textarea name="source" rows="10" maxlength="1048576" required>${escapeHtml(draft.source||"")}</textarea></label><label>Provider<select name="provider"><option value="">Use mappings included in the bundle</option>${state.providers.map(p=>`<option value="${escapeHtml(p.id)}" ${draft.provider===p.id?"selected":""}>${escapeHtml(p.name)} · ${p.kind==="cli"?"local CLI account":"API billing"}</option>`).join("")}</select></label><label>External model alias<input name="alias" value="${escapeHtml(draft.alias||"general")}" maxlength="200"></label><label>External agent name (runtime YAML only)<input name="agent" value="${escapeHtml(draft.agent||"")}" maxlength="200"></label><details><summary>Tool mappings</summary><p>Map external builtin tool names to registered Nexus tool IDs. Remote connections need separate setup.</p><label>Tool mappings (JSON)<textarea name="tools" rows="3">${escapeHtml(draft.tools||"{}")}</textarea></label></details><details><summary>Decision model mappings</summary><p>Bind each external decision alias to a Nexus decision backend and an explicit model. Uses server-managed credentials; decision calls use API billing.</p><label>Decision model mappings (JSON)<textarea name="decisions" rows="3" maxlength="65536" placeholder='{"triage":{"backend":"openrouter","model":"your-selected-model"}}'>${escapeHtml(draft.decisions||"{}")}</textarea></label></details><details><summary>Resource mappings</summary><p>Bind existing model profiles, skills, toolsets and MCP connections. Conversion never reads skill paths or launches servers.</p><label>Resource mappings (JSON)<textarea name="resources" rows="4" maxlength="65536" placeholder='{"skills":{"source-name":"saved-skill"},"toolsets":{"group-name":"saved-toolset"}}'>${escapeHtml(draft.resources||"{}")}</textarea></label></details><p>Import does not sign in, call a provider, run tools or activate resources. API execution can incur charges after you run a task.</p>`,"Check configuration");
   if(!form)return;
-  const edit=()=>{$("detail").close();importSAMConfiguration(Object.fromEntries(form)).catch(error=>notify(error.message));};
+  const edit=()=>{$("detail").close();importPortableConfiguration(Object.fromEntries(form)).catch(error=>notify(error.message));};
   const payload={text:form.get("source")};let tools,decisions,resources;
   try{tools=JSON.parse(form.get("tools"));if(!tools||typeof tools!=="object"||Array.isArray(tools))throw new Error();}
   catch(error){showDetail("Tool mappings need changes",'<p role="alert">Use a JSON object mapping each external tool name to a Nexus tool ID.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
@@ -520,13 +523,13 @@ async function importSAMConfiguration(draft={}){
   showDetail("Review external conversion",`<p>${report.document.definitions.length} agents/workflows passed conversion. Review before saving.</p><ul>${report.document.definitions.map(item=>`<li>${escapeHtml(item.document.metadata.name)} · ${item.collection==="agents"?escapeHtml(providerName(item.document.spec.provider)):"workflow"}</li>`).join("")}</ul><details><summary>Converted configuration</summary><pre>${escapeHtml(JSON.stringify(report.document,null,2))}</pre></details><button id="interop-plan">Review changes</button>`);
   $("interop-plan").onclick=async()=>{try{const plan=await featureApi("configuration/plan",{document:report.document});showDetail("Save reviewed external configuration",`<p>These local definitions will be saved. This action does not execute or deploy them.</p><ul>${plan.changes.map(item=>`<li>${escapeHtml(item.action)} · ${escapeHtml(item.resource)}</li>`).join("")}</ul><details><summary>Reviewed configuration</summary><pre>${escapeHtml(JSON.stringify(plan.document,null,2))}</pre></details><button id="interop-apply">Save reviewed configuration</button>`);$("interop-apply").onclick=async()=>{const button=$("interop-apply");button.disabled=true;try{await featureApi("configuration/apply",{plan_id:plan.id,digest:plan.digest});$("detail").close();await refreshDefinitions();notify("Agents and workflows saved. Review provider setup before running them.");}catch(error){notify(error.message);}finally{button.disabled=false;}};}catch(error){notify(error.message);}};
 }
-async function exportSAMConfiguration(){
+async function exportPortableConfiguration(){
   const document={format:"nexus-studio-config/v1",definitions:[...state.agents.map(item=>["agents",item]),...state.workflows.map(item=>["workflows",item])].filter(([,item])=>item.document).map(([collection,item])=>({collection,id:item.id,document:item.document})),resources:[]};
   const report=await featureApi("configuration/interop/export",{document});
   if(!report.valid){showDetail("External export needs changes",interopDiagnostics(report));return;}
   showDetail("External agents and workflows export",`<p>The bundle contains external resource documents plus explicit Nexus provider/tool mappings. Review before downloading. Other workspace resources use native export.</p><pre>${escapeHtml(JSON.stringify(report.bundle,null,2))}</pre><button id="interop-download">Download external bundle</button>`);$("interop-download").onclick=()=>downloadJson("interop-agents-workflows.json",report.bundle);
 }
-document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{if(button.id==="import-interop")await importSAMConfiguration();if(button.id==="export-interop")await exportSAMConfiguration();}catch(error){notify(error.message);}});
+document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{if(button.id==="import-interop")await importPortableConfiguration();if(button.id==="export-interop")await exportPortableConfiguration();}catch(error){notify(error.message);}});
 
 function openAPIHealthOptions(spec,selected){
  const enabled=new Set(selected),result=[];

@@ -96,11 +96,7 @@ def node_image_states(graph, scope, state, outputs):
             alias = node["interop_body_id"]
             current_status = "pending" if status == "completed" and alias not in outputs else status
             existing = result.get(alias)
-            if (
-                existing
-                and existing.get("status") == "completed"
-                and current_status != "completed"
-            ):
+            if existing and existing.get("status") == "completed" and current_status != "completed":
                 continue
             result[alias] = {
                 **result[identity],
@@ -112,7 +108,7 @@ def node_image_states(graph, scope, state, outputs):
 
 def image_references(entries, context, states, resolve):
     """Nil/pruned image entries vanish as a whole; stale/failed evidence fails."""
-    from nexus.core.studio_interop_values import MissingSAMValueError, reference_value
+    from nexus.core.studio_interop_values import MissingPortableValueError, reference_value
 
     def references(value):
         if isinstance(value, dict):
@@ -163,7 +159,7 @@ def image_references(entries, context, states, resolve):
                     break
             try:
                 value = reference_value(reference, context)
-            except MissingSAMValueError as error:
+            except MissingPortableValueError as error:
                 if reference["category"] != "input" or error.stale:
                     raise ValueError(
                         "Image reference names a missing upstream output field"

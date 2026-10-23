@@ -83,7 +83,7 @@ These checks used temporary files and synthetic providers. They do not certify
 real provider accounts, a deployed VM, physical mobile devices or Windows file
 access. The descriptor-based file service currently targets macOS/Linux; Windows
 acceptance remains part of the final desktop milestone. The user's running Studio
-was not restarted during verification. No complete SAM milestone is promoted by
+was not restarted during verification. No complete reference milestone is promoted by
 this additional product check.
 
 Protocol details: [workspace access contract](../postman/contracts/studio-workspace-access.md).

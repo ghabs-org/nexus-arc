@@ -7,7 +7,7 @@ import pytest
 
 from nexus.core.studio import StudioService
 from nexus.core.studio_interop_conditions import evaluate_condition, parse_condition
-from nexus.core.studio_interop_values import MissingSAMValueError, import_value, resolve_value
+from nexus.core.studio_interop_values import MissingPortableValueError, import_value, resolve_value
 from nexus.tools import tool_registry
 from tests.test_studio_workflow_v2 import wait
 
@@ -366,7 +366,7 @@ def test_mapping_missing_input_omission_null_wrong_shape_and_stale_field():
         import_value({"value": "{{workflow.input.user.id}}"}),
         {**context, "input": {"user": "wrong shape"}},
     ) == {"value": None}
-    with pytest.raises(MissingSAMValueError):
+    with pytest.raises(MissingPortableValueError):
         resolve_value(import_value({"coalesce": ["{{done.output.missing}}", "fallback"]}), context)
     assert (
         resolve_value(

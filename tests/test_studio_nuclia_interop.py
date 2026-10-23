@@ -1,11 +1,11 @@
-"""Frozen SAM Nuclia templates adapt explicitly before native preflight."""
+"""Frozen reference Nuclia templates adapt explicitly before native preflight."""
 
 from copy import deepcopy
 
 import pytest
 
 from nexus.core.studio_nuclia import request_body
-from nexus.core.studio_nuclia_interop import POLICY, convert_sam_template
+from nexus.core.studio_nuclia_interop import POLICY, convert_template_settings
 
 
 def source():
@@ -29,10 +29,10 @@ def source():
 def test_explicit_adaptation_preserves_data_without_executing_source():
     config = source()
     before = deepcopy(config)
-    report = convert_sam_template(config, policy=POLICY)
+    report = convert_template_settings(config, policy=POLICY)
     assert report["policy"] == POLICY and len(report["adaptations"]) == 5
     assert config == before
-    assert report["template"]["parameters"][0]["nullable"] is True  # Frozen SAM default.
+    assert report["template"]["parameters"][0]["nullable"] is True  # Frozen reference default.
     result = request_body(
         "ask", {"query": "Policy?", "parameters": {"region": "emea"}}, report["template"]
     )
@@ -45,10 +45,10 @@ def test_explicit_adaptation_preserves_data_without_executing_source():
     assert config == before
 
 
-@pytest.mark.parametrize("policy", [None, "sam", "", True])
+@pytest.mark.parametrize("policy", [None, "reference", "", True])
 def test_implicit_or_unknown_policy_rejected(policy):
     with pytest.raises(ValueError, match="explicit"):
-        convert_sam_template(source(), policy=policy)
+        convert_template_settings(source(), policy=policy)
 
 
 @pytest.mark.parametrize(
@@ -68,13 +68,13 @@ def test_unsupported_formatting_and_undeclared_names_fail(template):
     config = source()
     config["prompt_rephrasing"]["template"] = template
     with pytest.raises(ValueError):
-        convert_sam_template(config, policy=POLICY)
+        convert_template_settings(config, policy=POLICY)
 
 
 def test_escaped_braces_and_runtime_values_are_not_reinterpreted():
     config = source()
     config["prompt_rephrasing"]["template"] = '{{"question": "{query}"}}; {region}'
-    native = convert_sam_template(config, policy=POLICY)["template"]
+    native = convert_template_settings(config, policy=POLICY)["template"]
     result = request_body(
         "ask", {"query": "Policy?", "parameters": {"region": "{query} {{query}}"}}, native
     )
@@ -101,12 +101,12 @@ def test_unknown_or_invalid_source_settings_fail_without_echoing_values(mutation
     config = source()
     mutation(config)
     with pytest.raises(ValueError) as error:
-        convert_sam_template(config, policy=POLICY)
+        convert_template_settings(config, policy=POLICY)
     assert "PRIVATE_SECRET" not in str(error.value) and "private.user" not in str(error.value)
 
 
 def test_filters_are_never_silently_removed_and_scalars_follow_declared_policy():
-    native = convert_sam_template(source(), policy=POLICY)["template"]
+    native = convert_template_settings(source(), policy=POLICY)["template"]
     with pytest.raises(ValueError, match="required"):
         request_body("ask", {"query": "Policy?"}, native)
     for value in (None, ""):
@@ -125,7 +125,7 @@ def test_filters_are_never_silently_removed_and_scalars_follow_declared_policy()
 
 
 def test_optional_defaults_and_disabled_templates_follow_native_rules():
-    native = convert_sam_template(
+    native = convert_template_settings(
         {
             "template_parameters": [{"name": "optional"}],
             "prompt_rephrasing": None,

@@ -82,8 +82,8 @@ imports or shell commands in this interpreter. Reading a selected cloud artifact
 backend still uses its existing configured storage client. Workflows invoke the
 tool explicitly so their typed JSON output remains intact.
 
-This is a bounded Nexus equivalent of the frozen SAM dynamic-embed feature.
-Unsupported SAM modifiers and expression syntax fail visibly. Existing generic
+This is a bounded Nexus equivalent of the frozen reference dynamic-embed feature.
+Unsupported reference modifiers and expression syntax fail visibly. Existing generic
 `nexus.tools.embeds.resolve_embeds` callable substitution remains unchanged.
 Existing conversations and persisted records require no migration. Rich content
 remains optional and plain-text `output` remains available to existing clients.

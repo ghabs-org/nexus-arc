@@ -13,7 +13,7 @@ The guide is delivered at version 1. Milestones 5 and 6 now have scoped local
 acceptance; their earlier incomplete status is historical. Keep the guide aligned
 with screens changed during remaining catalog and operational work, then verify
 it on physical devices and the personal HTTPS VM. The
-[current SAM implementation plan](STUDIO-SAM-IMPLEMENTATION-PLAN.md) records
+[current reference implementation plan](STUDIO-IMPLEMENTATION-PLAN.md) records
 remaining work and separates implementation from account/device/VM validation.
 
 ## Entry and persistence

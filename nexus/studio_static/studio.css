@@ -560,7 +560,12 @@ dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 .integration-catalog details { max-width: 100%; }
 
 /* Server file previews stay inert and fit narrow browser windows. */
-.workspace-file-path,.workspace-help-text{overflow-wrap:anywhere;white-space:pre-wrap}
+.workspace-file-path{overflow-wrap:anywhere;white-space:pre-wrap}
+.workspace-help-text{max-width:76ch;min-width:0;overflow-x:auto;overflow-wrap:anywhere;white-space:normal;line-height:1.65}
+.workspace-help-text li+li{margin-top:.5em}
+.workspace-help-text a{color:var(--blue);text-decoration:underline;text-underline-offset:.15em}
+.workspace-help-text ul,.workspace-help-text ol{padding-left:1.5em}
+.workspace-help-text blockquote{margin:1em 0;padding-left:1em;border-left:3px solid var(--border,#ddd);color:var(--muted)}
 .workspace-file-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:26rem;overflow:auto;max-width:100%;padding:1rem;background:var(--surface-alt,#f3f5f6);border:1px solid var(--border,#d4dadd);border-radius:.5rem}
 #view-files .form-grid>*,#view-assistant .workbench-form>*{min-width:0}
 #view-files h2,#studio-help-answer code{overflow-wrap:anywhere}
@@ -644,3 +649,23 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
 #view-files .form-grid{display:grid;grid-template-columns:minmax(200px,320px) 1fr;gap:16px;align-items:flex-end;margin:18px 0}
 #view-files .form-grid label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
 #view-files .form-grid select{width:100%}
+
+/* Sign-in actions share geometry across link and button controls. */
+.login-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:24px}
+.login-actions :is(a.button-link,button){display:inline-flex;align-items:center;justify-content:center;min-height:46px;margin:0;padding:11px 18px;border:1px solid var(--ink);border-radius:8px;font-size:14px;font-weight:500;line-height:1.5;text-align:center;text-decoration:none}
+.login-actions a.button-link{background:var(--ink);color:var(--surface)}
+.login-actions a.button-link:hover{background:#333;border-color:#333}
+.login-actions button.secondary{background:var(--surface);color:var(--ink);border-color:#cdced1}
+.login-actions button.secondary:hover{background:var(--canvas);border-color:var(--muted)}
+@media(max-width:540px){.login-actions{flex-direction:column;align-items:stretch}.login-actions :is(a.button-link,button){width:100%}}
+
+/* Sharing files is explicit; long names wrap without squeezing touch controls. */
+.share-files{min-width:0;margin:20px 0;padding:16px;border:1px solid var(--line);border-radius:8px}
+.share-files legend{padding:0 6px;font-size:14px;font-weight:600}
+.share-files>p{font-size:13px;line-height:1.6;color:var(--muted)}
+.share-file-options{max-height:240px;overflow:auto;overscroll-behavior:contain}
+.share-file-option{display:flex!important;align-items:center;gap:12px;min-height:48px;margin:0!important;padding:10px 4px;cursor:pointer}
+.share-file-option input{width:20px!important;height:20px;margin:0!important;flex-shrink:0}
+.share-file-option span{min-width:0;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
+.share-file-option small{display:block;color:var(--muted);font-size:12px}
+@media(max-width:540px){.share-file-options{max-height:180px}}

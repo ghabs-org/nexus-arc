@@ -29,7 +29,7 @@ upstream controller; ties use source declaration order. Final shared aliases use
 the same rule, independent of wall-clock completion order. A node reading a shared
 alias must join every concurrent writer; ambiguous readers reject before saving.
 This is the explicit Nexus compatibility policy, not an independently verified
-claim about SAM's concurrent result ordering.
+claim about reference's concurrent result ordering.
 
 Mixed map/loop ownership and broader expression-language compatibility remain
 explicit limitations. Named nested workflows remain available for those designs.

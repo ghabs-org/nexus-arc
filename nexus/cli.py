@@ -6,9 +6,12 @@ from nexus.translators.to_n8n import translate_workflow_to_n8n
 from nexus.translators.to_python import translate_agent_to_python
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Nexus ARC CLI")
+def build_parser():
+    parser = argparse.ArgumentParser(prog="nexus", description="Nexus ARC CLI")
     subparsers = parser.add_subparsers(dest="command")
+    from nexus.core.studio_authoring_skills import add_parser as add_authoring_parser
+
+    add_authoring_parser(subparsers)
     chat_parser = subparsers.add_parser(
         "chat", help="Chat through an authenticated Studio workspace"
     )
@@ -156,7 +159,20 @@ def main():
     init_parser.add_argument("--port", type=int, default=5003, help="Studio port for --gui")
     init_parser.add_argument("--host", default="127.0.0.1", help="Studio listen host for --gui")
 
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
+    if args.command == "ai-assistance":
+        from nexus.core.studio_authoring_skills import assistance_command
+
+        try:
+            assistance_command(args)
+        except (ValueError, OSError) as exc:
+            parser.exit(2, f"{exc}\n")
+        return
     if args.command == "chat":
         from nexus.core.studio_chat_cli import chat_command
 

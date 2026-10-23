@@ -114,7 +114,7 @@ runtime parameter declarations and reusable filter/rephrasing templates now
 have scoped native configuration acceptance, described below. Original remote-document viewing
 through provider broker/ephemeral URLs remains separate work; native file-field access
 is now described under "Save original files from citations" below. This answer slice provides
-Nexus-authenticated local evidence snapshots instead. The plugin's Solace REMi
+Nexus-authenticated local evidence snapshots instead. The plugin's external platform REMi
 publishing is excluded; native cited-only evaluation evidence is described below.
 Live Nuclia generation quality, predicate behavior, account permissions,
 original-document access and billing remain unverified. Milestones 7 and 8 remain
@@ -125,7 +125,7 @@ Sources:
 - [Official Ask contract](https://docs.rag.progress.cloud/docs/rag/advanced/ask/)
 - [Official filter contract](https://docs.rag.progress.cloud/docs/rag/advanced/search-filters/)
 - [Official synchronous response model](https://github.com/nuclia/nucliadb/blob/main/nucliadb_models/src/nucliadb_models/search.py)
-- [Frozen plugin guide](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/blob/7599710a38318a336c47cf605e4774d4add24d8e/sam-nuclia-tool/docs/nuclia_rag_tool_user_guide.md)
+- Frozen plugin guide (archived audit evidence)
 
 ## Stored typed query templates
 
@@ -186,9 +186,9 @@ This supersedes the earlier missing native parameter/template item. Original
 remote-document broker access and live account acceptance remain open. Native
 evaluation evidence is described below. Public shell cache version is now 40.
 
-## Importing SAM template settings
+## Importing portable template settings
 
-The framework helper `nexus.core.studio_nuclia_interop.convert_sam_template`
+The framework helper `nexus.core.studio_nuclia_interop.convert_template_settings`
 converts the frozen plugin's `template_parameters`, `prompt_rephrasing` and
 `filter_expression_template` object into a native version-1 template. Select
 `policy="nexus-strict-v1"` explicitly and review the returned `adaptations` before
@@ -197,9 +197,9 @@ apply. The helper performs no writes, credential resolution, Python imports,
 package installation or activation.
 
 ```python
-from nexus.core.studio_nuclia_interop import convert_sam_template
+from nexus.core.studio_nuclia_interop import convert_template_settings
 
-result = convert_sam_template(
+result = convert_template_settings(
     {
         "template_parameters": [
             {"name": "region", "type": "string", "required": True}
@@ -216,7 +216,7 @@ result = convert_sam_template(
 This is an explicit adaptation, not a lossless import profile. The selected
 policy declares these differences:
 
-- Runtime values use `arguments.parameters`, replacing SAM's top-level values.
+- Runtime values use `arguments.parameters`, replacing reference's top-level values.
 - Missing required values fail; an explicit null does not select a non-null default.
 - Missing referenced values fail instead of falling back to the original query.
 - A configured filter is never removed because a value is absent or empty.
@@ -233,7 +233,7 @@ undeclared variables and ambiguous escaped braces fail. Context expressions,
 audit metadata, connection settings and all unknown fields fail rather than
 being discarded. Supply only the three template settings above, not an entire
 tool descriptor. No original provider defaults, credentials, account ID or
-broker configuration are inferred. Importing complete SAM Python tool
+broker configuration are inferred. Importing complete reference Python tool
 descriptors into the agent configuration bridge remains separate work.
 
 The example exercises conversion, native plan/apply, explicit reactivation,
@@ -241,14 +241,14 @@ agent invocation and private revision-pinned evidence against the local HTTP
 simulation:
 
 ```sh
-PYTHONPATH=. python examples/nexus-bot/src/studio_nuclia.py --sam-template
+PYTHONPATH=. python examples/nexus-bot/src/studio_nuclia.py --portable-template
 PYTHONPATH=. python -m pytest tests/test_studio_nuclia_interop.py tests/studio_nuclia_acceptance.py -q -o addopts=''
 ```
 
 Existing connector records need no migration. Generated configurations use the
 same optional native `template` field and the existing validators. No endpoint,
 credential or activation state changes during pure conversion. Live Nuclia,
-independent SAM runtime comparison, original-document broker access, context
+independent reference runtime comparison, original-document broker access, context
 expression mapping remain unverified or unimplemented as noted above. Native
 cited-only evaluation evidence is described below.
 
@@ -299,9 +299,9 @@ PYTHONPATH=. python -m pytest tests/test_studio_retrieval_evidence.py tests/stud
 ```
 
 This provides a native evidence-to-evaluation equivalent for the plugin's REMi
-question/answer/context event, with an explicit cited-only scope. Solace topic
+question/answer/context event, with an explicit cited-only scope. external platform topic
 publishing remains excluded. Independent REMi scoring parity and live Nuclia or
-judge quality are not claimed. Complete SAM Python tool descriptors, context
+judge quality are not claimed. Complete reference Python tool descriptors, context
 expressions and original remote-document broker access remain open.
 
 No state or credential migration is required. Existing evaluation cases have no
@@ -372,7 +372,7 @@ No schema/credential migration is required. New citations optionally retain a
 configuration digest, file-field identity and source selector. Older citations
 remain readable. The version-1 `source-originals` receipts use existing state,
 artifact, backup and authorization services. Public shell cache version is 40.
-Complete SAM descriptor/context-expression mapping, augmented or conversation
+Complete reference descriptor/context-expression mapping, augmented or conversation
 attachment originals, vendor ephemeral-link equivalence, historical original
 revisions and live Nuclia/VM acceptance remain open. Milestones 7 and 8 are not
 complete.

@@ -43,8 +43,8 @@ The simulation's templated case additionally requires the expanded region/query
 and resource filter. Both ordinary and templated consumers retain nine requests
 per example, with invalid typed values producing no request.
 
-The optional SAM template-settings consumer now converts the frozen plugin's
-three template fields through `convert_sam_template(..., policy="nexus-strict-v1")`
+The optional reference template-settings consumer now converts the frozen plugin's
+three template fields through `convert_template_settings(..., policy="nexus-strict-v1")`
 before using native configuration plan/apply. Conversion reports its behavior
 adaptations and rejects unsupported settings. It creates no API route and does
 not import complete Python tool descriptors. The third real-HTTP acceptance

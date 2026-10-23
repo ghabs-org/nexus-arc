@@ -1061,6 +1061,68 @@ def test_signed_channels_map_execution_and_ignore_spoofed_identity(team, monkeyp
     )
 
 
+@pytest.mark.parametrize("public", [False, True])
+def test_selected_snapshot_files_are_private_pinned_and_revocable(team, public):
+    service, _, _, request, _ = team
+    service._write(
+        service._path("sessions", "file-sharing"),
+        {"id": "file-sharing", "owner_id": "alice", "title": "Files", "messages": []},
+    )
+
+    def save(name, user, content, **extra):
+        code, record = request(
+            "/api/catalog/artifacts",
+            {
+                "name": name,
+                "data": {
+                    "filename": name + ".txt",
+                    "content_base64": base64.b64encode(content).decode(),
+                },
+                **extra,
+            },
+            user=user,
+        )
+        assert code == 201, record
+        return record
+
+    selected = save("Selected", "alice", b"Original revision")
+    omitted = save("Omitted", "alice", b"Unshared private text")
+    foreign = save("Foreign", "owner", b"Another account's private text")
+    listed = request("/api/catalog/artifacts", user="alice")[1]["items"]
+    assert foreign["id"] not in {item["id"] for item in listed}
+    payload = {
+        "session_id": "file-sharing",
+        "artifact_ids": [foreign["id"]],
+        "recipients": ["bob"],
+        "public": public,
+    }
+    if public:
+        assert request("/api/studio/sharing", {"enabled": True}, user="owner")[0] == 200
+    assert request("/api/studio/shares", payload, user="alice")[0] == 403
+    payload["artifact_ids"] = [selected["id"]]
+    code, snapshot = request("/api/studio/shares", payload, user="alice")
+    assert code == 201, snapshot
+    assert snapshot["artifacts"] == [
+        {"id": selected["id"], "revision": 1, "filename": "Selected.txt"}
+    ]
+    prefix = (
+        "/api/public-shares/" + snapshot["token"]
+        if public
+        else "/api/studio/shares/" + snapshot["id"]
+    )
+    reader = None if public else "bob"
+    save("Selected", "alice", b"Replacement revision", id=selected["id"], revision=1)
+    download = prefix + "/artifacts/" + selected["id"]
+    code, file = request(download, user=reader)
+    assert code == 200 and base64.b64decode(file["content_base64"]) == b"Original revision"
+    assert request(prefix + "/artifacts/" + omitted["id"], user=reader)[0] == 404
+    if not public:
+        assert request(download, user="viewer")[0] == 403
+        assert request(download)[0] == 401
+    assert request("/api/studio/shares/" + snapshot["id"] + "/revoke", {}, user="alice")[0] == 200
+    assert request(download, user=reader)[0] == 404
+
+
 def test_parity_projects_feedback_and_snapshot_grants_are_scoped_to_nexus_identity(team):
     service, _, manager, request, _ = team
     status, project = request(

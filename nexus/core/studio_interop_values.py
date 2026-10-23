@@ -10,7 +10,7 @@ LANGUAGE = "interop-template/v1"
 DROP = object()
 
 
-class MissingSAMValueError(ValueError):
+class MissingPortableValueError(ValueError):
     def __init__(self, *, stale=False, omitted=False):
         super().__init__("External reference is unresolved")
         self.stale, self.omitted = stale, omitted
@@ -47,7 +47,9 @@ def import_value(value, reference=None):
         if match.start() > start:
             parts.append(value[start : match.start()])
         path, category = reference(match[1].strip())
-        parts.append({"interop_ref": {"path": {"ref": path}, "source": match[0], "category": category}})
+        parts.append(
+            {"interop_ref": {"path": {"ref": path}, "source": match[0], "category": category}}
+        )
         start = match.end()
     if start < len(value):
         parts.append(value[start:])
@@ -102,7 +104,7 @@ def reference_value(ref, context):
             # An absent/skipped node is nil. A missing field on a completed node is stale.
             absent_node = path[0] in {"nodes", "interop_nodes"} and index <= 1
             absent_previous = path[0] == "previous" and context.get("previous") is None
-            raise MissingSAMValueError(
+            raise MissingPortableValueError(
                 stale=ref["category"] != "input" and not absent_node and not absent_previous,
                 omitted=ref["category"] == "input" and isinstance(current, dict),
             ) from None
@@ -125,7 +127,7 @@ def resolve_value(value, context):
         ref = value["interop_ref"]
         try:
             return reference_value(ref, context)
-        except MissingSAMValueError as missing:
+        except MissingPortableValueError as missing:
             if missing.stale:
                 if context.get("_interop_output_mapping"):
                     return ref["source"]
@@ -142,7 +144,7 @@ def resolve_value(value, context):
                 ref = part["interop_ref"]
                 try:
                     item = reference_value(ref, context)
-                except MissingSAMValueError as missing:
+                except MissingPortableValueError as missing:
                     if missing.stale and not context.get("_interop_output_mapping"):
                         raise
                     parts.append(ref["source"])

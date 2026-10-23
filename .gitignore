@@ -54,3 +54,19 @@ node_modules/
 
 # Runtime data (workspaces, chat memory, logs)
 data/
+
+# Local-only implementation audit and planning records
+/docs/STUDIO-AUDIT.json
+/docs/STUDIO-BUILD-CHECKPOINT.json
+/docs/STUDIO-CANCELLATION-CHECKPOINT.json
+/docs/STUDIO-CANCELLATION.md
+/docs/STUDIO-CONFIGURATION-CHECKPOINT.json
+/docs/STUDIO-CONFIGURATION.md
+/docs/STUDIO-CONTROLS-CHECKPOINT.json
+/docs/STUDIO-CONTROLS.md
+/docs/STUDIO-DECISIONS-CHECKPOINT.json
+/docs/STUDIO-DECISIONS.md
+/docs/STUDIO-IMPLEMENTATION-PLAN.md
+/docs/STUDIO-POLICIES-CHECKPOINT.json
+/docs/STUDIO-POLICIES.md
+/docs/STUDIO-PROGRESS.md

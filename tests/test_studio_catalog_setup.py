@@ -53,10 +53,14 @@ def test_catalog_covers_every_supported_entry_without_resolving_accounts_or_runn
             setup = row["setup_metadata"]
             assert setup["billing"] and setup["requirements"] and setup["installation"]
             assert setup["configuration_template"] and setup["source_revision"] in setup["source"]
+            assert setup["source"].startswith("https://github.com/ghabs-org/nexus-arc/")
+            assert len(setup["source_revision"]) == 64
+            assert setup["source"].endswith("#sha256=" + setup["source_revision"])
             assert row["readiness"]["live_verified"] is False
             assert row["live_verified"] is False
         sql = next(r for r in rows if r["id"] == "community-sql-database")
         assert sql["setup_metadata"]["alias_of"] == "community-sql-database-tool"
+        assert all(row["catalog_commit"] == "" for row in result["official_items"])
     finally:
         studio.close()
 

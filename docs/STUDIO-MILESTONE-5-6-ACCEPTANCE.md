@@ -1,6 +1,6 @@
 # Milestones 5 and 6: local acceptance
 
-As of 21 October 2026, all 19 frozen M5/M6 clauses and exits have supported local acceptance. This closes the Nexus implementation profile, not independent SAM runtime equivalence or live account/deployment validation. The overall eight-milestone plan remains open.
+As of 21 October 2026, all 19 frozen M5/M6 clauses and exits have supported local acceptance. This closes the Nexus implementation profile, not independent reference runtime equivalence or live account/deployment validation. The overall eight-milestone plan remains open.
 
 ## Acceptance evidence
 
@@ -23,7 +23,7 @@ Suites overlap; these numbers are not a unique-test total. The additional framew
 | M05-02 | Schema checks, timeout, safe retry, handlers and checkpoint recovery | test_studio_workflow_v2.py; test_studio_interop_shared_handlers.py |
 | M05-03 | 100-item map, concurrency 4, 100 loop iterations, depth 10; administrator overrides | test_studio_interop_policies.py; test_studio_workflow_v2.py |
 | M05-04 | Approvals, uncertain effects and no automatic mutation replay | test_studio_workflow_handoff.py; test_studio_interop_cancellation.py |
-| M05-05 | Bounded non-Solace SAM agent/workflow round trip and complete unsupported-field preflight | test_studio_interop_configuration.py; test_studio_interop_workflows.py; test_studio_interop_shared_loops.py; test_studio_image_scopes.py |
+| M05-05 | Bounded non-external platform reference agent/workflow round trip and complete unsupported-field preflight | test_studio_interop_configuration.py; test_studio_interop_workflows.py; test_studio_interop_shared_loops.py; test_studio_image_scopes.py |
 | M05-06 | Create/refine/reopen supported resources and child workflows; dependency checks | test_quick_build.py; test_studio_build_workflows.py; studio_build_authoring.test.cjs |
 | M05-07 | Differences, lifecycle status, health, deactivation and rollback | test_studio_build_lifecycle.py; test_studio_resource_health.py; test_studio_extended_health.py |
 | M05-08 | Reviewed-revision activation and explicit credential-dependent enabling | test_studio_build_lifecycle.py; test_studio_team.py |
@@ -43,7 +43,7 @@ Check files are under `tests/`. The SQL client-boundary matrix uses synthetic en
 
 ## Supported boundaries
 
-- Completion means the frozen M5/M6 Nexus implementation and supported local acceptance profile; it does not mean every upstream SAM construct is supported.
+- Completion means the frozen M5/M6 Nexus implementation and supported local acceptance profile; it does not mean every upstream reference construct is supported.
 - Mixed map/loop ownership, ambiguous unjoined shared aliases and unsupported source syntax/settings reject before saving. Concurrent declaration-order ties use documented Nexus policy.
 - OpenAPI supports the documented bounded 3.0/3.1 profile. Remote/recursive references and unsupported media/serialization constructs reject during preflight.
 - OAuth clients require explicit provider registration. Teams subscriptions require operator registration/renewal. Non-probeable health operations report unsupported.
@@ -54,7 +54,7 @@ Check files are under `tests/`. The SQL client-boundary matrix uses synthetic en
 
 - Real SQL Server and Oracle servers: authentication, driver behavior, timeout/cancellation and pool recovery.
 - Selected real MCP/OAuth providers, A2A peers, Microsoft tenant, Bedrock, Nuclia, Power BI and other enterprise accounts.
-- Independent installed SAM runtime comparison; source/schema fixtures do not prove identical runtime ordering.
+- Independent installed reference runtime comparison; source/schema fixtures do not prove identical runtime ordering.
 - Personal HTTPS VM/TLS operation and physical mobile-device checks.
 
 ## Compatibility and operations

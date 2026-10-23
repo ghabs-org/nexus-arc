@@ -8,7 +8,7 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "templates,sam_template,evidence,originals",
+    "templates,portable_template,evidence,originals",
     [
         (False, False, False, False),
         (True, False, False, False),
@@ -18,7 +18,7 @@ import pytest
     ],
 )
 def test_nuclia_opt_in_generation_and_private_revision_citations(
-    templates, sam_template, evidence, originals
+    templates, portable_template, evidence, originals
 ):
     example = runpy.run_path(
         str(Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_nuclia.py")
@@ -26,7 +26,7 @@ def test_nuclia_opt_in_generation_and_private_revision_citations(
     result = example["exercise"](
         os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia"),
         templates=templates,
-        sam_template=sam_template,
+        portable_template=portable_template,
         evidence=evidence,
         originals=originals,
     )

@@ -78,6 +78,6 @@ local semantic acceptance of the catalog entry, not completion of milestone 7.
 
 Sources:
 
-- [Frozen plugin README](https://github.com/solacecommunity/solace-agent-mesh-plugins/blob/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/send-grid/README.md)
+- Frozen plugin README (archived audit evidence)
 - [Official Mail Send contract](https://www.twilio.com/docs/sendgrid/api-reference/mail-send/mail-send)
 - [Official error contract](https://www.twilio.com/docs/sendgrid/api-reference/mail-send/errors)

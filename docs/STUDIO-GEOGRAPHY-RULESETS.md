@@ -56,7 +56,7 @@ Upload a private JSON artifact through Studio's existing file library. The
 }
 ```
 
-Example document, compatible with the frozen SAM decision-data shape:
+Example document, compatible with the frozen reference decision-data shape:
 
 ```json
 {
@@ -113,9 +113,9 @@ than being silently discarded. No bulk state migration or optional package is
 required. The plugin's original dynamic function naming is represented by one
 explicitly selected Nexus tool and versioned artifact ID.
 
-Frozen sources: [geographic plugin](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/7599710a38318a336c47cf605e4774d4add24d8e/sam-geo-information)
-and [ruleset plugin](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/7599710a38318a336c47cf605e4774d4add24d8e/sam-ruleset-lookup-tool).
-No Solace runtime is required.
+Frozen sources: geographic plugin (archived audit evidence)
+and ruleset plugin (archived audit evidence).
+No external platform runtime is required.
 
 ## Example and checks
 

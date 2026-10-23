@@ -20,7 +20,7 @@ commercial customer/key endpoints are not part of this adapter.
 
 `ruleset_lookup` takes `artifact_id`, optional positive `revision`, and a
 `parameters` object. The selected owned UTF-8 JSON artifact contains the frozen
-SAM `decision_data` shape: name, description, grouping_parameter,
+reference `decision_data` shape: name, description, grouping_parameter,
 input_parameters and decision_tree_groups. It may be wrapped in `decision_data`
 with optional `default_group_key` (default `_default`). Group selection is
 case-insensitive and uses an explicitly configured default group if no match.
@@ -39,4 +39,4 @@ Browsing the catalog performs no service request, installation or activation.
 Sources: frozen plugin README/config/source at official catalog commit
 `7599710a38318a336c47cf605e4774d4add24d8e`; Open-Meteo geocoding and forecast
 documentation inspected 21 October 2026. The Nexus source storage/UI differs
-from SAM configuration loading while preserving grouped text lookup semantics.
+from reference configuration loading while preserving grouped text lookup semantics.

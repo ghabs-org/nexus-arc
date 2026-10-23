@@ -101,10 +101,10 @@ references. Token acquisition/renewal remains the operator's existing credential
 workflow. No report-browser or automatic identity-provider login is claimed.
 Actual tenant permissions, RLS/SSO restrictions, token expiry/rotation, model
 quality and report/data freshness still need a configured live account. This
-checkpoint does not finish milestone 7 or the complete SAM plan.
+checkpoint does not finish milestone 7 or the complete reference plan.
 
 Sources:
 
 - [Official Execute Queries contract](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries)
-- [Frozen Power BI executable tool](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/blob/7599710a38318a336c47cf605e4774d4add24d8e/sam-powerbi/src/sam_powerbi/tools.py)
-- [Frozen catalog README](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/blob/7599710a38318a336c47cf605e4774d4add24d8e/sam-powerbi/README.md)
+- Frozen Power BI executable tool (archived audit evidence)
+- Frozen catalog README (archived audit evidence)

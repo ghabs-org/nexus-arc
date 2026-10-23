@@ -68,14 +68,14 @@ class StudioConfiguration:
         }
 
     def convert_interop(self, data, actor):
-        from nexus.core.studio_interop_configuration import StudioSAMConfiguration
+        from nexus.core.studio_interop_configuration import StudioPortableConfiguration
 
-        return StudioSAMConfiguration(self).convert(data, actor)
+        return StudioPortableConfiguration(self).convert(data, actor)
 
     def export_interop(self, data, actor):
-        from nexus.core.studio_interop_configuration import StudioSAMConfiguration
+        from nexus.core.studio_interop_configuration import StudioPortableConfiguration
 
-        return StudioSAMConfiguration(self).export(data, actor)
+        return StudioPortableConfiguration(self).export(data, actor)
 
     def normalize(self, document):
         if (

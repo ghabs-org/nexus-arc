@@ -26,7 +26,7 @@ to another provider, performs a trade, or returns a partial success result.
 
 Frozen source: community commit `f3a733c1470fc79d7dbc7fc21ddeab077f4645f4`,
 `finance/src/finance/tools.py`, Git blob `dded2ab0b5dc84eaea9ebbb21a59909a2070749e`.
-Native operations replace the two SAM Python function names. Unlike source
+Native operations replace the two reference Python function names. Unlike source
 truthiness fallbacks, zero values are retained. Long-name-only company records
 are accepted. Provider failures raise sanitized errors rather than echoing raw
-SDK exceptions. No Solace broker, Google ADK or source package is executed.
+SDK exceptions. No external platform broker, Google ADK or source package is executed.

@@ -191,7 +191,7 @@ NEXUS_MEDIA_SIM_URL=http://127.0.0.1:49830/media/v1 PYTHONPATH=. python -m pytes
 Stop the simulation with Ctrl-C afterward. Fixtures exercise actual request
 construction, authentication, inline files, result validation, quotas, redirects,
 timeouts, response budgets and the full workflow consumer. They are synthetic
-stand-ins, not vendor-account or independent SAM-runtime acceptance. Physical
+stand-ins, not vendor-account or independent reference-runtime acceptance. Physical
 devices and the personal HTTPS VM remain separate operational checks.
 
 Local interface contract: [studio-media.md](../postman/contracts/studio-media.md).

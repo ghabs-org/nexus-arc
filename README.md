@@ -73,6 +73,7 @@ Nexus ARC is where Jarvis gets safe, reusable access to authenticated systems.
 
 > 📖 **Documentation:**
 > - [Usage Guide & Examples](docs/USAGE.md) - how to use Nexus ARC in your project
+> - [AI authoring skills](docs/STUDIO-AUTHORING-SKILLS.md) - generate and install Studio guides for Codex and Claude Code
 > - [Architecture](docs/ARCHITECTURE.md) - current system split and historical evolution
 > - [Connectors & Credentials](docs/CONNECTORS.md) - where OAuth, token storage, and third-party integrations belong
 > - [OpenClaw Operator Surface](docs/OPENCLAW_OPERATOR_SURFACE.md) - how OpenClaw acts as a trusted control plane over Nexus ARC

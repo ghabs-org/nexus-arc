@@ -496,7 +496,8 @@ class StudioDurableExecutor:
     def worker(self):
         while not self.stop.is_set():
             try:
-                self.store.reap(self.studio.save_unsuccessful_turn)
+                if self.store.reap(self.studio.save_unsuccessful_turn):
+                    self.studio.speech.cleanup()
                 job = self.store.claim(self.lease_seconds)
                 if not job:
                     self.stop.wait(0.2)
@@ -546,6 +547,8 @@ class StudioDurableExecutor:
                     done.set()
                     heartbeat.join(timeout=2)
                     self.store.finish(job["run_id"], job["token"])
+                    if job["payload"].get("kind") == "speech":
+                        self.studio.speech.cleanup()
             except Exception:
                 # Do not replay ambiguous attempts. A lease expiration exposes
                 # interruption; an operator reviews persisted checkpoints/effects.

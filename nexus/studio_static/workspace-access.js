@@ -68,7 +68,12 @@ $("files-new-folder").addEventListener("click",async()=>{
 });
 function renderStudioHelp(data){
   $("studio-help-answer").innerHTML=`<p class="workspace-scope">${escapeHtml(data.notice)}</p><div class="workspace-help-text"></div><p>Server workspace: <code>${escapeHtml(data.workspace.path)}</code></p><div class="card-actions">${data.sources.map(source=>`<a class="button-link" href="${escapeHtml(source.url)}">${escapeHtml(source.title)}</a>`).join("")}</div>${Object.entries(data.resources).map(([kind,items])=>`<h2>${kind==="agents"?"Agents":"Workflows"}</h2>${items.length?items.map(item=>`<p><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a> · <code>${escapeHtml(item.id)}</code></p>`).join(""):"<p>None saved yet.</p>"}`).join("")}`;
-  $("studio-help-answer").querySelector(".workspace-help-text").textContent=data.answer;
+  renderStudioHelpContent($("studio-help-answer").querySelector(".workspace-help-text"),data.answer);
+}
+function renderStudioHelpContent(node,text){
+  node.classList.add("message-body","workspace-help-text");
+  renderContent(node,text);
+  node.querySelectorAll('a[href^="#"]').forEach(link=>link.removeAttribute("target"));
 }
 $("studio-help-form").addEventListener("submit",async event=>{
   event.preventDefault();const button=$("studio-help-local");button.disabled=true;$("studio-help-error").textContent="";
@@ -84,7 +89,10 @@ $("studio-help-ai").addEventListener("click",async()=>{
     const monitor=window.pollRun||(typeof pollRun==="function"?pollRun:null)||window.watchRun;
     if(monitor){
       monitor(run.id,updated=>{
-        if(updated.status==="completed")$("studio-help-answer").textContent=updated.output;
+        if(updated.status==="completed"){
+          $("studio-help-answer").innerHTML='<div class="workspace-help-text"></div>';
+          renderStudioHelpContent($("studio-help-answer").querySelector(".workspace-help-text"),updated.output);
+        }
         else if(!["queued","running"].includes(updated.status))$("studio-help-error").textContent=updated.error||`Run ${run.id}: ${updated.status}. Review it in Activity.`;
       }).catch(error=>{$("studio-help-error").textContent=error.message;});
     }

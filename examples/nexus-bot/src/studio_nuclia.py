@@ -20,7 +20,7 @@ import requests
 
 from nexus.core.models import AgentResult
 from nexus.core.studio import StudioService
-from nexus.core.studio_nuclia_interop import POLICY, convert_sam_template
+from nexus.core.studio_nuclia_interop import POLICY, convert_template_settings
 from nexus.studio import make_studio_handler
 
 
@@ -28,11 +28,11 @@ def exercise(
     base="http://127.0.0.1:49873/nuclia",
     *,
     templates=False,
-    sam_template=False,
+    portable_template=False,
     evidence=False,
     originals=False,
 ):
-    templates = templates or sam_template
+    templates = templates or portable_template
     url = urlparse(base)
     if url.scheme != "http" or url.hostname != "127.0.0.1" or url.username or url.password:
         raise ValueError("This example accepts only its local HTTP simulation")
@@ -157,8 +157,8 @@ def exercise(
                     "query_prompt": "Region: {{region}}; Question: {{query}}",
                     "filter_expression": {"field": {"prop": "resource", "id": "{{document}}"}},
                 }
-                if sam_template:
-                    converted = convert_sam_template(
+                if portable_template:
+                    converted = convert_template_settings(
                         {
                             "template_parameters": template["parameters"],
                             "prompt_rephrasing": {
@@ -380,7 +380,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="http://127.0.0.1:49873/nuclia")
     parser.add_argument("--templates", action="store_true")
-    parser.add_argument("--sam-template", action="store_true")
+    parser.add_argument("--portable-template", action="store_true")
     parser.add_argument("--evidence", action="store_true")
     parser.add_argument("--originals", action="store_true")
     args = parser.parse_args()
@@ -388,7 +388,7 @@ if __name__ == "__main__":
         exercise(
             args.base,
             templates=args.templates,
-            sam_template=args.sam_template,
+            portable_template=args.portable_template,
             evidence=args.evidence,
             originals=args.originals,
         )

@@ -61,7 +61,14 @@
   </aside>
   <main id="main-content" tabindex="-1">
     <header class="topbar"><div class="topbar-location"><span class="breadcrumb">Workspace</span><span class="slash">/</span><span id="view-title">Conversations</span></div><div class="topbar-actions"><button type="button" class="secondary" id="help-guide-button" data-guide-open aria-label="Interactive guide" title="Interactive guide"><svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16.5v.5"/></svg><span class="topbar-button-label">Interactive guide</span></button><button type="button" class="secondary" id="install-app" aria-label="Install app" title="Install app"><svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg><span class="topbar-button-label">Install app</span></button></div></header>
-    <section id="team-login" class="resource-view" hidden><span class="eyebrow">TEAM WORKSPACE</span><h1>Sign in with Nexus</h1><p>Use your existing Nexus account. Project access is required.</p><a id="team-login-link" class="button-link">Continue to Nexus login</a><button class="secondary" id="retry-login">Check sign-in again</button></section>
+    <section id="team-login" class="resource-view" hidden>
+      <span class="eyebrow">TEAM WORKSPACE</span><h1>Sign in with Nexus</h1>
+      <p>Use your existing Nexus account. Project access is required.</p>
+      <div class="login-actions">
+        <a id="team-login-link" class="button-link">Continue to Nexus login</a>
+        <button type="button" class="secondary" id="retry-login">Check sign-in again</button>
+      </div>
+    </section>
     <div id="connection-status" class="connection-status" role="status" hidden><span id="connection-message"></span><a href="#activity">View runs</a><button class="secondary" id="reconnect-now">Reconnect now</button></div>
     <div id="app-update" class="connection-status" hidden><span>A new version is ready.</span><button class="secondary" id="app-update-button">Update app</button></div>
     <div id="notice" role="status" aria-live="polite" hidden></div>

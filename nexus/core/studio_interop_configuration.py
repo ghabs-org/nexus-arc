@@ -14,7 +14,7 @@ from yaml.events import AliasEvent
 from nexus.core.studio_interop_mappings import LANGUAGE, export_value, import_value
 
 
-class SAMLoader(yaml.SafeLoader):
+class PortableConfigurationLoader(yaml.SafeLoader):
     def compose_node(self, parent, index):
         if self.check_event(AliasEvent):
             raise ValueError("YAML aliases are not supported in portable configuration")
@@ -56,7 +56,7 @@ def duration(value):
     return int(seconds) if seconds.is_integer() else seconds
 
 
-class StudioSAMConfiguration:
+class StudioPortableConfiguration:
     def __init__(self, configuration):
         self.configuration = configuration
         self.studio = configuration.studio
@@ -114,7 +114,7 @@ class StudioSAMConfiguration:
                 self.issue("/text", "size_limit", "Source must be text of at most one MiB")
                 return []
             try:
-                docs = list(yaml.load_all(text, Loader=SAMLoader))
+                docs = list(yaml.load_all(text, Loader=PortableConfigurationLoader))
             except (yaml.YAMLError, ValueError, RecursionError):
                 self.issue(
                     "/text",
@@ -171,9 +171,7 @@ class StudioSAMConfiguration:
                             "Tool binding must name a registered Nexus tool",
                         )
                 else:
-                    binding = self.fields(
-                        binding, {"provider", "model", "effort", "profile"}, path
-                    )
+                    binding = self.fields(binding, {"provider", "model", "effort", "profile"}, path)
                     values[name] = binding
                     if "profile" in binding:
                         if set(binding) != {"profile"}:
@@ -1198,7 +1196,7 @@ class StudioSAMConfiguration:
         bundle = {"format": "nexus-interop-bundle/v1", "documents": documents, "bindings": bindings}
         if not self.diagnostics:
             # The same import validator certifies that the export is usable here.
-            checked = StudioSAMConfiguration(self.configuration).convert(
+            checked = StudioPortableConfiguration(self.configuration).convert(
                 {"documents": [bundle]}, actor
             )
             if not checked["valid"]:

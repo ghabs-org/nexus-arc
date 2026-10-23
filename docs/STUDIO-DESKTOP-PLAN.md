@@ -5,8 +5,8 @@ Requested: 21 October 2026.
 Placement: reusable framework distribution and desktop launcher.
 
 This is milestone 9, a user-approved addition to the
-[current implementation plan](STUDIO-SAM-IMPLEMENTATION-PLAN.md). It preserves
-the frozen eight-milestone SAM inventory and its acceptance counts. Desktop
+[current implementation plan](STUDIO-IMPLEMENTATION-PLAN.md). It preserves
+the frozen eight-milestone reference inventory and its acceptance counts. Desktop
 completion is a separate delivery gate covering macOS, Linux and Windows.
 
 ## Product goal
