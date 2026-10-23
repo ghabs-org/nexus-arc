@@ -3,19 +3,51 @@
 #   docker compose --env-file <compose.env> \
 #     -f docker-compose.studio.yml -f docker-compose.studio-workers.yml up -d --build
 #
-# SECURITY: the Docker socket gives Studio root-equivalent control of the host.
-# Use only on a dedicated host (see deploy/studio/README.md).
+# SECURITY: Studio never gets the Docker socket. The docker-proxy service holds
+# it and exposes a filtered socket that accepts only the worker and analysis
+# container calls Studio makes, with their hardening enforced
+# (deploy/studio/docker_proxy.py). The proxy itself is root-equivalent, so
+# still use a dedicated host (see deploy/studio/README.md).
 #
 # Studio passes bind-mount sources (per-user CLI homes, scratch dirs under
-# TMPDIR) to the host daemon, so those paths are mounted at identical paths:
+# TMPDIR) to the host daemon, so those paths are mounted at identical paths,
+# in Studio and read-only in the proxy, which checks them:
 #   - ${NEXUS_RUNTIME_DIR}/auth: per-user homes prepared by Nexus account setup
 #   - ${NEXUS_STUDIO_DATA_DIR}: already mounted at /var/lib/nexus-studio, so the
 #     data dir must be /var/lib/nexus-studio on the host as well.
 # NEXUS_DOCKER_GID: GID owning /var/run/docker.sock (getent group docker).
 services:
   studio:
+    environment:
+      DOCKER_HOST: unix:///var/lib/nexus-studio/docker-proxy/docker.sock
+    volumes:
+      - ${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth
+    depends_on:
+      - docker-proxy
+
+  docker-proxy:
+    image: python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f
+    user: "${NEXUS_UID:?set NEXUS_UID}:${NEXUS_GID:?set NEXUS_GID}"
     group_add:
       - "${NEXUS_DOCKER_GID:?set NEXUS_DOCKER_GID}"
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PROXY_LISTEN: /var/lib/nexus-studio/docker-proxy/docker.sock
+      STUDIO_WORKER_USER: "${NEXUS_UID}:${NEXUS_GID}"
+      STUDIO_CREDENTIAL_ROOT: ${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth
+      STUDIO_TMP: /var/lib/nexus-studio/home/tmp
+    command: ["python3", "-I", "/app/docker_proxy.py"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth
+      - ./deploy/studio/docker_proxy.py:/app/docker_proxy.py:ro
+      - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio-team.json:/etc/nexus-studio/studio-team.json:ro
+      - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio-runtime.json:/etc/nexus-studio/studio-runtime.json:ro
+      - ${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:ro
+      - ${NEXUS_STUDIO_DATA_DIR:-/var/lib/nexus-studio}/home/tmp:/var/lib/nexus-studio/home/tmp:ro
+      - ${NEXUS_STUDIO_DATA_DIR:-/var/lib/nexus-studio}/docker-proxy:/var/lib/nexus-studio/docker-proxy
+    restart: unless-stopped
