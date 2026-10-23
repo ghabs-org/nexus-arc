@@ -486,21 +486,31 @@ class StudioWorkbench:
             return {"items": self.records("integration-effects", actor)}
         if area == "channels":
             return {"items": self.records("channel-events", actor)}
-        if area == "traces" and len(parts) == 2:
-            self.visible(self.studio.run(parts[1]), actor)
+        if area == "metrics":
             return {
-                name: [
-                    item
-                    for item in self.records(collection, actor)
-                    if item.get("run_id") == parts[1]
-                ]
-                for name, collection in [
-                    ("invocations", "invocation-traces"),
-                    ("nodes", "node-traces"),
-                    ("tools", "tool-traces"),
-                    ("guardrails", "guardrail-events"),
-                ]
+                "format": "prometheus",
+                "text": self.studio.telemetry.export_prometheus_metrics(actor),
             }
+        if area == "traces":
+            if len(parts) == 3 and parts[2] == "otel":
+                return self.studio.telemetry.export_opentelemetry_traces(parts[1], actor)
+            if len(parts) == 3 and parts[2] == "usage":
+                return self.studio.telemetry.summarize_run_tokens(parts[1], actor)
+            if len(parts) == 2:
+                self.visible(self.studio.run(parts[1]), actor)
+                return {
+                    name: [
+                        item
+                        for item in self.records(collection, actor)
+                        if item.get("run_id") == parts[1]
+                    ]
+                    for name, collection in [
+                        ("invocations", "invocation-traces"),
+                        ("nodes", "node-traces"),
+                        ("tools", "tool-traces"),
+                        ("guardrails", "guardrail-events"),
+                    ]
+                }
         if area == "memorysources":
             return (
                 {"items": self.memory_sources.list_sources(actor)}

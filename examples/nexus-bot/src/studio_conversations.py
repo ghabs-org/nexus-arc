@@ -129,6 +129,35 @@ def run_example():
             result = settled(studio, run["id"])
             assert result["status"] == "completed" and result["citations"]
             assert result["stream"]["status"] == "completed" and result["structured_content"]
+            feedback = studio.collaboration.feedback(
+                {"run_id": run["id"], "rating": 1, "comment": "Useful citation"}, None
+            )
+            revised = studio.collaboration.feedback(
+                {
+                    "run_id": run["id"],
+                    "revision": feedback["revision"],
+                    "rating": -1,
+                    "comment": "Also include the receipt requirement",
+                },
+                None,
+            )
+            assert revised["revision"] == 2 and len(studio.collaboration.list_feedback(None)) == 1
+            evaluation = studio.collaboration.promote(
+                {
+                    "feedback_id": revised["id"],
+                    "name": "Refund feedback review",
+                    "target_kind": "agent",
+                    "target_id": "evidence-guide",
+                    "expected": "thirty days",
+                },
+                None,
+            )
+            assert evaluation["data"]["cases"][0]["contains"] == ["thirty days"]
+            from nexus.core.studio_overview import StudioOverview
+
+            overview = StudioOverview(studio).summary()
+            assert overview["feedback"]["needs_improvement"] == 1
+            assert overview["evaluations"]["total"] == 0  # Promotion does not run a suite.
             shared = studio.collaboration.share(
                 {"session_id": run["session_id"], "artifact_ids": [artifact["id"]]}, None
             )
@@ -158,7 +187,7 @@ def run_example():
             assert terminal["status"] == "failed"
             assert studio.session(failed["session_id"])["messages"][-1]["status"] == "failed"
             print(
-                "Cited reply, selected snapshot files, pinned Office section, "
+                "Cited reply, feedback edits/promotion, selected snapshot files, pinned Office section, "
                 "approval replay and failure receipt verified."
             )
         finally:

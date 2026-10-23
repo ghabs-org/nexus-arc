@@ -14,6 +14,9 @@ KINDS = (
     "artifacts",
     "toolsets",
     "evaluations",
+    "datasets",
+    "evaluators",
+    "experiments",
     "schedules",
     "connectors",
     "entrypoints",
@@ -66,6 +69,18 @@ class StudioCatalog:
     def validate(self, kind, data, targets=None):
         if not isinstance(data, dict):
             raise ValueError("Resource data must be an object")
+        if kind == "datasets":
+            from nexus.core.studio_datasets import validate_dataset
+
+            return validate_dataset(data)
+        if kind == "evaluators":
+            from nexus.core.studio_evaluators import validate_evaluator
+
+            return validate_evaluator(data)
+        if kind == "experiments":
+            from nexus.core.studio_experiments import validate_experiment
+
+            return validate_experiment(data)
         if kind == "prompts":
             from nexus.core.studio_prompts import validate_prompt
 

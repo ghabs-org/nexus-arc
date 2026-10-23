@@ -52,6 +52,8 @@ def dependencies(kind, document):
     """Read only typed reference fields; instructions/URLs never become references."""
     refs = set()
     data = document.get("spec", {}) if kind == "agents" else document.get("data", {})
+    if kind == "experiments":
+        refs.add(component_key("evaluations", data["evaluation_id"]))
     if kind == "agents":
         for field, collection in (
             ("skill_ids", "skills"),

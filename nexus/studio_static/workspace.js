@@ -131,12 +131,29 @@ if(typeof window!=="undefined"){
   window.renderChatArtifacts=renderChatArtifacts;
 }
 
+function operationalOverviewHtml(data){
+  const feedback=data.feedback,evaluations=data.evaluations,builds=data.builds;
+  return `<p class="workspace-scope">${data.scope==="workspace"?"Workspace reports and builds":"Your reports and builds"}. Feedback counts remain private to your account. Up to ${data.recent_limit} recent reports and builds appear below. Reading this view never runs checks.</p><dl class="workspace-statistics"><div><dt>Helpful responses</dt><dd>${feedback.helpful}</dd></div><div><dt>Needs improvement</dt><dd>${feedback.needs_improvement}</dd></div><div><dt>Completed reports</dt><dd>${evaluations.completed} / ${evaluations.total}</dd></div></dl><p><a href="#feedback">Review feedback</a> · <a href="#evaluations">Evaluations &amp; experiments</a> · <a href="#quick-build">Quick Build</a></p><h3>Recent evaluation reports</h3>${evaluations.items.length?evaluations.items.map(report=>`<article class="library-row"><div><h4>${escapeHtml(report.name||report.id)}</h4><p>${escapeHtml(report.complete&&report.acceptance===false?"Threshold not met":report.status)} · ${report.passed??0}/${report.total??0} recorded cases passed · suite revision ${report.suite_revision??"unknown"}</p>${report.complete!==true&&report.status!=="completed"?'<p class="workspace-scope">Partial or unknown execution. These results do not establish completed acceptance.</p>':""}</div><button class="secondary" data-evaluation-report="${escapeHtml(report.id)}">View report</button></article>`).join(""):"<p>No visible evaluation reports.</p>"}<h3>Recent builds &amp; saved connection checks</h3>${builds.items.length?builds.items.map(build=>{const health=build.health,comparison=build.comparison;return `<article class="library-row"><div><h4>${escapeHtml(build.name)}</h4><p>${escapeHtml(build.status)} · revision ${build.revision??"unknown"}</p><p>${health?`${health.passed} passed · ${health.failed} failed · ${health.stale} stale · ${Math.max(0,health.supported-health.checked)} unchecked supported checks`:build.health_status==="unavailable"?"Health unavailable. Review missing or changed resources in Quick Build.":"No saved connection checks."}</p><details><summary>Compare latest two releases</summary>${comparison?`<p>From ${escapeHtml(comparison.from_release_id)} to ${escapeHtml(comparison.to_release_id)}.</p>${["added","removed","changed"].map(kind=>`<p>${kind[0].toUpperCase()+kind.slice(1)}: ${comparison[kind].length?comparison[kind].map(escapeHtml).join(", "):"None"}</p>`).join("")}<p>Active release: ${escapeHtml(build.current_release_id||"None")}. Comparison shows resource identities only.</p>`:`<p>${build.comparison_status==="unavailable"?"Release comparison unavailable.":"Save two releases to compare changes."}</p>`}</details></div><button class="secondary" data-overview-build="${escapeHtml(build.id)}">Review build</button></article>`;}).join(""):"<p>No visible builds.</p>"}`;
+}
+let workspaceOverviewGeneration=0;
+async function refreshOperationalOverview(){
+  const generation=++workspaceOverviewGeneration,root=$("workspace-overview");
+  root.textContent="Loading operational summaries…";
+  try{const data=await api("/api/studio/overview");if(generation===workspaceOverviewGeneration)root.innerHTML=operationalOverviewHtml(data);}
+  catch(error){if(generation===workspaceOverviewGeneration)root.textContent=`Operational summaries unavailable: ${error.message}`;}
+}
+document.addEventListener("click",async event=>{
+  const button=event.target.closest("[data-overview-build]");if(!button)return;
+  try{location.hash="#quick-build";await loadBuild(button.dataset.overviewBuild);}catch(error){notify(error.message);}
+});
 async function refreshWorkspace(){
+  const overview=refreshOperationalOverview();
   try{
     const status=await api("/api/mesh");$("workspace-error").textContent="";
     $("workspace-runtime").innerHTML=`<p class="callout">${escapeHtml(status.workspace)}<br>${escapeHtml(status.access)} · ${escapeHtml(status.transport)} · ${status.workers} execution workers</p><dl class="workspace-statistics"><div><dt>Queued</dt><dd>${status.queued}</dd></div><div><dt>Running</dt><dd>${status.running}</dd></div><div><dt>Awaiting approval</dt><dd>${status.waiting}</dd></div></dl><p class="workspace-scope">Counts cover ${escapeHtml(status.scope)}. Event transport carries status metadata; ${status.durable_jobs?"Jobs persist in "+escapeHtml(status.state_backend)+" and execute on configured workers.":"Workspace tasks execute on this machine."}</p>${status.event_error?`<p class="form-error">Event delivery error: ${escapeHtml(status.event_error)}</p>`:""}`;
     $("workspace-events").innerHTML=status.events.length?status.events.map(event=>`<article class="activity-row"><div class="activity-copy"><h2>${escapeHtml(event.kind)} · ${escapeHtml(event.run_id)}</h2><p>${escapeHtml(new Date(event.updated_at).toLocaleString())} · ${escapeHtml(event.source)}</p></div>${badge(event.status,event.status)}<button class="secondary" data-run="${escapeHtml(event.run_id)}">Details</button></article>`).join(""):'<p>Execution events appear when tasks change status.</p>';
   }catch(error){$("workspace-error").textContent=error.message;}
+  await overview;
 }
 async function refreshModelChoices(){
   try{

@@ -87,8 +87,7 @@ class StudioOperations:
                 "backend": backend,
                 "model": model,
                 "timeout_seconds": int(timeout)
-                if isinstance(timeout, int)
-                or (isinstance(timeout, float) and timeout.is_integer())
+                if isinstance(timeout, int) or (isinstance(timeout, float) and timeout.is_integer())
                 else float(timeout),
             }
         if kind == "evaluations":
@@ -160,11 +159,7 @@ class StudioOperations:
             auth_mode = data.get("auth_mode", data.get("authMode", "bearer"))
             if auth_mode not in {"bearer", "hmac"}:
                 raise ValueError("Auth mode must be 'bearer' or 'hmac'")
-            env_val = (
-                data.get("token_env")
-                or data.get("hmac_secret_env")
-                or data.get("hmacSecret")
-            )
+            env_val = data.get("token_env") or data.get("hmac_secret_env") or data.get("hmacSecret")
             if isinstance(env_val, str) and env_val.startswith("${") and env_val.endswith("}"):
                 env_val = env_val[2:-1]
             env = _text(env_val, "Token or secret environment variable", 96)
@@ -331,11 +326,15 @@ class StudioOperations:
         if not record["data"]["enabled"]:
             raise ValueError("Entrypoint is disabled")
         self.studio.resource_lifecycle.assert_launch("entrypoints:" + identity)
-        context = {key: payload[key] for key in ("artifact_ids", "workflow_input") if key in payload}
+        context = {
+            key: payload[key] for key in ("artifact_ids", "workflow_input") if key in payload
+        }
         if "workflow_input" not in context and isinstance(payload, dict):
             context["workflow_input"] = {
                 **payload,
-                "text": payload["text"] if "text" in payload else json.dumps(payload, ensure_ascii=False),
+                "text": payload["text"]
+                if "text" in payload
+                else json.dumps(payload, ensure_ascii=False),
                 "payload": payload,
             }
         task = payload.get("task")
@@ -372,7 +371,7 @@ class StudioOperations:
                 return False
             prefix = data.get("hmac_prefix", "")
             if prefix and sig_header.startswith(prefix):
-                sig_header = sig_header[len(prefix):]
+                sig_header = sig_header[len(prefix) :]
             algo = {
                 "sha256": hashlib.sha256,
                 "sha1": hashlib.sha1,
@@ -420,11 +419,16 @@ class StudioOperations:
             if item["data"]["type"] == "nuclia" and item["data"].get("template"):
                 parameters = item["data"]["template"].get("parameters", [])
                 schema = [
-                    {key: parameter[key] for key in ("name", "type", "required", "nullable", "description") if key in parameter}
+                    {
+                        key: parameter[key]
+                        for key in ("name", "type", "required", "nullable", "description")
+                        if key in parameter
+                    }
                     for parameter in parameters
                 ]
                 description += (
-                    "\nNuclia selected actions: " + ", ".join(item["data"]["actions"])
+                    "\nNuclia selected actions: "
+                    + ", ".join(item["data"]["actions"])
                     + ". Pass runtime values in arguments.parameters. Declared parameters: "
                     + json.dumps(schema, ensure_ascii=False)
                     + ". Configured defaults apply server-side; runtime filters cannot replace a stored filter."
@@ -529,34 +533,19 @@ class StudioOperations:
             raise ValueError(f"Connector request failed ({type(exc).__name__})") from None
 
     def evaluation_request(self, payload):
-        suite = self.studio.catalog.get("evaluations", payload.get("evaluation_id"))
-        variants = payload.get("variants", [{"name": "Saved configuration"}])
-        if not isinstance(variants, list) or not 1 <= len(variants) <= 4:
-            raise ValueError("An experiment supports 1 to 4 variants")
-        from nexus.adapters.ai.base import EFFORT_LEVELS
-        from nexus.core.studio import _PROVIDERS
+        from nexus.core.studio_experiments import prepare
 
-        for variant in variants:
-            if not isinstance(variant, dict) or set(variant) - {
-                "name",
-                "provider",
-                "model",
-                "effort",
-            }:
-                raise ValueError("Invalid experiment variant")
-            _text(variant.get("name"), "Variant name", 100)
-            if variant.get("provider") and variant["provider"] not in {p[0] for p in _PROVIDERS}:
-                raise ValueError("Unknown variant provider")
-            if variant.get("model") is not None and not isinstance(variant["model"], str):
-                raise ValueError("Variant model must be text")
-            if variant.get("effort") and str(variant["effort"]).strip().lower() not in EFFORT_LEVELS:
-                raise ValueError(f"Variant effort must be one of {', '.join(EFFORT_LEVELS)}")
-        payload["suite_snapshot"] = suite
-        payload["variants"] = variants
+        prepare(self.studio, payload)
 
     async def evaluate(self, run_id, payload):
         suite = payload["suite_snapshot"]
         target = suite["data"]
+        from nexus.core.studio_experiments import summarize
+
+        settings = payload.get(
+            "_experiment_settings", {"repeats": 1, "threshold": 1, "enforce": False}
+        )
+        repeats = settings["repeats"]
         report = {
             "id": run_id,
             "suite_id": suite["id"],
@@ -566,16 +555,42 @@ class StudioOperations:
             "created_at": datetime.now(UTC).isoformat(),
             "results": [],
             "variants": payload["variants"],
+            "runs_per_example": repeats,
+            "pass_threshold": settings["threshold"],
+            "expected_total": len(target["cases"]) * len(payload["variants"]) * repeats,
+            "complete": False,
+            "acceptance": None,
+            "evaluation_status": "running",
         }
+        if payload.get("experiment_snapshot"):
+            experiment = payload["experiment_snapshot"]
+            report.update(
+                experiment_id=experiment["id"],
+                experiment_revision=experiment["revision"],
+                experiment_name=experiment["name"],
+            )
+        self.studio._write(self.studio._path("evaluation-reports", run_id), report)
+        self.studio._update_run(run_id, evaluation_report_id=run_id)
         for variant_index, variant in enumerate(payload["variants"]):
-            for index, case in enumerate(target["cases"]):
+            for index, repetition, case in (
+                (index, repetition, case)
+                for index, case in enumerate(target["cases"])
+                for repetition in range(repeats)
+            ):
                 started = time.monotonic()
-                self.studio._update_run(run_id, step=f"{variant['name']} · case {index + 1}")
-                entry = {"variant": variant["name"], "case": index + 1, "input": case["input"]}
+                self.studio._update_run(
+                    run_id,
+                    step=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
+                )
+                entry = {
+                    "variant": variant["name"],
+                    "variant_index": variant_index + 1,
+                    "case": index + 1,
+                    "repetition": repetition + 1,
+                    "input": case["input"],
+                }
                 request = {
-                    key: variant[key]
-                    for key in ("provider", "model", "effort")
-                    if variant.get(key)
+                    key: variant[key] for key in ("provider", "model", "effort") if variant.get(key)
                 }
                 request["requester_nexus_id"] = payload.get("requester_nexus_id")
                 try:
@@ -586,7 +601,8 @@ class StudioOperations:
                                 **request,
                                 "workflow_id": target["target_id"],
                                 "task": case["input"],
-                                "_evaluation_case": f"{run_id}-{variant_index}-{index}",
+                                "_evaluation_case": f"{run_id}-{variant_index}-{index}"
+                                + (f"-repeat-{repetition}" if repeats > 1 else ""),
                             },
                         )
                     else:
@@ -631,6 +647,9 @@ class StudioOperations:
                     passed=sum(r["passed"] for r in report["results"]),
                     total=len(report["results"]),
                 )
+                summarize(report)
+                if entry.get("error"):
+                    report["evaluation_status"] = "error"
                 self.studio._write(self.studio._path("evaluation-reports", run_id), report)
                 if entry.get("error"):
                     self.studio._update_run(run_id, evaluation_report_id=run_id)
@@ -643,11 +662,16 @@ class StudioOperations:
             for check in entry["checks"]
             if "score" in check
         ]
+        summarize(report, complete=True)
         report["judged_cases"] = len(scores)
         if scores:
             report["mean_judge_score"] = round(sum(scores) / len(scores), 4)
         self.studio._write(self.studio._path("evaluation-reports", run_id), report)
         self.studio._update_run(run_id, evaluation_report_id=run_id)
+        if settings["enforce"] and not report["acceptance"]:
+            raise RuntimeError(
+                "Experiment pass threshold not met by every variant; inspect the completed report"
+            )
         return json.dumps(report, ensure_ascii=False, indent=2)
 
     def tick(self, now=None):

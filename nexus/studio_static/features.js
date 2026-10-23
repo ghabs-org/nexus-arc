@@ -28,11 +28,7 @@ async function refreshFeatureViews(){
   const selected=$("chat-project").value;
   $("chat-project").innerHTML='<option value="">No project</option>'+projects.filter(p=>!p.archived).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");$("chat-project").value=selected;updateKnowledgeDisclosure();
   $("projects-content").innerHTML=projects.map(p=>`<article class="library-row"><div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(p.instructions)}</p><small>Revision ${p.revision}${p.archived?" · Archived":""}</small></div><div class="card-actions"><button data-project-open="${escapeHtml(p.id)}" ${p.archived?"disabled":""}>Open</button><button class="secondary" data-project-edit="${escapeHtml(p.id)}">Edit</button><button class="secondary" data-project-archive="${escapeHtml(p.id)}">${p.archived?"Restore":"Archive"}</button></div></article>`).join("")||empty("No knowledge projects","Create a project, add documents and ask questions grounded in your sources.");
-  if(view()==="feedback"){
-    const feedback=(await featureApi("feedback")).items;
-    $("feedback-content").innerHTML='<button class="secondary" id="feedback-export">Export feedback</button>'+feedback.map(f=>`<article class="library-row"><div><h2>${f.rating>0?"Helpful":"Needs improvement"}</h2><p>${escapeHtml(f.task)}</p><p>${escapeHtml(f.comment)}</p></div><button class="secondary" data-feedback-promote="${escapeHtml(f.id)}" data-feedback-run="${escapeHtml(f.run_id)}">Create evaluation case</button></article>`).join("");
-    $("feedback-export").onclick=()=>downloadJson("response-feedback.json",{format:"nexus-response-feedback/v1",items:feedback});
-  }
+  if(view()==="feedback")await refreshFeedbackView();
   if(view()==="sharing"){
     const sharing=await featureApi("sharing");
     $("sharing-content").innerHTML=`<p>Public snapshot links: ${sharing.public_enabled?"enabled":"disabled"}.</p><button class="secondary" id="sharing-toggle">${sharing.public_enabled?"Disable":"Enable"} public links</button>`+sharing.items.map(s=>`<article class="library-row"><div><h2>${escapeHtml(s.title)}</h2><p>${s.public?"Public link":"Private snapshot"} · expires ${escapeHtml(new Date(s.expires_at).toLocaleString())}${s.revoked?" · Revoked":""}</p></div>${s.revoked?"":`<button class="secondary" data-share-revoke="${escapeHtml(s.id)}">Revoke</button>`}</article>`).join("");
@@ -85,7 +81,21 @@ async function designResource(){
     await api(`/api/catalog/${kind==="prompt"?"prompts":"schedules"}`,proposal);window.dispatchEvent(new CustomEvent("studio-resource-saved",{detail:{kind:kind==="prompt"?"prompts":"schedules"}}));$("detail").close();await refreshLibrary();return;
   }
 }
-async function rateResponse(runId,rating){const form=await fieldsDialog(rating>0?"Helpful response":"Improve this response",'<label>Comment (optional)<textarea name="comment" maxlength="2000" rows="4"></textarea></label>',"Save feedback");if(form){await featureApi("feedback",{run_id:runId,rating,comment:form.get("comment")});notify("Feedback saved.");return true;}return false;}
+async function refreshFeedbackView(){
+  const feedback=(await featureApi("feedback")).items;
+  const role=state.mode==="team"?state.user?.role:"owner";
+  const edit=["operator","builder","owner"].includes(role),promote=["builder","owner"].includes(role);
+  $("feedback-content").innerHTML='<p>Your ratings and comments stay in your account. Creating an evaluation case does not run it.</p><button class="secondary" id="feedback-export">Export feedback</button>'+feedback.map(f=>`<article class="library-row"><div><h2>${f.rating>0?"Helpful":"Needs improvement"}</h2><p>${escapeHtml(f.task)}</p><p class="feedback-comment">${escapeHtml(f.comment)}</p><small>Updated ${escapeHtml(new Date(f.updated_at).toLocaleString())}</small></div><div class="library-actions"><button class="secondary" data-run="${escapeHtml(f.run_id)}">View response</button><button class="secondary" data-feedback-edit="${escapeHtml(f.run_id)}" ${edit?"":'disabled title="Requires an operator, builder or owner role"'}>Edit feedback</button><button class="secondary" data-feedback-promote="${escapeHtml(f.id)}" data-feedback-run="${escapeHtml(f.run_id)}" ${promote?"":'disabled title="Requires a builder or owner role"'}>Create evaluation case</button></div></article>`).join("")+(feedback.length?"":"<p>No feedback yet. Rate a completed response in a conversation to add it here.</p>");
+  $("feedback-export").onclick=async()=>{const button=$("feedback-export");button.disabled=true;try{const current=(await featureApi("feedback")).items;downloadJson("response-feedback.json",{format:"nexus-response-feedback/v1",items:current});}catch(error){notify(error.message);}finally{button.disabled=false;}};
+}
+async function rateResponse(runId,rating=null){
+  const prior=(await featureApi("feedback")).items.find(item=>item.run_id===runId);
+  const selected=rating??prior?.rating??1;
+  const form=await fieldsDialog(prior?"Edit response feedback":selected>0?"Helpful response":"Improve this response",`<label>Rating<select name="rating"><option value="1" ${selected>0?"selected":""}>Helpful</option><option value="-1" ${selected<0?"selected":""}>Needs improvement</option></select></label><label>Comment (optional)<textarea name="comment" maxlength="2000" rows="4">${escapeHtml(prior?.comment||"")}</textarea></label>`,"Save feedback");
+  if(!form)return null;
+  const saved=await featureApi("feedback",{run_id:runId,rating:Number(form.get("rating")),comment:form.get("comment"),revision:prior?.revision??0});
+  notify("Feedback saved.");return saved;
+}
 async function shareConversation(){
   if(!state.sessionId)throw new Error("Start a conversation first");
   const sessionId=state.sessionId;
@@ -105,12 +115,13 @@ document.addEventListener("click",async event=>{const b=event.target.closest("bu
   if(b.dataset.projectOpen)await openProject(b.dataset.projectOpen);
   if(b.dataset.projectArchive){const p=await featureApi(`projects/${b.dataset.projectArchive}`);await featureApi("projects",{...p,archived:!p.archived});await refreshFeatureViews();}
   if(b.dataset.shareRevoke){await featureApi(`shares/${b.dataset.shareRevoke}/revoke`,{});await refreshFeatureViews();}
+  if(b.dataset.feedbackEdit){if(await rateResponse(b.dataset.feedbackEdit))await refreshFeedbackView();}
   if(b.dataset.feedbackPromote){
     const run=await api(`/api/runs/${encodeURIComponent(b.dataset.feedbackRun)}`);
     const reports=(run.structured_content||[]).filter(item=>item.type==="artifact"&&item.filename==="retrieval-evidence.json");
     const evidenceField=reports.length?`<label>Reference context<select name="evidence"><option value="">Do not copy reference context</option>${reports.map((item,index)=>`<option value="${index}">Saved retrieval ${index+1}</option>`).join("")}</select></label><p>Copies cited passages from the saved revision into this evaluation. A configured AI judge receives those passages.</p>`:"";
-    const form=await fieldsDialog("Create evaluation case",inputField("name","Evaluation name","")+targetField()+inputField("expected","Expected answer phrase","")+evidenceField);
-    if(form){const [target_kind,target_id]=form.get("target").split(":"),selected=form.get("evidence"),report=selected!==null&&selected!==""?reports[Number(selected)]:null;await featureApi("feedback/promote",{feedback_id:b.dataset.feedbackPromote,name:form.get("name"),target_kind,target_id,expected:form.get("expected"),...(report?{evidence:{artifact_id:report.artifact_id,revision:report.revision}}:{})});notify("Evaluation case created.");}
+    const form=await fieldsDialog("Create evaluation case",'<p>Creates a saved evaluation from the original task and your expected phrase. Your feedback comment is not copied. Nothing runs until you start the evaluation.</p>'+inputField("name","Evaluation name","")+targetField()+inputField("expected","Expected answer phrase","")+evidenceField);
+    if(form){const [target_kind,target_id]=form.get("target").split(":"),selected=form.get("evidence"),report=selected!==null&&selected!==""?reports[Number(selected)]:null;const saved=await featureApi("feedback/promote",{feedback_id:b.dataset.feedbackPromote,name:form.get("name"),target_kind,target_id,expected:form.get("expected"),...(report?{evidence:{artifact_id:report.artifact_id,revision:report.revision}}:{})});showDetail("Evaluation case created",`<p>${escapeHtml(saved.name)} is saved. Review its target and expected answer before running it.</p><button id="feedback-review-evaluation">Review evaluation case</button>`);$("feedback-review-evaluation").onclick=async()=>{try{$("detail").close();library.kind="evaluations";location.hash="evaluations";await openLibraryEditor(saved.id);}catch(error){notify(error.message);}};}
   }
   if(b.id==="design-resource")await designResource();
   if(b.id==="share-conversation")await shareConversation();
@@ -119,8 +130,8 @@ document.addEventListener("click",async event=>{const b=event.target.closest("bu
     const ok=await rateResponse(msg?.dataset.runId,Number(b.dataset.rate));
     if(ok&&msg){
       msg.querySelectorAll(".rate-btn").forEach(btn=>{btn.classList.remove("active");btn.removeAttribute("aria-pressed");});
-      b.classList.add("active");
-      b.setAttribute("aria-pressed","true");
+      const selected=Array.from(msg.querySelectorAll(".rate-btn")).find(button=>Number(button.dataset.rate)===ok.rating);
+      if(selected){selected.classList.add("active");selected.setAttribute("aria-pressed","true");}
     }
   }
 }catch(error){notify(error.message);}});

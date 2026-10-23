@@ -1,7 +1,7 @@
 """Full Studio sharing acceptance with disposable users, state and files.
 
 Run: PYTHONPATH=. python tests/studio_sharing_team_acceptance.py
-Visit /acceptance for fixture sign-in and expiry controls. Studio and shared.html
+Visit /acceptance for fixture sign-in and snapshot links. Studio and shared.html
 use production scripts and API routes. The loopback test front door substitutes
 the configured HTTPS Host/Origin, as the existing HTTP team fixtures do. It does
 not prove TLS, secure-cookie deployment or a real identity provider.
@@ -128,10 +128,10 @@ def create_fixture(root):
                     for name, identity in fixtures.items()
                 )
                 snapshots = "".join(
-                    f'<form method="post" action="/acceptance/expire/{record["id"]}"><button>Expire {html.escape(record["id"])}</button></form>'
+                    f"<p><code>POST /acceptance/expire/{html.escape(record['id'])}</code></p>"
                     for record in studio.records("conversation-shares", limit=None)
                 )
-                body = f'<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sharing acceptance controls</title><link rel="stylesheet" href="/studio.css"></head><body class="shared-page"><main><h1>Synthetic sharing controls</h1><p>{accounts}</p>{links}<h2>Advance a snapshot past expiry</h2>{snapshots}</main></body></html>'
+                body = f'<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sharing acceptance controls</title><link rel="stylesheet" href="/studio.css"></head><body class="shared-page"><main><h1>Synthetic sharing controls</h1><p>{accounts}</p>{links}<h2>Fixture-only expiry endpoints</h2><p>Use the HTTP client instructions in docs/STUDIO-SHARING.md to advance a snapshot past expiry. Production sharing has no manual expiry override.</p>{snapshots}</main></body></html>'
                 return self.send_bytes(200, body.encode(), "text/html; charset=utf-8")
             return super().do_GET()
 

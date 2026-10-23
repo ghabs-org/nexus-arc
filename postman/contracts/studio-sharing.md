@@ -44,3 +44,10 @@ postman request POST http://127.0.0.1:PORT/api/studio/shares \
 
 The fixture uses only a temporary workspace and deletes it on shutdown. It does
 not enable public sharing or contact any model provider.
+
+The full-app team fixture and completed local browser matrix are documented in
+[the sharing guide](../../docs/STUDIO-SHARING.md). Its separate
+`studio-sharing-viewer.assertions.js` checks private recipient/public read-only
+responses without owner, recipient, session or token-hash metadata. Viewer link
+changes and known expiry clear previous content and invalidate pending downloads;
+returning from the background or browser cache rechecks access using GET.

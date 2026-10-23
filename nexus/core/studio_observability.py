@@ -37,9 +37,24 @@ class StudioObservability:
     def __init__(self, studio):
         self.studio = studio
 
-    async def invoke(self, provider, context, run_id, payload, provider_name, stream=None):
+    async def invoke(
+        self,
+        provider,
+        context,
+        run_id,
+        payload,
+        provider_name,
+        stream=None,
+        parent_id=None,
+    ):
         from nexus.core.studio_workbench import now
 
+        effective_parent = (
+            parent_id
+            or payload.get("parent_id")
+            or getattr(context, "parent_id", None)
+            or (context.metadata or {}).get("parent_id")
+        )
         record = {
             "id": uuid.uuid4().hex,
             "run_id": run_id,
@@ -50,6 +65,8 @@ class StudioObservability:
             "prompt_chars": len(context.prompt),
             "created_at": now(),
         }
+        if effective_parent:
+            record["parent_id"] = str(effective_parent)
         started = time.monotonic()
         streaming = callable(stream)
         self.studio.execution.record(
@@ -57,6 +74,7 @@ class StudioObservability:
             "invocation",
             status="running",
             source_id=record["id"],
+            parent_id=record.get("parent_id"),
             agent=record["agent"],
             provider=provider_name,
             model=record["model"],
@@ -85,6 +103,9 @@ class StudioObservability:
                     and type(value) is int
                     and value >= 0
                 }
+            if result.metadata is None:
+                result.metadata = {}
+            result.metadata["invocation_id"] = record["id"]
             return result
         except BaseException:
             record["status"] = "interrupted-or-failed"
@@ -99,6 +120,7 @@ class StudioObservability:
                 "invocation",
                 status=record["status"],
                 source_id=record["id"],
+                parent_id=record.get("parent_id"),
                 agent=record["agent"],
                 provider=provider_name,
                 model=record["model"],

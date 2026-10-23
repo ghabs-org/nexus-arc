@@ -669,3 +669,11 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
 .share-file-option span{min-width:0;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
 .share-file-option small{display:block;color:var(--muted);font-size:12px}
 @media(max-width:540px){.share-file-options{max-height:180px}}
+
+.feedback-comment{white-space:pre-wrap;overflow-wrap:anywhere}
+#workspace-overview .library-row{min-width:0;align-items:flex-start}
+#workspace-overview .library-row>div{min-width:0;overflow-wrap:anywhere}
+#workspace-overview button{min-height:44px;flex-shrink:0}
+#evaluation-import,#evaluation-use-dataset{min-height:44px}
+#evaluation-apply-evaluator{min-height:44px;white-space:normal}
+#saved-experiment-add-variant,[data-remove-experiment-variant]{min-height:44px}
