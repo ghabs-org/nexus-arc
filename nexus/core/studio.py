@@ -193,6 +193,9 @@ class StudioService:
 
         self.conversations = StudioConversations(self)
         self.execution = StudioExecution(self)
+        from nexus.core.studio_telemetry import StudioTelemetry
+
+        self.telemetry = StudioTelemetry(self)
         from nexus.core.studio_messaging import StudioMessaging
 
         self.messaging = StudioMessaging(self)
@@ -711,6 +714,9 @@ class StudioService:
                     "entrypoints",
                     "schedules",
                     "evaluations",
+                    "datasets",
+                    "evaluators",
+                    "experiments",
                     "externalagents",
                 )
             },
@@ -904,6 +910,8 @@ class StudioService:
             extra_targets = ["externalagents:" + payload["external_agent_id"]]
         elif kind == "evaluation":
             extra_targets = ["evaluations:" + payload["evaluation_id"]]
+            if payload.get("experiment_id"):
+                extra_targets.append("experiments:" + payload["experiment_id"])
         for launch_key in extra_targets:
             launch_revisions[launch_key] = self.resource_lifecycle.assert_launch(launch_key)
         from nexus.core.studio_agent_settings import pin_agents

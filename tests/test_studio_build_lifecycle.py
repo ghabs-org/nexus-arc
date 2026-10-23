@@ -499,6 +499,33 @@ def test_every_configuration_resource_can_be_authored_refined_and_activated(stud
                 },
             },
             {
+                "kind": "datasets",
+                "id": "quality-fixtures",
+                "name": "Quality fixtures",
+                "data": {"cases": [{"input": "one two", "contains": ["2"]}]},
+            },
+            {
+                "kind": "evaluators",
+                "id": "evidence-judge",
+                "name": "Evidence judge",
+                "data": {
+                    "provider": "codex",
+                    "rubric": "Assess evidence",
+                    "choices": {"Pass": 1, "Fail": 0},
+                },
+            },
+            {
+                "kind": "experiments",
+                "id": "quality-experiment",
+                "name": "Quality experiment",
+                "data": {
+                    "evaluation_id": "quality",
+                    "evaluation_revision": 1,
+                    "runsPerExample": 2,
+                    "variants": [{"name": "Baseline"}],
+                },
+            },
+            {
                 "kind": "externalagents",
                 "id": "remote-agent",
                 "name": "Remote agent",
@@ -530,7 +557,7 @@ def test_every_configuration_resource_can_be_authored_refined_and_activated(stud
         "workflows",
         *set(KINDS) - {"artifacts"},
     }
-    assert len(inspection["dependencies"]) == 6
+    assert len(inspection["dependencies"]) == 7
     draft = studio.builder.reopen(build["id"], {"revision": 1})
     refined = copy.deepcopy(draft["proposal"])
     for item in refined["resources"]:

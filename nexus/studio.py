@@ -350,6 +350,11 @@ def make_studio_handler(service: StudioService, token: str):
                             self.actor,
                         ),
                     )
+                if route in {"/api/metrics", "/api/workbench/metrics/prometheus"}:
+                    text = service.telemetry.export_prometheus_metrics(self.actor)
+                    return self.send_bytes(
+                        200, text.encode("utf-8"), "text/plain; version=0.0.4; charset=utf-8"
+                    )
                 if route.startswith("/api/workbench/"):
                     return self.send_payload(
                         200,

@@ -303,13 +303,15 @@ class QuickBuilder:
             kind = resource.get("kind")
             if kind not in KINDS or kind == "artifacts":
                 raise ValueError(
-                    "Build resources must be prompts, skills, toolsets, models, connectors, entrypoints, schedules or evaluations"
+                    "Build resources must use a supported catalog collection; binary artifacts are excluded"
                 )
             rid = resource_id(resource.get("id"))
             if (kind, rid) in seen:
                 raise ValueError("Duplicate resource in build")
             seen.add((kind, rid))
             data = dict(resource.get("data") or {})
+            if kind == "experiments" and data.get("evaluation_id"):
+                data["evaluation_id"] = reference("evaluations", data["evaluation_id"])
             if data.get("target_id"):
                 candidate = resource_id(data["target_id"])
                 collection = "agents" if data.get("target_kind") == "agent" else "workflows"
@@ -511,7 +513,9 @@ class QuickBuilder:
             "(type:http/sqlite/github/gitlab/telegram/discord/slack/openclaw/mcp and required settings), "
             "entrypoints (target_kind,target_id,token_env), schedules (target_kind,target_id,task,run_at,interval_seconds), "
             "externalagents (url,protocol_version:1.0 or 0.3,token_env), "
-            "or evaluations (target_kind,target_id,cases). Connections, schedules and entrypoints "
+            "evaluations (target_kind,target_id,cases), datasets (kind:dataset,version:1,cases), or "
+            "evaluators (kind:evaluator,version:1,type:llm_judge,provider,model,rubric,threshold, optional choices label-to-score map), "
+            "experiments (kind:experiment,version:1,evaluation_id,evaluation_revision,runsPerExample,passThreshold,variants). Connections, schedules and entrypoints "
             "are saved DISABLED for explicit configuration. Use environment variable names, never "
             "secret values or made-up authenticated accounts. workflow may be null for resource-only builds. "
             "Optional workflows:[{id,name,description,graph}] creates up to twelve additional named child workflows. "

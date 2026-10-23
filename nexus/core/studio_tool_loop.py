@@ -49,6 +49,7 @@ async def execute_with_tools(
             result = await studio.observability.invoke(
                 provider, replace(context, prompt=prompt), run_id, payload, provider_name
             )
+            invocation_id = (result.metadata or {}).get("invocation_id")
             if not result.success:
                 raise RuntimeError(result.error or "Provider failed during tool execution")
             try:
@@ -84,7 +85,12 @@ async def execute_with_tools(
             started = time.monotonic()
             trace_id = f"{run_id}-{uuid.uuid4().hex}"
             studio.execution.record(
-                run_id, "tool", tool=call["name"], status="running", source_id=trace_id
+                run_id,
+                "tool",
+                tool=call["name"],
+                status="running",
+                source_id=trace_id,
+                parent_id=invocation_id,
             )
             try:
                 outcome = await tool_registry.call(call["name"], **call["arguments"])
@@ -95,6 +101,7 @@ async def execute_with_tools(
                     tool=call["name"],
                     status="interrupted-or-failed",
                     source_id=trace_id,
+                    parent_id=invocation_id,
                 )
                 raise
             event = {
@@ -105,6 +112,8 @@ async def execute_with_tools(
                 "ok": outcome.ok,
                 "duration_seconds": round(time.monotonic() - started, 3),
             }
+            if invocation_id:
+                event["parent_id"] = invocation_id
             studio._write(studio._path("tool-traces", event["id"]), event)
             studio.execution.record(
                 run_id,
@@ -112,6 +121,7 @@ async def execute_with_tools(
                 tool=call["name"],
                 status="completed" if outcome.ok else "failed",
                 source_id=trace_id,
+                parent_id=invocation_id,
                 duration_seconds=event["duration_seconds"],
             )
             if not outcome.ok:

@@ -9,6 +9,10 @@ class StudioFeatures:
 
     def get(self, parts, query, actor):
         studio = self.studio
+        if parts == ["overview"]:
+            from nexus.core.studio_overview import StudioOverview
+
+            return StudioOverview(studio).summary(actor)
         if parts == ["assistant"]:
             question = query.get("question", [""])[0]
             return studio.assistant.answer(question, actor=actor)
@@ -143,6 +147,14 @@ class StudioFeatures:
         studio = self.studio
         if parts == ["assistant", "answer"]:
             return 200, studio.assistant.answer(data.get("question", ""), actor)
+        if parts == ["datasets", "parse"]:
+            from nexus.core.studio_datasets import parse_dataset
+
+            if studio.team:
+                studio.team.authorize(actor, "/api/catalog/datasets")
+            return 200, parse_dataset(
+                {key: value for key, value in data.items() if key not in {"requester_nexus_id", "_role"}}
+            )
         if len(parts) == 2 and parts[0] == "files" and parts[1] in {"upload", "folder", "snapshot"}:
             return 201, getattr(studio.workspace_files, parts[1])(data, actor)
         if parts == ["original-document"]:

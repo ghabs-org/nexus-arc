@@ -7,14 +7,124 @@ function localDate(value){const date=value?new Date(value):new Date(Date.now()+6
 function caseFields(item={}){
   return `<div class="evaluation-case"><div class="step-heading"><span>TEST CASE</span><button type="button" class="secondary" data-remove-case>Remove</button></div><label>Task input<textarea class="case-input" required>${escapeHtml(item.input||"")}</textarea></label><label>Output must contain (one phrase per line)<textarea class="case-contains" rows="2">${escapeHtml((item.contains||[]).join("\n"))}</textarea></label><label>Output must exclude (one phrase per line)<textarea class="case-excludes" rows="2">${escapeHtml((item.excludes||[]).join("\n"))}</textarea></label><input type="hidden" class="case-context-source" value="${escapeHtml(JSON.stringify(item.context_source||{}))}"><details><summary>Structured checks and optional AI judge</summary><label>Reference passages (JSON list, optional)<textarea class="case-contexts" rows="4">${escapeHtml(JSON.stringify(item.contexts||[],null,2))}</textarea></label><label>Structured checks (JSON list)<textarea class="case-checks" rows="4">${escapeHtml(JSON.stringify(item.checks||[],null,2))}</textarea></label><label>AI judge settings (JSON object, optional)<textarea class="case-judge" rows="4">${escapeHtml(JSON.stringify(item.judge||{},null,2))}</textarea></label><p class="workspace-scope">Checks support exact output, JSON values and numeric ranges. A judge needs provider, rubric and threshold; its model calls consume your account usage. Reference passages are copied data, never instructions. A judge receives them through the provider you select. Judge scores are estimates.</p></details></div>`;
 }
+function evaluatorFields(data){
+  return `<p class="workspace-scope">Shared with this workspace. Saving never invokes AI. Only explicitly running an evaluation sends task, answer and reference passages to this provider.</p><label>Judge provider<select name="provider">${providerOptions(data.provider||"codex")}</select></label>`+inputField("model","Judge model (optional)",data.model||"")+`<label>Grading instructions<textarea name="rubric" rows="5" required>${escapeHtml(data.rubric||"")}</textarea></label><label>Pass threshold (0–1)<input name="threshold" type="number" min="0" max="1" step="any" value="${data.threshold??0.7}" required></label><label>Choice scores (optional, one label = score per line)<textarea name="choices" rows="4" placeholder="Supported = 1&#10;Partial = 0.5&#10;Unsupported = 0">${escapeHtml(Object.entries(data.choices||{}).map(([label,score])=>`${label} = ${score}`).join("\n"))}</textarea></label><p class="callout">Leave choices empty for a numeric score. With choices, only configured labels are accepted; their saved scores determine the grade. Judging consumes the selected account's usage. Model grades are estimates.</p>`;
+}
+function evaluatorFormData(form){
+  const choices=Object.create(null);
+  for(const line of String(form.get("choices")||"").split("\n").filter(line=>line.trim())){
+    const split=line.lastIndexOf("="),label=line.slice(0,split).trim(),number=line.slice(split+1).trim(),score=Number(number);
+    if(split<1||!label||!number||Object.hasOwn(choices,label)||!Number.isFinite(score)||score<0||score>1)throw new Error("Use unique labels with scores from 0 to 1: Supported = 1");
+    choices[label]=score;
+  }
+  return {kind:"evaluator",version:1,type:"llm_judge",provider:form.get("provider"),model:form.get("model")||"",rubric:form.get("rubric"),threshold:Number(form.get("threshold")),...(Object.keys(choices).length?{choices}:{})};
+}
+function savedEvaluatorFields(){
+  return '<details><summary>Apply a saved evaluator</summary><label>Workspace evaluator<select id="evaluation-saved-evaluator"><option value="">Loading evaluators…</option></select></label><button type="button" class="secondary" id="evaluation-apply-evaluator" disabled>Replace AI judges in all draft cases</button><p>Copies the selected grading instructions and provider into each current case. Existing phrase checks and reference passages stay intact. Review before saving; judging uses account usage only when the suite runs.</p><p id="evaluation-evaluator-status" class="workspace-scope" role="status"></p></details>';
+}
+async function loadEvaluatorChoices(){
+  const select=$("evaluation-saved-evaluator"),button=$("evaluation-apply-evaluator");if(!select)return;
+  try{
+    const items=(await api("/api/catalog/evaluators")).items.filter(item=>!item.archived);
+    if(!select.isConnected)return;
+    select.innerHTML='<option value="">Choose an evaluator</option>'+items.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · revision ${item.revision} · ${escapeHtml(item.data.provider)}</option>`).join("");
+    if(!items.length)select.innerHTML='<option value="">No saved evaluators</option>';
+    select.onchange=()=>{button.disabled=!select.value;};
+  }catch(error){if(select.isConnected){select.innerHTML='<option value="">Evaluators unavailable</option>';$("library-form-error").textContent=error.message;}}
+}
+async function applySavedEvaluator(button){
+  const select=$("evaluation-saved-evaluator"),root=$("evaluation-cases"),id=select.value,status=$("evaluation-evaluator-status");
+  if(!id)return;button.disabled=true;$("library-form-error").textContent="";
+  try{
+    const item=await api(`/api/catalog/evaluators/${encodeURIComponent(id)}`);
+    if(!root.isConnected||select.value!==id)return;
+    if(item.archived)throw new Error("Evaluator was archived. Restore it before copying.");
+    const judges=root.querySelectorAll(".case-judge");if(!judges.length)throw new Error("Add at least one case first.");
+    const judge=Object.fromEntries(Object.entries(item.data).filter(([key])=>["provider","model","rubric","threshold","choices"].includes(key)));
+    judges.forEach(field=>{field.value=JSON.stringify(judge,null,2);});
+    status.textContent=`Copied ${item.name}, revision ${item.revision}, into ${judges.length} draft case${judges.length===1?"":"s"}. Review and save; no AI was called.`;
+  }catch(error){if(root.isConnected)$("library-form-error").textContent=error.message;}
+  finally{if(button.isConnected)button.disabled=!select.value;}
+}
+function evaluationDatasetFields(data){
+  const suite=library.kind==="evaluations";
+  if(suite)queueMicrotask(loadEvaluationDatasetChoices);
+  queueMicrotask(loadEvaluatorChoices);
+  return (suite?targetField(data):'<p class="workspace-scope">Shared with this workspace. Saving cases never runs an evaluation.</p>')+`<div id="evaluation-cases">${(data.cases||[{}]).map(caseFields).join("")}</div><button type="button" class="secondary" id="evaluation-add-case">+ Add test case</button>${suite?'<details><summary>Use a saved dataset</summary><label>Workspace dataset<select id="evaluation-saved-dataset"><option value="">Loading datasets…</option></select></label><button type="button" class="secondary" id="evaluation-use-dataset" disabled>Replace cases from dataset</button><p>Copies the selected revision into this draft. Later dataset edits never change your suite.</p></details>':""}<details><summary>Import cases from a file</summary><label>CSV, YAML or JSON cases file (up to 900 KiB)<input type="file" id="evaluation-dataset" accept=".csv,.yaml,.yml,.json,text/csv,application/json,application/yaml"></label><button type="button" class="secondary" id="evaluation-import">Replace draft cases from file</button><p>CSV supports input and expected columns. JSON and YAML support case arrays or a version 1 dataset. All cases are validated before replacement. Nothing executes until you run a saved suite.</p></details>${savedEvaluatorFields()}<p id="evaluation-dataset-status" class="workspace-scope" role="status"></p><p class="callout">Checks compare phrases without case sensitivity. Each case needs a phrase check, structured assertion or explicitly configured rubric judge.</p>`;
+}
+async function loadEvaluationDatasetChoices(){
+  const select=$("evaluation-saved-dataset"),button=$("evaluation-use-dataset");if(!select)return;
+  try{
+    const items=(await api("/api/catalog/datasets")).items.filter(item=>!item.archived);
+    if(!select.isConnected)return;
+    select.innerHTML='<option value="">Choose a dataset</option>'+items.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · revision ${item.revision} · ${item.data.cases.length} case${item.data.cases.length===1?"":"s"}</option>`).join("");
+    if(!items.length)select.innerHTML='<option value="">No saved datasets</option>';
+    select.onchange=()=>{button.disabled=!select.value;};
+  }catch(error){if(select.isConnected){select.innerHTML='<option value="">Datasets unavailable</option>';$("library-form-error").textContent=error.message;}}
+}
+async function importEvaluationDataset(button){
+  const input=$("evaluation-dataset"),root=$("evaluation-cases"),status=$("evaluation-dataset-status"),file=input.files[0];
+  button.disabled=true;$("library-form-error").textContent="";
+  try{
+    if(!file||file.size>900*1024)throw new Error("Choose a CSV, YAML or JSON file no larger than 900 KiB.");
+    const extension=file.name.split(".").at(-1).toLowerCase(),format={csv:"csv",yaml:"yaml",yml:"yaml",json:"json"}[extension];
+    if(!format)throw new Error("Choose a .csv, .yaml, .yml or .json dataset file.");
+    const data=await api("/api/studio/datasets/parse",{format,content:await file.text()});
+    if(!root.isConnected||input.files[0]!==file)return;
+    root.innerHTML=data.cases.map(caseFields).join("");status.textContent=`${data.cases.length} validated case${data.cases.length===1?"":"s"} imported into this draft. Save to keep them.`;
+  }catch(error){if(root.isConnected)$("library-form-error").textContent=error.message;}
+  finally{if(button.isConnected)button.disabled=false;}
+}
+async function copySavedEvaluationDataset(button){
+  const select=$("evaluation-saved-dataset"),root=$("evaluation-cases"),status=$("evaluation-dataset-status"),id=select.value;
+  if(!id)return;button.disabled=true;$("library-form-error").textContent="";
+  try{
+    const item=await api(`/api/catalog/datasets/${encodeURIComponent(id)}`);
+    if(!root.isConnected||select.value!==id)return;
+    if(item.archived)throw new Error("Dataset was archived. Restore it before copying cases.");
+    root.innerHTML=item.data.cases.map(caseFields).join("");
+    status.textContent=`Copied ${item.data.cases.length} case${item.data.cases.length===1?"":"s"} from ${item.name}, revision ${item.revision}. Review and save this independent suite.`;
+  }catch(error){if(root.isConnected)$("library-form-error").textContent=error.message;}
+  finally{if(button.isConnected)button.disabled=!select.value;}
+}
+function savedExperimentFields(data){
+  queueMicrotask(()=>loadExperimentSuites(data));
+  return '<label>Pinned evaluation suite<select name="suite" id="saved-experiment-suite" required><option value="">Loading suites…</option></select></label>'+`<p>Suite edits require reviewing and updating this pinned revision before a new run.</p><div class="form-grid"><label>Runs per case<input type="number" name="runsPerExample" min="1" max="20" step="1" value="${data.runsPerExample??1}" required></label><label>Minimum pass rate per variant (0–1)<input type="number" name="passThreshold" min="0" max="1" step="any" value="${data.passThreshold??1}" required></label></div><div id="saved-experiment-variants">${(data.variants||[{name:"Baseline"}]).map((variant,index)=>variantFields(index+1,variant,true)).join("")}</div><button type="button" class="secondary" id="saved-experiment-add-variant">+ Add variant</button><p id="saved-experiment-estimate" role="status" class="workspace-scope"></p><p class="callout">Every variant must meet the threshold independently. Each repetition is a fresh execution and can invoke workflow tools or external changes. Workflows requiring approval or input must run separately; Experiment Lab accepts non-interactive workflows. Judges and workflow steps can add provider calls. Saving never executes; running uses your selected accounts.</p>`;
+}
+async function loadExperimentSuites(data){
+  const select=$("saved-experiment-suite");if(!select)return;
+  try{
+    const items=(await api("/api/catalog/evaluations")).items.filter(item=>!item.archived);
+    if(!select.isConnected)return;
+    const selected=data.evaluation_id?JSON.stringify([data.evaluation_id,data.evaluation_revision]):"";
+    select.innerHTML='<option value="">Choose a suite revision</option>'+items.map(item=>`<option value="${escapeHtml(JSON.stringify([item.id,item.revision]))}" data-cases="${item.data.cases.length}">${escapeHtml(item.name)} · revision ${item.revision}</option>`).join("");
+    if(selected&&!items.some(item=>item.id===data.evaluation_id&&item.revision===data.evaluation_revision))select.insertAdjacentHTML("beforeend",`<option value="${escapeHtml(selected)}">${escapeHtml(data.evaluation_id)} · pinned revision ${data.evaluation_revision} (review latest suite before running)</option>`);
+    select.value=selected;updateExperimentEstimate();
+  }catch(error){if(select.isConnected){select.innerHTML='<option value="">Suites unavailable</option>';$("library-form-error").textContent=error.message;}}
+}
+function updateExperimentEstimate(){
+  const select=$("saved-experiment-suite"),root=$("saved-experiment-variants"),status=$("saved-experiment-estimate");if(!select||!root||!status)return;
+  const cases=Number(select.selectedOptions[0]?.dataset.cases||0),repeats=Number(document.querySelector('[name="runsPerExample"]')?.value||1),count=cases*repeats*root.children.length;
+  status.textContent=cases?`${count} planned case executions (${cases} case${cases===1?"":"s"} × ${root.children.length} variant${root.children.length===1?"":"s"} × ${repeats} repetition${repeats===1?"":"s"}). Maximum 400.`:"Choose a current suite revision to see planned execution count.";
+}
+function savedExperimentFormData(form){
+  const [evaluation_id,evaluation_revision]=JSON.parse(form.get("suite")||"[]");
+  return {kind:"experiment",version:1,evaluation_id,evaluation_revision,runsPerExample:Number(form.get("runsPerExample")),passThreshold:Number(form.get("passThreshold")),variants:[...$("saved-experiment-variants").querySelectorAll(".experiment-variant")].map(row=>({name:row.querySelector(".variant-name").value,provider:row.querySelector(".variant-provider").value,model:row.querySelector(".variant-model").value,...(row.querySelector(".variant-effort").value?{effort:row.querySelector(".variant-effort").value}:{})}))};
+}
+function experimentReportSummary(report){
+  if(!report.experiment_id)return "";
+  return `<p class="callout">${report.complete?(report.acceptance?"Pass threshold met by every variant.":"Pass threshold not met by every variant."):"Incomplete experiment. No acceptance result."} ${report.total||0}/${report.expected_total} case executions recorded · minimum ${Number(report.pass_threshold)*100}% per variant · experiment revision ${report.experiment_revision}.</p>${report.variant_results?.length?`<ul>${report.variant_results.map(item=>`<li>${escapeHtml(item.name)}: ${item.passed}/${item.expected_total} passed${report.complete?` · ${item.accepted?"Accepted":"Below threshold"}`:" · incomplete"}</li>`).join("")}</ul>`:""}`;
+}
 function operationFields(item){
   const data=item?.data||{};
   if(library.kind==="connectors")queueMicrotask(updateConnectionFields);
   if(library.kind==="entrypoints")queueMicrotask(updateIncomingServiceFields);
   if(library.kind==="externalagents")return inputField("external_url","Agent service URL",data.url||"")+inputField("external_token_env","Personal credential environment variable (optional)",data.token_env||"")+inputField("external_card_path","Agent card path",data.card_path||"/.well-known/agent-card.json")+`<label class="check-label"><input name="external_streaming" type="checkbox" ${data.streaming?"checked":""}> Stream remote task updates</label>`+`<label>A2A protocol<select name="protocol_version"><option value="1.0" ${data.protocol_version==="1.0"?"selected":""}>1.0 JSON-RPC</option><option value="0.3" ${data.protocol_version==="0.3"?"selected":""}>0.3 JSON-RPC</option></select></label><label class="check-label"><input name="enabled" type="checkbox" ${data.enabled?"checked":""}> Enable this external agent</label><label class="check-label"><input name="allow_private" type="checkbox" ${data.allow_private?"checked":""}> Allow a private-network service (including local HTTP)</label><p class="callout">Discovery only reads the agent card. Running a task sends your supplied text to this service and may invoke its tools. Cards cannot change the credential destination. Remote sends are never retried automatically.</p>`;
+  if(library.kind==="experiments")return savedExperimentFields(data);
+  if(library.kind==="evaluators")return evaluatorFields(data);
   if(library.kind==="models")return `<label>Provider<select name="provider">${providerOptions(data.provider||"codex")}</select></label>`+inputField("model","Model ID",data.model||"")+`<label>Effort<select name="effort">${effortOptions(data.effort||"")}</select></label>`;
   if(library.kind==="decisionmodels")return `<label>Decision service<select name="backend" id="decisionmodel-backend"><option value="openrouter" ${(data.backend||"openrouter")==="openrouter"?"selected":""}>OpenRouter</option><option value="opencode" ${data.backend==="opencode"?"selected":""}>OpenCode</option><option value="openai" ${data.backend==="openai"?"selected":""}>OpenAI (gpt-6-luna)</option></select></label>`+inputField("model","Model ID",data.model||"")+inputField("timeout_seconds","Timeout seconds (1–300)",data.timeout_seconds||10,"number");
-  if(library.kind==="evaluations")return targetField(data)+`<div id="evaluation-cases">${(data.cases||[{}]).map(caseFields).join("")}</div><button type="button" class="secondary" id="evaluation-add-case">+ Add test case</button><details><summary>Import a dataset</summary><label>JSON cases file (up to 900 KiB)<input type="file" id="evaluation-dataset" accept=".json,application/json"></label><button type="button" class="secondary" id="evaluation-import">Replace draft cases from file</button><p>Import a JSON array of cases, or an object with a cases list. Nothing executes until you run the saved suite.</p></details><p class="callout">Checks compare phrases without case sensitivity. Each case needs a phrase check, structured assertion or explicitly configured rubric judge.</p>`;
+  if(["evaluations","datasets"].includes(library.kind))return evaluationDatasetFields(data);
   if(library.kind==="schedules"){
     const isWf=data.target_kind==="workflow";
     if(typeof queueMicrotask==="function")queueMicrotask(updateScheduleTargetFields);
@@ -24,11 +134,13 @@ function operationFields(item){
   return `<label>Connector type<select name="connector_type" id="connector-type"><option value="http" ${data.type==="http"?"selected":""}>HTTP GET</option><option value="sqlite" ${data.type==="sqlite"?"selected":""}>SQLite (read-only)</option>${["github","gitlab","telegram","discord","slack","openclaw","mcp"].map(type=>`<option value="${type}" ${data.type===type?"selected":""}>${({github:"GitHub",gitlab:"GitLab",telegram:"Telegram",discord:"Discord",slack:"Slack",openclaw:"OpenClaw",mcp:"MCP server"})[type]}</option>`).join("")}</select></label>`+inputField("url","HTTP endpoint URL",data.url||"")+inputField("token_env","Credential environment variable (never a secret value)",data.token_env||"")+inputField("path","SQLite database path (relative to workspace)",data.path||"")+inputField("repo","Git repository (owner/project)",data.repo||"")+inputField("base_url","Service origin (GitLab or OpenClaw)",data.base_url||"")+inputField("channel","Messaging channel or chat ID",data.channel||"")+`<label>Messaging account<select name="credential_scope"><option value="personal">Each user’s account</option><option value="service" ${data.credential_scope==="service"?"selected":""}>Workspace bot account</option></select></label>`+inputField("command","Trusted MCP executable",data.command||"")+`<label class="check-label"><input type="checkbox" name="mcp_persistent" ${data.persistent?"checked":""}> Keep MCP sessions open between calls</label>`+`<label>MCP arguments (JSON list)<textarea name="mcp_args">${escapeHtml(JSON.stringify(data.args||[]))}</textarea></label><label>MCP account environment references (JSON object)<textarea name="mcp_env">${escapeHtml(JSON.stringify(data.env||{}))}</textarea></label><label>Enabled MCP tools (one per line)<textarea name="mcp_tools">${escapeHtml((data.tools||[]).join("\n"))}</textarea></label><label>Read-only MCP tools allowed for agents (one per line)<textarea name="mcp_safe">${escapeHtml((data.read_only_tools||[]).join("\n"))}</textarea></label><label>Allowed actions (comma separated)<input name="actions" value="${escapeHtml((data.actions||[]).join(","))}" placeholder="list_issues, get_issue, comments"></label><p class="callout">Only fields for the chosen service are used. Store credential environment names, never secret values. For shared Git connections, Nexus uses each user's linked account. Discover MCP tools before enabling their names. Mutations require explicit confirmation or an approved workflow step.</p>`+`<label class="check-label"><input type="checkbox" name="allow_private" ${data.allow_private?"checked":""}> Allow private/local HTTP destinations</label><label class="check-label"><input type="checkbox" name="enabled" ${data.enabled?"checked":""}> Enable connector</label><p class="callout">HTTP uses GET, blocks redirects, and limits responses to 256 KiB. SQLite runs read-only queries with a 100-row limit. Save creates an explicit registered tool; agents are not automatically given access.</p>`;
 }
 function operationFormData(form){
+  if(library.kind==="experiments")return savedExperimentFormData(form);
+  if(library.kind==="evaluators")return evaluatorFormData(form);
   const [target_kind,...identity]=String(form.get("target")||"").split(":"),target_id=identity.join(":");
   if(library.kind==="externalagents")return {url:form.get("external_url"),protocol_version:form.get("protocol_version"),token_env:form.get("external_token_env"),card_path:form.get("external_card_path"),streaming:form.has("external_streaming"),enabled:form.has("enabled"),allow_private:form.has("allow_private")};
   if(library.kind==="models")return {provider:form.get("provider"),model:form.get("model"),...(form.get("effort")?{effort:form.get("effort")}:{})};
   if(library.kind==="decisionmodels")return {backend:form.get("backend"),model:form.get("model")?.trim()||"",timeout_seconds:Number(form.get("timeout_seconds")||10)};
-  if(library.kind==="evaluations")return {target_kind,target_id,cases:[...document.querySelectorAll(".evaluation-case")].map(row=>({input:row.querySelector(".case-input").value,contains:row.querySelector(".case-contains").value.split("\n").map(s=>s.trim()).filter(Boolean),excludes:row.querySelector(".case-excludes").value.split("\n").map(s=>s.trim()).filter(Boolean),checks:JSON.parse(row.querySelector(".case-checks").value||"[]"),...(row.querySelector(".case-contexts").value.trim()!=="[]"||row.querySelector(".case-context-source").value!=="{}"?{contexts:JSON.parse(row.querySelector(".case-contexts").value||"[]")} : {}),...(row.querySelector(".case-context-source").value!=="{}"?{context_source:JSON.parse(row.querySelector(".case-context-source").value)}:{}),...(row.querySelector(".case-judge").value.trim()!=="{}"?{judge:JSON.parse(row.querySelector(".case-judge").value)}:{})}))};
+  if(["evaluations","datasets"].includes(library.kind))return {...(library.kind==="evaluations"?{target_kind,target_id}:{kind:"dataset",version:1}),cases:[...document.querySelectorAll(".evaluation-case")].map(row=>({input:row.querySelector(".case-input").value,contains:row.querySelector(".case-contains").value.split("\n").map(s=>s.trim()).filter(Boolean),excludes:row.querySelector(".case-excludes").value.split("\n").map(s=>s.trim()).filter(Boolean),checks:JSON.parse(row.querySelector(".case-checks").value||"[]"),...(row.querySelector(".case-contexts").value.trim()!=="[]"||row.querySelector(".case-context-source").value!=="{}"?{contexts:JSON.parse(row.querySelector(".case-contexts").value||"[]")} : {}),...(row.querySelector(".case-context-source").value!=="{}"?{context_source:JSON.parse(row.querySelector(".case-context-source").value)}:{}),...(row.querySelector(".case-judge").value.trim()!=="{}"?{judge:JSON.parse(row.querySelector(".case-judge").value)}:{})}))};
   if(library.kind==="schedules"){
     const rawTask=form.get("task")?.trim()||"";
     const wfInputRaw=form.get("workflow_input_json")?.trim();
@@ -43,6 +155,9 @@ function operationFormData(form){
 function operationActions(item){
   if(item.archived)return "";
   if(library.kind==="externalagents")return `${badge(item.data.enabled?"Enabled":"Disabled",item.data.enabled?"ready":"")}<button class="secondary" data-external-discover="${escapeHtml(item.id)}" ${item.data.enabled?"":"disabled"}>Inspect capabilities</button><button data-external-run="${escapeHtml(item.id)}" ${item.data.enabled?"":"disabled"}>Run task</button>`;
+  if(library.kind==="experiments")return `<button data-saved-experiment-run="${escapeHtml(item.id)}">Run experiment</button><button class="secondary" data-experiment-export="${escapeHtml(item.id)}">Export JSON</button>`;
+  if(library.kind==="evaluators")return `<button class="secondary" data-evaluator-export="${escapeHtml(item.id)}">Export JSON</button>`;
+  if(library.kind==="datasets")return `<button class="secondary" data-dataset-export="${escapeHtml(item.id)}">Export JSON</button>`;
   if(library.kind==="evaluations")return `<button data-evaluate="${escapeHtml(item.id)}">Run checks</button><button class="secondary" data-experiment="${escapeHtml(item.id)}">Experiment Lab</button>`;
   if(library.kind==="connectors")return `<button class="secondary" data-guide-resume="${escapeHtml(item.id)}">Setup guide</button>${badge(item.data.enabled?"Enabled":"Disabled",item.data.enabled?"ready":"")}<button class="secondary" data-connector-test="${escapeHtml(item.id)}" ${item.data.enabled?"":"disabled"}>Test connection</button>`;
   if(library.kind==="entrypoints")return `${badge(item.data.enabled?"Enabled":"Disabled",item.data.enabled?"ready":"")}<button class="secondary" data-entrypoint="${escapeHtml(item.id)}">Incoming URL</button>${item.data.a2a_enabled?`<button class="secondary" data-a2a-health="${escapeHtml(item.id)}">Delivery health</button>`:""}`;
@@ -52,9 +167,9 @@ function operationActions(item){
 }
 async function refreshOperationResults(){
   const root=$("operation-results");root.replaceChildren();
-  if(library.kind==="evaluations"){
-    const reports=(await api("/api/evaluation-reports")).items;
-    root.innerHTML=`<div class="operation-heading"><h2>Reports</h2><button class="secondary" id="refresh-operation-results">Refresh reports</button></div>`+(reports.length?reports.map(report=>`<article class="library-row"><div><h3>${escapeHtml(report.name)}</h3><p>${report.passed}/${report.total} cases passed · suite revision ${report.suite_revision} · ${escapeHtml(new Date(report.created_at).toLocaleString())}</p></div><button class="secondary" data-evaluation-report="${escapeHtml(report.id)}">View report</button></article>`).join(""):'<p>Run a suite to create your first report.</p>');
+  if(["evaluations","experiments"].includes(library.kind)){
+    const reports=(await api("/api/evaluation-reports")).items.filter(report=>library.kind!=="experiments"||report.experiment_id);
+    root.innerHTML=`<div class="operation-heading"><h2>Reports</h2><button class="secondary" id="refresh-operation-results">Refresh reports</button></div>`+(reports.length?reports.map(report=>`<article class="library-row"><div><h3>${escapeHtml(report.experiment_name||report.name)}</h3>${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed · suite revision ${report.suite_revision} · ${escapeHtml(new Date(report.created_at).toLocaleString())}</p></div><button class="secondary" data-evaluation-report="${escapeHtml(report.id)}">View report</button></article>`).join(""):library.kind==="experiments"?'<p>Run a saved experiment to create your first report.</p>':'<p>Run a suite to create your first report.</p>');
   }else if(library.kind==="externalagents"){
     const remote=(await api("/api/workbench/externalagents")).runs;
     root.innerHTML='<h2>Remote tasks</h2>'+remote.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.agent_id)}</h3><p>${escapeHtml(item.status)} · ${escapeHtml(item.task_id||"Remote task ID not acknowledged")}</p></div><div class="card-actions">${["input-required","auth-required"].includes(item.status)?`<button data-remote-continue="${escapeHtml(item.id)}">Provide input</button>`:""}${item.task_id?`<button class="secondary" data-remote-refresh="${escapeHtml(item.id)}">Refresh remote status</button>`:""}${item.task_id&&!["completed","failed","canceled","cancelled","rejected"].includes(item.status)?`<button class="secondary" data-remote-cancel="${escapeHtml(item.id)}">Cancel remote task</button>`:""}${item.callback_id?`<button class="secondary" data-remote-callbacks="${escapeHtml(item.id)}">Callback updates</button>`:""}<button class="secondary" data-run="${escapeHtml(item.id)}">Details</button></div></article>`).join("");
@@ -63,22 +178,31 @@ async function refreshOperationResults(){
     root.innerHTML=`<div class="operation-heading"><h2>Schedule activity</h2><button class="secondary" id="refresh-operation-results">Refresh activity</button></div>`+(states.length?states.map(state=>`<article class="library-row"><div><h3>${escapeHtml(state.id)}</h3><p>${state.last_error?escapeHtml(state.last_error):state.next_run_at?"Next run: "+escapeHtml(new Date(state.next_run_at).toLocaleString()):"One-time occurrence claimed"}</p></div>${state.run_id?`<button class="secondary" data-run="${escapeHtml(state.run_id)}">Run details</button>`:""}</article>`).join(""):'<p>No schedule occurrences yet.</p>');
   }
 }
-async function runEvaluation(id,variants){
-  const payload={kind:"evaluation",evaluation_id:id};if(variants)payload.variants=variants;
+async function runEvaluation(id,variants,experimentId=null){
+  const payload=experimentId?{kind:"evaluation",experiment_id:experimentId}:{kind:"evaluation",evaluation_id:id};if(variants&&!experimentId)payload.variants=variants;
   const run=await api("/api/runs",payload);showRun(run);
   pollRun(run.id,updateRunDetail).then(async()=>{await refreshOperationResults();await refreshRuns();}).catch(async error=>{updateRunDetail(error.run||{id:run.id,status:"failed",error:error.message});await refreshOperationResults();});
 }
-function variantFields(index){return `<div class="experiment-variant"><label>Variant name<input class="variant-name" value="Variant ${index}" required></label><label>Provider<select class="variant-provider">${providerOptions("",true)}</select></label><label>Model override<input class="variant-model" placeholder="Saved/default model"></label><label>Effort<select class="variant-effort">${effortOptions("")}</select></label></div>`;}
+function variantFields(index,data={},removable=false){return `<div class="experiment-variant"><label>Variant name<input class="variant-name" value="${escapeHtml(data.name||`Variant ${index}`)}" required></label><label>Provider<select class="variant-provider">${providerOptions(data.provider||"",true)}</select></label><label>Model override<input class="variant-model" value="${escapeHtml(data.model||"")}" placeholder="Saved/default model"></label><label>Effort<select class="variant-effort">${effortOptions(data.effort||"")}</select></label>${removable?'<button type="button" class="secondary" data-remove-experiment-variant>Remove variant</button>':""}</div>`;}
+
 async function showEvaluationReport(id){
   const report=await api(`/api/evaluation-reports/${encodeURIComponent(id)}`);
-  showDetail(report.name,`<p>${report.passed}/${report.total} cases passed.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${check.type} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
 }
 document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;
   try{
+    if(button.dataset.savedExperimentRun)await runEvaluation(null,null,button.dataset.savedExperimentRun);
+    if(button.dataset.experimentExport){const item=await api(`/api/catalog/experiments/${encodeURIComponent(button.dataset.experimentExport)}`);downloadJson(`${item.id}.json`,item.data);}
+    if(button.id==="saved-experiment-add-variant"){const root=$("saved-experiment-variants");if(root.children.length>=4)throw new Error("Maximum four variants.");root.insertAdjacentHTML("beforeend",variantFields(root.children.length+1,{},true));updateExperimentEstimate();}
+    if(button.hasAttribute("data-remove-experiment-variant")){const root=$("saved-experiment-variants");if(root.children.length<=1)throw new Error("Keep at least one variant.");button.closest(".experiment-variant").remove();updateExperimentEstimate();}
     if(button.id==="evaluation-add-case"){if($("evaluation-cases").children.length>=100)throw new Error("Maximum 100 cases.");$("evaluation-cases").insertAdjacentHTML("beforeend",caseFields());}
     if(button.hasAttribute("data-remove-case"))button.closest(".evaluation-case").remove();
-    if(button.id==="evaluation-import"){const file=$("evaluation-dataset").files[0];if(!file||file.size>900*1024)throw new Error("Choose a JSON dataset no larger than 900 KiB.");const dataset=JSON.parse(await file.text()),cases=Array.isArray(dataset)?dataset:dataset.cases;if(!Array.isArray(cases)||!cases.length||cases.length>100)throw new Error("Dataset must contain 1–100 cases.");$("evaluation-cases").innerHTML=cases.map(caseFields).join("");}
+    if(button.id==="evaluation-apply-evaluator")await applySavedEvaluator(button);
+    if(button.dataset.evaluatorExport){const item=await api(`/api/catalog/evaluators/${encodeURIComponent(button.dataset.evaluatorExport)}`);downloadJson(`${item.id}.json`,item.data);}
+    if(button.id==="evaluation-import")await importEvaluationDataset(button);
+    if(button.id==="evaluation-use-dataset")await copySavedEvaluationDataset(button);
+    if(button.dataset.datasetExport){const item=await api(`/api/catalog/datasets/${encodeURIComponent(button.dataset.datasetExport)}`);downloadJson(`${item.id}.json`,item.data);}
     if(button.dataset.evaluate)await runEvaluation(button.dataset.evaluate);
     if(button.dataset.experiment){experimentSuite=button.dataset.experiment;showDetail("Experiment Lab",'<p>Compare the same suite across provider/model variants. Each variant runs every case and consumes its provider’s usage.</p><div id="experiment-variants">'+variantFields(1)+variantFields(2)+'</div><p class="form-error" id="experiment-error" role="alert"></p><div class="card-actions"><button class="secondary" id="experiment-add">+ Add variant</button><button id="experiment-run">Run comparison</button></div>');}
     if(button.id==="experiment-add"){if($("experiment-variants").children.length>=4)throw new Error("Maximum four variants.");$("experiment-variants").insertAdjacentHTML("beforeend",variantFields($("experiment-variants").children.length+1));}
@@ -146,3 +270,7 @@ function updateScheduleTargetFields(){
   if(wfInput)wfInput.style.display=isWf?"":"none";
 }
 document.addEventListener("change",event=>{if((event.target.id==="operation-target"||event.target.name==="target")&&typeof library!=="undefined"&&library.kind==="schedules")updateScheduleTargetFields();});
+
+document.addEventListener("input",event=>{if(event.target.name==="runsPerExample")updateExperimentEstimate();});
+
+document.addEventListener("change",event=>{if(event.target.id==="saved-experiment-suite")updateExperimentEstimate();});
