@@ -212,3 +212,30 @@ See [the data-worker guide](../../docs/STUDIO-DATA-WORKERS.md) for explicit imag
 builds, bounded chart profiles, selected Docker contexts and optional CPU vision
 with installed read-only model weights. These workers never run while browsing
 the catalog and do not inherit Studio credentials.
+
+## Docker access through the filtering proxy
+
+`docker-compose.studio-workers.yml` never mounts the Docker socket into Studio.
+Its `docker-proxy` service holds the socket and serves a filtered one at
+`/var/lib/nexus-studio/docker-proxy/docker.sock` (mode 0600, Studio's UID), which
+Studio reaches through `DOCKER_HOST`. `docker_proxy.py` allows only what the CLI
+worker and analysis paths send: ping/version, inspect of the configured
+`runner_image` and `analysis_workers` images, and create/attach/start/wait/kill/
+delete for `nexus-studio-<hex>` and `nexus-analysis-<hex>` containers it created.
+Creates must keep the hardening those paths request: the configured non-root user,
+read-only root, `CapDrop=ALL`, `no-new-privileges`, `--rm`, memory/CPU/pids limits
+and the expected network. Bind mounts may come only from per-user homes under
+`${NEXUS_RUNTIME_DIR}/auth`, read-only prompt/attachment scratch dirs in Studio's
+TMPDIR, or configured model files. Any HostConfig field it does not check must be
+empty. Everything else (`ps`, `exec`, pulls, builds, privileged or host-namespace
+containers, other images or mounts) gets 403 and a `deny` line in
+`docker logs nexus-studio-docker-proxy-1`.
+
+Mount sources must be real paths without symlinks, checked at create and again at
+start. Studio can write to those directories, so a compromised Studio could still
+try to swap a checked directory for a symlink in the moment between that check
+and the daemon's mount. Even then the container runs as Studio's UID with no
+capabilities, so the swap gives the access of Studio's UID, not root. Close it fully with
+rootless Docker or root-owned parents for the credential homes. Analysis model
+files must also be mounted into the proxy at their host path, or those creates are
+refused.
