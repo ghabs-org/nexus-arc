@@ -75,6 +75,26 @@ def referenced_tools(kind, value):
     return sorted(tools)
 
 
+def worker_search(studio, kind, value):
+    """Whether an unconfigured search tool is covered by a shared CLI worker.
+
+    Agents are covered when their worker searches by itself. Toolsets and skills
+    defer to the agents that use them; workflow tool nodes run without a model.
+    """
+    if kind == "agents":
+        spec = value.get("spec", {})
+        provider = spec.get("provider") or "codex"
+        if spec.get("model_id"):
+            try:
+                provider = studio.catalog.get("models", spec["model_id"])["data"]["provider"]
+            except (FileNotFoundError, ValueError, KeyError):
+                return False
+        return studio.research.native_search(provider)
+    if kind == "workflows":
+        return False
+    return bool(studio.team) and not studio.research.search
+
+
 def local_prerequisites(studio, key, value, *, probe_workers=False, worker_cache=None):
     """Read metadata; only explicit activation probes start restricted workers.
 
@@ -135,11 +155,32 @@ def local_prerequisites(studio, key, value, *, probe_workers=False, worker_cache
         for service in (studio.research, studio.media, studio.rulesets, studio.dynamic_embeds)
         for row in service.inventory()["items"]
     }
+    builtin = worker_search(studio, kind, value)
+    if kind == "agents":
+        # Search tools reach agents through toolsets too; only the agent knows its worker.
+        for identity in value.get("spec", {}).get("toolset_ids", []):
+            try:
+                listed = studio.catalog.get("toolsets", identity)["data"].get("tools", [])
+            except (FileNotFoundError, ValueError):
+                continue
+            tools = sorted(
+                set(tools) | {name for name in listed if name in studio.research.names}
+            )
     for name in tools:
         if name not in studio.data_tools.names:
             row = inventories.get(name)
             if row is not None:
                 configured = bool(row["configured"])
+                search = name in studio.research.names and name.rsplit(":", 1)[-1] in {
+                    "web_search",
+                    "research",
+                }
+                if not configured and search and builtin:
+                    snapshot["tools"][name] = "worker"
+                    checks.append(
+                        {"name": name.rsplit(":", 1)[-1], "status": "worker built-in search"}
+                    )
+                    continue
                 snapshot["tools"][name] = configured
                 checks.append(
                     {

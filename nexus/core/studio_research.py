@@ -27,6 +27,9 @@ from nexus.core.studio_connections import env_name
 from nexus.core.studio_data_tools import current_run_id
 from nexus.core.studio_remote import validate_destination, validate_remote
 
+# Shared CLI workers whose own web search and fetch follow the "web" tool level.
+NATIVE_WEB_PROVIDERS = frozenset({"codex", "claude-code", "opencode"})
+
 
 class PageText(HTMLParser):
     def __init__(self):
@@ -153,6 +156,27 @@ class StudioResearch:
             tool_registry.register(name, function, description=description, category="Research")
             self.names[name] = function
 
+    def native_search(self, provider_name):
+        """Whether a shared CLI worker's own web search stands in for research.search."""
+        return bool(self.studio.team) and not self.search and provider_name in NATIVE_WEB_PROVIDERS
+
+    def native_web(self, provider_name, tool_ids):
+        """Without a search account, let a CLI worker search the web itself.
+
+        Returns the tool IDs left for the Studio tool loop and whether the worker's
+        built-in web search and fetch replace the agent's search tools.
+        """
+        if self.search or provider_name not in NATIVE_WEB_PROVIDERS:
+            return list(tool_ids), False
+        web = {
+            name: name.rsplit(":", 1)[1]
+            for name in self.names
+            if name.rsplit(":", 1)[1] in {"web_search", "research", "web_fetch"}
+        }
+        if not any(web.get(name) in {"web_search", "research"} for name in tool_ids):
+            return list(tool_ids), False
+        return [name for name in tool_ids if name not in web], True
+
     def close(self):
         from nexus.tools import tool_registry
 
@@ -200,8 +224,10 @@ class StudioResearch:
                     else "Local processing; selected source requests",
                     "setup": "Explicitly enable research.geographic for Open-Meteo personal/non-commercial requests. No API key; provider terms apply."
                     if action in {"city_to_coordinates", "city_to_timezone", "get_weather"}
-                    else "Configure research.search in private runtime settings. No search provider or API account is chosen automatically."
-                    if action in {"web_search", "image_search", "research"}
+                    else "Configure research.search in private runtime settings. No search provider or API account is chosen automatically. Until then, agents on shared Codex, Claude Code or OpenCode workers use the worker's built-in web search for web_search and research."
+                    if action in {"web_search", "research"}
+                    else "Configure research.search with Tavily or Brave in private runtime settings. No search provider or API account is chosen automatically."
+                    if action == "image_search"
                     else "Explicitly enable research.finance and install the studio-research extra."
                     if action == "finance"
                     else "Explicitly enable research.ip_location to use ipapi.co."

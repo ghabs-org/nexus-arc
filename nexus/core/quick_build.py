@@ -81,6 +81,9 @@ class QuickBuilder:
         from nexus.core.studio_build_recovery import StudioBuildRecovery
 
         self.recovery = StudioBuildRecovery(self)
+        from nexus.core.studio_build_maintenance import StudioBuildMaintenance
+
+        self.maintenance = StudioBuildMaintenance(self)
 
     def get(self, identity: str) -> dict:
         try:

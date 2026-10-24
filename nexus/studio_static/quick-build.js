@@ -85,7 +85,7 @@ function renderBuild() {
     <details class="build-step-details"><summary>Named child workflows${p.workflows?.length?` · ${p.workflows.length}`:""}</summary><p>Reusable workflows created with this build. Ask the builder to add or refine them, or edit their configuration below.</p>${jsonField("workflows","Child workflow definitions",p.workflows||[])}</details>
     ${resources.length?`<div class="build-agents"><h3>Related resources</h3><p>Connections, schedules and entrypoints are saved disabled. Configure accounts and enable them separately.</p>${resources.map((item,i)=>`<details class="build-agent"><summary>${escapeHtml(item.name)} · ${escapeHtml(item.kind)}</summary><div class="build-agent-fields">${builderField(`resources.${i}.name`,"Resource name",item.name)}${builderField(`resources.${i}.description`,"Description",item.description||"")}${jsonField(`resources.${i}.data`,"Resource settings",item.data)}</div></details>`).join("")}</div>`:""}
     <details class="build-files"><summary>${saved?"Saved resources":"Resources this build will create"}</summary><ul>${p.agents.map(a=>`<li>agents/${escapeHtml(a.id)}.yaml</li>`).join("")}${[...(p.workflows||[]),...(workflow?[workflow]:[])].map(w=>`<li>workflows/${escapeHtml(w.id)}.yaml</li>`).join("")}${resources.map(item=>`<li>${escapeHtml(item.kind)} / ${escapeHtml(item.id)}</li>`).join("")}</ul></details>
-    <div class="build-save-row">${saved?'<button id="builder-reopen" class="secondary">Continue editing this build</button>':""}<p>${saved?"Resources saved. Configure prerequisites before execution.":"Review instructions, graph and related resources before saving."}</p><button id="${saved?"builder-open-test":"builder-save"}" ${saved&&!workflow?"disabled":""}>${saved?(workflow?"Test your team →":"No workflow to test"):"Review changes"}</button></div>`;
+    <div class="build-save-row">${saved?'<button id="builder-reopen" class="secondary">Continue editing this build</button>':""}<button id="builder-refresh" class="secondary">Refresh from workspace</button><button id="builder-delete" class="secondary">Delete build</button><p>${saved?"Resources saved. Configure prerequisites before execution.":"Review instructions, graph and related resources before saving."}</p><button id="${saved?"builder-open-test":"builder-save"}" ${saved&&!workflow?"disabled":""}>${saved?(workflow?"Test your team →":"No workflow to test"):"Review changes"}</button></div>`;
   $("builder-form").hidden=saved;$("builder-generate").textContent="Refine build ↗";$("builder-task").placeholder="What would you like to change?";
   $("builder-test-title").textContent=p.name;$("builder-note").textContent=saved?"Saved in Agents, Workflows and Library. Review account setup before enabling connections.":"Refine in chat, or edit the proposed settings before saving. Invalid drafts may use one extra AI call.";
   $("builder-provider").value=draft.provider;$("builder-model").value=draft.model;$("builder-effort").value=draft.effort||"";$("builder-tools").value=draft.worker_tools||"web";
@@ -190,7 +190,7 @@ async function applyBuildReview(){
 async function reviewBuildTransition(action){
  if(builder.busy)return;builderBusy(true,"Checking this revision and its dependencies…");
  const label={activate:"activation",deactivate:"deactivation",rollback:"rollback"}[action];
- try{const plan=await featureApi(`builds/${encodeURIComponent(builder.id)}/plan`,{revision:builder.draft.revision,action,enable:action==="activate"?Array.from(document.querySelectorAll("[data-enable-build-component]:checked"),e=>e.value):[],...(action==="rollback"?{release:$("builder-release").value}:{})});builder.transition=plan;$("builder-transition-review").innerHTML=`<h3>Review ${escapeHtml(label)}</h3>${buildChangesHtml(plan)}${plan.errors.length?`<p role="alert">Resolve before proceeding:</p><ul>${plan.errors.map(error=>`<li>${escapeHtml(error.component)}: ${escapeHtml(error.reason.replaceAll("_"," "))}</li>`).join("")}</ul>`:"<p>This plan pins the current revision and workspace contents.</p>"}<button data-build-apply-transition ${plan.errors.length?"disabled":""}>Apply reviewed ${escapeHtml(label)}</button>`;}catch(error){buildError(error);}finally{builderBusy(false);}
+ try{const plan=await featureApi(`builds/${encodeURIComponent(builder.id)}/plan`,{revision:builder.draft.revision,action,enable:action==="activate"?Array.from(document.querySelectorAll("[data-enable-build-component]:checked"),e=>e.value):[],...(action==="rollback"?{release:$("builder-release").value}:{})});builder.transition=plan;$("builder-transition-review").innerHTML=`<h3>Review ${escapeHtml(label)}</h3>${buildChangesHtml(plan)}${plan.errors.length?`<p role="alert">Resolve before proceeding:</p><ul>${plan.errors.map(error=>`<li>${escapeHtml(error.component)}: ${escapeHtml(error.reason.replaceAll("_"," "))}</li>`).join("")}</ul>${plan.errors.some(error=>error.reason.includes("unreviewed_changes"))?"<p>These resources were edited outside Quick Build. Use Refresh from workspace to review the edits, then review activation again.</p>":""}`:"<p>This plan pins the current revision and workspace contents.</p>"}<button data-build-apply-transition ${plan.errors.length?"disabled":""}>Apply reviewed ${escapeHtml(label)}</button>`;}catch(error){buildError(error);}finally{builderBusy(false);}
 }
 async function applyBuildTransition(){
  if(builder.busy||!builder.transition)return;builderBusy(true,"Applying reviewed resource transition…");
@@ -208,3 +208,25 @@ async function checkBuildHealth(component){
  try{await featureApi(`builds/${encodeURIComponent(builder.id)}/health`,{revision:builder.draft.revision,release_id:builder.draft.release_id,component});await refreshBuildLifecycle();}catch(error){buildError(error);}finally{builderBusy(false);}
 }
 document.addEventListener("click",event=>{const button=event.target.closest("[data-build-health]");if(button&&!builder.busy)checkBuildHealth(button.dataset.buildHealth);});
+
+async function refreshBuildFromWorkspace(){
+ if(builder.busy||!builder.draft)return;builderBusy(true,"Comparing this build with the workspace…");
+ try{
+  const id=encodeURIComponent(builder.id),preview=await featureApi(`builds/${id}/refresh`,{revision:builder.draft.revision});
+  if(!preview.changes.length){notify("This build already matches its workspace resources.");return;}
+  builderBusy(false);
+  const confirmed=await fieldsDialog("Refresh build from workspace",`<p>These resources were changed or removed outside Quick Build:</p>${buildChangesHtml(preview)}<p>Refreshing replaces this build's proposal with the current workspace files${builder.draft.status==="draft"?" and discards unsaved build edits":""}. Nothing in the workspace is rewritten. Changed resources become inactive until you review activation.</p>`,"Refresh build");
+  if(!confirmed)return;builderBusy(true,"Refreshing build…");
+  const result=await featureApi(`builds/${id}/refresh`,{revision:preview.revision,digest:preview.digest});
+  builder.draft=result.build;builder.review=null;builder.transition=null;renderBuild();await refreshBuilds();
+  notify(result.deactivated.length?"Build refreshed. Review activation to run the changed resources again.":"Build refreshed from the workspace.");
+ }catch(error){buildError(error);}finally{builderBusy(false);}
+}
+async function deleteBuild(){
+ if(builder.busy||!builder.draft)return;
+ const confirmed=await fieldsDialog("Delete build",`<p>Delete <strong>${escapeHtml(builder.draft.proposal.name)}</strong> from Quick Build?</p><p>Its agents, workflows and resources stay in the workspace as ordinary resources. They are no longer managed by this build, and their activation review no longer applies.</p>`,"Delete build");
+ if(!confirmed)return;builderBusy(true,"Deleting build…");
+ try{await featureApi(`builds/${encodeURIComponent(builder.id)}/delete`,{revision:builder.draft.revision});resetBuilder();await refreshBuilds();notify("Build deleted. Its resources remain in Agents, Workflows and Library.");}
+ catch(error){buildError(error);}finally{builderBusy(false);}
+}
+document.addEventListener("click",event=>{if(event.target.id==="builder-refresh")refreshBuildFromWorkspace();if(event.target.id==="builder-delete")deleteBuild();});
