@@ -8,7 +8,7 @@ paths:
     parameters:
       - {name: id, in: path, required: true, schema: {type: string}}
     get:
-      description: Inspect current failed steps, a revision digest and any blocking recovery requirement. Legacy workflows use existing checkpoints. Old standalone runs without saved requests report unavailable rather than guessing their configuration.
+      description: Inspect current failed steps, a revision digest and any blocking recovery requirement. Quick Build exposes __build_finalize__ when a completed model response is saved; this retries only local validation and draft saving with no provider invocation or automatic correction. Confirmed complete legacy streamed responses are reusable too. Without a completed response, __run__ retries generation and provider billing applies. Legacy workflows use existing checkpoints. Old standalone runs without saved requests report unavailable rather than guessing their configuration.
       responses:
         '200':
           description: Read-only retry plan; original request bodies, credentials and outputs are never returned.
@@ -34,10 +34,11 @@ paths:
                         name: {type: string}
                         kind: {type: string}
                         requires_effect_review: {type: boolean}
+                        uses_saved_output: {type: boolean, description: Local build finalization reuses the completed model response and never calls a provider.}
         '403': {description: Account or project access denied.}
         '404': {description: Run not found.}
     post:
-      description: Retry the selected failed step and continue unfinished workflow work. Completed nodes never rerun. Failed retry budgets and cached failed outcomes in the selected scope are reset explicitly. Uncertain integration effects require the existing effect review first; tool retries require explicit effect confirmation. Duplicate digest and step submissions return the existing run without dispatching again. Current execution permissions and request/checkpoint digests are rechecked before queuing.
+      description: Retry the selected failed step and continue unfinished workflow work. Quick Build completed responses resume only local validation and saving, with no model call or automatic correction. Completed nodes never rerun. Failed retry budgets and cached failed outcomes in the selected scope are reset explicitly. Uncertain integration effects require the existing effect review first; tool retries require explicit effect confirmation. Duplicate digest and step submissions return the existing run without dispatching again. Current execution permissions and request/checkpoint digests are rechecked before queuing.
       requestBody:
         required: true
         content:

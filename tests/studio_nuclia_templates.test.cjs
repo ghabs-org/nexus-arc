@@ -34,3 +34,23 @@ test('Nuclia evidence capture follows the explicit checkbox and never transfers 
   assert.equal(scope.operationFormData(form('nuclia')).capture_evaluation,false);
   assert.equal(scope.operationFormData(form('powerbi')).capture_evaluation,undefined);
 });
+
+test('editing a bound Nuclia connection preserves fixed settings without sharing state',()=>{
+  const ask_settings={top_k:7,rephrase:false,prompt:{user:'Use {context}'}};
+  const scope=context({data:{type:'nuclia',ask_settings}});
+  const output=scope.operationFormData(form('nuclia'));
+  assert.equal(JSON.stringify(output.ask_settings),JSON.stringify(ask_settings));
+  output.ask_settings.prompt.user='changed';
+  assert.equal(ask_settings.prompt.user,'Use {context}');
+  assert.equal(scope.operationFormData(form('powerbi')).ask_settings,undefined);
+  assert.equal(context(null).operationFormData(form('nuclia')).ask_settings,undefined);
+});
+
+test('import review escapes adaptation notes and supports reports without adaptations',()=>{
+  const scope=vm.createContext({escapeHtml:value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')});
+  vm.runInContext(source.slice(source.indexOf('function interopAdaptations('),source.indexOf('async function importPortableConfiguration(')),scope);
+  assert.equal(scope.interopAdaptations({}), '');
+  const html=scope.interopAdaptations({adaptations:[{policy:'<policy>',changes:['<script>bad</script>']}]});
+  assert.ok(html.includes('&lt;policy&gt;')&&html.includes('&lt;script&gt;'));
+  assert.ok(!html.includes('<script>'));
+});

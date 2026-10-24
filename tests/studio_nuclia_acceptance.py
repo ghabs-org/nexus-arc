@@ -59,3 +59,18 @@ def test_original_binary_transport_rejects_failed_partial_or_oversized_responses
         assert not studio.catalog.list("artifacts")
     finally:
         studio.close()
+
+
+def test_descriptor_binding_review_preserves_fixed_settings_over_http():
+    example = runpy.run_path(
+        str(Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_nuclia_descriptors.py")
+    )
+    result = example["exercise"](
+        os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia")
+    )
+    assert result == {
+        "requests": 2,
+        "reviewed_binding": True,
+        "no_action_replay": True,
+        "live_verified": False,
+    }

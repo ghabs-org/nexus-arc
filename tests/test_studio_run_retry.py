@@ -352,6 +352,214 @@ def test_failed_build_retries_original_request_with_effort_and_no_duplicate_disp
     assert len(model.calls) == 2
 
 
+def test_build_retries_only_saving_after_completed_generation(app, monkeypatch):
+    from tests.test_quick_build import Model
+
+    service, _, _ = app
+    model = Model()
+    service.builder.provider_factory = lambda _: model
+    write = service._write
+    fail = [True]
+
+    def failing_write(path, value):
+        if path.parent.name == "builds" and fail[0]:
+            raise OSError("Temporary draft write failure")
+        return write(path, value)
+
+    monkeypatch.setattr(service, "_write", failing_write)
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    assert run["status"] == "failed"
+    assert len(model.calls) == 1
+    plan = service.retry.describe(run["id"])
+    assert plan["steps"] == [
+        {
+            "id": "__build_finalize__",
+            "name": "Validate and save build",
+            "kind": "build-finalize",
+            "uses_saved_output": True,
+            "requires_effect_review": False,
+        }
+    ]
+    assert model.output not in str(plan)
+    with pytest.raises(ValueError, match="failed step"):
+        service.retry.queue(run["id"], {"digest": plan["digest"], "step_id": "__run__"})
+    fail[0] = False
+
+    def unavailable(_):
+        pytest.fail("Local recovery must not even construct a provider")
+
+    service.builder.provider_factory = unavailable
+    finished, payload = retry(service, run)
+    assert finished["status"] == "completed", finished
+    assert service.builder.get(run["build_id"])["revision"] == 1
+    assert len(model.calls) == 1
+    assert service.retry.queue(run["id"], payload)["status"] == "completed"
+
+
+def test_invalid_saved_build_retries_validation_without_paid_correction(app):
+    import json
+
+    from tests.test_quick_build import Model, proposal
+
+    service, _, _ = app
+    model = Model()
+    invalid = proposal()
+    invalid["agents"][0]["skill_ids"] = ["missing"]
+    model.output = json.dumps(invalid)
+    service.builder.provider_factory = lambda _: model
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    assert run["status"] == "failed"
+    assert len(model.calls) == 2  # Original generation's existing correction pass.
+    again, _ = retry(service, run)
+    assert again["status"] == "failed"
+    assert "Unknown skills reference" in again["error"]
+    assert len(model.calls) == 2
+    service.catalog.save(
+        "skills",
+        {
+            "id": "missing",
+            "name": "Required skill",
+            "data": {"content": "Review evidence"},
+        },
+    )
+    finished, _ = retry(service, again)
+    assert finished["status"] == "completed", finished
+    assert len(model.calls) == 2
+
+
+def test_oversized_build_response_never_triggers_another_paid_call(app):
+    from tests.test_quick_build import Model
+
+    service, _, _ = app
+    model = Model()
+    model.output = "x" * 262145
+    service.builder.provider_factory = lambda _: model
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    assert run["status"] == "failed" and "256 KiB" in run["error"]
+    assert len(model.calls) == 1
+    failed, _ = retry(service, run)
+    assert failed["status"] == "failed" and "256 KiB" in failed["error"]
+    assert len(model.calls) == 1
+
+
+def test_build_retry_after_draft_write_does_not_add_revision_or_messages(app, monkeypatch):
+    from tests.test_quick_build import Model
+
+    service, _, _ = app
+    model = Model()
+    service.builder.provider_factory = lambda _: model
+    update = service._update_run
+    fail = [True]
+
+    def fail_after_save(run_id, **values):
+        if values.get("status") == "completed" and fail[0]:
+            raise RuntimeError("Failed after writing draft")
+        return update(run_id, **values)
+
+    monkeypatch.setattr(service, "_update_run", fail_after_save)
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    assert run["status"] == "failed"
+    original = service.builder.get(run["build_id"])
+    fail[0] = False
+    finished, _ = retry(service, run)
+    assert finished["status"] == "completed", finished
+    assert service.builder.get(run["build_id"]) == original
+    assert len(original["messages"]) == 2
+    assert len(model.calls) == 1
+
+
+def test_build_response_checkpoint_survives_service_restart(app):
+    import json
+
+    from tests.test_quick_build import Model, proposal
+
+    service, _, _ = app
+    model = Model()
+    model.output = json.dumps({**proposal(), "summary": ""})
+    service.builder.provider_factory = lambda _: model
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    plan = service.retry.describe(run["id"])
+    options = (
+        {
+            "url": str(service.sql_state.engine.url),
+            "namespace": service.sql_state.namespace,
+            "workers": 1,
+        }
+        if service.sql_state
+        else None
+    )
+    # Recreate the consumer over the same durable storage, with no usable provider.
+    root = service.root
+    service.close()
+
+    def unavailable(_):
+        pytest.fail("Restarted local recovery must not call the provider")
+
+    restarted = StudioService(root, builder_factory=unavailable, state_options=options)
+    try:
+        assert restarted.retry.describe(run["id"])["digest"] == plan["digest"]
+        failed, _ = retry(restarted, run)
+        assert failed["status"] == "failed" and "Summary" in failed["error"]
+        assert len(model.calls) == 2
+    finally:
+        restarted.close()
+
+
+def test_legacy_build_reuses_only_confirmed_complete_stream(app):
+    import uuid
+
+    from tests.test_quick_build import Model
+
+    service, _, _ = app
+    model = Model()
+    model.success = False
+    service.builder.provider_factory = lambda _: model
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    invocation = uuid.uuid4().hex
+    service._write(
+        service._path("invocation-traces", invocation),
+        {
+            "id": invocation,
+            "run_id": run["id"],
+            "agent": "quick-build",
+            "status": "completed",
+        },
+    )
+    for status in ["streaming", "interrupted-or-failed"]:
+        service._update_run(
+            run["id"], output=model.output, stream={"status": status, "invocation_id": invocation}
+        )
+        assert service.retry.describe(run["id"])["steps"][0]["id"] == "__run__"
+    service._update_run(
+        run["id"], output=model.output, stream={"status": "completed", "invocation_id": invocation}
+    )
+    assert service.retry.describe(run["id"])["steps"][0]["uses_saved_output"]
+    assert not service._path("build-responses", run["id"]).exists()  # Inspection is read-only.
+    finished, _ = retry(service, run)
+    assert finished["status"] == "completed", finished
+    assert len(model.calls) == 1
+
+
+def test_changed_build_blocks_local_retry_without_overwriting_newer_draft(app):
+    import json
+
+    from tests.test_quick_build import Model, proposal
+
+    service, _, _ = app
+    model = Model()
+    model.output = json.dumps({**proposal(), "summary": ""})
+    service.builder.provider_factory = lambda _: model
+    run = stopped(service, service.start_run({"kind": "build", "task": "Create a team"}))
+    plan = service.retry.describe(run["id"])
+    newer = {"id": run["build_id"], "status": "draft", "revision": 2}
+    service._write(service._path("builds", run["build_id"]), newer)
+    assert not service.retry.describe(run["id"])["can_retry"]
+    with pytest.raises(ValueError, match="Build changed"):
+        service.retry.queue(run["id"], {"digest": plan["digest"], "step_id": "__build_finalize__"})
+    assert service.builder.get(run["build_id"]) == newer
+    assert len(model.calls) == 2
+
+
 def test_failed_handler_can_retry_without_repeating_failed_body(app):
     service, calls, fail = app
     fail["gamma"] = True

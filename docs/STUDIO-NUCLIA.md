@@ -263,7 +263,73 @@ audit metadata, connection settings and all unknown fields fail rather than
 being discarded. Supply only the three template settings above, not an entire
 tool descriptor. No original provider defaults, credentials, account ID or
 broker configuration are inferred. Importing complete reference Python tool
-descriptors into the agent configuration bridge remains separate work.
+descriptors was a separate gap. The supported explicit binding profile below
+now connects descriptors to the agent configuration bridge; unsupported settings
+still reject the whole import.
+
+### Explicit Python descriptor bindings
+
+`nexus.core.studio_nuclia_descriptors.convert_tool_descriptor` reads descriptor
+data with `tool_type: python`, a module ending in `.nuclia_rag_tool`,
+`class_name: NucliaRagTool` and `tool_config`. It never imports or executes the
+named module. Call it with `policy="nexus-strict-v1"`; inspect its `adaptations`
+and disabled native `connector` data before saving that connection through the
+ordinary configuration APIs. This works even when the source Python package is
+not installed.
+
+Supported settings include a concrete base URL ending in `/api/v1`, knowledge
+box ID, `${TOKEN_ENV}` credential reference, bounded `top_k`, rephrasing,
+Markdown preference, user prompt and supported typed template settings. The
+legacy `context_parameters` name is accepted when `template_parameters` is absent.
+Only plain server context paths are supported. No environment value is expanded.
+Unresolved endpoint/box variables need manual replacement with reviewed,
+credential-free identifiers. Inline credentials are rejected.
+
+The existing external configuration importer accepts an explicit binding:
+
+```json
+{
+  "nuclia": {
+    "CompanyKnowledge": {
+      "connector_id": "knowledge",
+      "policy": "nexus-strict-v1"
+    }
+  }
+}
+```
+
+Place this under `bindings` in an API/CLI request or exported bundle, or paste it
+into **Resource mappings** in Studio's Import external dialog. The key is the
+descriptor's `tool_name` (default `NucliaRagTool`). The selected connection must
+match the endpoint, box, credential reference, template and `ask_settings`, and
+expose only `ask`. Conversion binds the agent's connection ID; it does not create
+or enable a connection. The review displays the selected policy and all declared
+adaptations before the normal plan/apply flow. Source-backed export preserves the
+descriptor and binding and checks them again against current native settings.
+
+Fixed `ask_settings` use the same invocation validator. Callers cannot override
+different configured values; matching values are accepted. Existing native
+connections without these settings retain their ten-result default. The source
+descriptor's omitted `top_k` becomes five, matching its frozen default. Editing
+ordinary connection fields in Studio preserves fixed settings and templates.
+
+The explicit policy uses private Nexus answer/source revisions, native filenames,
+structured citations and native retrieval defaults. It does not recreate source
+ephemeral links or implicit neighbour/hierarchy retrieval strategies. Non-default
+presentation flags, custom artifact naming, non-default citation modes, enabled
+audit metadata, provider evaluation topics and unknown fields require manual
+adaptation and fail before saving. This bounded profile does not close the whole
+Nuclia catalog entry.
+
+```sh
+postman simulation run postman/simulations/studio-nuclia.sim.yaml --port 50950 --output ndjson
+PYTHONPATH=. python examples/nexus-bot/src/studio_nuclia_descriptors.py
+PYTHONPATH=. python -m pytest tests/test_studio_nuclia_descriptors.py -q -o addopts=''
+```
+
+No persisted record rewrite or credential migration is required. Old connections,
+imports and exports remain readable. New configuration may include optional fixed
+ask settings, explicit descriptor bindings and conversion-report adaptations.
 
 The example exercises conversion, native plan/apply, explicit reactivation,
 agent invocation and private revision-pinned evidence against the local HTTP
@@ -330,8 +396,9 @@ PYTHONPATH=. python -m pytest tests/test_studio_retrieval_evidence.py tests/stud
 This provides a native evidence-to-evaluation equivalent for the plugin's REMi
 question/answer/context event, with an explicit cited-only scope. external platform topic
 publishing remains excluded. Independent REMi scoring parity and live Nuclia or
-judge quality are not claimed. Complete reference Python tool descriptors, context
-expressions and original remote-document broker access remain open.
+judge quality are not claimed. Descriptor settings outside the explicit binding
+profile, executable context expressions and original remote-document broker
+access remain open.
 
 No state or credential migration is required. Existing evaluation cases have no
 new required fields; old exports remain readable. New optional evidence/context
@@ -401,7 +468,7 @@ No schema/credential migration is required. New citations optionally retain a
 configuration digest, file-field identity and source selector. Older citations
 remain readable. The version-1 `source-originals` receipts use existing state,
 artifact, backup and authorization services. Public shell cache version is 40.
-Complete reference descriptor mapping, conversation binary attachment originals,
+Descriptor settings outside the explicit binding profile, conversation binary attachment originals,
 vendor ephemeral-link equivalence, historical original
 revisions and live Nuclia/VM acceptance remain open. Milestones 7 and 8 are not
 complete.

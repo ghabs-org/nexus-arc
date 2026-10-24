@@ -42,6 +42,15 @@ class StudioRunRetry:
             run = studio.collaboration.owned(studio.run(run_id), actor)
             path, state = self.workflow_state(run_id)
             request = self.request(run_id) if state is None else None
+            build_response = None
+            build_error = ""
+            if run["kind"] == "build" and request:
+                try:
+                    build_response = studio.builder.recovery.checkpoint(run_id)
+                    if build_response:
+                        studio.builder.recovery.validate(request["payload"], build_response)
+                except ValueError as exc:
+                    build_error = str(exc)
             blocked = ""
             if run["status"] not in {"failed", "interrupted"}:
                 blocked = "Only failed or interrupted runs can be retried."
@@ -63,6 +72,8 @@ class StudioRunRetry:
                 and studio.session(request["session_id"]).get("archived")
             ):
                 blocked = "Restore this archived conversation before retrying."
+            if not blocked and build_error:
+                blocked = build_error
 
             latest = {}
             expected_owner = run.get("requester_nexus_id") or "desktop"
@@ -111,6 +122,17 @@ class StudioRunRetry:
                             "kind": "workflow",
                         }
                     )
+            elif build_response:
+                from nexus.core.studio_build_recovery import FINALIZE_STEP
+
+                steps.append(
+                    {
+                        "id": FINALIZE_STEP,
+                        "name": "Validate and save build",
+                        "kind": "build-finalize",
+                        "uses_saved_output": True,
+                    }
+                )
             elif run["kind"] in REPEATABLE and request:
                 steps.append(
                     {
@@ -153,6 +175,7 @@ class StudioRunRetry:
                         "steps": steps,
                         "effects": effects,
                         "attempts": run.get("step_retries", []),
+                        "build_response": build_response,
                     },
                     sort_keys=True,
                     default=str,
@@ -292,7 +315,14 @@ class StudioRunRetry:
                     if saved.get("agent_id"):
                         studio.resource_lifecycle.assert_launch("agents:" + saved["agent_id"])
                     if run["kind"] == "build":
-                        studio.builder.validate_request(saved)
+                        build_response = studio.builder.recovery.checkpoint(run_id)
+                        if build_response:
+                            studio.builder.recovery.validate(saved, build_response)
+                            # Persist legacy streamed responses before enqueueing. Recovery must
+                            # remain independent of provider availability and output rendering.
+                            studio._write(studio._path("build-responses", run_id), build_response)
+                        else:
+                            studio.builder.validate_request(saved)
                     if (
                         session_id
                         and studio._path("sessions", session_id).exists()

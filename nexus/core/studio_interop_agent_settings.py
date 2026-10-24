@@ -67,6 +67,10 @@ def resource_binding(bridge, group, alias, kind, path):
 
 
 def tool_references(bridge, entry, path, refs):
+    from nexus.core.studio_nuclia_descriptors import bind_tool_descriptor
+
+    if bind_tool_descriptor(bridge, entry, path, refs):
+        return True
     kind = entry.get("tool_type")
     if kind == "builtin-group":
         entry = bridge.fields(entry, {"tool_type", "group_name"}, path)

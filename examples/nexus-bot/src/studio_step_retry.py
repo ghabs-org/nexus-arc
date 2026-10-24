@@ -4,6 +4,7 @@ Run: PYTHONPATH=. python examples/nexus-bot/src/studio_step_retry.py
 No accounts or external actions are used.
 """
 
+import json
 import tempfile
 import time
 
@@ -22,6 +23,33 @@ def wait(studio, run):
 
 def main():
     calls = []
+    build_calls = []
+
+    class Builder:
+        async def check_availability(self):
+            return True
+
+        async def execute_agent(self, context):
+            build_calls.append(context.agent_name)
+            return AgentResult(
+                success=True,
+                output=json.dumps(
+                    {
+                        "name": "Evidence review",
+                        "summary": "Review supplied evidence.",
+                        "agents": [
+                            {
+                                "id": "reviewer",
+                                "name": "Reviewer",
+                                "description": "Review evidence",
+                                "instructions": "Use the evidence skill.",
+                                "skill_ids": ["evidence"],
+                            }
+                        ],
+                        "workflow": None,
+                    }
+                ),
+            )
 
     class Provider:
         async def check_availability(self):
@@ -37,7 +65,9 @@ def main():
             )
 
     with tempfile.TemporaryDirectory(prefix="nexus-step-retry-") as workspace:
-        studio = StudioService(workspace, provider_factory=lambda _: Provider())
+        studio = StudioService(
+            workspace, provider_factory=lambda _: Provider(), builder_factory=lambda _: Builder()
+        )
         try:
             for name in ["researcher", "reviewer"]:
                 studio.save_definition(
@@ -89,6 +119,43 @@ def main():
             assert wait(studio, queued)["status"] == "completed"
             assert calls == ["researcher", "reviewer", "reviewer"]
             print("Retried the failed review and continued; completed research ran once.")
+
+            # Generation succeeds, but local validation needs a missing workspace skill.
+            failed_build = wait(
+                studio,
+                studio.start_run(
+                    {
+                        "kind": "build",
+                        "task": "Propose a reviewer using the evidence skill",
+                    }
+                ),
+            )
+            assert failed_build["status"] == "failed"
+            studio.catalog.save(
+                "skills",
+                {
+                    "id": "evidence",
+                    "name": "Evidence",
+                    "data": {"content": "Check sources."},
+                },
+            )
+            options = studio.retry.describe(failed_build["id"])
+            step = options["steps"][0]
+            assert step["uses_saved_output"]
+            before = len(build_calls)
+            recovered = wait(
+                studio,
+                studio.retry.queue(
+                    failed_build["id"],
+                    {
+                        "digest": options["digest"],
+                        "step_id": step["id"],
+                    },
+                ),
+            )
+            assert recovered["status"] == "completed", recovered
+            assert len(build_calls) == before
+            print("Retried only build validation and saving; no additional LLM calls.")
         finally:
             studio.close()
 

@@ -97,6 +97,7 @@ def validate_enterprise(data):
             "knowledge_box",
             "template",
             "capture_evaluation",
+            "ask_settings",
         }
         remote = validate_remote(
             {
@@ -119,6 +120,10 @@ def validate_enterprise(data):
             from nexus.core.studio_nuclia_templates import validate_template
 
             result["template"] = validate_template(data["template"])
+        if "ask_settings" in data:
+            from nexus.core.studio_nuclia_descriptors import validate_ask_settings
+
+            result["ask_settings"] = validate_ask_settings(data["ask_settings"])
         result["knowledge_box"] = identifier(data.get("knowledge_box"), "Knowledge box ID")
         if "/" in result["knowledge_box"]:
             raise ValueError("Choose a knowledge box ID without a path")
@@ -721,7 +726,13 @@ class StudioEnterprise:
                         "workspace": {"name": self.studio.root.name},
                     }
                 )
-            body = request_body(action, arguments, data.get("template"), context=context)
+            body = request_body(
+                action,
+                arguments,
+                data.get("template"),
+                context=context,
+                ask_settings=data.get("ask_settings"),
+            )
             if action == "ask":
                 headers["X-Synchronous"] = "true"
             method = "POST"

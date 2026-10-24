@@ -78,6 +78,9 @@ class QuickBuilder:
     def __init__(self, studio, provider_factory=build_provider):
         self.studio = studio
         self.provider_factory = provider_factory
+        from nexus.core.studio_build_recovery import StudioBuildRecovery
+
+        self.recovery = StudioBuildRecovery(self)
 
     def get(self, identity: str) -> dict:
         try:
@@ -455,6 +458,8 @@ class QuickBuilder:
         return result
 
     async def generate(self, run_id: str, payload: dict) -> str:
+        if saved := self.recovery.checkpoint(run_id):
+            return self.recovery.finish(run_id, payload, saved)
         identity = payload["build_id"]
         path = self.studio._path("builds", identity)
         previous = self.get(identity) if path.exists() else None
@@ -621,17 +626,13 @@ class QuickBuilder:
                 )
                 if not result.success:
                     raise RuntimeError(result.error or "Builder provider failed")
+                # Save the authoritative response before any fallible local processing.
+                saved = self.recovery.remember(run_id, payload, result.output, previous, attempt)
                 raw = result.output.strip()
                 if len(raw.encode("utf-8")) > 262144:
                     raise ValueError("Builder proposal exceeds 256 KiB; request a smaller build")
-                if raw.startswith("```json\n") and raw.endswith("```"):
-                    raw = raw[8:-3].strip()
-                elif raw.startswith("```\n") and raw.endswith("```"):
-                    raw = raw[4:-3].strip()
                 try:
-                    proposal = self.normalize(
-                        json.loads(raw), identity, provider_name, payload.get("model") or ""
-                    )
+                    proposal = self.recovery.parse(raw, payload)
                     break
                 except (ValueError, TypeError, FileNotFoundError) as exc:
                     detail = (
@@ -659,35 +660,7 @@ class QuickBuilder:
                         "silently removing required capabilities. No execution or activation."
                     )
                     context = replace(context, prompt=correction)
-        with self.studio.lock:
-            from nexus.core.studio import _now
-
-            now = _now()
-            draft = {
-                "id": identity,
-                "owner_id": payload.get("requester_nexus_id"),
-                "status": "draft",
-                "revision": previous["revision"] + 1 if previous else 1,
-                "provider": provider_name,
-                "model": payload.get("model") or "",
-                "effort": payload.get("effort") or "",
-                "worker_tools": payload.get("worker_tools") or "web",
-                "proposal": proposal,
-                "messages": (previous["messages"] if previous else [])
-                + [
-                    {"role": "user", "content": payload["task"]},
-                    {"role": "assistant", "content": proposal["summary"]},
-                ],
-                "created_at": previous["created_at"] if previous else now,
-                "updated_at": now,
-            }
-            if previous:
-                for field in ("base_definitions", "base_resources", "base_checksums"):
-                    if field in previous:
-                        draft[field] = previous[field]
-            self.studio._write(path, draft)
-            self.studio._update_run(run_id, phase="draft-ready", build_corrections=attempt)
-        return proposal["summary"]
+        return self.recovery.finish(run_id, payload, saved, proposal)
 
     def reopen(self, identity: str, payload: dict) -> dict:
         """Continue a saved build, pinning current resources before any edits."""

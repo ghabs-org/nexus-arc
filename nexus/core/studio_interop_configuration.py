@@ -63,6 +63,7 @@ class StudioPortableConfiguration:
         self.diagnostics = []
         self.bindings = {}
         self.names = {}
+        self.adaptations = []
 
     def issue(self, path, code, message):
         # Values and parser source excerpts can contain credentials. Never return them.
@@ -142,10 +143,28 @@ class StudioPortableConfiguration:
             docs = bundle.get("documents")
         self.bindings = self.fields(
             copy.deepcopy(bindings) if bindings is not None else {},
-            {"models", "agents", "tools", "decisions", "skills", "toolsets", "connectors"},
+            {
+                "models",
+                "agents",
+                "tools",
+                "decisions",
+                "skills",
+                "toolsets",
+                "connectors",
+                "nuclia",
+            },
             "/bindings",
         )
-        for group in ("models", "agents", "tools", "decisions", "skills", "toolsets", "connectors"):
+        for group in (
+            "models",
+            "agents",
+            "tools",
+            "decisions",
+            "skills",
+            "toolsets",
+            "connectors",
+            "nuclia",
+        ):
             values = self.bindings.get(group, {})
             if not isinstance(values, dict):
                 self.issue(
@@ -157,7 +176,19 @@ class StudioPortableConfiguration:
                 continue
             for name, binding in values.items():
                 path = "/bindings/" + group + "/" + str(name)[:100]
-                if group == "decisions":
+                if group == "nuclia":
+                    binding = self.fields(binding, {"connector_id", "policy"}, path)
+                    values[name] = binding
+                    if (
+                        not isinstance(binding.get("connector_id"), str)
+                        or binding.get("policy") != "nexus-strict-v1"
+                    ):
+                        self.issue(
+                            path,
+                            "invalid_binding",
+                            "Select a native Nuclia connector and explicit nexus-strict-v1 policy",
+                        )
+                elif group == "decisions":
                     from nexus.core.studio_decisions import validate_binding
 
                     binding = self.fields(binding, {"backend", "model"}, path)
@@ -679,7 +710,9 @@ class StudioPortableConfiguration:
                                 "skills",
                                 "toolsets",
                                 "connectors",
+                                "nuclia",
                             )
+                            if group != "nuclia" or self.bindings.get(group)
                         },
                     }
             else:
@@ -752,6 +785,11 @@ class StudioPortableConfiguration:
             "valid": not self.diagnostics,
             "diagnostics": self.diagnostics,
             "document": None if self.diagnostics else native,
+            **(
+                {"adaptations": self.adaptations}
+                if self.adaptations and not self.diagnostics
+                else {}
+            ),
         }
 
     def tool_alias(self, meta, target, path, existing):

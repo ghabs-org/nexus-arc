@@ -7,6 +7,24 @@ expressions. Such parameters are omitted from the agent parameter description.
 Missing/invalid required values reject before HTTP. No automatic file, credential
 or environment metadata is included.
 
+Native connections may additionally store `ask_settings` with fixed `top_k`,
+`rephrase`, `prefer_markdown` and `prompt` values. The invocation validator checks
+these settings during save and before requests. A conflicting caller override
+fails before HTTP. Matching values are accepted. Search behavior and connections
+without these settings retain their existing defaults. Studio's ordinary
+connection editor preserves these settings while editing other fields.
+
+`convert_tool_descriptor(..., policy="nexus-strict-v1")` adapts supported Python
+Nuclia descriptors without importing their module or resolving environment values.
+`bindings.nuclia` on the existing configuration conversion route explicitly binds
+the descriptor tool name to matching native connection data. Connections expose
+`ask` only; broader actions, differing settings and missing/implicit policy fail.
+Successful reports contain `adaptations`, which the import review displays before
+planning. See `studio-interop-configuration.yaml` and
+`studio-nuclia-descriptors.assertions.js`. Conversion creates no connection or
+activation. Source-backed export retains the descriptor and explicit binding;
+native configuration export retains fixed settings and credential references.
+
 Ask responses may cite validated `augmented_context.paragraphs` or `.fields`.
 Each cited text block becomes a private revision with exact text, provider page,
 SHA-256 and augmentation type. Unknown/missing identities, conflicting duplicate

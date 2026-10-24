@@ -11,10 +11,10 @@ class Element{
   setAttribute(k,v){this.attributes[k]=v;}
   querySelectorAll(tag){return this.children.flatMap(c=>[...(c.tag===tag?[c]:[]),...c.querySelectorAll(tag)]);}
 }
-function fixture({review=false,blocked=''}={}){
+function fixture({review=false,blocked='',saved=false}={}){
   const requests=[],watched=[],notices=[],output=new Element('div');let shown;
-  const plan={digest:'revision-1',can_retry:!blocked,blocked_reason:blocked,continues_workflow:true,
-    steps:[{id:'root/map/1/review',name:'Review recommendation',kind:review?'tool':'agent',requires_effect_review:review}]};
+  const plan={digest:'revision-1',can_retry:!blocked,blocked_reason:blocked,continues_workflow:!saved,
+    steps:[{id:saved?'__build_finalize__':'root/map/1/review',name:saved?'Validate and save build':'Review recommendation',kind:review?'tool':'agent',requires_effect_review:review,uses_saved_output:saved}]};
   const context=vm.createContext({document:{createElement:tag=>new Element(tag)},state:{detailRunId:'one'},
     $:id=>id==='run-output'?output:null,
     featureApi:async(path,body)=>{requests.push([path,body]);return body?{id:'one',status:'queued'}:plan;},
@@ -58,4 +58,17 @@ test('uncertain integrations expose existing review controls instead of a retry 
 test('completed execution views never load retry plans or offer resubmission',async()=>{
   const f=fixture();await f.context.renderRunRetryActions({}, {id:'one',status:'completed'});
   assert.equal(f.requests.length,0);assert.equal(f.output.previous,undefined);
+});
+
+test('build recovery offers a single local step and makes its lack of LLM cost clear',async()=>{
+  const f=fixture({saved:true});await f.context.renderRunRetryActions({}, {id:'one',status:'failed'});
+  const section=f.output.previous,buttons=section.querySelectorAll('button');
+  assert.equal(buttons.length,1);
+  assert.equal(buttons[0].textContent,'Retry step');
+  assert.equal(buttons[0].attributes['aria-label'],'Retry Validate and save build');
+  assert.match(section.children[1].textContent,/completed LLM response/);
+  assert.match(section.children[1].textContent,/No new LLM call or token cost/);
+  assert.equal(f.requests.length,1);
+  await buttons[0].onclick();
+  assert.equal(f.requests[1][1].step_id,'__build_finalize__');
 });

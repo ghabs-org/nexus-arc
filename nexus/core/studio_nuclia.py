@@ -10,14 +10,19 @@ from nexus.core.studio_catalog import _text
 from nexus.core.studio_data_tools import current_run_id
 
 
-def request_body(action, arguments, template=None, *, context=None):
+def request_body(action, arguments, template=None, *, context=None, ask_settings=None):
+    if action == "ask" and ask_settings is not None:
+        for key, value in ask_settings.items():
+            if key in arguments and arguments[key] != value:
+                raise ValueError("Configured Nuclia ask settings cannot be overridden")
+        arguments = {**ask_settings, **arguments}
     if template is not None:
         from nexus.core.studio_nuclia_templates import prepare_arguments
 
         arguments = prepare_arguments(template, arguments, context=context)
     allowed = {"query", "top_k", "page", "filter_expression"}
     if action == "ask":
-        allowed |= {"prompt", "rephrase"}
+        allowed |= {"prompt", "rephrase", "prefer_markdown"}
     if set(arguments) - allowed:
         raise ValueError(
             "Unsupported Nuclia arguments: " + ", ".join(sorted(set(arguments) - allowed))
@@ -83,6 +88,10 @@ def request_body(action, arguments, template=None, *, context=None):
             if type(arguments["rephrase"]) is not bool:
                 raise ValueError("Nuclia rephrase must be true or false")
             body["rephrase"] = arguments["rephrase"]
+        if "prefer_markdown" in arguments:
+            if type(arguments["prefer_markdown"]) is not bool:
+                raise ValueError("Nuclia prefer_markdown must be true or false")
+            body["prefer_markdown"] = arguments["prefer_markdown"]
     return body
 
 

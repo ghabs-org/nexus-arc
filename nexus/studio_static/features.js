@@ -375,7 +375,8 @@ async function renderRunRetryActions(root,run){
   try{
     const plan=await featureApi(`runs/${encodeURIComponent(run.id)}/retry`);
     if(!section.isConnected||state.detailRunId!==run.id)return;
-    const note=document.createElement('p');note.textContent=plan.can_retry?(plan.continues_workflow?'Retry a failed step and continue unfinished work. Completed steps and saved outputs stay intact.':'Retry this failed task with its original provider and settings. Provider billing applies.'):plan.blocked_reason;
+    const usesSavedOutput=plan.steps.some(step=>step.uses_saved_output);
+    const note=document.createElement('p');note.textContent=plan.can_retry?(usesSavedOutput?'Retry only validation and saving using the completed LLM response. No new LLM call or token cost.':plan.continues_workflow?'Retry a failed step and continue unfinished work. Completed steps and saved outputs stay intact.':'Retry this failed task with its original provider and settings. Provider billing applies.'):plan.blocked_reason;
     section.append(note);
     if(!plan.can_retry){if(plan.blocked_reason.includes('uncertain external action')){const link=document.createElement('a');link.href='#workbench/effects';link.className='button-link secondary';link.textContent='Review external actions';section.append(link);}return;}
     for(const step of plan.steps){
@@ -385,7 +386,7 @@ async function renderRunRetryActions(root,run){
       const label=document.createElement('div');label.append(name,path);row.append(label);
       let confirm;
       if(step.requires_effect_review){const review=document.createElement('label');review.className='check-label';confirm=document.createElement('input');confirm.type='checkbox';const text=document.createElement('span');text.textContent='I checked the failed tools’ external effects. Repeating them is safe.';review.append(confirm,text);row.append(review);}
-      const button=document.createElement('button');button.type='button';button.textContent=plan.continues_workflow?'Retry and continue':'Retry task';button.setAttribute('aria-label',`Retry ${step.name}${plan.continues_workflow?' and continue':''}`);
+      const button=document.createElement('button');button.type='button';button.textContent=step.uses_saved_output?'Retry step':plan.continues_workflow?'Retry and continue':'Retry task';button.setAttribute('aria-label',`Retry ${step.name}${plan.continues_workflow?' and continue':''}`);
       button.onclick=async()=>{
         if(confirm&&!confirm.checked){error.textContent='Review this tool’s external effects before confirming a retry.';return;}
         section.querySelectorAll('button').forEach(item=>item.disabled=true);error.textContent='';
@@ -501,6 +502,7 @@ operationFormData=function(form){
     data.allow_private=form.has("enterprise_private");
     data.capture_evaluation=form.has("enterprise_capture_evaluation");
     if(library.editing?.data?.type==="nuclia"&&Object.hasOwn(library.editing.data,"template"))data.template=JSON.parse(JSON.stringify(library.editing.data.template));
+    if(library.editing?.data?.type==="nuclia"&&Object.hasOwn(library.editing.data,"ask_settings"))data.ask_settings=JSON.parse(JSON.stringify(library.editing.data.ask_settings));
   }
   if(read("actions"))data.actions=read("actions").split(",").map(v=>v.trim()).filter(Boolean);return data;
 };
@@ -557,6 +559,7 @@ updateConnectionFields=function(){
 document.addEventListener('change',event=>{if(event.target.name==='mcp_transport')updateConnectionFields();});
 
 function interopDiagnostics(report){return `<p role="alert">Resolve these settings before continuing. Nothing was saved.</p><ul>${report.diagnostics.map(item=>`<li><code>${escapeHtml(item.path)}</code>: ${escapeHtml(item.message)}</li>`).join("")}</ul>`;}
+function interopAdaptations(report){return (report.adaptations||[]).map(item=>`<section><h3>Nuclia import changes to review</h3><p>${escapeHtml(item.policy)}</p><ul>${item.changes.map(change=>`<li>${escapeHtml(change)}</li>`).join("")}</ul></section>`).join("");}
 async function importPortableConfiguration(draft={}){
   const form=await fieldsDialog("Import external agents and workflows",`<p>Paste external YAML, JSON or an exported bundle. Conversion runs locally and checks every field before review.</p><label>External configuration<textarea name="source" rows="10" maxlength="1048576" required>${escapeHtml(draft.source||"")}</textarea></label><label>Provider<select name="provider"><option value="">Use mappings included in the bundle</option>${state.providers.map(p=>`<option value="${escapeHtml(p.id)}" ${draft.provider===p.id?"selected":""}>${escapeHtml(p.name)} · ${p.kind==="cli"?"local CLI account":"API billing"}</option>`).join("")}</select></label><label>External model alias<input name="alias" value="${escapeHtml(draft.alias||"general")}" maxlength="200"></label><label>External agent name (runtime YAML only)<input name="agent" value="${escapeHtml(draft.agent||"")}" maxlength="200"></label><details><summary>Tool mappings</summary><p>Map external builtin tool names to registered Nexus tool IDs. Remote connections need separate setup.</p><label>Tool mappings (JSON)<textarea name="tools" rows="3">${escapeHtml(draft.tools||"{}")}</textarea></label></details><details><summary>Decision model mappings</summary><p>Bind each external decision alias to a Nexus decision backend and an explicit model. Uses server-managed credentials; decision calls use API billing.</p><label>Decision model mappings (JSON)<textarea name="decisions" rows="3" maxlength="65536" placeholder='{"triage":{"backend":"openrouter","model":"your-selected-model"}}'>${escapeHtml(draft.decisions||"{}")}</textarea></label></details><details><summary>Resource mappings</summary><p>Bind existing model profiles, skills, toolsets and MCP connections. Conversion never reads skill paths or launches servers.</p><label>Resource mappings (JSON)<textarea name="resources" rows="4" maxlength="65536" placeholder='{"skills":{"source-name":"saved-skill"},"toolsets":{"group-name":"saved-toolset"}}'>${escapeHtml(draft.resources||"{}")}</textarea></label></details><p>Import does not sign in, call a provider, run tools or activate resources. API execution can incur charges after you run a task.</p>`,"Check configuration");
   if(!form)return;
@@ -566,7 +569,7 @@ async function importPortableConfiguration(draft={}){
   catch(error){showDetail("Tool mappings need changes",'<p role="alert">Use a JSON object mapping each external tool name to a Nexus tool ID.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
   try{decisions=JSON.parse(form.get("decisions"));if(!decisions||typeof decisions!=="object"||Array.isArray(decisions))throw new Error();}
   catch(error){showDetail("Decision model mappings need changes",'<p role="alert">Use a JSON object mapping each external decision alias to its backend and model. Do not enter credentials here.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
-  try{resources=JSON.parse(form.get("resources")||"{}");if(!resources||typeof resources!=="object"||Array.isArray(resources)||Object.keys(resources).some(key=>!["models","agents","skills","toolsets","connectors"].includes(key)))throw new Error();}
+  try{resources=JSON.parse(form.get("resources")||"{}");if(!resources||typeof resources!=="object"||Array.isArray(resources)||Object.keys(resources).some(key=>!["models","agents","skills","toolsets","connectors","nuclia"].includes(key)))throw new Error();}
   catch(error){showDetail("Resource mappings need changes",'<p role="alert">Use an object containing explicit model, agent, skill, toolset or connector mappings. Keep credentials in server settings.</p><button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
   if(form.get("provider")||Object.keys(tools).length||Object.keys(decisions).length||Object.keys(resources).length){
     payload.bindings={...resources,tools};
@@ -578,7 +581,7 @@ async function importPortableConfiguration(draft={}){
   }
   const report=await featureApi("configuration/interop/convert",payload);
   if(!report.valid){showDetail("External conversion needs changes",interopDiagnostics(report)+'<button id="interop-edit">Edit configuration</button>');$("interop-edit").onclick=edit;return;}
-  showDetail("Review external conversion",`<p>${report.document.definitions.length} agents/workflows passed conversion. Review before saving.</p><ul>${report.document.definitions.map(item=>`<li>${escapeHtml(item.document.metadata.name)} · ${item.collection==="agents"?escapeHtml(providerName(item.document.spec.provider)):"workflow"}</li>`).join("")}</ul><details><summary>Converted configuration</summary><pre>${escapeHtml(JSON.stringify(report.document,null,2))}</pre></details><button id="interop-plan">Review changes</button>`);
+  showDetail("Review external conversion",`<p>${report.document.definitions.length} agents/workflows passed conversion. Review before saving.</p><ul>${report.document.definitions.map(item=>`<li>${escapeHtml(item.document.metadata.name)} · ${item.collection==="agents"?escapeHtml(providerName(item.document.spec.provider)):"workflow"}</li>`).join("")}</ul>${interopAdaptations(report)}<details><summary>Converted configuration</summary><pre>${escapeHtml(JSON.stringify(report.document,null,2))}</pre></details><button id="interop-plan">Review changes</button>`);
   $("interop-plan").onclick=async()=>{try{const plan=await featureApi("configuration/plan",{document:report.document});showDetail("Save reviewed external configuration",`<p>These local definitions will be saved. This action does not execute or deploy them.</p><ul>${plan.changes.map(item=>`<li>${escapeHtml(item.action)} · ${escapeHtml(item.resource)}</li>`).join("")}</ul><details><summary>Reviewed configuration</summary><pre>${escapeHtml(JSON.stringify(plan.document,null,2))}</pre></details><button id="interop-apply">Save reviewed configuration</button>`);$("interop-apply").onclick=async()=>{const button=$("interop-apply");button.disabled=true;try{await featureApi("configuration/apply",{plan_id:plan.id,digest:plan.digest});$("detail").close();await refreshDefinitions();notify("Agents and workflows saved. Review provider setup before running them.");}catch(error){notify(error.message);}finally{button.disabled=false;}};}catch(error){notify(error.message);}};
 }
 async function exportPortableConfiguration(){
