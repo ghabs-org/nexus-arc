@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Knowledge projects linked to server folders** — Link up to four Workspace files folders (docs, source code)
+  to a knowledge project and run **Sync now**: new and changed files become private artifact revisions indexed in one
+  `knowledge-sync` task, deleted files leave search while earlier citations stay pinned. Builder role required; bounded
+  to 1000 files and 64 MiB per sync. See [docs/STUDIO-KNOWLEDGE-FOLDERS.md](docs/STUDIO-KNOWLEDGE-FOLDERS.md).
 - **Social Platform Adapter Layer** — Implemented a robust, idempotent, and secure mechanism for multi-platform content distribution. This includes concrete Python implementations of the `SocialPlatformAdapter` protocol for Discord, X (Twitter), LinkedIn, and Meta (Facebook/Instagram). Key features include:
     - **Platform-Specific Validation** for character limits, thread logic, and rich link metadata.
     - **Campaign Context & State Model** extensions for tracking `campaign_id`, `objective`, and `content_bundle`.

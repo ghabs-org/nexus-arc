@@ -181,3 +181,10 @@ test("formatted assistant keeps workspace links in the current tab",()=>{
   assert.deepEqual(classes,["message-body","workspace-help-text"]);
   assert.deepEqual(removed,["target"]);
 });
+
+test("patternList splits comma and newline separated folder patterns", () => {
+  const { context } = setupContext();
+  vm.runInContext(source.split("\n").find((line) => line.startsWith("function patternList")), context);
+  const result = vm.runInContext('JSON.stringify(patternList(" *.md, docs/*\\n\\n tests/* ,"))', context);
+  assert.deepEqual(JSON.parse(result), ["*.md", "docs/*", "tests/*"]);
+});

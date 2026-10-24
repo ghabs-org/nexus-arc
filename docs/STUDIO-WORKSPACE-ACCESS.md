@@ -24,8 +24,9 @@ can be saved as private artifacts for existing viewers. Uploads are limited to
 Select **Save private copy** to capture the previewed revision in Library artifacts.
 A changed source is rejected until preview is refreshed. The saved artifact can be
 downloaded, attached to the next chat, or selected in a knowledge project's document
-form. Attaching does not submit a message. Knowledge projects remain document/chat
-collections, rather than VM directories.
+form. Attaching does not submit a message. To keep a whole folder in a knowledge
+project, select **Link folder to knowledge project**; see
+[knowledge folders](STUDIO-KNOWLEDGE-FOLDERS.md).
 
 In shared mode, file browsing and writes require builder/owner project access.
 Exposed folders are shared among these authorized builders. Use private Library

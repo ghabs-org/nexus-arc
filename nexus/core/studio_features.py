@@ -67,6 +67,8 @@ class StudioFeatures:
         if len(parts) == 3 and parts[0] == "projects":
             if parts[2] == "documents":
                 return {"items": studio.knowledge.documents(parts[1], actor)}
+            if parts[2] == "folders":
+                return studio.knowledge.folders.status(parts[1], actor)
             if parts[2] == "search":
                 return studio.knowledge.search(
                     parts[1], query.get("q", [""])[0], actor, query.get("mode", ["lexical"])[0]
@@ -261,6 +263,12 @@ class StudioFeatures:
             return 201, saved
         if len(parts) == 3 and parts[0] == "projects" and parts[2] == "documents":
             return 202, studio.knowledge.attach(parts[1], data, actor)
+        if len(parts) == 3 and parts[0] == "projects" and parts[2] == "folders":
+            return 201, studio.knowledge.folders.link(parts[1], data, actor)
+        if len(parts) == 5 and parts[0] == "projects" and parts[2:5:2] == ["folders", "unlink"]:
+            return 200, studio.knowledge.folders.unlink(parts[1], parts[3], actor)
+        if len(parts) == 3 and parts[0] == "projects" and parts[2] == "sync":
+            return 202, studio.knowledge.folders.sync(parts[1], actor)
         if (
             len(parts) == 5
             and parts[0] == "projects"

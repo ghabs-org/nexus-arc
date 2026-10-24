@@ -26,6 +26,9 @@ class StudioKnowledge:
     def __init__(self, studio, embeddings=None):
         self.studio, self.embeddings = studio, embeddings
         self.vectors = StudioKnowledgeVectors(self)
+        from nexus.core.studio_knowledge_folders import StudioKnowledgeFolders
+
+        self.folders = StudioKnowledgeFolders(self)
         namespace = studio.sql_state.namespace if studio.sql_state else str(studio.root)
         self.index_path = studio.state / (
             "knowledge-index-" + hashlib.sha256(namespace.encode()).hexdigest()[:16] + ".sqlite"
@@ -112,12 +115,15 @@ class StudioKnowledge:
         mode = data.get("retrieval_mode", previous.get("retrieval_mode", "lexical"))
         if not isinstance(mode, str) or mode not in {"lexical", "semantic", "hybrid"}:
             raise ValueError("Choose lexical, semantic or hybrid search")
+        from nexus.core.studio_knowledge_folders import validate_folders
+
         return {
             "name": _text(data.get("name"), "Project name", 200),
             "instructions": instructions,
             "default_agent_id": agent_id,
             "archived": archived,
             "retrieval_mode": mode,
+            "folders": validate_folders(data.get("folders", previous.get("folders", []))),
         }
 
     def documents(self, identity, actor):
@@ -150,7 +156,8 @@ class StudioKnowledge:
             result.append({**record, "retryable": retryable})
         return result
 
-    def attach(self, identity, data, actor):
+    def attach(self, identity, data, actor, *, source=None, queue=True):
+        """Pin one artifact revision; folder sync indexes inline instead of queuing."""
         project = self.get(identity, actor)
         artifact = self.studio.catalog.get("artifacts", data.get("artifact_id"))
         if self.studio.team and not self.studio.team.visible(artifact, actor):
@@ -175,7 +182,11 @@ class StudioKnowledge:
                 "status": "queued",
                 "chunks": [],
             }
+            if source:
+                record["source"] = source
             self.studio._write(path, record)
+            if not queue:
+                return record
             run = self.studio.start_run(
                 {
                     "kind": "knowledge-index",
@@ -378,6 +389,8 @@ class StudioKnowledge:
         # replacement failure. Keep old bytes for existing pinned citations.
         latest = {}
         for record in self.documents(identity, actor):
+            if record.get("source_removed"):
+                continue
             if record["status"] == "ready" and record["artifact_revision"] > latest.get(
                 record["artifact_id"], {}
             ).get("artifact_revision", 0):
@@ -453,6 +466,8 @@ class StudioKnowledge:
                 filename=document["filename"],
                 page=chunk["page"],
             )
+            if document.get("source"):
+                result["source_path"] = document["source"]["path"]
         authorize()
         settings["effective_mode"] = mode if not notice else "lexical"
         return {

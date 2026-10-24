@@ -884,6 +884,7 @@ class StudioService:
             "decision",
             "external",
             "knowledge-index",
+            "knowledge-sync",
             "design",
             "speech",
         }:
@@ -972,6 +973,7 @@ class StudioService:
                 "campaign": "publishing",
                 "delegation": "agent-delegation",
                 "external": "external-agent",
+                "knowledge-sync": "local-files",
             }.get(kind, provider),
             "task": str(payload.get("task") or payload.get("tool") or ""),
             "session_id": session_id if kind == "chat" else None,
@@ -1321,6 +1323,8 @@ class StudioService:
             ):
                 raise PermissionError("Index job belongs to another account")
             output = await asyncio.to_thread(self.knowledge.index, document["id"], run_id)
+        elif kind == "knowledge-sync":
+            output = await asyncio.to_thread(self.knowledge.folders.execute, run_id, payload)
         elif kind in {"delegation", "campaign", "transcription", "decision", "external"}:
             output = await self.workbench.jobs.execute(run_id, payload)
         elif kind == "evaluation":
@@ -1419,7 +1423,7 @@ class StudioService:
         try:
             artifact = (
                 self.catalog.capture_run({**self.run(run_id), "output": output})
-                if kind not in {"knowledge-index", "design", "speech"}
+                if kind not in {"knowledge-index", "knowledge-sync", "design", "speech"}
                 else None
             )
             if artifact:

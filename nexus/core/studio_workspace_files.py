@@ -199,6 +199,48 @@ class StudioWorkspaceFiles:
             ],
         }
 
+    def walk(self, identity, path="", actor=None, *, skip=None, max_files=1000, max_dirs=5000):
+        """List allowed regular files below a folder, breadth first and bounded."""
+        root = self.root(identity, actor)
+        if identity in {"agents", "workflows"}:
+            raise ValueError("Use the agent and workflow editors for definition folders")
+        pending, files, visited, truncated = ["/".join(components(path))], [], 0, False
+        while pending and not truncated:
+            current = pending.pop(0)
+            visited += 1
+            if visited > max_dirs:
+                truncated = True
+                break
+            with self.directory(root, current) as fd, os.scandir(fd) as entries:
+                found = []
+                for entry in entries:
+                    try:
+                        components(entry.name)
+                        info = entry.stat(follow_symlinks=False)
+                    except (ValueError, OSError):
+                        continue
+                    relative = f"{current}/{entry.name}" if current else entry.name
+                    directory = stat.S_ISDIR(info.st_mode)
+                    if skip and skip(relative, entry.name, directory):
+                        continue
+                    if directory:
+                        found.append((0, relative, 0))
+                    elif (
+                        stat.S_ISREG(info.st_mode)
+                        and info.st_nlink == 1
+                        and info.st_size <= ARTIFACT_LIMIT
+                    ):
+                        found.append((1, relative, info.st_size))
+            for kind, relative, size in sorted(found):
+                if kind == 0:
+                    pending.append(relative)
+                elif len(files) >= max_files:
+                    truncated = True
+                    break
+                else:
+                    files.append({"path": relative, "size": size})
+        return {"files": files, "truncated": truncated}
+
     def read(self, identity, path, actor=None):
         root = self.root(identity, actor)
         parts = components(path)

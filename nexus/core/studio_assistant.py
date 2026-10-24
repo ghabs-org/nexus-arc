@@ -22,7 +22,7 @@ TOPICS = (
         "projects",
         "Knowledge projects and server folders",
         "#projects",
-        "Knowledge projects group instructions, document revisions and related conversations. They are not host directories or source repositories. To use a server file, save a private artifact copy in Workspace files, then add that saved file to a knowledge project. Search defaults to local lexical retrieval; embedding/API use depends on explicit configuration.",
+        "Knowledge projects group instructions, document revisions and related conversations. To use one server file, save a private artifact copy in Workspace files, then add that saved file to a knowledge project. To use a whole server folder, such as docs or source code, open it in Workspace files and select Link folder to knowledge project; Sync now copies new and changed files into private artifacts and indexes them on the server. Files deleted from the folder leave search; earlier answers keep their citations. Builders can link and sync folders. Search defaults to local lexical retrieval; embedding/API use depends on explicit configuration.",
     ),
     (
         "state",

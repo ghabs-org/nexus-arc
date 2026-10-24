@@ -10,7 +10,7 @@ async function refreshServerFiles(){
     if(generation!==serverFiles.generation)return;
     $("files-root").innerHTML=data.roots.map(root=>`<option value="${escapeHtml(root.id)}" ${root.id===data.root?"selected":""}>${escapeHtml(root.name)}${root.writable?"":" (read-only)"}</option>`).join("");
     $("files-path").textContent=data.path?`/${data.path}`:"Top level";$("files-parent").disabled=!data.path;
-    $("files-upload-form").hidden=!data.writable;
+    $("files-upload-form").hidden=!data.writable;$("files-link-project").hidden=["agents","workflows"].includes(data.root);
     $("files-list").innerHTML=workspaceFileRows(data.items)+(data.truncated?"<p>Listing limited. Choose a more specific subfolder.</p>":"");
     $("files-list").querySelectorAll("[data-server-file]").forEach(button=>button.onclick=async()=>{
       const item=data.items[Number(button.dataset.serverFile)];
@@ -65,6 +65,20 @@ $("files-new-folder").addEventListener("click",async()=>{
   const root=serverFiles.root,path=serverFiles.path;
   const form=await fieldsDialog("New server folder",inputField("name","Folder name",""),"Create folder");if(!form)return;
   try{await featureApi("files/folder",{root,path,name:form.get("name")});await refreshServerFiles();}catch(error){$("files-error").textContent=error.message;}
+});
+function patternList(value){return String(value||"").split(/[\n,]/).map(item=>item.trim()).filter(Boolean);}
+$("files-link-project").addEventListener("click",async()=>{
+  const root=serverFiles.root,path=serverFiles.path;$("files-error").textContent="";
+  try{
+    const projects=(await featureApi("projects")).items.filter(project=>!project.archived);
+    if(!projects.length)throw new Error("Create a knowledge project first, then link this folder.");
+    const form=await fieldsDialog("Link folder to knowledge project",`<p>Folder: <code>${escapeHtml(root)}:/${escapeHtml(path)}</code></p><label>Knowledge project<select name="project" required>${projects.map(project=>`<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join("")}</select></label><label>Include patterns (optional)<input name="include" maxlength="2000" placeholder="*.md, docs/*"></label><label>Exclude patterns (optional)<input name="exclude" maxlength="2000" placeholder="tests/*, *.csv"></label><p>Without include patterns, text, code, PDF and Office files are synced. Hidden files and dependency or build folders (node_modules, venv, dist, build, vendor) are always skipped. Sync saves private copies and indexes them on this server; it does not call an AI model.</p><label><input type="checkbox" name="sync" checked> Sync now</label>`,"Link folder");
+    if(!form)return;
+    const id=encodeURIComponent(form.get("project"));
+    await featureApi(`projects/${id}/folders`,{root,path,include:patternList(form.get("include")),exclude:patternList(form.get("exclude"))});
+    if(form.get("sync")){await featureApi(`projects/${id}/sync`,{});notify("Folder linked. Sync started; follow it in the knowledge project or Activity.");}
+    else notify("Folder linked. Use Sync now in the knowledge project to copy and index its files.");
+  }catch(error){$("files-error").textContent=error.message;}
 });
 function renderStudioHelp(data){
   $("studio-help-answer").innerHTML=`<p class="workspace-scope">${escapeHtml(data.notice)}</p><div class="workspace-help-text"></div><p>Server workspace: <code>${escapeHtml(data.workspace.path)}</code></p><div class="card-actions">${data.sources.map(source=>`<a class="button-link" href="${escapeHtml(source.url)}">${escapeHtml(source.title)}</a>`).join("")}</div>${Object.entries(data.resources).map(([kind,items])=>`<h2>${kind==="agents"?"Agents":"Workflows"}</h2>${items.length?items.map(item=>`<p><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a> · <code>${escapeHtml(item.id)}</code></p>`).join(""):"<p>None saved yet.</p>"}`).join("")}`;
