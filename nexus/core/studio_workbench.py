@@ -179,8 +179,8 @@ class StudioWorkbench:
             if self.studio.team:
                 self.studio.team.assert_execution(run.get("requester_nexus_id"))
             self.studio._update_run(run["id"], status="queued", error=None)
-            self.studio.executor.submit(
-                self.studio._execute,
+            queued = self.studio.run(run["id"])
+            self.studio.resume_workflow(
                 run["id"],
                 {
                     **snapshot["state"]["payload"],
@@ -188,9 +188,8 @@ class StudioWorkbench:
                     if snapshot["state"].get("format") == "yaml"
                     else "resume_graph": True,
                 },
-                "",
             )
-            return self.studio.run(run["id"])
+            return queued
 
     def settings_key(self, actor):
         return hashlib.sha256(str(self.owner(actor) or "desktop").encode()).hexdigest()[:32]

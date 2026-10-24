@@ -1,16 +1,39 @@
 openapi: 3.0.3
 info:
   title: Nexus reviewed build lifecycle
-  version: 1.2.0
+  version: 1.3.0
   description: Additive owner-scoped build review, dependency/health inspection, activation and rollback. Plans pin the build revision and current workspace contents. No credential resolution values, probes or external effects during review.
 paths:
+  /api/builds:
+    post:
+      description: Queue a draft or refinement with the selected provider. Validation can use one additional generation call with the same provider and effort within a shared 600-second budget. Invalid proposals never save definitions or catalog resources. Provider failures are not retried.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task]
+              properties:
+                task: {type: string, minLength: 1, maxLength: 16000}
+                provider: {type: string, enum: [codex, claude-code, agy, openai, claude], default: codex}
+                model: {type: string}
+                effort: {type: string, enum: ['', none, minimal, low, medium, high, xhigh, max], description: Optional provider reasoning effort; empty or absent uses provider default.}
+                worker_tools: {type: string, enum: [none, web, shell], default: web}
+                build_id: {type: string, description: Existing draft identity for refinement.}
+                revision: {type: integer, description: Required current revision when refining a saved draft.}
+                proposal: {type: object, description: Optional edited proposal to refine.}
+      responses:
+        '202': {description: Queued run with id and build_id. Poll the existing run route; phase correcting-proposal identifies validation correction.}
+        '400': {description: Invalid request, unsupported effort or stale draft revision.}
+        '403': {description: Existing account ownership or role denied.}
   /api/builds/{id}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: string}}
     get:
       description: Existing account-scoped build record. proposal.workflow remains primary test target; optional proposal.workflows holds additional named definitions. Reopen, review, save and rollback retain the complete bundle and advanced agent settings.
       responses:
-        '200': {description: Owned build with revision, proposal, saved/draft state and release identity where saved}
+        '200': {description: Owned build with revision, proposal, saved/draft state and release identity where saved. Optional effort and worker_tools retain generation settings; legacy records default to provider effort and web tools.}
         '403': {description: Existing account ownership denied}
   /api/studio/builds/{id}/health:
     parameters:

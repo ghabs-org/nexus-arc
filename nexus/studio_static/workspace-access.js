@@ -9,7 +9,7 @@ async function refreshServerFiles(){
     const data=await featureApi(`files?${fileQuery(serverFiles.root,serverFiles.path)}`);
     if(generation!==serverFiles.generation)return;
     $("files-root").innerHTML=data.roots.map(root=>`<option value="${escapeHtml(root.id)}" ${root.id===data.root?"selected":""}>${escapeHtml(root.name)}${root.writable?"":" (read-only)"}</option>`).join("");
-    $("files-path").textContent=`${data.root}/${data.path}`;$("files-parent").disabled=!data.path;
+    $("files-path").textContent=data.path?`/${data.path}`:"Top level";$("files-parent").disabled=!data.path;
     $("files-upload-form").hidden=!data.writable;
     $("files-list").innerHTML=workspaceFileRows(data.items)+(data.truncated?"<p>Listing limited. Choose a more specific subfolder.</p>":"");
     $("files-list").querySelectorAll("[data-server-file]").forEach(button=>button.onclick=async()=>{

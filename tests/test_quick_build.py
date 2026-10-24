@@ -120,6 +120,160 @@ def generate(service, **options):
     return service.builder.get(queued["build_id"])
 
 
+@pytest.mark.parametrize("provider", ["codex", "claude-code", "agy", "openai", "claude"])
+@pytest.mark.parametrize("storage", ["files", "sqlite"])
+def test_build_effort_reaches_each_provider_and_survives_refinement(tmp_path, provider, storage):
+    model = Model()
+    options = (
+        {
+            "url": "sqlite:///" + str(tmp_path / "state.sqlite"),
+            "namespace": "build-effort",
+            "workers": 1,
+        }
+        if storage == "sqlite"
+        else None
+    )
+    selected = []
+
+    def factory(name):
+        selected.append(name)
+        return model
+
+    service = StudioService(tmp_path, builder_factory=factory, state_options=options)
+    try:
+        draft = generate(service, provider=provider, effort="high", model="chosen-model")
+        assert draft["effort"] == model.calls[-1].effort == "high"
+        assert model.calls[-1].model_override == "chosen-model"
+        refined = generate(
+            service,
+            provider=provider,
+            build_id=draft["id"],
+            revision=draft["revision"],
+            effort="low",
+            worker_tools="none",
+        )
+        assert selected == [provider, provider]
+        assert refined["revision"] == 2
+        assert refined["effort"] == model.calls[-1].effort == "low"
+        assert refined["worker_tools"] == "none"
+    finally:
+        service.close()
+    restored = StudioService(tmp_path, state_options=options)
+    try:
+        assert restored.builder.get(draft["id"])["effort"] == "low"
+    finally:
+        restored.close()
+
+
+@pytest.mark.parametrize("effort", ["extreme", 0, False, [], {}])
+def test_invalid_build_effort_is_rejected_before_queuing(app, effort):
+    service, model, _ = app
+    with pytest.raises(ValueError, match="Build effort"):
+        service.start_run({"kind": "build", "task": "Draft team", "effort": effort})
+    assert not model.calls
+    assert not service.records("runs")
+    assert not service.active_builds
+
+
+@pytest.mark.parametrize("storage", ["files", "sqlite"])
+@pytest.mark.parametrize("reference", ["skill_ids", "connector_ids", "toolset_ids", "model_id"])
+def test_missing_generated_reference_is_corrected_before_any_resource_is_saved(
+    tmp_path, storage, reference
+):
+    invalid = proposal()
+    invalid["agents"][0][reference] = "missing" if reference == "model_id" else ["missing"]
+    corrected = proposal()
+    corrected["agents"][0]["skill_ids"] = ["find-skills"]
+    corrected["resources"] = [
+        {
+            "kind": "skills",
+            "id": "find-skills",
+            "name": "Find skills",
+            "data": {"content": "Compare documented skill capabilities."},
+        }
+    ]
+
+    class RepairModel(Model):
+        async def execute_agent(self, context):
+            self.output = json.dumps(invalid if not self.calls else corrected)
+            return await super().execute_agent(context)
+
+    model = RepairModel()
+    options = (
+        {
+            "url": "sqlite:///" + str(tmp_path / "state.sqlite"),
+            "namespace": "reference-repair",
+            "workers": 1,
+        }
+        if storage == "sqlite"
+        else None
+    )
+    service = StudioService(tmp_path, builder_factory=lambda _: model, state_options=options)
+    try:
+        draft = generate(service, effort="high")
+        assert len(model.calls) == 2
+        assert "Unknown " in model.calls[-1].prompt and "'missing'" in model.calls[-1].prompt
+        assert "Previous draft" not in model.calls[0].prompt
+        assert all(call.effort == "high" for call in model.calls)
+        assert model.calls[-1].timeout <= model.calls[0].timeout <= 600
+        assert draft["proposal"]["agents"][0]["skill_ids"] == [
+            draft["proposal"]["resources"][0]["id"]
+        ]
+        assert not service.catalog.list("skills")
+        assert not service.definitions("agents")
+        run = service.records("runs")[0]
+        assert run["phase"] == "draft-ready"
+        assert run["build_corrections"] == 1
+    finally:
+        service.close()
+
+
+def test_unrepairable_reference_names_missing_resource_and_retains_previous_draft(app):
+    service, model, _ = app
+    draft = generate(service)
+    invalid = proposal()
+    invalid["agents"][0]["skill_ids"] = ["find-skills"]
+    model.output = json.dumps(invalid)
+    result = wait(
+        service,
+        service.start_run(
+            {"kind": "build", "task": "Refine team", "build_id": draft["id"], "revision": 1}
+        ),
+    )
+    assert result["status"] == "failed"
+    assert "Unknown skills reference 'find-skills'" in result["error"]
+    assert "after one correction" in result["error"]
+    assert len(model.calls) == 3  # initial draft, failed refinement, one correction
+    assert service.builder.get(draft["id"]) == draft
+    assert not service.definitions("agents")
+
+
+def test_proposed_agent_effort_is_preserved_in_saved_definition(app):
+    service, model, _ = app
+    spec = proposal()
+    spec["agents"][0]["effort"] = "high"
+    model.output = json.dumps(spec)
+    draft = generate(service)
+    service.builder.apply(draft["id"], {"revision": 1})
+    agent = service.definition("agents", draft["proposal"]["agents"][0]["id"])
+    assert agent["spec"]["effort"] == "high"
+
+
+def test_builder_can_reference_existing_catalog_ids_outside_new_resource_naming_rules(app):
+    service, model, _ = app
+    service.catalog.save(
+        "skills",
+        {"id": "123-imported", "name": "Imported skill", "data": {"content": "Compare evidence."}},
+    )
+    spec = proposal()
+    spec["agents"][0]["skill_ids"] = ["123-imported"]
+    model.output = json.dumps(spec)
+    draft = generate(service)
+    assert draft["proposal"]["agents"][0]["skill_ids"] == ["123-imported"]
+    assert '"id": "123-imported"' in model.calls[0].prompt
+    assert len(model.calls) == 1
+
+
 def test_reopen_saved_build_updates_managed_resources_and_detects_manual_file_edits(app):
     service, model, _ = app
     draft = generate(service)

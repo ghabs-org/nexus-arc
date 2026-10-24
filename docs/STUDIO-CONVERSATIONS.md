@@ -25,6 +25,63 @@ Markdown, code-copy controls, links, tables and citations update as snapshots
 arrive. Reconnecting observes the same saved run. Playback and polling never
 submit work; an unacknowledged submission is not automatically retried.
 
+At phone widths (up to 767 pixels), conversation settings start collapsed behind
+the Settings button. Opening or closing them preserves project, agent, provider,
+model and effort selections. Settings open over the conversation and scroll
+independently, keeping the composer in place. Escape closes settings and returns
+focus to the button. Desktop
+controls remain visible. The mobile composer keeps the message and send action
+visible while moving explanatory hints out of the reading area.
+
+## Quick Build validation and effort
+
+Quick Build accepts an optional `effort` override through `POST /api/builds` and
+the Effort selector. Model profiles apply provider, model and effort together.
+Drafts retain effort and tool selection when reopened; old drafts default to
+provider effort and web tools. Generated agents retain their own explicit effort
+when saved. No state rewrite is required.
+
+The builder receives workspace resource names and IDs, without connection
+settings or credentials. Unknown resource references produce a named validation
+error. A malformed proposal gets at most one additional generation call to
+correct validation errors, using the same provider and effort within the original
+600-second generation budget. Provider failures are not retried. This correction
+can incur an additional model call under the selected provider's billing.
+Invalid proposals never save or activate resources, and failed refinements leave
+the previous draft intact. The run exposes `phase: correcting-proposal` during
+that correction, then `draft-ready` when validation succeeds. `build_corrections`
+records whether the extra call occurred. Review and activation remain explicit
+actions.
+
+## Retry from Activity
+
+Activity → Details shows failed steps above the saved output. **Retry and
+continue** retries the selected failure and resumes unfinished workflow work.
+Completed nodes, map items, outputs and approval decisions stay saved. Nested
+step paths identify the exact failed scope. A later failure stops the run again;
+retrying never silently marks a step successful.
+
+The read-only `GET /api/studio/runs/{id}/retry` returns a digest and available
+steps. `POST` to the same route accepts `digest` and `step_id`. Stale plans,
+completed steps and active workers reject dispatch. Repeating the same accepted
+digest and step returns the existing receipt, including after completion.
+Structured retries reset the selected scope's failed outcome and exhausted retry
+budget while preserving acknowledged results. Existing checkpoint dispatch and
+SQL lease fencing remain authoritative.
+
+Uncertain integration actions require their existing Workspace tools review
+before retry. Failed tools also require explicit confirmation that their effects
+have been checked; only then can an unfinished tool's attempt receipt be reset.
+Cancellation cleanup retains its separate continuation controls.
+
+Failed chat, Quick Build, prompt/schedule design and standalone tool runs can
+retry their saved request with the original provider, effort and pinned inputs.
+File deployments retain these private requests for new runs; SQL deployments
+reuse their durable job requests. Older standalone runs without a saved request
+report unavailable. Other specialized jobs keep their existing recovery controls.
+Only the original account with current execution permission can retry. Existing
+records remain readable; no bulk migration or automatic replay is performed.
+
 ## Pinned sources
 
 `GET /api/catalog/artifacts/{id}/preview?revision=N&page=N` retains the existing

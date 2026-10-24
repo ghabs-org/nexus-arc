@@ -130,6 +130,8 @@ class StudioFeatures:
             return studio.recipes.list()
         if parts == ["configuration", "export"]:
             return studio.configuration.export(actor)
+        if len(parts) == 3 and parts[0] == "runs" and parts[2] == "retry":
+            return studio.retry.describe(parts[1], actor)
         if len(parts) == 3 and parts[0] == "runs" and parts[2] == "execution":
             return studio.execution.snapshot(
                 parts[1],
@@ -140,6 +142,8 @@ class StudioFeatures:
         raise FileNotFoundError("Studio feature route not found")
 
     def post(self, parts, data, actor):
+        if len(parts) == 3 and parts[0] == "runs" and parts[2] == "retry":
+            return 202, self.studio.retry.queue(parts[1], data, actor)
         if len(parts) == 4 and parts[0] == "external-runs" and parts[2:] == ["callbacks", "revoke"]:
             return 200, self.studio.external.callbacks.revoke(parts[1], actor)
         if len(parts) == 4 and parts[0] == "connectors" and parts[2:] == ["oauth", "disconnect"]:

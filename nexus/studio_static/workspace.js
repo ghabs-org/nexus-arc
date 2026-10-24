@@ -160,11 +160,13 @@ async function refreshModelChoices(){
     const artifacts=(await api("/api/catalog/artifacts")).items;const files=$("chat-artifacts");const chosen=[...files.selectedOptions].map(item=>item.value);files.innerHTML=artifacts.map(item=>`<option value="${escapeHtml(item.id)}" data-size="${Number(item.data.size)||0}" ${chosen.includes(item.id)?"selected":""}>${escapeHtml(item.name)} · ${escapeHtml(item.data.filename)}</option>`).join("");
     renderChatArtifacts();
     const models=(await api("/api/catalog/models")).items.filter(item=>!item.archived);
-    for(const [section,providerId,modelId] of [[".chat-controls","chat-provider","chat-model"],[".builder-provider-fields","builder-provider","builder-model"]]){
+    for(const [section,providerId,modelId] of [[".chat-config-fields","chat-provider","chat-model"],[".builder-provider-fields","builder-provider","builder-model"]]){
       const parent=document.querySelector(section);let select=parent.querySelector(".model-profile");
-      if(!select){const label=document.createElement("label");label.textContent="Profile";select=document.createElement("select");select.className="model-profile";select.setAttribute("aria-label",providerId==="chat-provider"?"Chat model profile":"Build model profile");label.appendChild(select);parent.appendChild(label);}
+      if(!select){const label=document.createElement("label");label.textContent="Profile";select=document.createElement("select");select.className="model-profile";select.setAttribute("aria-label",providerId==="chat-provider"?"Chat model profile":"Build model profile");label.className="profile-field";label.appendChild(select);parent.appendChild(label);}
       const selected=select.value;select.innerHTML='<option value="">Custom configuration</option>'+models.filter(item=>providerId!=="builder-provider"||["codex","claude-code","agy","openai","claude"].includes(item.data.provider)).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("");select.value=selected;
-      select.onchange=()=>{const item=models.find(item=>item.id===select.value);if(item){$(providerId).value=item.data.provider;$(modelId).value=item.data.model;}};
+      const effortId=providerId==="chat-provider"?"chat-effort":"builder-effort";
+      select.onchange=()=>{const item=models.find(item=>item.id===select.value);if(item){$(providerId).value=item.data.provider;$(modelId).value=item.data.model;$(effortId).value=item.data.effort||"";linkModelInputs();}};
+      [providerId,modelId,effortId].forEach(id=>$(id).oninput=()=>{select.value="";});
     }
   }catch(error){notify(error.message);}
 }

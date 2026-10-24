@@ -193,6 +193,9 @@ class StudioService:
 
         self.conversations = StudioConversations(self)
         self.execution = StudioExecution(self)
+        from nexus.core.studio_run_retry import StudioRunRetry
+
+        self.retry = StudioRunRetry(self)
         from nexus.core.studio_telemetry import StudioTelemetry
 
         self.telemetry = StudioTelemetry(self)
@@ -1022,6 +1025,7 @@ class StudioService:
                 if kind == "speech":
                     self.speech.bind_input(run_id, payload)
                 self._write(self._path("runs", run_id), record)
+                self.retry.remember(run_id, payload, session_id if kind == "chat" else "")
                 self.executor.submit(self._execute, run_id, dict(payload), session_id)
             except BaseException:
                 self.workbench.release_launch(claim)
@@ -1373,6 +1377,11 @@ class StudioService:
                             artifact_id=part["artifact_id"],
                             artifact_revision=part["revision"],
                         )
+            # An explicit retry replaces this run's failed turn, preserving other turns.
+            session["messages"] = [
+                message for message in session["messages"]
+                if not (message.get("run_id") == run_id and message.get("status") == "failed")
+            ]
             session["messages"].extend(
                 [
                     {"role": "user", "content": payload["task"]},

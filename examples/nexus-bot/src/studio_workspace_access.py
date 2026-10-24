@@ -2,6 +2,11 @@
 
 Run with: PYTHONPATH=. python examples/nexus-bot/src/studio_workspace_access.py
 No external provider, network or model calls are made.
+
+For browser navigation, launch the Studio consumer in src/studio.py and open
+Workspace files. Choose a Server folder, then open a folder from the list.
+Current folder shows Top level at the selected root; Parent folder returns one
+level up. The same controls wrap onto two rows on narrow screens.
 """
 
 import base64

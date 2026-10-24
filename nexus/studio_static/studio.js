@@ -627,7 +627,9 @@ bootstrap();
     if (!viewport || viewport.scale === 1) {
       const height = viewport?.height || innerHeight;
       document.documentElement.style.setProperty("--studio-viewport-height", `${height}px`);
-      document.body.classList.toggle("compact-chat", height < 640);
+      // Keep short phones contained; use page scrolling only when the keyboard
+      // or a landscape viewport leaves too little room for the full composer.
+      document.body.classList.toggle("compact-chat", height < 450);
     }
   }
   window.visualViewport?.addEventListener("resize", sizeViewport);

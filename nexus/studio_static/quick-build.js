@@ -3,7 +3,8 @@ const builder = {draft:null, id:null, busy:false, mode:"build", test:null, revie
 const buildError = error => {$("builder-error").textContent=error?.message || String(error);$("builder-error").hidden=false;};
 function builderBusy(busy, message="") {
   builder.busy=busy;
-  ["builder-generate","builder-new","builder-history","builder-provider","builder-model","builder-tools","builder-task","builder-test-run","builder-test-task","builder-slash","builder-mention","builder-artifacts","builder-upload"].forEach(id=>$(id).disabled=busy);
+  ["builder-generate","builder-new","builder-history","builder-provider","builder-model","builder-effort","builder-tools","builder-task","builder-test-run","builder-test-task","builder-slash","builder-mention","builder-artifacts","builder-upload"].forEach(id=>$(id).disabled=busy);
+  document.querySelector('.builder-provider-fields .model-profile')?.toggleAttribute('disabled',busy);
   $("builder-progress").hidden=!busy;$("builder-progress").textContent=message;
   $("builder-save")?.toggleAttribute("disabled",busy);
   $("builder-proposal")?.querySelectorAll("input,textarea,select").forEach(field=>field.disabled=busy||builder.draft?.status==="saved");
@@ -30,8 +31,9 @@ function resetBuilder() {
   $("builder-task").placeholder="A research team that compares options, checks the evidence, and writes a recommendation…";
   $("builder-generate").textContent="Generate build ↗";
   $("builder-error").hidden=true;$("builder-test-result").hidden=true;$("builder-test-task").value="";
-  $("builder-note").textContent="Draft first. Review and save before running your team.";
-  $("builder-model").value="";
+  $("builder-note").textContent="Draft first. Review and save before running your team. Invalid drafts may use one extra AI call.";
+  $("builder-model").value="";$("builder-effort").value="";$("builder-tools").value="web";
+  const profile=document.querySelector('.builder-provider-fields .model-profile');if(profile)profile.value="";
   builderMode("build");builderBusy(false);$("builder-task").focus();
 }
 function proposalFromFields() {
@@ -85,8 +87,10 @@ function renderBuild() {
     <details class="build-files"><summary>${saved?"Saved resources":"Resources this build will create"}</summary><ul>${p.agents.map(a=>`<li>agents/${escapeHtml(a.id)}.yaml</li>`).join("")}${[...(p.workflows||[]),...(workflow?[workflow]:[])].map(w=>`<li>workflows/${escapeHtml(w.id)}.yaml</li>`).join("")}${resources.map(item=>`<li>${escapeHtml(item.kind)} / ${escapeHtml(item.id)}</li>`).join("")}</ul></details>
     <div class="build-save-row">${saved?'<button id="builder-reopen" class="secondary">Continue editing this build</button>':""}<p>${saved?"Resources saved. Configure prerequisites before execution.":"Review instructions, graph and related resources before saving."}</p><button id="${saved?"builder-open-test":"builder-save"}" ${saved&&!workflow?"disabled":""}>${saved?(workflow?"Test your team →":"No workflow to test"):"Review changes"}</button></div>`;
   $("builder-form").hidden=saved;$("builder-generate").textContent="Refine build ↗";$("builder-task").placeholder="What would you like to change?";
-  $("builder-test-title").textContent=p.name;$("builder-note").textContent=saved?"Saved in Agents, Workflows and Library. Review account setup before enabling connections.":"Refine in chat, or edit the proposed settings before saving.";
-  $("builder-provider").value=draft.provider;$("builder-model").value=draft.model;builderBusy(false);refreshBuildLifecycle().catch(buildError);
+  $("builder-test-title").textContent=p.name;$("builder-note").textContent=saved?"Saved in Agents, Workflows and Library. Review account setup before enabling connections.":"Refine in chat, or edit the proposed settings before saving. Invalid drafts may use one extra AI call.";
+  $("builder-provider").value=draft.provider;$("builder-model").value=draft.model;$("builder-effort").value=draft.effort||"";$("builder-tools").value=draft.worker_tools||"web";
+  const profile=document.querySelector('.builder-provider-fields .model-profile');if(profile)profile.value="";
+  builderBusy(false);refreshBuildLifecycle().catch(buildError);
 }
 async function loadBuild(id) {
   $("builder-error").hidden=true;
@@ -97,7 +101,7 @@ async function loadBuild(id) {
 async function generateBuild(event) {
   event.preventDefault();if(builder.busy||state.attachmentUpload)return;
   const task=$("builder-task").value.trim();if(!task)return;
-  const payload={task,provider:$("builder-provider").value,model:$("builder-model").value.trim(),worker_tools:$("builder-tools").value,artifact_ids:[...$("builder-artifacts").selectedOptions].map(option=>option.value)};
+  const payload={task,provider:$("builder-provider").value,model:$("builder-model").value.trim(),worker_tools:$("builder-tools").value,...($("builder-effort").value?{effort:$("builder-effort").value}:{}),artifact_ids:[...$("builder-artifacts").selectedOptions].map(option=>option.value)};
   try{payload.prompt_values=await resolvePromptValues(task);}catch(error){buildError(error);return;}
   if(builder.id)payload.build_id=builder.id;
   try{if(builder.draft){payload.revision=builder.draft.revision;payload.proposal=proposalFromFields();}}catch(error){buildError(error);return;}
@@ -105,7 +109,7 @@ async function generateBuild(event) {
   const previousId=builder.id;
   try {
     const queued=await api("/api/builds",payload);builder.id=queued.build_id;
-    const run=await pollRun(queued.id,run=>{const live=(run.output||"").slice(-6000);$("builder-progress").textContent="Designing your team…"+(live?"\n\n"+live:"");$("builder-progress").scrollTop=$("builder-progress").scrollHeight;});
+    const run=await pollRun(queued.id,run=>{const live=(run.output||"").slice(-6000);$("builder-progress").textContent=(run.phase==="correcting-proposal"?"Correcting the draft… One validation correction is allowed.":"Designing your team…")+(live?"\n\n"+live:"");$("builder-progress").scrollTop=$("builder-progress").scrollHeight;});
     if(!run||run.status!=="completed"){
       throw new Error(run?.error||`Build run ${run?.status||"did not complete"}`);
     }

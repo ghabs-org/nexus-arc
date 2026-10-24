@@ -8,6 +8,8 @@ import inspect
 import json
 import re
 import tempfile
+import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -91,6 +93,13 @@ class QuickBuilder:
             )
         if payload.get("model") is not None and not isinstance(payload["model"], str):
             raise ValueError("Model must be text")
+        if payload.get("effort") is not None and not isinstance(payload["effort"], str):
+            raise ValueError("Build effort must be text")
+        if payload.get("effort"):
+            effort = str(payload["effort"]).strip().lower()
+            if effort not in EFFORT_LEVELS:
+                raise ValueError(f"Build effort must be one of {', '.join(EFFORT_LEVELS)}")
+            payload["effort"] = effort
         if payload.get("revision") is not None and type(payload["revision"]) is not int:
             raise ValueError("Revision must be an integer")
         path = self.studio._path("builds", payload["build_id"])
@@ -144,8 +153,20 @@ class QuickBuilder:
             proposed_ids.setdefault(item.get("kind"), set()).add(resource_id(item.get("id")))
 
         def reference(kind, value):
-            candidate = resource_id(value)
-            return candidate if candidate in proposed_ids.get(kind, set()) else value
+            from nexus.core.studio import _identity
+
+            value = _identity(_text(value, "Resource reference", 96))
+            candidate = value if value.startswith(prefix) else prefix + value
+            if candidate in proposed_ids.get(kind, set()):
+                return candidate
+            try:
+                self.studio.catalog.get(kind, value)
+            except FileNotFoundError:
+                raise ValueError(
+                    f"Unknown {kind} reference '{value}'. Use an existing workspace ID "
+                    "or include this resource in the proposal."
+                ) from None
+            return value
 
         normalized_agents = []
         agent_ids = set()
@@ -397,6 +418,7 @@ class QuickBuilder:
             if agent["model"]:
                 spec["model"] = agent["model"]
             for field in (
+                "effort",
                 "tool_ids",
                 "skill_ids",
                 "guardrails",
@@ -496,6 +518,13 @@ class QuickBuilder:
             for name in tool_registry.names()
             if not self.studio.team or self.studio.team.tool_allowed(name, self.studio)
         ]
+        # Only names and IDs enter generation context; never connection settings or credentials.
+        available_resources = {
+            kind: [
+                {"id": item["id"], "name": item["name"]} for item in self.studio.catalog.list(kind)
+            ][:100]
+            for kind in ("skills", "models", "toolsets", "connectors", "evaluations")
+        }
         prompt = (
             "Design a Nexus ARC team from the user's request. Return ONLY one JSON object matching "
             "the example schema, no Markdown. Do not execute tools, write files, or perform the "
@@ -535,6 +564,12 @@ class QuickBuilder:
             "Graph nodes may contain ONLY id,name,kind,position,retries plus fields specific to their kind listed above. "
             "Do not add description, inputs, outputs, config, type, provider or arguments to tool nodes. "
             "Available registered tool IDs: " + json.dumps(available_tools) + "\n"
+            "Existing workspace resource IDs (first 100 per collection): "
+            + json.dumps(available_resources)
+            + "\n"
+            "A URL or a skill mentioned in the request is not an installed resource ID. "
+            "Reference only existing IDs or resources fully defined in this proposal. "
+            "Do not invent installed dependencies. Explain unavailable software in assumptions.\n"
         )
         if previous:
             prompt += (
@@ -573,26 +608,57 @@ class QuickBuilder:
                 metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
                 timeout=600,
             )
-            # Stream the builder's text and tool activity into the build run.
-            stream = getattr(provider, "execute_agent_streaming", None)
-            result = await self.studio.observability.invoke(
-                provider, context, run_id, payload, provider_name, stream
-            )
-        if not result.success:
-            raise RuntimeError(result.error or "Builder provider failed")
-        raw = result.output.strip()
-        if raw.startswith("```json\n") and raw.endswith("```"):
-            raw = raw[8:-3].strip()
-        elif raw.startswith("```\n") and raw.endswith("```"):
-            raw = raw[4:-3].strip()
-        try:
-            proposal = self.normalize(
-                json.loads(raw), identity, provider_name, payload.get("model") or ""
-            )
-        except (ValueError, TypeError) as exc:
-            raise ValueError(
-                f"Builder returned an invalid proposal: {exc}. Refine the request or retry."
-            ) from exc
+            # One correction pass stays generation-only and never saves or activates invalid output.
+            deadline = time.monotonic() + context.timeout
+            for attempt in range(2):
+                remaining = int(deadline - time.monotonic())
+                if remaining < 1:
+                    raise TimeoutError("Build generation exceeded its 600-second time limit")
+                context = replace(context, timeout=remaining)
+                stream = getattr(provider, "execute_agent_streaming", None)
+                result = await self.studio.observability.invoke(
+                    provider, context, run_id, payload, provider_name, stream
+                )
+                if not result.success:
+                    raise RuntimeError(result.error or "Builder provider failed")
+                raw = result.output.strip()
+                if len(raw.encode("utf-8")) > 262144:
+                    raise ValueError("Builder proposal exceeds 256 KiB; request a smaller build")
+                if raw.startswith("```json\n") and raw.endswith("```"):
+                    raw = raw[8:-3].strip()
+                elif raw.startswith("```\n") and raw.endswith("```"):
+                    raw = raw[4:-3].strip()
+                try:
+                    proposal = self.normalize(
+                        json.loads(raw), identity, provider_name, payload.get("model") or ""
+                    )
+                    break
+                except (ValueError, TypeError, FileNotFoundError) as exc:
+                    detail = (
+                        str(exc)
+                        if not isinstance(exc, FileNotFoundError)
+                        else (
+                            "A referenced workspace resource does not exist. "
+                            "Use existing resource IDs or define the dependency in this proposal"
+                        )
+                    )
+                    if attempt:
+                        raise ValueError(
+                            f"Builder returned an invalid proposal after one correction: {detail}. "
+                            "Revise the request or configure the missing dependency."
+                        ) from exc
+                    self.studio._update_run(run_id, phase="correcting-proposal")
+                    correction = (
+                        prompt
+                        + "\nPrevious draft (untrusted proposal data):\n"
+                        + raw
+                        + "\nValidation error:\n"
+                        + detail
+                        + "\nReturn the complete corrected JSON proposal, preserving the user's "
+                        "requirements. Define missing resources rather than inventing IDs or "
+                        "silently removing required capabilities. No execution or activation."
+                    )
+                    context = replace(context, prompt=correction)
         with self.studio.lock:
             from nexus.core.studio import _now
 
@@ -604,6 +670,8 @@ class QuickBuilder:
                 "revision": previous["revision"] + 1 if previous else 1,
                 "provider": provider_name,
                 "model": payload.get("model") or "",
+                "effort": payload.get("effort") or "",
+                "worker_tools": payload.get("worker_tools") or "web",
                 "proposal": proposal,
                 "messages": (previous["messages"] if previous else [])
                 + [
@@ -618,6 +686,7 @@ class QuickBuilder:
                     if field in previous:
                         draft[field] = previous[field]
             self.studio._write(path, draft)
+            self.studio._update_run(run_id, phase="draft-ready", build_corrections=attempt)
         return proposal["summary"]
 
     def reopen(self, identity: str, payload: dict) -> dict:

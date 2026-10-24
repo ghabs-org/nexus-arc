@@ -366,14 +366,50 @@ function renderExecutionReplay(root,data,run){
   play.onclick=()=>{if(replay.playing){stop();return;}replay.live=false;if(replay.cursor===data.timeline.length)replay.cursor=0;replay.playing=true;play.textContent="Pause";play.setAttribute("aria-label","Pause execution replay");draw();timer=setInterval(()=>{if(!root.isConnected||state.detailRunId!==run.id||!replay.playing){stop();return;}replay.cursor++;draw();if(replay.cursor>=data.timeline.length)stop();},700);};
   root._stopExecutionReplay=stop;root.replaceChildren(heading,controls,count,graph,timeline,note);if(data.replay.previous_cursor){const older=makeButton("Load earlier events","Load earlier execution events");older.onclick=async()=>{older.disabled=true;try{const earlier=await featureApi(`runs/${encodeURIComponent(run.id)}/execution?before=${encodeURIComponent(data.replay.previous_cursor)}`);if(root.isConnected&&state.detailRunId===run.id){stop();const actions=Array.from(root.children).filter(element=>element.dataset.executionAction);renderExecutionReplay(root,{...data,timeline:earlier.timeline,replay:earlier.replay},run);root.append(...actions);}}catch(error){older.disabled=false;notify(error.message);}};}if(data.coverage.graph_nodes_omitted)note.textContent+=` ${data.coverage.graph_nodes_omitted} graph nodes omitted from this overview; all events remain available in the timeline.`;draw();
 }
+async function renderRunRetryActions(root,run){
+  if(!["failed","interrupted"].includes(run.status))return;
+  $('run-retry-controls')?.remove();
+  const section=document.createElement('section');section.id='run-retry-controls';section.className='run-retry-actions';$('run-output').before(section);
+  const heading=document.createElement('h3');heading.textContent='Retry failed steps';section.append(heading);
+  const error=document.createElement('p');error.className='form-error';error.setAttribute('role','alert');
+  try{
+    const plan=await featureApi(`runs/${encodeURIComponent(run.id)}/retry`);
+    if(!section.isConnected||state.detailRunId!==run.id)return;
+    const note=document.createElement('p');note.textContent=plan.can_retry?(plan.continues_workflow?'Retry a failed step and continue unfinished work. Completed steps and saved outputs stay intact.':'Retry this failed task with its original provider and settings. Provider billing applies.'):plan.blocked_reason;
+    section.append(note);
+    if(!plan.can_retry){if(plan.blocked_reason.includes('uncertain external action')){const link=document.createElement('a');link.href='#workbench/effects';link.className='button-link secondary';link.textContent='Review external actions';section.append(link);}return;}
+    for(const step of plan.steps){
+      const row=document.createElement('div');row.className='run-retry-step';
+      const name=document.createElement('strong');name.textContent=step.name;
+      const path=document.createElement('small');path.textContent=step.id.startsWith('__')?'':step.id;
+      const label=document.createElement('div');label.append(name,path);row.append(label);
+      let confirm;
+      if(step.requires_effect_review){const review=document.createElement('label');review.className='check-label';confirm=document.createElement('input');confirm.type='checkbox';const text=document.createElement('span');text.textContent='I checked the failed tools’ external effects. Repeating them is safe.';review.append(confirm,text);row.append(review);}
+      const button=document.createElement('button');button.type='button';button.textContent=plan.continues_workflow?'Retry and continue':'Retry task';button.setAttribute('aria-label',`Retry ${step.name}${plan.continues_workflow?' and continue':''}`);
+      button.onclick=async()=>{
+        if(confirm&&!confirm.checked){error.textContent='Review this tool’s external effects before confirming a retry.';return;}
+        section.querySelectorAll('button').forEach(item=>item.disabled=true);error.textContent='';
+        try{
+          const queued=await featureApi(`runs/${encodeURIComponent(run.id)}/retry`,{digest:plan.digest,step_id:step.id,...(confirm?{confirm_effects:confirm.checked}:{})});
+          showRun(queued);await refreshRuns();
+          pollRun(queued.id,updateRunDetail).catch(failure=>updateRunDetail(failure.run||{id:queued.id,status:'failed',error:failure.message})).finally(()=>refreshRuns().catch(()=>{}));
+        }catch(failure){notify(failure.message);if(section.isConnected)renderRunRetryActions(root,run);}
+      };
+      row.append(button);section.append(row);
+    }
+    section.append(error);
+  }catch(failure){if(section.isConnected){error.textContent=failure.message;section.append(error);}}
+}
 const basicRunDetail=updateRunDetail;
 updateRunDetail=function(run){
   basicRunDetail(run);if(state.detailRunId!==run.id||!$("run-output"))return;
+  if(!["failed","interrupted"].includes(run.status))$('run-retry-controls')?.remove();
   if(typeof renderStructuredContent==="function")renderStructuredContent($("run-output"),(run.structured_content||[]).filter(part=>run.kind!=="external"||part.type!=="text"));
   let root=$("run-execution");if(!root){root=document.createElement("section");root.id="run-execution";$("run-output").after(root);}
   if(executionRequests.has(run.id)||(["running","queued"].includes(run.status)&&Date.now()-(executionTimes.get(run.id)||0)<1000))return;executionTimes.set(run.id,Date.now());
   const request=featureApi(`runs/${encodeURIComponent(run.id)}/execution`).then(data=>{if(state.detailRunId!==run.id||root!==$("run-execution"))return;const signature=JSON.stringify([data.timeline,data.states,run.status,run.cancel_requested,run.awaiting_input]);if(root.dataset.signature===signature)return;root.dataset.signature=signature;
     const focused=document.activeElement?.getAttribute("aria-label");renderExecutionReplay(root,data,run);if(focused)Array.from(root.querySelectorAll("[aria-label]")).find(element=>element.getAttribute("aria-label")===focused)?.focus();
+    renderRunRetryActions(root,run);
     if(["running","queued","waiting"].includes(run.status)||(run.status==="interrupted"&&run.cancellation_cleanup)){const stop=document.createElement("button");stop.className="secondary";stop.dataset.executionAction="true";const pendingCleanup=run.cancellation_cleanup&&run.status==="waiting",interruptedCleanup=run.cancellation_cleanup&&run.status==="interrupted";stop.textContent=pendingCleanup?"Skip this cleanup step":interruptedCleanup?"Continue cleanup":run.cancel_requested?"Stop requested":"Stop task";stop.disabled=!!run.cancel_requested&&!pendingCleanup&&!interruptedCleanup;stop.onclick=async()=>{try{await featureApi(`runs/${run.id}/cancel`,{});stop.textContent="Stop requested";stop.disabled=true;pollRun(run.id,updateRunDetail).catch(error=>notify(error.message));}catch(error){notify(error.message);}};root.append(stop);}
     for(const requested of run.awaiting_input||[]){const form=document.createElement("form");form.dataset.executionAction="true";form.innerHTML=`<label>${escapeHtml(requested.name)}<textarea name="answer" required></textarea></label><button type="submit">Provide input</button><p>Input fields requiring structured data accept JSON.</p>`;form.onsubmit=async event=>{event.preventDefault();try{const raw=new FormData(form).get("answer");let value=raw;if(requested.schema?.type&&requested.schema.type!=="string")value=JSON.parse(raw);await featureApi(`runs/${run.id}/input`,{values:{[requested.id]:value}});pollRun(run.id,updateRunDetail).catch(error=>notify(error.message));}catch(error){notify(error.message);}};root.append(form);}
   }).catch(error=>{if(state.detailRunId===run.id&&root===$("run-execution")&&!root.dataset.signature)root.textContent=error.message;}).finally(()=>executionRequests.delete(run.id));executionRequests.set(run.id,request);
@@ -481,13 +517,24 @@ function attachPromptSuggestions(input){
   input.addEventListener('keydown',event=>{if(list.hidden||event.shiftKey)return;if(['ArrowDown','ArrowUp','Enter','Escape'].includes(event.key)){event.preventDefault();event.stopImmediatePropagation();if(event.key==='Escape')close();else if(event.key==='Enter')insert(active);else{active=(active+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length;render();}}},true);
   input.addEventListener('blur',()=>setTimeout(()=>{if(!list.contains(document.activeElement))close();},150));
 }
+function setChatOptionsExpanded(expanded){
+  const button=$('mobile-chat-options');
+  if(!button)return;
+  button.setAttribute('aria-expanded',String(expanded));
+  button.textContent=expanded?'Close settings':'Settings';
+  $('chat-configuration').hidden=!expanded;
+}
 function initializeFeatureControls(){
   refreshPromptSuggestions().catch(error=>notify(error.message));['chat-task','builder-task'].forEach(id=>attachPromptSuggestions($(id)));
   if($('mobile-chat-options'))return;
   const controls=$('chat-project').closest('.chat-controls'),actions=document.createElement('div');actions.className='chat-extra-actions';
-  const button=document.createElement('button');button.id='mobile-chat-options';button.type='button';button.className='secondary mobile-chat-options';button.textContent='Options';button.setAttribute('aria-expanded','false');button.onclick=()=>{const expanded=controls.classList.toggle('options-expanded');button.setAttribute('aria-expanded',String(expanded));};
-  actions.append(button);['share-conversation','record-voice'].forEach(id=>{if($(id))actions.append($(id));});controls.append(actions);
-  controls.querySelectorAll('label').forEach(label=>{if(!label.contains($('chat-project'))&&!label.contains($('chat-agent')))label.classList.add('chat-advanced-setting');});
+  const button=document.createElement('button');button.id='mobile-chat-options';button.type='button';button.className='secondary mobile-chat-options';button.setAttribute('aria-controls','chat-configuration');button.onclick=()=>setChatOptionsExpanded(button.getAttribute('aria-expanded')!=='true');
+  actions.append(button);['share-conversation','record-voice'].forEach(id=>{if($(id))actions.append($(id));});controls.prepend(actions);
+  const mobile=matchMedia('(max-width: 767px)');
+  const sync=()=>{if(mobile.matches&&$('chat-configuration').contains(document.activeElement))button.focus();setChatOptionsExpanded(!mobile.matches||document.body.classList.contains('single-agent'));};
+  mobile.addEventListener('change',sync);sync();
+  controls.addEventListener('keydown',event=>{if(event.key==='Escape'&&mobile.matches&&!document.body.classList.contains('single-agent')){event.preventDefault();setChatOptionsExpanded(false);button.focus();}});
+  $('chat-form').addEventListener('submit',()=>{if(mobile.matches&&!document.body.classList.contains('single-agent'))setChatOptionsExpanded(false);});
 }
 if(state.ready)initializeFeatureControls();else window.addEventListener('studio-ready',initializeFeatureControls);
 window.addEventListener('studio-resource-saved',event=>{if(event.detail.kind==='prompts')refreshPromptSuggestions().catch(error=>notify(error.message));});

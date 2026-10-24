@@ -249,6 +249,22 @@ class StudioSQLState:
                 ).scalars()
             )
 
+    def job_request(self, run_id):
+        """Private original request for an explicitly reviewed Activity retry."""
+        with self.transaction() as conn:
+            row = (
+                conn.execute(
+                    self.sa.select(
+                        self.jobs.c.payload,
+                        self.jobs.c.session_id,
+                        self.jobs.c.status,
+                    ).where(self.jobs.c.namespace == self.namespace, self.jobs.c.run_id == run_id)
+                )
+                .mappings()
+                .first()
+            )
+        return dict(row) if row else None
+
     def enqueue(self, run_id, payload, session_id):
         # Safe JSON copy rejects callbacks, credentials embedded as objects, etc.
         payload = json.loads(json.dumps(payload))

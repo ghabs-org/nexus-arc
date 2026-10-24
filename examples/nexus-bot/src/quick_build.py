@@ -4,20 +4,20 @@ import argparse
 import json
 import time
 
+from nexus.adapters.ai.base import EFFORT_LEVELS
 from nexus.core.studio import StudioService
 from nexus.core.studio_models import default_models
 
 
 def main():
     parser = argparse.ArgumentParser(description="Describe a Nexus team and review its draft")
-    parser.add_argument(
-        "brief", nargs="?", help="What the agents and workflow should accomplish"
-    )
+    parser.add_argument("brief", nargs="?", help="What the agents and workflow should accomplish")
     parser.add_argument("--dir", default=".", help="Workspace for drafts and definitions")
     parser.add_argument(
         "--provider", default="codex", choices=["codex", "claude-code", "openai", "claude"]
     )
     parser.add_argument("--model", default="")
+    parser.add_argument("--effort", choices=EFFORT_LEVELS, default="")
     parser.add_argument(
         "--list-models", action="store_true", help="Show suggested models for --provider"
     )
@@ -31,7 +31,13 @@ def main():
     service = StudioService(args.dir)
     try:
         run = service.start_run(
-            {"kind": "build", "task": args.brief, "provider": args.provider, "model": args.model}
+            {
+                "kind": "build",
+                "task": args.brief,
+                "provider": args.provider,
+                "model": args.model,
+                "effort": args.effort,
+            }
         )
         while run["status"] in {"queued", "running"}:
             time.sleep(0.25)

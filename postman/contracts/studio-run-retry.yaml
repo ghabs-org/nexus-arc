@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: Nexus Activity step retry
+  version: 1.0.0
+  description: Explicit owner-scoped retries of failed workflow steps or saved chat, build, design and tool requests. No provider calls during inspection. Workflow retries retain acknowledged outputs and approvals, then continue unfinished work on the same run.
+paths:
+  /api/studio/runs/{id}/retry:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      description: Inspect current failed steps, a revision digest and any blocking recovery requirement. Legacy workflows use existing checkpoints. Old standalone runs without saved requests report unavailable rather than guessing their configuration.
+      responses:
+        '200':
+          description: Read-only retry plan; original request bodies, credentials and outputs are never returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, run_id, digest, can_retry, blocked_reason, steps, continues_workflow]
+                properties:
+                  version: {type: integer, enum: [1]}
+                  run_id: {type: string}
+                  digest: {type: string}
+                  can_retry: {type: boolean}
+                  blocked_reason: {type: string}
+                  continues_workflow: {type: boolean}
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, kind, requires_effect_review]
+                      properties:
+                        id: {type: string}
+                        name: {type: string}
+                        kind: {type: string}
+                        requires_effect_review: {type: boolean}
+        '403': {description: Account or project access denied.}
+        '404': {description: Run not found.}
+    post:
+      description: Retry the selected failed step and continue unfinished workflow work. Completed nodes never rerun. Failed retry budgets and cached failed outcomes in the selected scope are reset explicitly. Uncertain integration effects require the existing effect review first; tool retries require explicit effect confirmation. Duplicate digest and step submissions return the existing run without dispatching again. Current execution permissions and request/checkpoint digests are rechecked before queuing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [digest, step_id]
+              properties:
+                digest: {type: string}
+                step_id: {type: string}
+                confirm_effects: {type: boolean, default: false}
+      responses:
+        '202': {description: Existing run receipt; queued, executing, or already finished for an idempotent repeat. Inspect and poll this run without resubmitting.}
+        '400': {description: Stale plan, non-failed target, pending worker, missing snapshot or required external-effect review. No dispatch.}
+        '403': {description: Only the original account with current execution access can retry; viewers and other workspace members cannot.}
+        '404': {description: Run not found.}
