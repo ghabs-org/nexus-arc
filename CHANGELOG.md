@@ -10,6 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Quick Build refresh and delete** — **Refresh from workspace** previews and then records edits made to a build's
+  agents, workflows and resources outside Quick Build (changed resources become inactive until activation review;
+  stuck drafts can be saved again). **Delete build** removes only the build record and leaves its resources as
+  ordinary workspace items. Activation review accepts CLI workers' built-in web search for `:web_search`/`:research`
+  when no search account is configured. See [docs/STUDIO-BUILD-LIFECYCLE.md](docs/STUDIO-BUILD-LIFECYCLE.md).
+- **Built-in web search for CLI workers** — In shared mode without `research.search`, agents granted `:web_search`
+  or `:research` on Codex, Claude Code or OpenCode subscription workers (including workflow steps) use the worker's
+  own web search and fetch at the `web` tool level instead of failing. See
+  [docs/STUDIO-DATA-WORKERS.md](docs/STUDIO-DATA-WORKERS.md#search-without-a-configured-account).
 - **Knowledge projects linked to server folders** — Link up to four Workspace files folders (docs, source code)
   to a knowledge project and run **Sync now**: new and changed files become private artifact revisions indexed in one
   `knowledge-sync` task, deleted files leave search while earlier citations stay pinned. Builder role required; bounded

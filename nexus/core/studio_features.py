@@ -174,6 +174,8 @@ class StudioFeatures:
             return 202, queue_original(studio, selection, actor)
         if len(parts) == 3 and parts[0] == "builds" and parts[2] == "review":
             return 200, studio.builder.review(parts[1], data, actor)
+        if len(parts) == 3 and parts[0] == "builds" and parts[2] in {"refresh", "delete"}:
+            return 200, getattr(studio.builder.maintenance, parts[2])(parts[1], data, actor)
         if len(parts) == 3 and parts[0] == "builds" and parts[2] == "health":
             from nexus.core.studio_resource_health import StudioResourceHealth
 

@@ -16,6 +16,23 @@ The search adapter remains explicitly configured in private `research.search`
 settings. Existing web/image search, public page-fetch and source restrictions
 remain unchanged.
 
+### Search without a configured account
+
+In shared (team) mode, when `research.search` is not configured, an agent granted
+`:web_search` or `:research` that runs on a Codex, Claude Code or OpenCode
+subscription worker uses the worker's built-in web search and page fetch instead.
+This applies to chat and workflow agent steps. The agent's Studio search and
+fetch tools are left out of its tool loop, its other tools still run there, and
+the worker runs at the `web` tool level (search and fetch, no shell). Searches then
+use the worker's subscription and are not recorded as Studio web citations. An
+explicit `none` tool level in chat keeps the tools off.
+
+Once `research.search` is configured, the Studio tools are used again everywhere,
+with citations. Antigravity, API providers and desktop mode keep the Studio
+tools, which then need the account. `:image_search` always needs Tavily or Brave,
+and workflow `tool` nodes that call `:web_search` directly always need the account,
+because no model runs in those nodes.
+
 ## Build selected workers
 
 Builds install dependencies only when explicitly invoked. Catalog browsing and

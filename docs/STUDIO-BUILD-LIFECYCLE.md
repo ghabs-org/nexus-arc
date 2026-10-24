@@ -94,6 +94,41 @@ A passed probe establishes that specific operation at that time, not quota, mode
 quality or future availability. These additive records are included in existing
 whole-state backup/restore. No record rewriting migration is required.
 
+## Refresh from workspace and delete a build
+
+Agents, workflows and resources saved by a build can still be edited in their own
+editors or on disk. A managed edit then blocks launch and activation with
+`unreviewed_changes`, and a reopened draft can no longer be saved. **Refresh from
+workspace** (`POST /api/studio/builds/<id>/refresh`) is the review for those edits:
+
+1. A request with `{revision}` previews the change list and returns a `digest`.
+   Nothing is written.
+2. A request with `{revision, digest}` applies exactly that preview. It is refused
+   if the workspace changed in between.
+
+Confirming replaces the build proposal with the current definitions and resources,
+drops resources that were deleted, and increments the build revision. A draft
+is re-pinned to the current files, so it can be saved again; unsaved draft edits
+are discarded. Changed resources become inactive at their new content, and changed
+connections, entrypoints, schedules and external agents are disabled, so they run
+again only after **Review activation**. Refresh never rewrites a workspace file:
+if a definition uses settings the proposal format cannot express (for example
+`max_retries` or extra step fields), the refresh is refused and names it.
+
+**Delete build** (`POST /api/studio/builds/<id>/delete` with `{revision}`) removes
+only the build record. Its agents, workflows and resources stay as ordinary
+workspace items: their lifecycle markers are removed, so they are no longer gated
+by this build's activation review. Release history is kept. Deleting a build with
+saved resources requires the owner role in shared mode; a build that is still
+generating cannot be deleted.
+
+When `research.search` is not configured in shared mode, activation treats
+`:web_search` and `:research` as covered for agents on Codex, Claude Code or OpenCode
+workers, which use their built-in web search (see
+[data workers](STUDIO-DATA-WORKERS.md#search-without-a-configured-account)).
+Toolsets defer this check to the agents that use them; agents on other providers,
+and workflow tool nodes, still require the search account.
+
 ## Release recovery and migration
 
 Release journals cover definitions, catalog updates, build state, markers and

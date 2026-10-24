@@ -1264,13 +1264,20 @@ class StudioService:
             )
             if budget:
                 self._update_run(run_id, prompt_budget=budget)
+            worker_tools = payload.get("worker_tools")
+            if self.team and agent.get("tool_ids") and worker_tools != "none":
+                remaining, native = self.research.native_web(provider_name, agent["tool_ids"])
+                if native:
+                    # Workflow steps pass no tool level; the agent's search tools ask for web.
+                    agent = {**agent, "tool_ids": remaining}
+                    worker_tools = worker_tools or "web"
             context = ExecutionContext(
                 agent_name=str(agent.get("agent_type") or "studio"),
                 prompt=prompt,
                 workspace=self.root,
                 model_override=model,
                 effort=effort,
-                metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
+                metadata={**content_metadata, "worker_tools": worker_tools},
                 timeout=int(agent.get("timeout_seconds") or 600),
             )
             stream = getattr(provider, "execute_agent_streaming", None)
