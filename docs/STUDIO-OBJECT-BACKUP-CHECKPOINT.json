@@ -1,0 +1,89 @@
+{
+  "format": "nexus-studio-object-backup-checkpoint/v1",
+  "date": "2026-10-24",
+  "status": "fixture-verified",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Explicit capture of referenced artifact objects and offline local restoration using existing provider adapters; local file/SQLite recovery and actual boto3 against a synthetic HTTP service.",
+  "implemented": [
+    "Explicit include_remote_artifacts / --include-remote-artifacts opt-in preserves the existing stopped-writer and default no-provider-read behavior.",
+    "Validates profiles, immutable checksums/sizes and total limits before constructing stores. Captures only current/historical referenced objects, including archived versions, with deduplicated reads and no bucket listing or remote writes.",
+    "Built-in filesystem/S3/GCS/Azure stores implement bounded reads. Existing get-only custom stores remain compatible with post-read validation.",
+    "Versioned optional remote_artifacts manifest covers every captured object and original metadata. Verification stays offline and fails before restore for incomplete, conflicting, redirected or corrupt inventory.",
+    "Restore localizes staged current/history artifact records while retaining IDs, revisions, owners, archive flags and citation references. Active storage becomes local; remote profiles need a fresh probe before activation.",
+    "File and logical SQL restore share localization. Source workspace/namespace and remote objects remain unchanged; no queue rows are re-enqueued. A restored workspace can be backed up again without remote credentials.",
+    "Failure and interruption during capture publish no partial destination. Credential-bearing SDK exceptions stay out of messages.",
+    "Two installed-dependency skips in artifact-store tests were replaced with deterministic import/credential checks."
+  ],
+  "validation": {
+    "required": {
+      "tests": 169,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-object-backup-required-final.xml"
+    },
+    "provider_evidence": {
+      "s3": "Actual boto3 GetObject over local Postman simulation: two revisions captured and restored offline; 404, 403, 503, changed bytes and oversized content fail publication.",
+      "gcs": "Local injected store lifecycle plus metadata/range/generation call-contract tests; actual SDK runtime not installed in this test environment.",
+      "azure": "Local injected store lifecycle plus metadata/range call-contract tests; actual SDK runtime not installed in this test environment.",
+      "filesystem": "Real bytes, bounded reads, explicit nondefault-store CLI capture and offline restore."
+    },
+    "simulation": {
+      "log": "/private/tmp/nexus-object-backup-simulation.ndjson",
+      "requests": 11,
+      "methods": {
+        "GET": 11
+      },
+      "statuses": {
+        "200": 4,
+        "404": 1,
+        "403": 1,
+        "503": 5
+      },
+      "note": "S3 SDK retried read-only 503 responses. No mutating operation or bucket-list call occurred. Local simulation stopped afterward."
+    },
+    "examples": {
+      "file_recovery": "passed",
+      "sql_recovery": "passed",
+      "object_recovery": "passed"
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false
+    }
+  },
+  "migration": "Additive optional v1 snapshot inventory and get_bounded store capability; no production state rewrite. Restore rewrites staged references only. Prior local snapshots remain readable; older recovery tools reject remote snapshots safely. Source records/backups remain the rollback copy.",
+  "static": {
+    "source_and_new_tests_ruff": "passed",
+    "format": "passed",
+    "diff_whitespace": "passed",
+    "mock_syntax": "passed",
+    "existing_test_naming_findings": "Pre-existing N803 names mirror boto3 keyword names in old fake-client methods; no new naming findings."
+  },
+  "validation_pending": [
+    "Actual GCS/Azure SDK runtime acceptance and selected live S3/GCS/Azure permissions, retention/history and restore checks.",
+    "Real PostgreSQL state/restore, personal HTTPS VM and existing authentication/account-store disaster recovery.",
+    "Remaining frozen catalog, cross-cutting and desktop delivery gates; no blanket acceptance promotion."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_backup.py": "08a890a03227fdcb4e9870875593878d9531d6cc9b3105f04f7bedd2b1de4d58",
+    "nexus/core/studio_backup_artifacts.py": "65ef442f29912e2c5470dcf76d7546747bdacc2b20afe32892d9f7ce0e7b728d",
+    "nexus/core/studio_artifacts.py": "2fb6f655433a29ec47a35d4f28c850725d64ee7051ab0cb59083a181f58a722b",
+    "nexus/adapters/artifacts/__init__.py": "9f6126c737b73ddeeecaaaf58cfaf99392a55865c490ae71466d7fbd65c03baf",
+    "tests/test_studio_backup_artifacts.py": "da208a29bcd5b1ff401eaceba4c42dc7ed8baecfee0e6b9d58dc793b67e5b4d3",
+    "tests/test_artifact_store.py": "237565497c31fb1d965331533ddc4759916086fcfd6fb81d182a9049c2baf938",
+    "tests/studio_object_backup_acceptance.py": "d10b0d33ef6576f278d1e6568a9d48304a78cf1aa6a478ee25c8aa7ec12dcc8a",
+    "examples/nexus-bot/src/studio_remote_recovery.py": "460f91d334b55c79cebffb7050e1f22630eea5930d24682f9b316742e7f0cbf6",
+    "docs/STUDIO-RECOVERY.md": "60cb859b9b0993e86f55fd9171ecd79145f11dc1ec8b1f496990203253e23459",
+    "postman/contracts/studio-object-backup.md": "2613cf09b3d272d60ddb8c941b4af525889c2a19c23bd88459dd8dfff2b3879e",
+    "postman/mocks/studio-object-backup/config.yaml": "8a198e395a29c9c4fc7adaee99c94f93e6bb61021f18b2d4a94f2e8c353bd93e",
+    "postman/mocks/studio-object-backup/default.js": "5dad6dc225a5d56007b4edfe28e14a1b27cda215dd1409875a77719a0b6ef322",
+    "postman/simulations/studio-object-backup.sim.yaml": "eaa5bfcfda71a75d877bc576e1827b421551be7ca0a54aa2285805f9ff338c56"
+  },
+  "real_storage_accounts_used": false,
+  "user_studio_restarted": false,
+  "desktop_stays_last": true
+}

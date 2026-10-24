@@ -12,6 +12,17 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 
+def _read_limit(max_bytes):
+    if type(max_bytes) is not int or max_bytes < 0:
+        raise ValueError("Artifact read limit must be a nonnegative integer")
+
+
+def _bounded(content, max_bytes):
+    if content is not None and len(content) > max_bytes:
+        raise ValueError("Artifact exceeds the requested read limit")
+    return content
+
+
 class ArtifactStore(ABC):
     """Put/get/delete/list bytes under ``<bucket>/<key>``."""
 
@@ -20,6 +31,11 @@ class ArtifactStore(ABC):
 
     @abstractmethod
     def get(self, bucket: str, key: str) -> bytes | None: ...
+
+    def get_bounded(self, bucket: str, key: str, max_bytes: int) -> bytes | None:
+        """Compatibility fallback; backends should bound reads before buffering bytes."""
+        _read_limit(max_bytes)
+        return _bounded(self.get(bucket, key), max_bytes)
 
     @abstractmethod
     def delete(self, bucket: str, key: str) -> None: ...
@@ -49,6 +65,14 @@ class FilesystemStore(ArtifactStore):
         path = self._resolve(bucket, key)
         return path.read_bytes() if path.is_file() else None
 
+    def get_bounded(self, bucket: str, key: str, max_bytes: int) -> bytes | None:
+        _read_limit(max_bytes)
+        path = self._resolve(bucket, key)
+        if not path.is_file():
+            return None
+        with path.open("rb") as stream:
+            return _bounded(stream.read(max_bytes + 1), max_bytes)
+
     def delete(self, bucket: str, key: str) -> None:
         path = self._resolve(bucket, key)
         if path.is_file():
@@ -58,11 +82,7 @@ class FilesystemStore(ArtifactStore):
         base = self._root / bucket
         if not base.is_dir():
             return []
-        return sorted(
-            str(p.relative_to(base))
-            for p in base.rglob(f"{prefix}*")
-            if p.is_file()
-        )
+        return sorted(str(p.relative_to(base)) for p in base.rglob(f"{prefix}*") if p.is_file())
 
 
 class S3Store(ArtifactStore):
@@ -107,6 +127,20 @@ class S3Store(ArtifactStore):
     def delete(self, bucket: str, key: str) -> None:
         self._client.delete_object(Bucket=bucket, Key=key)
 
+    def get_bounded(self, bucket: str, key: str, max_bytes: int) -> bytes | None:
+        _read_limit(max_bytes)
+        try:
+            response = self._client.get_object(Bucket=bucket, Key=key)
+        except Exception:
+            return None
+        body = response["Body"]
+        try:
+            if response.get("ContentLength", 0) > max_bytes:
+                raise ValueError("Artifact exceeds the requested read limit")
+            return _bounded(body.read(max_bytes + 1), max_bytes)
+        finally:
+            body.close()
+
     def list(self, bucket: str, prefix: str = "") -> list[str]:
         keys: list[str] = []
         token: dict = {}
@@ -148,6 +182,26 @@ class GCSStore(ArtifactStore):
             self._blob(bucket, key).delete()
         except Exception:
             pass
+
+    def get_bounded(self, bucket: str, key: str, max_bytes: int) -> bytes | None:
+        _read_limit(max_bytes)
+        blob = self._blob(bucket, key)
+        blob.reload(timeout=30, retry=None)
+        if blob.size > max_bytes:
+            raise ValueError("Artifact exceeds the requested read limit")
+        if blob.size == 0:
+            return b""
+        return _bounded(
+            blob.download_as_bytes(
+                start=0,
+                end=max_bytes,
+                raw_download=True,
+                if_generation_match=blob.generation,
+                timeout=30,
+                retry=None,
+            ),
+            max_bytes,
+        )
 
     def list(self, bucket: str, prefix: str = "") -> list[str]:
         return sorted(blob.name for blob in self._client.list_blobs(bucket, prefix=prefix))
@@ -191,6 +245,19 @@ class AzureStore(ArtifactStore):
             self._container(bucket).delete_blob(key)
         except Exception:
             pass
+
+    def get_bounded(self, bucket: str, key: str, max_bytes: int) -> bytes | None:
+        _read_limit(max_bytes)
+        container = self._container(bucket)
+        size = container.get_blob_client(key).get_blob_properties(timeout=30).size
+        if size > max_bytes:
+            raise ValueError("Artifact exceeds the requested read limit")
+        if size == 0:
+            return b""
+        return _bounded(
+            container.download_blob(key, offset=0, length=max_bytes + 1, timeout=30).readall(),
+            max_bytes,
+        )
 
     def list(self, bucket: str, prefix: str = "") -> list[str]:
         return sorted(

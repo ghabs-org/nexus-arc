@@ -1,0 +1,79 @@
+{
+  "format": "nexus-studio-sql-restore-checkpoint/v1",
+  "date": "2026-10-24",
+  "status": "fixture-verified",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Stopped logical SQL snapshot restore into an empty namespace, verified files, inactive resources and explicit recovery without queue replay. SQLite-backed local acceptance only.",
+  "implemented": [
+    "Explicit checksummed logical record inventory separates SQL state from physical artifact bytes. Older snapshots retain file-state restore; SQL restore requires the new inventory.",
+    "Empty target namespace checks include all job rows and run under the existing SQL workspace lock. Other namespaces and the source remain unchanged.",
+    "Local copies are verified before inactivation and publication. Authoritative JSON mirrors are removed so deleted SQL records cannot reappear in later backups.",
+    "A private pending guard blocks Studio startup and backup until files, one SQL import transaction and its receipt are verified.",
+    "Receipt-bound recovery checks destination, namespace, files and imported records. Actual subprocess exits before and after commit recover without importing committed records twice.",
+    "Restore never imports source queue rows. Pending runs become interrupted, schedules/connectors remain disabled, shares revoked and external attempts uncertain.",
+    "Retained documents/search, definitions, conversations and approved paused workflow continuation pass. A completed preparation step is not repeated.",
+    "CLI restore/recover-sql use server environment references and stopped-writer acknowledgement. Reports contain no connection strings.",
+    "Existing file recovery example remains usable; --sql consumes the new framework path without account or network requests."
+  ],
+  "validation": {
+    "required": {
+      "tests": 113,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-sql-restore-required-final.xml"
+    },
+    "optional_vectors": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-sql-restore-optional-vectors.xml",
+      "deselected": 1,
+      "pending_test": "tests/test_studio_knowledge_vectors.py::test_local_tls_verification_error_does_not_become_lexical_fallback",
+      "reason": "Existing fixture cannot bind its loopback HTTP server in the current sandbox; no pass or skip is claimed for that case.",
+      "resolved_by": "validation.tls_followup"
+    },
+    "tls_followup": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-local-tls-followup.xml",
+      "status": "passed",
+      "scope": "Previously deselected loopback TLS regression, rerun with approved local socket access; the earlier optional-vector report is unchanged."
+    }
+  },
+  "examples": {
+    "file_state": "passed",
+    "sql_state": "passed"
+  },
+  "static": {
+    "ruff": "passed",
+    "format": "passed",
+    "diff_whitespace": "passed"
+  },
+  "migration": "Optional snapshot sql_records/sql_records_sha256 plus private versioned intents and receipts; state schema version stays 1. No production records, credentials or database were migrated. Original snapshots remain the rollback copy.",
+  "validation_pending": [
+    "Live PostgreSQL-to-PostgreSQL restore, driver/database failure and personal HTTPS VM drill.",
+    "Live cloud-bucket and actual account-store recovery.",
+    "Nuclia conversation attachment contract lookup remains deferred; external source download was not executed because automatic approval review could not complete under the current usage limit. No route was guessed."
+  ],
+  "required_warning": "One SQLAlchemy deprecation warning comes from constructing a mode=memory URI solely to verify that ephemeral restore targets are rejected; production connection behavior was not changed.",
+  "source_sha256": {
+    "nexus/core/studio_sql_restore.py": "6c806af57abc4afdd0123fda83c45fed4125192ff0061aef3a936ded5a6448de",
+    "nexus/core/studio_backup.py": "ecd9e41e77a98505d420c6457985bf582766767675207e919323fce2105a2bce",
+    "nexus/core/studio.py": "cfecae03ac63ee6e55bd0ef37c067841cfa22eab7878db82909e7a27dace8ecd",
+    "tests/test_studio_sql_restore.py": "99ce4d8ea3cec482d68794db504ca748dfac2c9c431f42fd7eb015126440c8e2",
+    "examples/nexus-bot/src/studio_recovery.py": "9d06650f860216f2ac98d70a6cab7bbce770ede614ce940abc3c1327058761ff",
+    "docs/STUDIO-RECOVERY.md": "5dcbc846a459c6bc0d7bbd6447dbd7479148e593604192a6f03e9850e780402c"
+  },
+  "real_account_requests_performed": false,
+  "user_studio_restarted": false,
+  "desktop_stays_last": true,
+  "object_backup_followup": {
+    "checkpoint": "STUDIO-OBJECT-BACKUP-CHECKPOINT.json",
+    "scope": "Provider capture and offline artifact localization extend the earlier SQL restore. Earlier source hashes and test results remain evidence for the original scope."
+  }
+}

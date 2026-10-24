@@ -32,11 +32,29 @@ This does not freeze every external provider/tool dependency.
 
 Execution is sequential: variant, case, repetition. Repetitions receive distinct
 workflow checkpoint identities; they are deliberate executions, not retries.
-Each repeat can run workflow tools. Workflows containing approval/input gates
-(including named children) are rejected before dispatch; interactive workflow
-execution remains in the existing workflow runner. Runtime
+Each repeat can run workflow tools. Approval/input gates pause the parent
+evaluation run without grading the unfinished case or dispatching later cases.
+Existing run approval and input operations resume its current case checkpoint,
+then continue the remaining repetitions and variants. Completed cases and completed
+workflow nodes are retained across continuation and file/SQL service restarts.
+Each repetition requires its own decisions; approval never grants future repeats.
+The execution view and review inbox show the current case's saved workflow.
+Input schemas, ownership, execution permission and duplicate-decision checks remain
+those of the workflow runner. Invalid input leaves the case waiting. Rejection
+or cancellation stops the experiment; configured cleanup handlers still apply.
+An incomplete report always has `complete:false` and `acceptance:null`.
+Workflow definitions, nested definitions and limits are pinned before dispatch;
+later edits do not change queued or paused cases. Runtime
 errors stop immediately; cancellation follows existing job behavior. No automatic
 retries, provider fallback or new scheduling/execution service is added.
+
+Waiting experiment runs also expose an opaque `evaluation_checkpoint` token.
+Send it unchanged in `POST /api/runs/{id}/resume` alongside `decision`, or in
+`POST /api/studio/runs/{id}/input` alongside `values`. It binds the decision to that pause.
+Missing or stale tokens return a validation error without changing the checkpoint.
+Refresh run details before retrying. Ordinary workflow requests remain compatible
+and do not require this field. The review inbox uses its existing digest and
+confirmation flow, with this token bound to the reviewed run.
 
 Reports retain existing fields plus `experiment_id`, `experiment_revision`,
 `experiment_name`, `runs_per_example`, `pass_threshold`, `expected_total`,

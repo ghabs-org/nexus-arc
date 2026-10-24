@@ -104,6 +104,9 @@ class StudioService:
             self.state.stat().st_mode & 0o077 or self.state.stat().st_uid != os.getuid()
         ):
             raise ValueError("Shared state must be owned by this process user and have mode 0700")
+        restore_guard = self.state / "restore-pending.json"
+        if restore_guard.exists() or restore_guard.is_symlink():
+            raise ValueError("SQL restore is incomplete; run stopped-workspace recover-sql first")
         self.provider_factory = provider_factory or AdapterRegistry().create_ai
         self._custom_provider_factory = provider_factory is not None
         self.closing = False
@@ -380,7 +383,9 @@ class StudioService:
                         status = "CLI installed"
                     else:
                         status = "Logged in"
-                        setup_text = f"Logged in ({auth[0]})\nCLI (optional): npm install -g opencode-ai"
+                        setup_text = (
+                            f"Logged in ({auth[0]})\nCLI (optional): npm install -g opencode-ai"
+                        )
 
             items.append(
                 {
@@ -740,6 +745,16 @@ class StudioService:
                 )
             run.update(values, updated_at=_now())
             self._write(self._path("runs", identity), run)
+            if run.get("kind") == "evaluation" and values.get("status") in {
+                "cancelled",
+                "interrupted",
+            }:
+                report_path = self._path("evaluation-reports", identity)
+                if report_path.exists():
+                    report = self._read(report_path)
+                    if not report.get("complete"):
+                        report.update(evaluation_status=values["status"], updated_at=_now())
+                        self._write(report_path, report)
             if hasattr(self, "execution"):
                 if "status" in values and values["status"] != previous_status:
                     self.execution.record(
@@ -1383,7 +1398,8 @@ class StudioService:
                         )
             # An explicit retry replaces this run's failed turn, preserving other turns.
             session["messages"] = [
-                message for message in session["messages"]
+                message
+                for message in session["messages"]
                 if not (message.get("run_id") == run_id and message.get("status") == "failed")
             ]
             session["messages"].extend(
@@ -1465,7 +1481,9 @@ class StudioService:
                 if request_cleanup(self, identity, enqueue=run["status"] != "queued"):
                     return self.run(identity)
             if run["status"] == "waiting" and run.get("awaiting_approval"):
-                return self.graph.resume(identity, "reject")
+                return self.graph.resume(
+                    identity, "reject", checkpoint=run.get("evaluation_checkpoint")
+                )
             self._update_run(
                 identity,
                 cancel_requested=True,

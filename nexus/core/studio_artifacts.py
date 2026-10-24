@@ -58,6 +58,37 @@ def content_type(content):
         return "application/octet-stream"
 
 
+def profile_settings(payload):
+    """Validate storage settings without constructing a provider or writing state."""
+    kind = payload.get("kind")
+    fields = {
+        "filesystem": set(),
+        "s3": {"endpoint_url", "region", "access_key", "secret_key"},
+        "gcs": {"project"},
+        "azure": {"connection_string"},
+    }
+    if not isinstance(kind, str) or kind not in fields:
+        raise ValueError("Choose filesystem, S3, GCS or Azure storage")
+    bucket = _text(payload.get("bucket") or "studio", "Bucket/container", 63)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{1,62}", bucket):
+        raise ValueError("Use a valid bucket/container name")
+    options = payload.get("options", {})
+    if not isinstance(options, dict) or set(options) - fields[kind]:
+        raise ValueError("Unsupported artifact storage settings")
+    for name, value in options.items():
+        if name in {"access_key", "secret_key", "connection_string"}:
+            if not isinstance(value, dict) or set(value) != {"env"}:
+                raise ValueError("Storage credentials must be environment references")
+            env_name(value["env"])
+        elif not isinstance(value, str) or len(value) > 2000:
+            raise ValueError("Storage options must be short text")
+        if name == "endpoint_url":
+            from nexus.core.studio_connections import https_url
+
+            https_url(value)
+    return {"kind": kind, "bucket": bucket, "options": options}
+
+
 class StudioArtifacts:
     def __init__(self, studio, store_factory=None):
         self.studio = studio
@@ -103,38 +134,11 @@ class StudioArtifacts:
         return create_store(profile["kind"], **options)
 
     def save_profile(self, payload):
-        kind = payload.get("kind")
-        fields = {
-            "filesystem": set(),
-            "s3": {"endpoint_url", "region", "access_key", "secret_key"},
-            "gcs": {"project"},
-            "azure": {"connection_string"},
-        }
-        if kind not in fields:
-            raise ValueError("Choose filesystem, S3, GCS or Azure storage")
-        bucket = _text(payload.get("bucket") or "studio", "Bucket/container", 63)
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{1,62}", bucket):
-            raise ValueError("Use a valid bucket/container name")
-        options = payload.get("options", {})
-        if not isinstance(options, dict) or set(options) - fields[kind]:
-            raise ValueError("Unsupported artifact storage settings")
-        for name, value in options.items():
-            if name in {"access_key", "secret_key", "connection_string"}:
-                if not isinstance(value, dict) or set(value) != {"env"}:
-                    raise ValueError("Storage credentials must be environment references")
-                env_name(value["env"])
-            elif not isinstance(value, str) or len(value) > 2000:
-                raise ValueError("Storage options must be short text")
-            if name == "endpoint_url":
-                from nexus.core.studio_connections import https_url
-
-                https_url(value)
+        settings = profile_settings(payload)
         profile = {
             "id": uuid.uuid4().hex,
             "name": _text(payload.get("name"), "Storage name", 200),
-            "kind": kind,
-            "bucket": bucket,
-            "options": options,
+            **settings,
         }
         self.studio._write(self.studio._path("artifact-backends", profile["id"]), profile)
         return profile

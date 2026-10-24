@@ -103,7 +103,9 @@ def request_cleanup(studio, run_id, enqueue=True):
     Called under Studio's lock. Running tasks are interrupted by cancel_run;
     this path is for approval/input-paused tasks whose original executor ended.
     """
-    path = studio._path("graph-runs", run_id)
+    from nexus.core.studio_experiments import checkpoint_id, continuation_payload
+
+    path = studio._path("graph-runs", checkpoint_id(studio, run_id))
     if not path.exists():
         return False
     state = studio._read(path)
@@ -176,5 +178,7 @@ def request_cleanup(studio, run_id, enqueue=True):
         awaiting_input=[],
     )
     if enqueue:
-        studio.resume_workflow(run_id, {**state["payload"], "resume_graph": True})
+        studio.resume_workflow(
+            run_id, continuation_payload(studio, run_id, state["payload"], "resume_graph")
+        )
     return True

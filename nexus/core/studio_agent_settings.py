@@ -194,7 +194,9 @@ def pin_agents(studio, payload):
     selected = {payload["agent_id"]} if payload.get("agent_id") else set()
     if payload.get("kind") == "delegation":
         selected.update(payload.get("agent_ids", []))
-    if payload.get("kind") == "workflow":
+    if payload.get("kind") == "workflow" or (
+        payload.get("kind") == "evaluation" and payload.get("workflow_snapshot")
+    ):
         # Pin named children too; cycles/actual reachability are checked by graph preflight.
         def walk(value):
             referenced = set()

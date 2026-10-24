@@ -897,7 +897,11 @@ def make_studio_handler(service: StudioService, token: str):
                     )
                 if len(parts) == 4 and parts[:2] == ["api", "runs"] and parts[3] == "resume":
                     return self.send_payload(
-                        202, service.graph.resume(parts[2], payload.get("decision"))
+                        202,
+                        service.graph.resume(
+                            parts[2], payload.get("decision"),
+                            checkpoint=payload.get("evaluation_checkpoint"),
+                        ),
                     )
                 if route == "/api/runs":
                     return self.send_payload(

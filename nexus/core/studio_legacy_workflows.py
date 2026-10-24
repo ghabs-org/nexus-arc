@@ -309,14 +309,22 @@ class StudioLegacyWorkflows:
             if step.status == StepStatus.COMPLETED
         )
 
-    def resume(self, run_id, decision):
+    def resume(self, run_id, decision, *, checkpoint=None):
+        from nexus.core.studio_experiments import (
+            checkpoint_id,
+            continuation_payload,
+            validate_continuation,
+        )
+
         if decision not in {"approve", "reject"}:
             raise ValueError("Choose approve or reject")
         with self.studio.lock:
+            validate_continuation(self.studio, run_id, checkpoint)
             run = self.studio.run(run_id)
             if run["status"] != "waiting" or not run.get("awaiting_approval"):
                 raise ValueError("YAML workflow is not awaiting approval")
-            state = self.studio._read(self.studio._path("yaml-runs", run_id))
+            path = self.studio._path("yaml-runs", checkpoint_id(self.studio, run_id))
+            state = self.studio._read(path)
             if decision == "reject":
                 self.studio._update_run(
                     run_id, status="cancelled", awaiting_approval=[], error="YAML approval rejected"
@@ -325,7 +333,9 @@ class StudioLegacyWorkflows:
             if self.studio.team:
                 self.studio.team.assert_execution(run.get("requester_nexus_id"))
             state["approved"].extend(gate["id"] for gate in run["awaiting_approval"])
-            self.studio._write(self.studio._path("yaml-runs", run_id), state)
+            self.studio._write(path, state)
             self.studio._update_run(run_id, status="queued", error=None, awaiting_approval=[])
-            self.studio.resume_workflow(run_id, {**state["payload"], "resume_yaml": True})
+            self.studio.resume_workflow(
+                run_id, continuation_payload(self.studio, run_id, state["payload"], "resume_yaml")
+            )
             return self.studio.run(run_id)

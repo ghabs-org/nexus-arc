@@ -86,6 +86,10 @@ def validate_experiment(data):
 
 def prepare(studio, payload):
     payload.pop("experiment_snapshot", None)
+    payload.pop("resume_graph", None)
+    payload.pop("resume_yaml", None)
+    payload.pop("workflow_snapshot", None)
+    payload.pop("workflow_snapshots", None)
     payload["_experiment_settings"] = {"repeats": 1, "threshold": 1, "enforce": False}
     if payload.get("experiment_id"):
         if "evaluation_id" in payload or "variants" in payload:
@@ -98,8 +102,6 @@ def prepare(studio, payload):
                 raise ValueError(
                     "Evaluation suite changed. Review the experiment's pinned revision before running"
                 )
-            if suite["data"]["target_kind"] == "workflow":
-                require_noninteractive(studio, suite["data"]["target_id"])
         payload.update(
             experiment_snapshot=experiment, evaluation_id=suite["id"], variants=settings["variants"]
         )
@@ -123,32 +125,50 @@ def prepare(studio, payload):
             "Experiment exceeds the 400 case-execution limit; reduce cases, variants or repetitions"
         )
     payload["suite_snapshot"] = copy.deepcopy(suite)
+    if suite["data"]["target_kind"] == "workflow":
+        with studio.lock:
+            payload["workflow_snapshot"] = studio.definition(
+                "workflows", suite["data"]["target_id"]
+            )
+            payload["workflow_snapshots"] = {
+                item["id"]: item["document"]
+                for item in studio.definitions("workflows")
+                if item.get("document") and item["document"].get("graph", {}).get("version") == 2
+            }
+            payload["_workflow_limits"] = dict(studio.workflow_limits)
 
 
-def require_noninteractive(studio, identity, seen=None):
-    """Evaluation checkpoint resumes are not interactive workflow resumes."""
-    seen = set() if seen is None else seen
-    if identity in seen:
-        return
-    if len(seen) >= 100:
-        raise ValueError("Experiment workflow dependency limit exceeded")
-    seen.add(identity)
-    graphs = [studio.definition("workflows", identity).get("graph", {})]
-    while graphs:
-        graph = graphs.pop()
-        for node in graph.get("nodes", []):
-            if node.get("kind") in {"approval", "input"}:
-                raise ValueError(
-                    "Experiments require non-interactive workflows; run approval/input workflows separately"
-                )
-            if node.get("kind") == "workflow":
-                require_noninteractive(studio, node["workflow_id"], seen)
-            if isinstance(node.get("body"), dict):
-                graphs.append(node["body"])
-        graphs.extend(
-            graph[key] for key in ("on_success", "on_error") if isinstance(graph.get(key), dict)
-        )
-        graphs.extend(handler["body"] for handler in graph.get("interop_exit_handlers", []))
+def checkpoint_id(studio, run_id):
+    """Resolve the current case using server-owned progress, never a caller-supplied ID."""
+    if studio.run(run_id).get("kind") != "evaluation":
+        return run_id
+    path = studio._path("evaluation-progress", run_id)
+    if not path.exists():
+        return run_id
+    progress = studio._read(path)
+    return progress.get("checkpoint_id") or run_id
+
+
+def continuation_payload(studio, run_id, workflow_payload, mode):
+    """Continue the parent evaluation through the existing fenced job service."""
+    if studio.run(run_id).get("kind") != "evaluation":
+        return {**workflow_payload, mode: True}
+    progress = studio._read(studio._path("evaluation-progress", run_id))
+    if not progress.get("checkpoint_id") or progress.get("complete"):
+        raise ValueError("Evaluation has no pending workflow case")
+    return {**copy.deepcopy(progress["payload"]), mode: True}
+
+
+def validate_continuation(studio, run_id, checkpoint):
+    """Bind a reviewed decision to one pause, including its experiment repetition."""
+    run = studio.run(run_id)
+    if run.get("kind") == "evaluation":
+        if not checkpoint or checkpoint != run.get("evaluation_checkpoint"):
+            raise ValueError(
+                "Experiment checkpoint changed. Review the current case before continuing"
+            )
+        if studio.team:
+            studio.team.assert_execution(run.get("requester_nexus_id"))
 
 
 def summarize(report, *, complete=False):

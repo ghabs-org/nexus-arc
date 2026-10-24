@@ -3,13 +3,12 @@
 This is an operator API: stop every Studio/worker and other workspace writer
 before calling it. It never starts a Studio service or resolves credentials.
 Project source files and Nexus authentication/account stores need their existing
-backup procedure. Remote artifact stores currently require a provider backup;
-this API refuses to label a snapshot containing remote artifact references complete.
+backup procedure. Remote artifact capture requires explicit opt-in and downloads
+only referenced immutable objects. Restore uses verified local copies offline.
 """
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
@@ -92,9 +91,11 @@ def _copy_file(source, target, *, sqlite_snapshot=False):
     os.chmod(target, 0o600)
 
 
-def _preflight_state(state):
+def _preflight_state(state, *, remote_artifacts=None, allow_remote_artifacts=False):
     from nexus.core.studio_schema import SCHEMA_VERSION
 
+    if (state / "restore-pending.json").exists():
+        raise ValueError("Complete interrupted SQL restore recovery before backup")
     schema = state / "system" / "schema.json"
     if schema.exists():
         version = json.loads(schema.read_text()).get("version")
@@ -108,28 +109,36 @@ def _preflight_state(state):
             record = json.loads(path.read_text())
             if parts[0] == "configuration-journals" and record.get("status") == "applying":
                 raise ValueError("Recover the interrupted configuration release before backup")
-            data = record.get("data", {})
-            if record.get("kind") == "artifacts" and data.get("store_id", "local") != "local":
-                raise ValueError("Remote artifact bytes require a separate provider backup")
-            if record.get("kind") == "artifacts":
-                if "content_base64" in data:
-                    base64.b64decode(data["content_base64"], validate=True)
-                else:
-                    blob = state / "artifact-objects" / "studio" / _relative(data["blob_key"])
-                    if not blob.is_file() or _sha(blob) != data["sha256"]:
-                        raise ValueError("Local artifact bytes are missing or corrupt")
+    from nexus.core.studio_backup_artifacts import verify
+
+    verify(state, remote_artifacts, allow_remote=allow_remote_artifacts)
 
 
-def create_snapshot(root, destination, *, state_dir=None, quiesced=False, sql_state=None):
+def create_snapshot(
+    root,
+    destination,
+    *,
+    state_dir=None,
+    quiesced=False,
+    sql_state=None,
+    include_remote_artifacts=False,
+    artifact_store_factory=None,
+):
     """Create a verified snapshot, publishing it only after complete preflight.
 
     ``sql_state`` is an existing StudioSQLState opened without a Studio worker.
     All writers must be stopped, including other processes. SQL records are
     exported from one namespace under its existing transaction lock. Queue rows
     are retained for inspection, never imported as executable jobs on restore.
+    Explicit remote inclusion uses the existing artifact profiles and environment
+    references, with read-only provider access. No Studio service is started.
     """
     if quiesced is not True:
         raise ValueError("Stop all workspace writers and explicitly confirm quiesced=True")
+    if type(include_remote_artifacts) is not bool:
+        raise ValueError("Remote artifact inclusion must be explicitly true or false")
+    if artifact_store_factory is not None and not include_remote_artifacts:
+        raise ValueError("Artifact store factory requires explicit remote artifact inclusion")
     root = Path(root).resolve(strict=True)
     state = Path(state_dir).resolve(strict=True) if state_dir else root / ".nexus" / "studio"
     if not state.is_dir():
@@ -186,7 +195,7 @@ def create_snapshot(root, destination, *, state_dir=None, quiesced=False, sql_st
                 and path.suffix in {".sqlite", ".sqlite3", ".db"},
             )
         (staged / "state").mkdir(exist_ok=True, mode=0o700)
-        jobs = []
+        jobs, sql_records = [], []
         if sql_state:
             with sql_state.lock, sql_state.transaction() as connection:
                 rows = connection.execute(
@@ -199,6 +208,7 @@ def create_snapshot(root, destination, *, state_dir=None, quiesced=False, sql_st
                         continue
                     relative = _relative(row["collection"] + "/" + row["identity"] + ".json")
                     _json(staged / "state" / relative, row["body"])
+                    sql_records.append("state/" + relative.as_posix())
                 jobs = [
                     dict(row)
                     for row in connection.execute(
@@ -208,7 +218,12 @@ def create_snapshot(root, destination, *, state_dir=None, quiesced=False, sql_st
                     ).mappings()
                 ]
             _json(staged / "sql-jobs.json", jobs)
-        _preflight_state(staged / "state")
+        _preflight_state(staged / "state", allow_remote_artifacts=include_remote_artifacts)
+        remote_artifacts = None
+        if include_remote_artifacts:
+            from nexus.core.studio_backup_artifacts import capture
+
+            remote_artifacts = capture(staged / "state", store_factory=artifact_store_factory)
         entries = [
             {"path": p.relative_to(staged).as_posix(), "size": p.stat().st_size, "sha256": _sha(p)}
             for p in _files(staged)
@@ -224,13 +239,27 @@ def create_snapshot(root, destination, *, state_dir=None, quiesced=False, sql_st
             "excluded": sorted(EXCLUDED),
             "scope": ["definitions", "studio-state", "local-artifacts", "sqlite-indexes"],
             "files": entries,
+            **({"remote_artifacts": remote_artifacts} if remote_artifacts is not None else {}),
+            **(
+                {
+                    "sql_records": sorted(sql_records),
+                    "sql_records_sha256": _sql_inventory_sha(sorted(sql_records)),
+                }
+                if sql_state
+                else {}
+            ),
         }
         _json(staged / "manifest.json", manifest)
         verify_snapshot(staged)
         if destination.exists() or destination.is_symlink():
             raise FileExistsError("Snapshot destination must not exist")
         staged.rename(destination)
-    return {"path": str(destination), "files": len(entries), "backend": manifest["backend"]}
+    return {
+        "path": str(destination),
+        "files": len(entries),
+        "backend": manifest["backend"],
+        "remote_artifact_objects": len((remote_artifacts or {}).get("objects", [])),
+    }
 
 
 def verify_snapshot(source):
@@ -274,8 +303,44 @@ def verify_snapshot(source):
             raise ValueError("Snapshot integrity verification failed")
     if {p.relative_to(source).as_posix() for p in paths} != expected:
         raise ValueError("Snapshot contains unlisted files")
-    _preflight_state(source / "state")
+    if "sql_records" in manifest:
+        sql_record_paths(manifest)
+    _preflight_state(source / "state", remote_artifacts=manifest.get("remote_artifacts"))
     return manifest
+
+
+def _sql_inventory_sha(records):
+    return hashlib.sha256(json.dumps(records, ensure_ascii=False).encode()).hexdigest()
+
+
+def sql_record_paths(manifest):
+    """Read the explicit logical inventory; never infer records from artifact bytes."""
+    records = manifest.get("sql_records")
+    if manifest.get("backend") != "sql-logical" or not isinstance(records, list):
+        raise ValueError("SQL restore requires a fresh SQL snapshot with a record inventory")
+    if len(records) > MAX_FILES:
+        raise ValueError("SQL snapshot record inventory exceeds its limit")
+    if manifest.get("sql_records_sha256") != _sql_inventory_sha(records):
+        raise ValueError("SQL snapshot record inventory checksum failed")
+    expected = {item["path"] for item in manifest["files"]}
+    seen = set()
+    for name in records:
+        path = _relative(name)
+        parts = path.parts
+        collection = "/".join(parts[1:-1])
+        if (
+            len(parts) < 3
+            or parts[0] != "state"
+            or parts[1] in EXCLUDED | {"artifact-objects", "workflow-runtime"}
+            or path.suffix != ".json"
+            or len(collection) > 512
+            or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}", path.stem)
+            or name not in expected
+            or name in seen
+        ):
+            raise ValueError("Invalid SQL snapshot record inventory")
+        seen.add(name)
+    return records
 
 
 def _inactivate(state):
@@ -308,19 +373,27 @@ def _inactivate(state):
             record["enabled"] = False
         if relative.as_posix() == "artifact-settings/active.json":
             record["profile_id"] = "local"
+        if relative.parts[0] == "artifact-backends" and "verified" in record:
+            record["verified"] = False
         if before != json.dumps(record, sort_keys=True):
             _json(path, record)
             changes.append(relative.as_posix())
     return changes
 
 
-def restore_snapshot(source, destination):
+def restore_snapshot(source, destination, *, sql_state=None, quiesced=False):
     """Restore to a new directory, with schedules/connections/public shares inactive.
 
-    SQL snapshots restore as private file state; original queue rows remain in
-    the backup only. This never connects to an auth store, cloud or SQL server.
+    By default SQL snapshots restore as private file state. An explicit existing
+    SQL state handle selects an empty-namespace logical import with stopped writers.
+    Original queue rows remain in the backup only. Neither mode connects to an
+    auth store or cloud artifact provider.
     Review the report and supply the original team policy before hosted use.
     """
+    if sql_state is not None:
+        from nexus.core.studio_sql_restore import restore_sql_snapshot
+
+        return restore_sql_snapshot(source, destination, sql_state, quiesced=quiesced)
     source = Path(source).resolve(strict=True)
     manifest = verify_snapshot(source)
     destination = Path(destination).absolute()
@@ -342,9 +415,15 @@ def restore_snapshot(source, destination):
             ):
                 continue
             if relative.parts[0] in {"state", "project"}:
-                _copy_file(source / relative, staged / relative)
+                target = staged / relative
+                _copy_file(source / relative, target)
+                if target.stat().st_size != item["size"] or _sha(target) != item["sha256"]:
+                    raise ValueError("Snapshot changed or copy failed during restore")
         for directory in ("project", "state"):
             (staged / directory).mkdir(mode=0o700, exist_ok=True)
+        from nexus.core.studio_backup_artifacts import localize
+
+        localized = localize(staged / "state", manifest.get("remote_artifacts"))
         changes = _inactivate(staged / "state")
         _json(
             staged / "state" / "storage-backend.json",
@@ -361,6 +440,10 @@ def restore_snapshot(source, destination):
             "inactive_records": changes,
             "sql_jobs_not_enqueued": manifest.get("sql_jobs_retained", 0),
             "review_required": True,
+            "remote_artifact_references_localized": localized,
+            "remote_artifact_objects_restored": len(
+                manifest.get("remote_artifacts", {}).get("objects", [])
+            ),
         }
         _json(staged / "restore-report.json", report)
         if destination.exists() or destination.is_symlink():
@@ -382,40 +465,80 @@ def main():
     create.add_argument("--stopped", action="store_true", help="All workspace writers are stopped")
     create.add_argument("--state-url-env", help="SQL connection environment reference")
     create.add_argument("--namespace")
+    create.add_argument(
+        "--include-remote-artifacts",
+        action="store_true",
+        help="Read referenced artifact revisions from configured stores into this backup",
+    )
     verify = commands.add_parser("verify")
     verify.add_argument("source")
     restore = commands.add_parser("restore")
     restore.add_argument("source")
     restore.add_argument("destination")
+    restore.add_argument("--state-url-env", help="Target SQL connection environment reference")
+    restore.add_argument("--namespace", help="Empty target SQL namespace")
+    restore.add_argument(
+        "--stopped", action="store_true", help="All source and target writers are stopped"
+    )
+    recover = commands.add_parser("recover-sql")
+    recover.add_argument("destination")
+    recover.add_argument("--state-url-env", required=True)
+    recover.add_argument("--namespace", required=True)
+    recover.add_argument("--stopped", action="store_true")
     args = parser.parse_args()
     store = None
     try:
-        if args.operation == "create":
-            if args.state_url_env:
-                from nexus.core.studio_connections import env_name
-                from nexus.core.studio_state import StudioSQLState
+        if getattr(args, "state_url_env", None):
+            if not args.stopped:
+                raise ValueError("Stop all workspace writers and pass --stopped")
+            if args.operation == "restore":
+                sql_record_paths(verify_snapshot(args.source))
+            from nexus.core.studio_connections import env_name
+            from nexus.core.studio_state import StudioSQLState
 
-                url = os.getenv(env_name(args.state_url_env))
-                if not url:
-                    raise ValueError("SQL connection environment reference is not configured")
+            url = os.getenv(env_name(args.state_url_env))
+            if not url:
+                raise ValueError("SQL connection environment reference is not configured")
+            try:
                 store = StudioSQLState(url, args.namespace)
-            elif args.namespace:
-                raise ValueError("SQL namespace requires --state-url-env")
+            except ValueError:
+                raise
+            except Exception:
+                raise ValueError(
+                    "SQL state connection failed; check the configured reference and driver"
+                ) from None
+        elif getattr(args, "namespace", None):
+            raise ValueError("SQL namespace requires --state-url-env")
+        if args.operation == "create":
             result = create_snapshot(
                 args.root,
                 args.destination,
                 state_dir=args.state_dir,
                 quiesced=args.stopped,
                 sql_state=store,
+                include_remote_artifacts=args.include_remote_artifacts,
             )
         elif args.operation == "restore":
-            result = restore_snapshot(args.source, args.destination)
+            result = restore_snapshot(
+                args.source, args.destination, sql_state=store, quiesced=args.stopped
+            )
+        elif args.operation == "recover-sql":
+            from nexus.core.studio_sql_restore import recover_sql_restore
+
+            result = recover_sql_restore(args.destination, store, quiesced=args.stopped)
         else:
             manifest = verify_snapshot(args.source)
             result = {"verified": True, "files": len(manifest["files"])}
         print(json.dumps(result, indent=2))
     except (ValueError, OSError) as exc:
         parser.exit(1, str(exc) + "\n")
+    except Exception:
+        if store is None:
+            raise
+        parser.exit(
+            1,
+            "SQL recovery operation failed; check connectivity and retain any pending restore directory.\n",
+        )
     finally:
         if store:
             store.engine.dispose()

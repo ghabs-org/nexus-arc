@@ -227,7 +227,9 @@ class StudioFeatures:
             studio.collaboration.owned(studio.run(parts[1]), actor)
             if parts[2] == "cancel":
                 return 202, studio.cancel_run(parts[1], actor)
-            return 202, studio.graph.structured.resume_input(parts[1], data.get("values"))
+            return 202, studio.graph.structured.resume_input(
+                parts[1], data.get("values"), checkpoint=data.get("evaluation_checkpoint")
+            )
         if parts == ["projects"]:
             return 201, studio.knowledge.save(data, actor)
         if parts == ["projects", "import"]:

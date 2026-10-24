@@ -104,8 +104,10 @@ class StudioExecution:
             run = studio.collaboration.owned(studio.run(run_id), actor)
             saved = {}
             graph_format = None
+            from nexus.core.studio_experiments import checkpoint_id
+
             for collection in ("graph-runs", "yaml-runs"):
-                path = studio._path(collection, run_id)
+                path = studio._path(collection, checkpoint_id(studio, run_id))
                 if path.exists():
                     saved, graph_format = studio._read(path), collection
                     break

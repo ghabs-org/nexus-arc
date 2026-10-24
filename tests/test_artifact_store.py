@@ -1,7 +1,5 @@
 """Artifact store round-trips and factory behavior."""
 
-import os
-
 
 def test_filesystem_roundtrip(tmp_path):
     from nexus.adapters.artifacts import FilesystemStore
@@ -47,25 +45,23 @@ def test_factory_rejects_unknown(monkeypatch):
         create_store()
 
 
-def test_s3_store_needs_boto3():
+def test_s3_store_needs_boto3(monkeypatch):
+    import sys
+
     import pytest
 
     from nexus.adapters.artifacts import S3Store
 
-    try:
-        import boto3  # noqa: F401
-    except ImportError:
-        with pytest.raises(ImportError, match="boto3"):
-            S3Store()
-    else:
-        pytest.skip("boto3 installed; missing-dep path not testable here")
+    monkeypatch.setitem(sys.modules, "boto3", None)
+    with pytest.raises(ImportError, match="boto3"):
+        S3Store()
 
 
 def test_s3_store_roundtrip_with_fake_client(monkeypatch):
-    from nexus.adapters.artifacts import S3Store
-
     import sys
     import types
+
+    from nexus.adapters.artifacts import S3Store
 
     objects: dict = {}
 
@@ -216,7 +212,11 @@ def test_azure_roundtrip_with_fake_client(monkeypatch):
             objects.pop(key, None)
 
         def list_blobs(self, name_starts_with=""):
-            return [types.SimpleNamespace(name=n) for n in sorted(objects) if n.startswith(name_starts_with)]
+            return [
+                types.SimpleNamespace(name=n)
+                for n in sorted(objects)
+                if n.startswith(name_starts_with)
+            ]
 
     class _Service:
         @staticmethod
@@ -267,14 +267,110 @@ def test_azure_missing_dep_raises_helpfully(monkeypatch):
         AzureStore(connection_string="fake")
 
 
-def test_azure_needs_connection_string():
+def test_azure_needs_connection_string(monkeypatch):
+    import sys
+    import types
+
     import pytest
 
     from nexus.adapters.artifacts import AzureStore
 
-    try:
-        import azure.storage.blob  # noqa: F401
-    except ImportError:
-        pytest.skip("azure lib present check not applicable")
+    module = types.ModuleType("azure.storage.blob")
+    module.BlobServiceClient = object
+    monkeypatch.setitem(sys.modules, "azure.storage.blob", module)
     with pytest.raises(ValueError, match="connection string"):
         AzureStore(connection_string=None)
+
+
+def test_bounded_filesystem_reads_accept_empty_bytes_and_refuse_oversized_content(tmp_path):
+    import pytest
+
+    from nexus.adapters.artifacts import FilesystemStore
+
+    store = FilesystemStore(tmp_path)
+    store.put("bucket", "empty", b"")
+    store.put("bucket", "content", b"bytes")
+    assert store.get_bounded("bucket", "empty", 0) == b""
+    assert store.get_bounded("bucket", "missing", 2) is None
+    assert store.get_bounded("bucket", "content", 5) == b"bytes"
+    with pytest.raises(ValueError, match="read limit"):
+        store.get_bounded("bucket", "content", 4)
+    with pytest.raises(ValueError, match="nonnegative"):
+        store.get_bounded("bucket", "content", True)
+
+
+def test_s3_bounded_read_closes_body_on_success_and_failure():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import pytest
+
+    from nexus.adapters.artifacts import S3Store
+
+    store = S3Store.__new__(S3Store)
+    body = SimpleNamespace(read=Mock(return_value=b"bytes"), close=Mock())
+    store._client = SimpleNamespace(
+        get_object=Mock(return_value={"Body": body, "ContentLength": 5})
+    )
+    assert store.get_bounded("bucket", "key", 5) == b"bytes"
+    body.read.assert_called_once_with(6)
+    body.close.assert_called_once()
+    body.read.reset_mock()
+    with pytest.raises(ValueError, match="read limit"):
+        store.get_bounded("bucket", "key", 4)
+    body.read.assert_not_called()
+    assert body.close.call_count == 2
+    store._client.get_object.return_value.pop("ContentLength")
+    with pytest.raises(ValueError, match="read limit"):
+        store.get_bounded("bucket", "key", 4)
+    assert body.close.call_count == 3
+
+
+def test_gcs_bounded_read_uses_raw_range_and_generation_precondition():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import pytest
+
+    from nexus.adapters.artifacts import GCSStore
+
+    store = GCSStore.__new__(GCSStore)
+    blob = SimpleNamespace(
+        size=5, generation=12, reload=Mock(), download_as_bytes=Mock(return_value=b"bytes")
+    )
+    store._blob = Mock(return_value=blob)
+    assert store.get_bounded("bucket", "key", 5) == b"bytes"
+    blob.download_as_bytes.assert_called_once_with(
+        start=0, end=5, raw_download=True, if_generation_match=12, timeout=30, retry=None
+    )
+    with pytest.raises(ValueError, match="read limit"):
+        store.get_bounded("bucket", "key", 4)
+    blob.size = 0
+    assert store.get_bounded("bucket", "empty", 0) == b""
+    assert blob.download_as_bytes.call_count == 1
+
+
+def test_azure_bounded_read_requests_only_the_bounded_range():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import pytest
+
+    from nexus.adapters.artifacts import AzureStore
+
+    store = AzureStore.__new__(AzureStore)
+    properties = SimpleNamespace(size=5)
+    container = SimpleNamespace(
+        get_blob_client=Mock(
+            return_value=SimpleNamespace(get_blob_properties=Mock(return_value=properties))
+        ),
+        download_blob=Mock(return_value=SimpleNamespace(readall=Mock(return_value=b"bytes"))),
+    )
+    store._container = Mock(return_value=container)
+    assert store.get_bounded("bucket", "key", 5) == b"bytes"
+    container.download_blob.assert_called_once_with("key", offset=0, length=6, timeout=30)
+    with pytest.raises(ValueError, match="read limit"):
+        store.get_bounded("bucket", "key", 4)
+    properties.size = 0
+    assert store.get_bounded("bucket", "empty", 0) == b""
+    assert container.download_blob.call_count == 1

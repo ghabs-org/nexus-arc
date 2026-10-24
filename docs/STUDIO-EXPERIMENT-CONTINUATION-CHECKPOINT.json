@@ -1,0 +1,82 @@
+{
+  "format": "nexus-studio-experiment-continuation-checkpoint/v1",
+  "date": "2026-10-24",
+  "status": "fixture-verified",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Interactive approval/input continuation for named and ad-hoc workflow evaluations through existing graph/YAML checkpoints and fenced jobs. Local synthetic providers and SQLite-backed durable state only.",
+  "implemented": [
+    "Pauses retain an incomplete report without grading unfinished cases. Continuation resumes the current case, then remaining cases/repeats/variants in their existing order.",
+    "Completed case results and completed workflow nodes are retained. Each pause receives an opaque confirmation token; stale or missing tokens cannot authorize a different gate or repetition.",
+    "Queued root/nested workflow definitions and runtime limits are pinned. Typed input, graph v1/v2 and original YAML approvals survive file/SQL service restarts.",
+    "Existing run ownership, execution roles, CSRF, review digest and schema validation protect continuations. The review inbox and execution graph resolve the current case checkpoint.",
+    "Cancellation stops future repetitions and retains incomplete acceptance. Configured cleanup can itself pause for approval/input without granting the abandoned case gate.",
+    "Activity identifies variant, case and repetition. Frontend approval/input submissions carry the reviewed pause token; case boundaries are recorded in read-only execution history.",
+    "Continuation while the original worker is finishing uses the existing file/SQL resumption receipt, without concurrent checkpoint execution or provider-call replay.",
+    "Temporary example consumer demonstrates two separate approvals and typed replies with no repeated preparation calls."
+  ],
+  "validation": {
+    "required": {
+      "tests": 244,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-experiment-continuation-required.xml"
+    },
+    "frontend": {
+      "tests": 157,
+      "passed": 157,
+      "failures": 0,
+      "skipped": 0,
+      "command": "node --test tests/studio*.test.cjs",
+      "evidence": "Completed tool output; JavaScript behavior checks, not physical-device or deployed-browser acceptance."
+    },
+    "example": {
+      "path": "examples/nexus-bot/src/studio_experiment_review.py",
+      "status": "passed"
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false
+    }
+  },
+  "migration": "Additive private version-1 evaluation-progress records and optional run/report fields; existing records are not rewritten. Earlier reports remain readable. The pause token is required only for interactive evaluation continuations; ordinary workflow input/approval formats are unchanged. Existing state backup/SQL namespace mechanisms retain the new private records.",
+  "static": {
+    "changed_code": "No new Ruff findings; diff whitespace and JavaScript syntax checks pass.",
+    "baseline_finding": "nexus/core/studio_operations.py:83 B904 also exists at HEAD; unchanged timeout parser."
+  },
+  "validation_pending": [
+    "Personal HTTPS VM deployment and actual browser/device interaction.",
+    "Live provider accounts and real PostgreSQL worker restart acceptance.",
+    "Remaining frozen milestone/catalog/cross-cutting acceptance gates; no blanket promotion."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_experiments.py": "3cda8d4eec817d8cc9358827dbb85b74664978beec18d38df3389ed19e931746",
+    "nexus/core/studio_operations.py": "62daab1856e9d859cea04398888dee1d4ec4e58c3d06ba18bcbec5cf4d3c6615",
+    "nexus/core/studio_graph.py": "721a9e3b0037884ce3638a05dbdd8bec8cbd2a23f2a033080ab67b1aeeb4a106",
+    "nexus/core/studio_workflow_v2.py": "f0a7175989cf1eb2ac528f3a7d4a8b1f9870e6ae0688945b7c2d39528c00d9f7",
+    "nexus/core/studio_legacy_workflows.py": "7466c857fd7c0f88ebaa4fac01b33021c5aa5bb392d39e6f6d43798501d29cbd",
+    "nexus/core/studio_workflow_cancellation.py": "f4969b7253d5d4ede5d04a44509e8a209b6dc87d207565b3be8594fee8207126",
+    "nexus/core/studio_execution.py": "e17ba4ef059fd9268ffd5fa6b1ddefafbf52afb6c78ca764422d00687c6a9630",
+    "nexus/core/studio_inbox.py": "26bc7b3776359e2d0a116b4c134c0573f28b3da6604960c8637f602e1e47c387",
+    "nexus/core/studio_agent_settings.py": "6c8482963fe67f8ff4686a77fdb13f3f65f976f5f0308fee8b0b54ad4532b02e",
+    "nexus/core/studio.py": "0ff4b1f146e21b64acc47efd6b96bba954db0464dc442bdc38ced4a31bd71c15",
+    "nexus/core/studio_features.py": "a7b73eeb9f0b5ddd6b44a3077f943e0423bafc7f1cd22a20fdf0bede682e8dc8",
+    "nexus/studio.py": "bd37a5230df649bfcb544bd4c8edf2543864d2417d5d4acf806a1d31746b3cec",
+    "nexus/studio_static/studio.js": "3e2e26ebcfce7efc62611f6157ac2f05d7c194ea77208d720e118be35e172c66",
+    "nexus/studio_static/graph.js": "dd4ec25ae225177e04047d34c3d768f7baa042b765b37021caa43b2ea8ebcb42",
+    "nexus/studio_static/features.js": "95308fdc358f54b9fcb5f4f09e6561e6bf755d143c632d02694b63ec8f7b98ad",
+    "nexus/studio_static/operations.js": "05d90cc82b791a7633ec74121fbd43902569166f70390f1b531358f9a282be1c",
+    "tests/test_studio_experiment_continuation.py": "e00dbd72aaa8a7a4c07a1ecef9cc4f4cff907625cee4e9e4c15fa2adcb8c97e9",
+    "tests/test_studio_experiments.py": "14c8ce380bde671dec95315f008b4797290b286947935c39939c64651ee0588e",
+    "tests/studio_experiments.test.cjs": "4c1907ebe13f3c04b27a46cd3638ce1c54b06c96fea2e50b8a01096352ae980a",
+    "examples/nexus-bot/src/studio_experiment_review.py": "c2daa39c939f2de18198f0bcb8a457323e0f186ff15a3655ebc78ba556402632",
+    "postman/contracts/studio-experiments.md": "7112ecf22c2204a673cf158bb482b186e5e59217399bcce5850bf0c75a7d9cdb",
+    "docs/STUDIO-EXPERIMENTS.md": "4665d801a7d3effab6d9a50eb1826b2c86dada1f4a6ee4fa1108b63d8450dd79"
+  },
+  "real_account_requests_performed": false,
+  "user_studio_restarted": false,
+  "desktop_stays_last": true
+}

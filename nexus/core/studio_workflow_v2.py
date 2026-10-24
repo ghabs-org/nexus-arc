@@ -1497,14 +1497,21 @@ class StudioWorkflowV2:
         )
         return output
 
-    def resume(self, run_id, decision):
+    def resume(self, run_id, decision, *, checkpoint=None):
+        from nexus.core.studio_experiments import (
+            checkpoint_id,
+            continuation_payload,
+            validate_continuation,
+        )
+
         if decision not in {"approve", "reject"}:
             raise ValueError("Choose approve or reject")
         with self.studio.lock:
+            validate_continuation(self.studio, run_id, checkpoint)
             run = self.studio.run(run_id)
             if run["status"] != "waiting" or not run.get("awaiting_approval"):
                 raise ValueError("Run is not waiting for approval")
-            path = self.studio._path("graph-runs", run_id)
+            path = self.studio._path("graph-runs", checkpoint_id(self.studio, run_id))
             state = self.studio._read(path)
             if decision == "reject":
                 from nexus.core.studio_workflow_cancellation import request_cleanup
@@ -1520,20 +1527,29 @@ class StudioWorkflowV2:
                 state["outputs"][gate["id"]] = {"approved": True}
             self.studio._write(path, state)
             self.studio._update_run(run_id, status="queued", awaiting_approval=[])
-            self.studio.resume_workflow(run_id, {**state["payload"], "resume_graph": True})
+            self.studio.resume_workflow(
+                run_id, continuation_payload(self.studio, run_id, state["payload"], "resume_graph")
+            )
             return self.studio.run(run_id)
 
-    def resume_input(self, run_id, values):
+    def resume_input(self, run_id, values, *, checkpoint=None):
+        from nexus.core.studio_experiments import (
+            checkpoint_id,
+            continuation_payload,
+            validate_continuation,
+        )
+
         if not isinstance(values, dict):
             raise ValueError("Input values must be keyed by requested input ID")
         with self.studio.lock:
+            validate_continuation(self.studio, run_id, checkpoint)
             run = self.studio.run(run_id)
             pending = run.get("awaiting_input", [])
             if run["status"] != "waiting" or not pending:
                 raise ValueError("Workflow is not waiting for input")
             if set(values) - {item["id"] for item in pending}:
                 raise ValueError("Unknown workflow input ID")
-            path = self.studio._path("graph-runs", run_id)
+            path = self.studio._path("graph-runs", checkpoint_id(self.studio, run_id))
             state = self.studio._read(path)
             for item in pending:
                 if item["id"] in values:
@@ -1547,5 +1563,8 @@ class StudioWorkflowV2:
             self.studio._update_run(run_id, awaiting_input=remaining)
             if not remaining:
                 self.studio._update_run(run_id, status="queued")
-                self.studio.resume_workflow(run_id, {**state["payload"], "resume_graph": True})
+                self.studio.resume_workflow(
+                    run_id,
+                    continuation_payload(self.studio, run_id, state["payload"], "resume_graph"),
+                )
             return self.studio.run(run_id)

@@ -288,7 +288,7 @@ def test_cancelled_experiment_never_accepts_partial_results(app):
     assert len(calls) == 2
 
 
-def test_interactive_workflow_is_rejected_before_any_repeated_effect(app):
+def test_interactive_workflow_pauses_before_any_repeated_effect(app):
     studio, calls = app
     workflow = studio.save_definition(
         "workflows",
@@ -298,9 +298,12 @@ def test_interactive_workflow_is_rejected_before_any_repeated_effect(app):
         },
     )
     saved = experiment(studio, suite(studio, target_kind="workflow", target_id=workflow["id"]))
-    with pytest.raises(ValueError, match="non-interactive"):
-        studio.start_run({"kind": "evaluation", "experiment_id": saved["id"]})
-    assert calls == [] and studio.records("runs") == []
+    run = done(studio, studio.start_run({"kind": "evaluation", "experiment_id": saved["id"]}))
+    assert run["status"] == "waiting" and run["awaiting_approval"]
+    report = studio._read(studio._path("evaluation-reports", run["id"]))
+    assert calls == [] and report["total"] == 0
+    assert report["complete"] is False and report["acceptance"] is None
+    assert report["evaluation_status"] == "waiting"
 
 
 def test_configuration_import_preserves_experiment_and_suite_dependencies(app):

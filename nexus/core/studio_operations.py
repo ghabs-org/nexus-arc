@@ -539,6 +539,27 @@ class StudioOperations:
         prepare(self.studio, payload)
 
     async def evaluate(self, run_id, payload):
+        from copy import deepcopy
+
+        from nexus.core.studio_graph import StudioPausedError
+
+        progress_path = self.studio._path("evaluation-progress", run_id)
+        report_path = self.studio._path("evaluation-reports", run_id)
+        resumed = progress_path.exists()
+        resume_mode = next(
+            (key for key in ("resume_graph", "resume_yaml") if payload.get(key)), None
+        )
+        progress = (
+            self.studio._read(progress_path)
+            if resumed
+            else {
+                "id": run_id,
+                "version": 1,
+                "payload": deepcopy(payload),
+                "checkpoint_id": None,
+            }
+        )
+        payload = progress["payload"]
         suite = payload["suite_snapshot"]
         target = suite["data"]
         from nexus.core.studio_experiments import summarize
@@ -547,22 +568,28 @@ class StudioOperations:
             "_experiment_settings", {"repeats": 1, "threshold": 1, "enforce": False}
         )
         repeats = settings["repeats"]
-        report = {
-            "id": run_id,
-            "suite_id": suite["id"],
-            "owner_id": payload.get("requester_nexus_id"),
-            "suite_revision": suite["revision"],
-            "name": suite["name"],
-            "created_at": datetime.now(UTC).isoformat(),
-            "results": [],
-            "variants": payload["variants"],
-            "runs_per_example": repeats,
-            "pass_threshold": settings["threshold"],
-            "expected_total": len(target["cases"]) * len(payload["variants"]) * repeats,
-            "complete": False,
-            "acceptance": None,
-            "evaluation_status": "running",
-        }
+        report = (
+            self.studio._read(report_path)
+            if resumed
+            else {
+                "id": run_id,
+                "suite_id": suite["id"],
+                "owner_id": payload.get("requester_nexus_id"),
+                "suite_revision": suite["revision"],
+                "name": suite["name"],
+                "created_at": datetime.now(UTC).isoformat(),
+                "results": [],
+                "total": 0,
+                "passed": 0,
+                "variants": payload["variants"],
+                "runs_per_example": repeats,
+                "pass_threshold": settings["threshold"],
+                "expected_total": len(target["cases"]) * len(payload["variants"]) * repeats,
+                "complete": False,
+                "acceptance": None,
+                "evaluation_status": "running",
+            }
+        )
         if payload.get("experiment_snapshot"):
             experiment = payload["experiment_snapshot"]
             report.update(
@@ -570,7 +597,8 @@ class StudioOperations:
                 experiment_revision=experiment["revision"],
                 experiment_name=experiment["name"],
             )
-        self.studio._write(self.studio._path("evaluation-reports", run_id), report)
+        report["evaluation_status"] = "running"
+        self.studio._write(report_path, report)
         self.studio._update_run(run_id, evaluation_report_id=run_id)
         for variant_index, variant in enumerate(payload["variants"]):
             for index, repetition, case in (
@@ -578,10 +606,32 @@ class StudioOperations:
                 for index, case in enumerate(target["cases"])
                 for repetition in range(repeats)
             ):
+                ordinal = (variant_index * len(target["cases"]) + index) * repeats + repetition
+                if ordinal < len(report["results"]):
+                    continue
+                checkpoint = f"{run_id}-{variant_index}-{index}" + (
+                    f"-repeat-{repetition}" if repeats > 1 else ""
+                )
+                active_resume = resume_mode if progress["checkpoint_id"] == checkpoint else None
+                progress["checkpoint_id"] = checkpoint
+                self.studio._write(progress_path, progress)
                 started = time.monotonic()
                 self.studio._update_run(
                     run_id,
                     step=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
+                    evaluation_case={
+                        "variant": variant["name"],
+                        "case": index + 1,
+                        "repetition": repetition + 1,
+                        "runs_per_example": repeats,
+                    },
+                )
+                self.studio.execution.record(
+                    run_id,
+                    "evaluation-case",
+                    node_id=checkpoint,
+                    node_name=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
+                    status="continued" if active_resume else "running",
                 )
                 entry = {
                     "variant": variant["name"],
@@ -594,6 +644,23 @@ class StudioOperations:
                     key: variant[key] for key in ("provider", "model", "effort") if variant.get(key)
                 }
                 request["requester_nexus_id"] = payload.get("requester_nexus_id")
+                request.update(
+                    {
+                        key: deepcopy(payload[key])
+                        for key in (
+                            "agent_snapshots",
+                            "workflow_snapshot",
+                            "workflow_snapshots",
+                            "_workflow_limits",
+                            "_media_profile_revisions",
+                        )
+                        if key in payload
+                    }
+                )
+                if active_resume:
+                    request[active_resume] = True
+                # A continuation authorizes only this case, never a later repetition.
+                resume_mode = None
                 try:
                     if target["target_kind"] == "workflow":
                         output = await self.studio._workflow(
@@ -602,8 +669,7 @@ class StudioOperations:
                                 **request,
                                 "workflow_id": target["target_id"],
                                 "task": case["input"],
-                                "_evaluation_case": f"{run_id}-{variant_index}-{index}"
-                                + (f"-repeat-{repetition}" if repeats > 1 else ""),
+                                "_evaluation_case": checkpoint,
                             },
                         )
                     else:
@@ -639,6 +705,17 @@ class StudioOperations:
                         checks=checks,
                         passed=all(check["passed"] for check in checks),
                     )
+                except StudioPausedError:
+                    import uuid
+
+                    report.update(
+                        evaluation_status="waiting",
+                        updated_at=datetime.now(UTC).isoformat(),
+                    )
+                    summarize(report)
+                    self.studio._write(report_path, report)
+                    self.studio._update_run(run_id, evaluation_checkpoint=uuid.uuid4().hex)
+                    raise
                 except Exception as exc:
                     entry.update(output="", checks=[], passed=False, error=str(exc))
                 entry["duration_seconds"] = round(time.monotonic() - started, 3)
@@ -652,6 +729,12 @@ class StudioOperations:
                 if entry.get("error"):
                     report["evaluation_status"] = "error"
                 self.studio._write(self.studio._path("evaluation-reports", run_id), report)
+                self.studio.execution.record(
+                    run_id,
+                    "evaluation-case",
+                    node_id=checkpoint,
+                    status="failed" if entry.get("error") else "completed",
+                )
                 if entry.get("error"):
                     self.studio._update_run(run_id, evaluation_report_id=run_id)
                     raise RuntimeError(
@@ -668,6 +751,8 @@ class StudioOperations:
         if scores:
             report["mean_judge_score"] = round(sum(scores) / len(scores), 4)
         self.studio._write(self.studio._path("evaluation-reports", run_id), report)
+        progress["complete"] = True
+        self.studio._write(progress_path, progress)
         self.studio._update_run(run_id, evaluation_report_id=run_id)
         if settings["enforce"] and not report["acceptance"]:
             raise RuntimeError(

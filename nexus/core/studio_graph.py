@@ -433,22 +433,27 @@ class StudioGraph:
             if node["id"] in outputs
         )
 
-    def resume(self, run_id, decision):
-        path = self.studio._path("graph-runs", run_id)
-        if path.exists() and self.studio._read(path).get("graph", {}).get("version") == 2:
-            return self.structured.resume(run_id, decision)
-        if (
-            self.studio._path("yaml-runs", run_id).exists()
-            and not self.studio._path("graph-runs", run_id).exists()
-        ):
-            return self.studio.legacy.resume(run_id, decision)
+    def resume(self, run_id, decision, *, checkpoint=None):
+        from nexus.core.studio_experiments import (
+            checkpoint_id,
+            continuation_payload,
+            validate_continuation,
+        )
+
         if decision not in {"approve", "reject"}:
             raise ValueError("Choose approve or reject")
         with self.studio.lock:
+            validate_continuation(self.studio, run_id, checkpoint)
+            identity = checkpoint_id(self.studio, run_id)
+            path = self.studio._path("graph-runs", identity)
+            if path.exists() and self.studio._read(path).get("graph", {}).get("version") == 2:
+                return self.structured.resume(run_id, decision, checkpoint=checkpoint)
+            if self.studio._path("yaml-runs", identity).exists() and not path.exists():
+                return self.studio.legacy.resume(run_id, decision, checkpoint=checkpoint)
             run = self.studio.run(run_id)
             if run["status"] != "waiting" or not run.get("awaiting_approval"):
                 raise ValueError("This run is not awaiting an approval decision")
-            state = self.studio._read(self.studio._path("graph-runs", run_id))
+            state = self.studio._read(path)
             if decision == "reject":
                 self.studio._update_run(
                     run_id,
@@ -466,7 +471,9 @@ class StudioGraph:
                     for edge in state["graph"]["edges"]
                     if edge["target"] == gate["id"]
                 )
-            self.studio._write(self.studio._path("graph-runs", run_id), state)
+            self.studio._write(path, state)
             self.studio._update_run(run_id, status="queued", awaiting_approval=[])
-            self.studio.resume_workflow(run_id, {**state["payload"], "resume_graph": True})
+            self.studio.resume_workflow(
+                run_id, continuation_payload(self.studio, run_id, state["payload"], "resume_graph")
+            )
             return self.studio.run(run_id)

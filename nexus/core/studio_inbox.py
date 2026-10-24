@@ -43,7 +43,10 @@ class StudioInbox:
 
         for run in workbench.records("runs", actor):
             if run["status"] == "waiting" and run.get("awaiting_approval"):
-                paths = [self.studio._path(kind, run["id"]) for kind in ("graph-runs", "yaml-runs")]
+                from nexus.core.studio_experiments import checkpoint_id
+
+                identity = checkpoint_id(self.studio, run["id"])
+                paths = [self.studio._path(kind, identity) for kind in ("graph-runs", "yaml-runs")]
                 saved = next((self.studio._read(path) for path in paths if path.exists()), {})
                 add(
                     "gate",
@@ -111,7 +114,11 @@ class StudioInbox:
             if self.studio.team:
                 self.studio.team.assert_execution(actor["nexus_id"])
             if item["kind"] == "gate":
-                result = self.studio.graph.resume(item["source_id"], action)
+                result = self.studio.graph.resume(
+                    item["source_id"],
+                    action,
+                    checkpoint=item["detail"]["run"].get("evaluation_checkpoint"),
+                )
             elif item["kind"] == "campaign":
                 result = self.studio.workbench.campaigns.approve(
                     item["source_id"],

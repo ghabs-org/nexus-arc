@@ -466,8 +466,10 @@ function waitingRunActions(run){
   if(run.status!=="waiting")return "";
   if(run.kind==="external")return `<p>Remote agent needs input or authorization.</p><a href="#externalagents">Open remote task controls</a>`;
   const inputs=run.awaiting_input||[],gates=run.awaiting_approval||[];
-  let content=inputs.length?`<p>Input required: ${escapeHtml(inputs.map(input=>input.name).join(", "))}</p>`:"";
-  if(gates.length)content+=`<p>Approval required: ${escapeHtml(gates.map(gate=>gate.name).join(", "))}</p><div class="card-actions"><button data-approve-run="${escapeHtml(run.id)}">Approve and continue</button><button class="secondary" data-reject-run="${escapeHtml(run.id)}">${run.cancellation_cleanup?"Skip cleanup step":"Reject"}</button></div>`;
+  const current=run.evaluation_case;
+  const caseLabel=current?`<p>Experiment case: ${escapeHtml(current.variant)} · case ${escapeHtml(current.case)} · repetition ${escapeHtml(current.repetition)}/${escapeHtml(current.runs_per_example)}</p>`:"";
+  let content=caseLabel+(inputs.length?`<p>Input required: ${escapeHtml(inputs.map(input=>input.name).join(", "))}</p>`:"");
+  if(gates.length)content+=`<p>Approval required: ${escapeHtml(gates.map(gate=>gate.name).join(", "))}</p><div class="card-actions"><button data-approve-run="${escapeHtml(run.id)}" data-evaluation-checkpoint="${escapeHtml(run.evaluation_checkpoint||'')}">Approve and continue</button><button class="secondary" data-reject-run="${escapeHtml(run.id)}" data-evaluation-checkpoint="${escapeHtml(run.evaluation_checkpoint||'')}">${run.cancellation_cleanup?"Skip cleanup step":"Reject"}</button></div>`;
   return content||"<p>Waiting for your response.</p>";
 }
 function cleanupRunStatus(run){
