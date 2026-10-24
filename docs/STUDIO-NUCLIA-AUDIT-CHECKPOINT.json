@@ -1,0 +1,123 @@
+{
+  "format": "nexus-studio-nuclia-audit-checkpoint/v1",
+  "date": "2026-10-24",
+  "status": "fixture-verified",
+  "whole_catalog_entry_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Explicit native audit-metadata templates and strict reference descriptor/template adaptation for Nuclia search and generated answers.",
+  "implemented": [
+    "Optional version-1 audit_metadata templates use explicit enabled/fields configuration and existing typed parameters, original query and server-selected context. No automatic file, credential or arbitrary runtime metadata is inferred.",
+    "Static field names and string templates are bounded. Empty rendered values are omitted; whole scalar values use JSON spelling. Malformed expressions, missing values, spoofed context, caller metadata overrides and the serialized 10 KiB provider limit fail before HTTP.",
+    "Strict reference conversion accepts audit fields without executing packages or environment expressions. Import review declares outbound metadata and stricter missing-field behavior; disabled field definitions survive configuration export and file/SQLite restart.",
+    "Legacy descriptor bindings with disabled empty audit metadata retain their previous native connector shape. Existing connections gain no outbound metadata automatically.",
+    "Both actual find and synchronous ask calls carry selected audit values. Provider rejection raises a sanitized failure without replay. Metadata is not automatically added to answer artifacts, citations or trace metadata.",
+    "Existing Studio connector edits already preserve versioned templates. Operators configure audit fields through existing catalog or configuration validate/plan/apply operations; no separate visual audit editor is introduced."
+  ],
+  "limits": {
+    "audit_fields": 30,
+    "key_utf8_bytes": 128,
+    "provider_serialized_json_bytes": 10240,
+    "whole_template_json_bytes": 16384,
+    "parameters": 30
+  },
+  "validation": {
+    "affected_regressions": {
+      "tests": 288,
+      "passed": 288,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-audit-required.xml",
+      "scope": "Nuclia, retrieval evidence, configuration import/export, enterprise connectors, shared access and file/SQLite restart."
+    },
+    "actual_http": {
+      "tests": 18,
+      "passed": 18,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-audit-http.xml",
+      "scope": "Real framework transport against the existing local Postman stand-in; audit, context, descriptor and attachment consumers plus failure cases."
+    },
+    "frontend": {
+      "tests": 160,
+      "passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-audit-frontend.log",
+      "command": "node --test tests/studio*.test.cjs"
+    },
+    "example": {
+      "path": "examples/nexus-bot/src/studio_nuclia_audit.py",
+      "provider_requests": 4,
+      "preflight_rejections": 3,
+      "search_and_answer": true,
+      "no_action_replay": true,
+      "live_verified": false
+    },
+    "simulation": {
+      "log": "/private/tmp/nexus-nuclia-audit-simulation.ndjson",
+      "requests": 175,
+      "methods": {
+        "GET": 121,
+        "POST": 54
+      },
+      "status_codes": {
+        "200": 157,
+        "429": 7,
+        "307": 7,
+        "403": 2,
+        "206": 2
+      },
+      "members_served": [
+        "nuclia"
+      ],
+      "members_silent": [],
+      "scope": "Combined explicit HTTP suite, including diagnostic attempt counters and intentional failure cases. No live account."
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "report": "/private/tmp/nexus-nuclia-audit-completion.json"
+    }
+  },
+  "authority": {
+    "nucliadb_commit": "274e33dc73cbadea7b25ac42ecc00fb43ab062c5",
+    "model": "https://github.com/nuclia/nucliadb/blob/274e33dc73cbadea7b25ac42ecc00fb43ab062c5/nucliadb_models/src/nucliadb_models/search.py",
+    "contract": "AuditMetadataBase string dictionary and 10 KiB serialized JSON limit inherited by BaseSearchRequest.",
+    "frozen_plugin_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+    "frozen_scope": "AuditMetadataConfig and NucliaRagTool._build_audit_metadata.",
+    "discovery": "Orbit returned unrelated audit/template APIs; none was integrated. Existing primary-source-backed Nuclia mock was extended. Owner mock discovery remains unavailable while Postman is signed out."
+  },
+  "migration": "Optional additive template field; existing state records and credentials are not rewritten. File and SQLite configuration records retain enabled/disabled fields across restart. Legacy disabled-empty descriptor bindings retain their earlier native shape.",
+  "validation_pending": [
+    "Descriptor presentation variants and implicit neighbour/hierarchy retrieval strategy equivalence outside the supported strict profile.",
+    "Non-file/split original references, vendor ephemeral links, remote historical-original behavior and independent evaluation/scoring equivalence.",
+    "Real Nuclia audit persistence/retention, credentials, account permissions, quality and billing; personal HTTPS VM and physical devices.",
+    "Other frozen plan acceptance gates; this checkpoint does not promote the catalog entry or whole plan. Standalone desktop distribution remains last."
+  ],
+  "static": "Changed Python lint/format checks, mock JavaScript syntax and diff whitespace checks pass.",
+  "source_sha256": {
+    "nexus/core/studio_nuclia.py": "2a223a871172054bb53f451fcc712174b4cac8b87694e382d214331fa73f166c",
+    "nexus/core/studio_nuclia_templates.py": "a5b087599a401ddd77d6afb4d15ba1ba490adcf6d56913a26bd6fc2c5e8be163",
+    "nexus/core/studio_nuclia_interop.py": "578ac8b2b639640f3746ad2dbe06c344ddae27d13ec2c01c081313cd76aca87a",
+    "nexus/core/studio_nuclia_descriptors.py": "ae4bde8dcc85ec6cca9da4434c488201f77d8939281def825cc2c5d538638bf3",
+    "tests/test_studio_nuclia_audit.py": "b651b5baf8a286514b8e94065ce778f23e20e25556b18225e4e2a2a76a046027",
+    "tests/test_studio_nuclia_descriptors.py": "7e653a46b3c10d593301d1b78d521d8eae0dbb4e579670938f6fab4213e900c8",
+    "tests/test_studio_nuclia_interop.py": "3ee63bbef0402a192c29c64016c08522214e0e3729ad234dac45cc6756ca2853",
+    "tests/studio_nuclia_acceptance.py": "242e747b007d9f63c20d7bc66920cc55b685612ce242137b7efb6eec9b3c79bf",
+    "examples/nexus-bot/src/studio_nuclia_audit.py": "4c942230976b155eee9fcf228a2d92ae40f9a603c83432f5ded5b6fd8a72260a",
+    "postman/contracts/studio-nuclia.md": "f74596c5182e3b1f0c197c3d593e82b1a43b5d161f1f250e66e91bf5f3de487a",
+    "postman/mocks/studio-nuclia/default.js": "b0cd7bff2544650297945d4d1542d5c48896ea5e76475ed3d3e471bd535a7c49",
+    "postman/simulations/studio-nuclia.context.md": "340d0e6b726fd5c038de78d9cf6a186dfa7abd2904b776dedc6455bee3c96344",
+    "docs/STUDIO-NUCLIA.md": "5415c0e599a81d7104b06f9b985b5259ce7ac8d967ba261b962f770b879e53c6"
+  },
+  "real_account_requests_performed": false,
+  "cloud_publication": false,
+  "user_studio_restarted": false,
+  "temporary_simulation_stopped": true,
+  "desktop_stays_last": true
+}

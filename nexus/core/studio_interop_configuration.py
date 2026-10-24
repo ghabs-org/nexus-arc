@@ -177,11 +177,14 @@ class StudioPortableConfiguration:
             for name, binding in values.items():
                 path = "/bindings/" + group + "/" + str(name)[:100]
                 if group == "nuclia":
-                    binding = self.fields(binding, {"connector_id", "policy"}, path)
+                    binding = self.fields(
+                        binding, {"connector_id", "policy", "preserve_retrieval"}, path
+                    )
                     values[name] = binding
                     if (
                         not isinstance(binding.get("connector_id"), str)
                         or binding.get("policy") != "nexus-strict-v1"
+                        or type(binding.get("preserve_retrieval", False)) is not bool
                     ):
                         self.issue(
                             path,

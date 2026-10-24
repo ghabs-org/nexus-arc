@@ -37,9 +37,11 @@ def source(base):
     }
 
 
-def configure(studio, base):
+def configure(studio, base, *, preserve_retrieval=False):
     descriptor = source(base)
-    converted = convert_tool_descriptor(descriptor, policy=POLICY)
+    converted = convert_tool_descriptor(
+        descriptor, policy=POLICY, preserve_retrieval=preserve_retrieval
+    )
     studio.catalog.save(
         "connectors",
         {
@@ -58,12 +60,18 @@ def configure(studio, base):
         ],
         "bindings": {
             "agents": {"knowledge-helper": {"provider": "codex"}},
-            "nuclia": {"CompanyKnowledge": {"connector_id": "knowledge", "policy": POLICY}},
+            "nuclia": {
+                "CompanyKnowledge": {
+                    "connector_id": "knowledge",
+                    "policy": POLICY,
+                    **({"preserve_retrieval": True} if preserve_retrieval else {}),
+                }
+            },
         },
     }
 
 
-def exercise(base="http://127.0.0.1:50950/nuclia"):
+def exercise(base="http://127.0.0.1:50950/nuclia", *, preserve_retrieval=False):
     url = urlparse(base)
     if url.scheme != "http" or url.hostname != "127.0.0.1" or url.username or url.password:
         raise ValueError("This example accepts only its local HTTP simulation")
@@ -79,11 +87,13 @@ def exercise(base="http://127.0.0.1:50950/nuclia"):
     ):
         studio = StudioService(directory)
         try:
-            request = configure(studio, base)
+            request = configure(studio, base, preserve_retrieval=preserve_retrieval)
             before = attempts()
             report = studio.configuration.convert_interop(request, None)
             assert report["valid"], report
             assert report["adaptations"][0]["policy"] == POLICY
+            if preserve_retrieval:
+                assert "may increase usage" in json.dumps(report["adaptations"])
             assert not studio.definitions("agents")
             assert attempts() == before
             plan = studio.configuration.plan(report["document"], None)
@@ -109,8 +119,29 @@ def exercise(base="http://127.0.0.1:50950/nuclia"):
                     )
                 )
 
-            answer = call({"query": "What is the return policy?"})
-            assert answer["output"] == "Thirty days." and len(answer["artifacts"]) == 2
+            answer = call(
+                {
+                    "query": "fixture:expanded"
+                    if preserve_retrieval
+                    else "What is the return policy?"
+                }
+            )
+            assert answer["output"] == "Thirty days."
+            assert len(answer["artifacts"]) == (3 if preserve_retrieval else 2)
+            if preserve_retrieval:
+                assert {item["augmentation_type"] for item in answer["sources"]} == {
+                    "neighbouring_paragraphs",
+                    "hierarchy",
+                }
+                assert {item["text"] for item in answer["sources"]} == {
+                    "Return unused items within thirty days.",
+                    "Returns policy",
+                }
+                for item in answer["sources"]:
+                    artifact = studio.artifacts.revision(
+                        item["artifact_id"], item["artifact_revision"]
+                    )
+                    assert studio.artifacts.get(artifact).decode().endswith(item["text"])
             after = attempts()
             assert after == before + 1
             try:
@@ -120,6 +151,14 @@ def exercise(base="http://127.0.0.1:50950/nuclia"):
             else:
                 raise AssertionError("A caller replaced fixed settings")
             assert attempts() == after
+            if preserve_retrieval:
+                try:
+                    call({"query": "Policy?", "rag_strategies": []})
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("A caller removed fixed context strategies")
+                assert attempts() == after
             try:
                 call({"query": "fixture:reject"})
             except ValueError:
@@ -148,4 +187,6 @@ def exercise(base="http://127.0.0.1:50950/nuclia"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="http://127.0.0.1:50950/nuclia")
-    print(json.dumps(exercise(parser.parse_args().base), indent=2))
+    parser.add_argument("--preserve-retrieval", action="store_true")
+    args = parser.parse_args()
+    print(json.dumps(exercise(args.base, preserve_retrieval=args.preserve_retrieval), indent=2))

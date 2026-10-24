@@ -95,7 +95,7 @@ function renderBuild() {
 async function loadBuild(id) {
   $("builder-error").hidden=true;
   builder.draft=await api(`/api/builds/${encodeURIComponent(id)}`);builder.id=id;builder.test=null;builder.review=null;builder.transition=null;
-  $("builder-test-result").hidden=true;$("builder-test-task").value="";$("builder-task").value="";
+  $("builder-test-result").hidden=true;$("builder-test-task").value="";$("builder-task").value="";$("builder-test-output").replaceChildren();
   renderBuild();builderMode("build");$("builder-history").value=id;
 }
 async function generateBuild(event) {
@@ -134,11 +134,17 @@ async function saveBuild() {
 async function testBuild(event) {
   event.preventDefault();if(builder.busy||state.attachmentUpload)return;
   $("builder-error").hidden=true;builderBusy(true,"Running your saved workflow…");
-  $("builder-test-result").hidden=false;$("builder-test-output").textContent="Waiting for the selected provider…";
+  $("builder-test-result").hidden=false;
+  const out=$("builder-test-output");out.textContent="Waiting for the selected provider…";
   const update=run=>{
     $("builder-test-status").innerHTML=badge(run.status,run.status);
     $("builder-test-step").textContent=run.step?`Current step: ${run.step}`:"";
-    $("builder-test-output").textContent=run.error||run.output||"Working…";
+    const text=run.error||run.output||"Working…";
+    if(run.output||run.error){
+      renderContent(out,text);
+    }else{
+      out.textContent=text;
+    }
   };
   try {
     const run=await api(`/api/builds/${encodeURIComponent(builder.id)}/test`,{task:$("builder-test-task").value.trim()});

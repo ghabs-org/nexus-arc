@@ -8,10 +8,23 @@ from datetime import UTC, datetime
 
 from nexus.core.studio_catalog import _text
 from nexus.core.studio_data_tools import current_run_id
+from nexus.core.studio_nuclia_retrieval import validate_rag_strategies
 
 
 def request_body(action, arguments, template=None, *, context=None, ask_settings=None):
+    if "audit_metadata" in arguments:
+        raise ValueError("Runtime metadata cannot override reviewed Nuclia audit templates")
+    if action == "ask" and "rag_strategies" in arguments:
+        arguments = {
+            **arguments,
+            "rag_strategies": validate_rag_strategies(arguments["rag_strategies"]),
+        }
     if action == "ask" and ask_settings is not None:
+        if "rag_strategies" in ask_settings:
+            ask_settings = {
+                **ask_settings,
+                "rag_strategies": validate_rag_strategies(ask_settings["rag_strategies"]),
+            }
         for key, value in ask_settings.items():
             if key in arguments and arguments[key] != value:
                 raise ValueError("Configured Nuclia ask settings cannot be overridden")
@@ -20,9 +33,9 @@ def request_body(action, arguments, template=None, *, context=None, ask_settings
         from nexus.core.studio_nuclia_templates import prepare_arguments
 
         arguments = prepare_arguments(template, arguments, context=context)
-    allowed = {"query", "top_k", "page", "filter_expression"}
+    allowed = {"query", "top_k", "page", "filter_expression", "audit_metadata"}
     if action == "ask":
-        allowed |= {"prompt", "rephrase", "prefer_markdown"}
+        allowed |= {"prompt", "rephrase", "prefer_markdown", "rag_strategies"}
     if set(arguments) - allowed:
         raise ValueError(
             "Unsupported Nuclia arguments: " + ", ".join(sorted(set(arguments) - allowed))
@@ -38,6 +51,10 @@ def request_body(action, arguments, template=None, *, context=None, ask_settings
     if action == "ask" and page:
         raise ValueError("Nuclia answer generation does not accept search pagination")
     body = {"query": _text(arguments.get("query"), "Search query", 4000), "top_k": limit}
+    if "audit_metadata" in arguments:
+        from nexus.core.studio_nuclia_templates import validate_audit_values
+
+        body["audit_metadata"] = validate_audit_values(arguments["audit_metadata"])
     if page:
         body["page_number"] = page
     if "filter_expression" in arguments:
@@ -77,6 +94,8 @@ def request_body(action, arguments, template=None, *, context=None, ask_settings
         body["filter_expression"] = expression
     if action == "ask":
         body["citations"] = "default"
+        if "rag_strategies" in arguments:
+            body["rag_strategies"] = validate_rag_strategies(arguments["rag_strategies"])
         if "prompt" in arguments:
             prompt = arguments["prompt"]
             if not isinstance(prompt, dict) or not prompt or set(prompt) - {"user", "system"}:

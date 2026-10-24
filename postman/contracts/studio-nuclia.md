@@ -7,6 +7,32 @@ expressions. Such parameters are omitted from the agent parameter description.
 Missing/invalid required values reject before HTTP. No automatic file, credential
 or environment metadata is included.
 
+Version-1 templates optionally retain `audit_metadata: {enabled, fields}`.
+`enabled` must be an explicit boolean; `fields` maps at most 30 bounded static
+keys to non-executable string templates. Disabled templates send nothing.
+Enabled templates use the same declared parameters and original `{{query}}`
+as query/filter templates. Interpolated scalar values use JSON spelling;
+empty rendered strings are omitted. The resulting string dictionary must fit
+Nuclia's 10 KiB serialized JSON limit. Unknown parameters, missing values,
+malformed templates and oversized results fail before HTTP, without partial
+metadata or automatic retries. Caller `arguments.audit_metadata` is always
+rejected: reviewed configuration owns metadata sent to the provider.
+
+Both `find` and `ask` inherit the vendor's AuditMetadataBase contract. No
+metadata is inferred from credentials, files or arbitrary runtime state.
+Explicitly selected context can contain personal data; configuration review
+declares that enabled fields are sent to Nuclia and may enter its activity logs.
+Audit values are not automatically copied into response evidence, citation fields
+or trace metadata.
+The descriptor converter maps the source `audit_metadata` settings and named
+scalar placeholders through the same strict policy. It preserves disabled
+fields and fails on unsupported expressions rather than omitting them.
+Authority: NucliaDB `nucliadb_models/search.py`, AuditMetadataBase, commit
+`274e33dc73cbadea7b25ac42ecc00fb43ab062c5`; frozen tool configuration and
+`_build_audit_metadata` at commit `7599710a38318a336c47cf605e4774d4add24d8e`.
+Orbit discovery on 24 October returned unrelated audit/template providers;
+none replaced the Nuclia API. Live account logging/retention remains unverified.
+
 Native connections may additionally store `ask_settings` with fixed `top_k`,
 `rephrase`, `prefer_markdown` and `prompt` values. The invocation validator checks
 these settings during save and before requests. A conflicting caller override
@@ -24,6 +50,31 @@ planning. See `studio-interop-configuration.yaml` and
 `studio-nuclia-descriptors.assertions.js`. Conversion creates no connection or
 activation. Source-backed export retains the descriptor and explicit binding;
 native configuration export retains fixed settings and credential references.
+
+Optional ask-only `rag_strategies` supports at most one `neighbouring_paragraphs`
+and one `hierarchy` entry. Neighbour counts default to two before/two after,
+bounded to integers 0..10. Hierarchy count defaults to zero, bounded to 0..1024.
+Unknown strategies/options, duplicate names, booleans and invalid counts reject
+before HTTP. An empty list explicitly selects the provider's default context.
+Values normalize to explicit counts before fixed-setting comparison. Configured
+strategies cannot be replaced by caller arguments. `find` rejects this ask-only
+argument; existing search and ask requests without it remain unchanged.
+
+Descriptor bindings additionally accept optional boolean `preserve_retrieval`.
+Absent or false retains legacy native defaults and existing binding shapes.
+True explicitly maps the frozen tool's neighbouring and hierarchy strategies to
+fixed native ask settings, with pinned counts 2/2/0. Import review describes the
+change in provider context and possible usage. Conversion never enables a
+connection or makes a provider request. A selected connection must match these
+settings; mismatches reject the entire import before plan/apply. Source-backed
+export retains the flag and native export retains fixed strategies.
+
+Authority: frozen tool `_query_nuclia` and NucliaDB `AskRequest`,
+`NeighbouringParagraphsStrategy` and `HierarchyResourceStrategy`, commit
+`274e33dc73cbadea7b25ac42ecc00fb43ab062c5`; vendor documentation at
+https://docs.rag.progress.cloud/docs/rag/rag-strategy/. Orbit retrieval discovery
+returned unrelated paragraph/Box APIs; none replaced the Nuclia operation.
+These local contracts do not certify live retrieval quality or account billing.
 
 Ask responses may cite validated `augmented_context.paragraphs` or `.fields`.
 Each cited text block becomes a private revision with exact text, provider page,
@@ -76,7 +127,7 @@ and resource filter. Both ordinary and templated consumers retain nine requests
 per example, with invalid typed values producing no request.
 
 The optional reference template-settings consumer now converts the frozen plugin's
-three template fields through `convert_template_settings(..., policy="nexus-strict-v1")`
+template fields through `convert_template_settings(..., policy="nexus-strict-v1")`
 before using native configuration plan/apply. Conversion reports its behavior
 adaptations and rejects unsupported settings. It creates no API route and does
 not import complete Python tool descriptors. The third real-HTTP acceptance
@@ -146,3 +197,41 @@ Four separate HTTP failures cover denied, redirect, partial and oversized reads.
 The new binary option on the shared bounded transport leaves JSON/text modes
 unchanged. `postman/contracts/studio-original-document.assertions.js` verifies
 the actual disposable Studio job endpoint, not a mock of that endpoint.
+
+## Conversation attachment originals
+
+The same `original-document` endpoint and `download_original` connector action
+also support cited `c/{field}` conversation fields, including augmented citations.
+No actions are enabled automatically. File-field requests retain their existing
+two-selector format and response.
+
+For conversations, first submit the source selectors with `operation: "list"`,
+optional provider `page` (1..1000, default 1), and attachment `offset` (0..10000,
+default 0). It queues the existing tool job, then reads only the selected field:
+`GET /api/v1/kb/{kb}/resource/{rid}/conversation/{field}?show=value&page={page}`.
+The complete HTTP 200 JSON response is bounded to 256 KiB and 60 seconds.
+Validate its field identity, page counters and unique message identifiers before
+publishing any selection. Message text and provider attachment URIs/tokens are
+never persisted. Results list up to 100 attachment choices with opaque IDs,
+safe filenames, page/offset counters, `next_page`, and `next_offset`. Remaining
+non-file field references are counted explicitly, rather than advertised as files.
+
+To save one choice, submit the original selectors plus its `attachment_id`.
+The selection is bound to the source run/citation, owner and connection digest.
+Caller-supplied message IDs, file IDs, attachment indexes and URLs are rejected.
+Binary attachments use the documented canonical service-account route:
+`GET /api/v1/kb/{kb}/resource/{rid}/conversation/{field}/download/field/{message_id}/{file_num}`.
+Referenced file fields use the existing file download route. Non-file or split
+field references remain explicit unsupported choices. Each read reuses existing
+limits, publication fences, private artifact revisions and durable source receipts.
+Listing performs no binary downloads. No request is resubmitted automatically.
+Re-listing does not overwrite earlier choices or captured files; the first saved
+local snapshot is pinned, while remote historical revision availability is never
+claimed. Revoked ownership/configuration blocks saved selection and receipt reuse.
+
+Contract evidence: NucliaDB source revision
+`274e33dc73cbadea7b25ac42ecc00fb43ab062c5`, `reader/api/v1/download.py`,
+`reader/api/v1/resource.py`, and `nucliadb_models` conversation/common models.
+The [official attachment SDK operation](https://docs.rag.progress.cloud/docs/develop/dotnet-sdk/IResourceFieldsService/#downloadconversationattachmentbyidasync)
+confirms message IDs and zero-based file indexes. Orbit discovery returned
+unrelated providers for this operation; none was used as a substitute.

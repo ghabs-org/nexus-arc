@@ -50,8 +50,7 @@ Citations can also refer to provider-augmented paragraphs or complete field text
 Nexus saves exact cited text and its augmentation type in private revisions;
 uncited augmented text stays out of answers' evidence and evaluation datasets.
 Malformed or ambiguous augmented identities fail before publication. Conversation
-text evidence is supported; downloading conversation binary attachments remains
-a separate open catalog capability.
+text evidence also supports explicit browsing and saving of its attached files.
 
 A successful answer returns `output`, explicit `status`, `sources`,
 `provider_citations`, `artifacts` and `untrusted: true`. Nuclia's answer-span
@@ -86,6 +85,39 @@ It checks run citation/artifact capacity before publishing through the shared
 artifact service under the existing workspace lock.
 
 ## Local acceptance
+
+### Conversation files
+
+With `download_original` selected and the connection explicitly enabled, expand
+a conversation citation's source list and choose **Browse attachments**. This
+reads the selected conversation page's metadata, then displays files with
+**Save file** controls. **Next page**, **Previous page** and file-offset controls
+keep larger results explicit. Listing alone does not download binary files.
+Only message IDs, safe filenames and canonical file choices are saved; message
+text and provider attachment URLs/tokens are discarded. Referenced file fields
+are supported. Non-file and split references are counted as unsupported.
+
+Saving queues the existing original-document job and captures one private file
+revision. Later requests reuse its saved receipt, including after restart.
+Choices belong to the source owner and connection configuration. Source changes,
+revoked execution access, cancelled jobs and changed selections prevent saving.
+Previously cited text remains pinned. Remote historical file availability is
+not promised; the first captured local copy is the retained original.
+
+The API still accepts the original two source selectors for file citations.
+Conversation listing adds `operation: "list"`, provider `page` and file `offset`;
+saving adds the returned opaque `attachment_id`. Caller-supplied URLs, message
+IDs or attachment indexes are rejected. Provider metadata must be a complete
+HTTP 200 JSON response up to 256 KiB; selected binary files retain the existing
+16 MiB limit. Both calls use the configured account and 60-second bounded reader.
+
+`examples/nexus-bot/src/studio_nuclia_attachments.py` exercises two pages, direct
+message attachments, a referenced file field and receipt reuse against the local
+dependency simulation. Local browser checks cover 390px, 820px and 1280px widths;
+physical mobile devices and a live Nuclia account remain separate acceptance.
+The [attachment checkpoint](STUDIO-NUCLIA-ATTACHMENTS-CHECKPOINT.json) records scope
+and pending work. This extends the original-file slice without claiming whole
+plugin acceptance.
 
 Start the repository dependency simulation:
 
@@ -156,6 +188,55 @@ Sources:
 - Frozen plugin guide (archived audit evidence)
 
 ## Stored typed query templates
+
+### Explicit provider audit metadata
+
+Version-1 templates may include the following optional field:
+
+```json
+{
+  "version": 1,
+  "parameters": [
+    {"name": "workspace", "required": true, "context_path": ["workspace", "name"]}
+  ],
+  "audit_metadata": {
+    "enabled": true,
+    "fields": {"workspace": "{{workspace}}", "environment": "personal"}
+  }
+}
+```
+
+Both search and generated answers send enabled fields to Nuclia's audit
+metadata. Configure only values you intend that provider to receive and retain
+in activity logs. Nothing is inferred from files, credentials or arbitrary
+runtime state. No audit metadata is sent without explicit configuration.
+Setting `enabled` to false retains the templates but sends no audit fields.
+
+Keys are static, bounded strings. Values use declared scalar parameters and
+the original `{{query}}`, with the same server-context protection as query and
+filter templates. Numeric, boolean and null values become JSON-spelled strings;
+empty rendered strings are omitted. The entire dictionary must fit the
+provider's serialized 10 KiB limit, including JSON escaping. Missing values,
+undeclared parameters, attribute/index expressions and caller-supplied
+`arguments.audit_metadata` fail before HTTP. Failed fields never silently
+disappear from an enabled request. Audit fields are not automatically copied
+into evidence artifacts, citation metadata or traces.
+
+Strict template-settings and Python descriptor conversion now support
+`audit_metadata`, including legacy single-brace scalar placeholders. Review
+explicitly identifies outbound metadata and the stricter failure behavior.
+Existing descriptor bindings with empty, disabled audit settings retain their
+previous native shape; existing configurations gain no fields automatically.
+File-backed and SQLite state preserve enabled/disabled templates across restart.
+Ordinary connection edits preserve the existing versioned template. Use
+configuration validate/plan/apply or the catalog API to edit these settings.
+
+Run `examples/nexus-bot/src/studio_nuclia_audit.py --base
+http://127.0.0.1:<port>/nuclia` against the existing local simulation. It exercises
+search, answers, preflight rejection, disabling and provider failure without
+retry. See [audit metadata evidence](STUDIO-NUCLIA-AUDIT-CHECKPOINT.json).
+
+### Query and filter templates
 
 Nuclia connector data now accepts an optional, versioned `template`. Configure it
 through existing configuration-as-code validate/plan/apply operations or the
@@ -313,17 +394,54 @@ connections without these settings retain their ten-result default. The source
 descriptor's omitted `top_k` becomes five, matching its frozen default. Editing
 ordinary connection fields in Studio preserves fixed settings and templates.
 
-The explicit policy uses private Nexus answer/source revisions, native filenames,
-structured citations and native retrieval defaults. It does not recreate source
-ephemeral links or implicit neighbour/hierarchy retrieval strategies. Non-default
-presentation flags, custom artifact naming, non-default citation modes, enabled
-audit metadata, provider evaluation topics and unknown fields require manual
-adaptation and fail before saving. This bounded profile does not close the whole
-Nuclia catalog entry.
+The explicit policy uses private Nexus answer/source revisions, native filenames
+and structured citations. Existing bindings retain native retrieval defaults.
+To preserve the source tool's neighbouring-paragraph and document-title/summary
+context, explicitly add `"preserve_retrieval": true` to the tool's binding:
+
+```json
+{
+  "nuclia": {
+    "CompanyKnowledge": {
+      "connector_id": "knowledge",
+      "policy": "nexus-strict-v1",
+      "preserve_retrieval": true
+    }
+  }
+}
+```
+
+Create matching disabled connection data with
+`convert_tool_descriptor(source, policy="nexus-strict-v1", preserve_retrieval=True)`.
+This fixes `rag_strategies` to two preceding/two following paragraphs plus
+hierarchy context with zero extra paragraph characters. Review reports the
+expanded provider context and possible usage increase. A connection with
+different strategies fails binding before any resource is saved. Conversion
+never enables the connection or invokes a provider. The flag and strategies
+survive source/native export and file/SQLite restart. Existing bindings without
+the flag retain their old shape and behavior.
+
+Native ask settings may separately configure `rag_strategies` using the same
+validator. Supported names are `neighbouring_paragraphs` and `hierarchy`, each
+once, with at most two strategies. Neighbour counts are integers 0–10; hierarchy
+count is an integer 0–1024. Omitted counts normalize to 2/2/0. An empty list uses
+the provider's default context. Unknown fields, duplicates, invalid counts and
+conflicting caller replacements fail before HTTP. Search (`query`) rejects this
+ask-only argument. Cited expanded text retains private revision-pinned artifacts
+and augmentation provenance through the existing citation path.
+
+Ephemeral provider links, non-default presentation flags, custom artifact naming,
+non-default citation modes, provider evaluation topics and unknown fields still
+require manual adaptation and fail before saving. Audit metadata now has the
+explicit template support described above. This bounded profile does not close
+the whole Nuclia catalog entry. See
+[retrieval context evidence](STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json). Live retrieval
+quality and billing remain separate from local request/citation acceptance.
 
 ```sh
 postman simulation run postman/simulations/studio-nuclia.sim.yaml --port 50950 --output ndjson
 PYTHONPATH=. python examples/nexus-bot/src/studio_nuclia_descriptors.py
+PYTHONPATH=. python examples/nexus-bot/src/studio_nuclia_descriptors.py --preserve-retrieval
 PYTHONPATH=. python -m pytest tests/test_studio_nuclia_descriptors.py -q -o addopts=''
 ```
 
@@ -414,9 +532,10 @@ query-only by default. After the answer completes, expand its sources and choose
 file into a private artifact and replaces the button with **Open saved original**.
 The original paragraph snapshot and its pinned citation revision stay unchanged.
 
-This supports Nuclia file fields (`f/<field-id>`). Text/link/conversation fields
-and old citations without the saved connection reference do not advertise an
-original-file action. Ask again after enabling the action or changing the saved
+This supports Nuclia file fields (`f/<field-id>`). Conversation fields
+(`c/<field-id>`) offer the explicit attachment browser described above.
+Text/link fields and old citations without the saved connection reference do not
+advertise an original-file action. Ask again after enabling the action or changing the saved
 connection. Selection uses an owned completed run and saved citation index;
 clients cannot supply provider URLs, resource IDs, account credentials or file
 paths. The server builds the canonical knowledge-box/resource/file endpoint from
@@ -468,7 +587,7 @@ No schema/credential migration is required. New citations optionally retain a
 configuration digest, file-field identity and source selector. Older citations
 remain readable. The version-1 `source-originals` receipts use existing state,
 artifact, backup and authorization services. Public shell cache version is 40.
-Descriptor settings outside the explicit binding profile, conversation binary attachment originals,
+Descriptor settings outside the explicit binding profile, non-file or split attachment references,
 vendor ephemeral-link equivalence, historical original
 revisions and live Nuclia/VM acceptance remain open. Milestones 7 and 8 are not
 complete.

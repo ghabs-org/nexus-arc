@@ -85,7 +85,7 @@ def test_escaped_braces_and_runtime_values_are_not_reinterpreted():
     "mutation",
     [
         lambda c: c.update(token="PRIVATE_SECRET"),
-        lambda c: c.update(audit_metadata={"enabled": False}),
+        lambda c: c.update(audit_metadata={"enabled": "PRIVATE_SECRET"}),
         lambda c: c["template_parameters"][0].update(context_expression="private.user()"),
         lambda c: c["template_parameters"][0].update(nullable=1),
         lambda c: c["prompt_rephrasing"].update(unknown="PRIVATE_SECRET"),

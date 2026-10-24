@@ -38,20 +38,57 @@ function showCitations(node, citations=[]) {
         }catch(error){if(typeof notify==="function")notify(error.message);}
       });}
     link.target="_blank";link.rel="noopener noreferrer";details.append(link);
-    if(source.original_document&&typeof source.source_run_id==="string"&&Number.isInteger(source.source_index)&&typeof api==="function"&&typeof pollRun==="function"){
-      const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent="Save current original";button.title="Copies the current remote file. Previously cited text stays pinned.";
-      button.addEventListener("click",async()=>{
-        button.disabled=true;button.textContent="Saving original…";
-        try{
-          const run=await api("/api/studio/original-document",{source_run_id:source.source_run_id,source_index:source.source_index});
-          const completed=await pollRun(run.id),result=JSON.parse(completed.output),artifact=result.artifacts?.[0];
-          if(!artifact||typeof artifact.id!=="string"||!Number.isInteger(artifact.revision))throw new Error("Original file has no saved snapshot.");
-          const saved=document.createElement("a");saved.href=`/artifact.html?id=${encodeURIComponent(artifact.id)}&revision=${artifact.revision}&page=1`;saved.textContent="Open saved original";saved.target="_blank";saved.rel="noopener noreferrer";button.replaceWith(saved);
-        }catch(error){button.disabled=false;button.textContent="Save current original";if(typeof notify==="function")notify(error.message);}
-      });details.append(button);
-    }
+    appendOriginalFiles(details,source);
   });
   node.append(details);
+}
+async function requestOriginalFiles(source,selection={}) {
+  const run=await api("/api/studio/original-document",{source_run_id:source.source_run_id,source_index:source.source_index,...selection});
+  const completed=await pollRun(run.id);
+  return JSON.parse(completed.output);
+}
+async function saveOriginalFile(button,source,selection={},label="Save current original") {
+  if(button.disabled)return;
+  button.disabled=true;button.textContent="Saving original…";
+  try{
+    const result=await requestOriginalFiles(source,selection),artifact=result.artifacts?.[0];
+    if(!artifact||typeof artifact.id!=="string"||!Number.isInteger(artifact.revision))throw new Error("Original file has no saved snapshot.");
+    const saved=document.createElement("a");saved.href=`/artifact.html?id=${encodeURIComponent(artifact.id)}&revision=${artifact.revision}&page=1`;saved.textContent="Open saved original";saved.target="_blank";saved.rel="noopener noreferrer";button.replaceWith(saved);
+  }catch(error){button.disabled=false;button.textContent=label;if(typeof notify==="function")notify(error.message);}
+}
+function appendOriginalFiles(details,source) {
+  if(!source.original_document||typeof source.source_run_id!=="string"||!Number.isInteger(source.source_index)||typeof api!=="function"||typeof pollRun!=="function")return;
+  const button=document.createElement("button");button.type="button";button.className="secondary";
+  if(!source.field_id?.startsWith("c/")){
+    button.textContent="Save current original";button.title="Copies the current remote file. Previously cited text stays pinned.";
+    button.addEventListener("click",()=>saveOriginalFile(button,source));details.append(button);return;
+  }
+  button.textContent="Browse attachments";button.title="List files in this cited conversation. Files are saved only when selected.";
+  const panel=document.createElement("div");panel.className="source-attachments";panel.setAttribute("aria-live","polite");let loading=false;
+  async function load(page=1,offset=0){
+    if(loading)return;loading=true;button.disabled=true;button.textContent="Loading attachments…";panel.replaceChildren();
+    try{
+      const result=await requestOriginalFiles(source,{operation:"list",page,offset});
+      if(!Array.isArray(result.attachments))throw new Error("Attachment listing is unavailable.");
+      const status=document.createElement("p");status.textContent=`Page ${result.page} of ${result.pages} · ${result.attachments.length} of ${result.attachment_count} files on this page.`;panel.append(status);
+      if(!result.attachments.length){const empty=document.createElement("p");empty.textContent="No files on this conversation page.";panel.append(empty);}
+      for(const item of result.attachments){
+        const row=document.createElement("p"),name=document.createElement("span"),save=document.createElement("button");row.className="source-attachment-row";
+        name.textContent=`${item.filename} · message ${item.message_id}`;save.type="button";save.className="secondary";save.textContent="Save file";
+        save.addEventListener("click",()=>saveOriginalFile(save,source,{attachment_id:item.attachment_id},"Save file"));row.append(name,save);panel.append(row);
+      }
+      if(result.unsupported_references){const note=document.createElement("p");note.textContent=`${result.unsupported_references} non-file or split references cannot be downloaded here.`;panel.append(note);}
+      const controls=document.createElement("div");controls.className="card-actions";
+      const add=(label,nextPage,nextOffset)=>{const navigation=document.createElement("button");navigation.type="button";navigation.className="secondary";navigation.textContent=label;navigation.addEventListener("click",()=>load(nextPage,nextOffset));controls.append(navigation);};
+      if(offset>0)add("Earlier files",page,Math.max(0,offset-100));
+      if(Number.isInteger(result.next_offset))add("More files",page,result.next_offset);
+      if(page>1)add("Previous page",page-1,0);
+      if(Number.isInteger(result.next_page))add("Next page",result.next_page,0);
+      panel.append(controls);
+    }catch(error){panel.textContent=error.message;if(typeof notify==="function")notify(error.message);}
+    finally{loading=false;button.disabled=false;button.textContent="Browse attachments";}
+  }
+  button.addEventListener("click",()=>load());details.append(button,panel);
 }
 function previewDocument(root, preview, options={}) {
   let current=preview;

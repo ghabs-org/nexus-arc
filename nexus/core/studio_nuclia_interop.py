@@ -35,7 +35,13 @@ def convert_template_settings(source, *, policy):
     if (
         not isinstance(source, dict)
         or not source
-        or set(source) - {"template_parameters", "prompt_rephrasing", "filter_expression_template"}
+        or set(source)
+        - {
+            "template_parameters",
+            "prompt_rephrasing",
+            "filter_expression_template",
+            "audit_metadata",
+        }
     ):
         raise ValueError(
             "Supply only reference Nuclia template settings; adapt other tool settings separately"
@@ -125,8 +131,23 @@ def convert_template_settings(source, *, policy):
     expression = source.get("filter_expression_template")
     if expression is not None:
         native["filter_expression"] = translate(expression)
+    audit = source.get("audit_metadata")
+    if audit is not None:
+        if not isinstance(audit, dict) or set(audit) - {"enabled", "fields"}:
+            raise ValueError("Nuclia audit metadata supports enabled and fields only")
+        native["audit_metadata"] = {
+            "enabled": audit.get("enabled", True),
+            "fields": translate(audit.get("fields", {})),
+        }
     return {
         "policy": POLICY,
-        "adaptations": list(ADAPTATIONS),
+        "adaptations": list(ADAPTATIONS)
+        + (
+            [
+                "Enabled audit templates send explicitly selected values to Nuclia activity logs; missing values fail instead of omitting fields."
+            ]
+            if audit is not None
+            else []
+        ),
         "template": validate_template(native),
     }

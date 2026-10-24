@@ -61,16 +61,37 @@ def test_original_binary_transport_rejects_failed_partial_or_oversized_responses
         studio.close()
 
 
-def test_descriptor_binding_review_preserves_fixed_settings_over_http():
+@pytest.mark.parametrize("preserve_retrieval", [False, True])
+def test_descriptor_binding_review_preserves_fixed_settings_over_http(preserve_retrieval):
     example = runpy.run_path(
-        str(Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_nuclia_descriptors.py")
+        str(
+            Path(__file__).resolve().parents[1]
+            / "examples/nexus-bot/src/studio_nuclia_descriptors.py"
+        )
+    )
+    result = example["exercise"](
+        os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia"),
+        preserve_retrieval=preserve_retrieval,
+    )
+    assert result == {
+        "requests": 2,
+        "reviewed_binding": True,
+        "no_action_replay": True,
+        "live_verified": False,
+    }
+
+
+def test_reviewed_audit_templates_search_answer_and_failure_over_http():
+    example = runpy.run_path(
+        str(Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_nuclia_audit.py")
     )
     result = example["exercise"](
         os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia")
     )
     assert result == {
-        "requests": 2,
-        "reviewed_binding": True,
+        "provider_requests": 4,
+        "search_and_answer": True,
+        "preflight_rejections": 3,
         "no_action_replay": True,
         "live_verified": False,
     }

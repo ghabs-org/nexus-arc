@@ -57,8 +57,7 @@
   "migration": "Optional snapshot sql_records/sql_records_sha256 plus private versioned intents and receipts; state schema version stays 1. No production records, credentials or database were migrated. Original snapshots remain the rollback copy.",
   "validation_pending": [
     "Live PostgreSQL-to-PostgreSQL restore, driver/database failure and personal HTTPS VM drill.",
-    "Live cloud-bucket and actual account-store recovery.",
-    "Nuclia conversation attachment contract lookup remains deferred; external source download was not executed because automatic approval review could not complete under the current usage limit. No route was guessed."
+    "Live cloud-bucket and actual account-store recovery."
   ],
   "required_warning": "One SQLAlchemy deprecation warning comes from constructing a mode=memory URI solely to verify that ephemeral restore targets are rejected; production connection behavior was not changed.",
   "source_sha256": {
@@ -75,5 +74,9 @@
   "object_backup_followup": {
     "checkpoint": "STUDIO-OBJECT-BACKUP-CHECKPOINT.json",
     "scope": "Provider capture and offline artifact localization extend the earlier SQL restore. Earlier source hashes and test results remain evidence for the original scope."
+  },
+  "nuclia_attachment_followup": {
+    "checkpoint": "STUDIO-NUCLIA-ATTACHMENTS-CHECKPOINT.json",
+    "scope": "The earlier public-source lookup blocker is resolved. Canonical conversation attachment operations now have local acceptance; vendor historical/evaluation equivalence remains separate."
   }
 }

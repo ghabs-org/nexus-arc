@@ -11,6 +11,24 @@ from nexus.core.studio_prompts import VARIABLE, validate_prompt
 TYPES = {"string": str, "boolean": bool, "integer": int, "number": (int, float)}
 
 
+def validate_audit_values(value):
+    """Match the provider's string dictionary and serialized 10 KiB limit."""
+    if (
+        not isinstance(value, dict)
+        or len(value) > 30
+        or any(
+            not isinstance(key, str)
+            or not 1 <= len(key.encode()) <= 128
+            or any(ord(char) < 32 or ord(char) == 127 for char in key)
+            or not isinstance(item, str)
+            for key, item in value.items()
+        )
+        or len(json.dumps(value, allow_nan=False).encode()) > 10240
+    ):
+        raise ValueError("Nuclia audit metadata requires bounded string fields within 10 KiB")
+    return value
+
+
 def typed(value, parameter):
     if value is None:
         return parameter.get("nullable", False)
@@ -27,7 +45,8 @@ def typed(value, parameter):
 def validate_template(value):
     if (
         not isinstance(value, dict)
-        or set(value) - {"version", "parameters", "query_prompt", "filter_expression"}
+        or set(value)
+        - {"version", "parameters", "query_prompt", "filter_expression", "audit_metadata"}
         or type(value.get("version")) is not int
         or value["version"] != 1
     ):
@@ -125,6 +144,20 @@ def validate_template(value):
         ):
             raise ValueError("Nuclia filter template needs object predicates and and/or operator")
         inspect(expression)
+    if "audit_metadata" in value:
+        audit = value["audit_metadata"]
+        if (
+            not isinstance(audit, dict)
+            or set(audit) != {"enabled", "fields"}
+            or type(audit.get("enabled")) is not bool
+        ):
+            raise ValueError("Nuclia audit template requires explicit enabled and fields")
+        validate_audit_values(audit["fields"])
+        inspect(audit["fields"])
+        for key, part in audit["fields"].items():
+            remainder = VARIABLE.sub("", part)
+            if "{{" in key or "}}" in key or "{{" in remainder or "}}" in remainder:
+                raise ValueError("Nuclia audit templates require plain named scalar placeholders")
     if len(json.dumps(value, allow_nan=False).encode()) > 16384:
         raise ValueError("Nuclia template exceeds 16 KiB")
     return copy.deepcopy(value)
@@ -189,6 +222,8 @@ def prepare_arguments(template, arguments, *, context=None):
         return part
 
     result = {key: value for key, value in arguments.items() if key != "parameters"}
+    if "audit_metadata" in arguments:
+        raise ValueError("Runtime metadata cannot override reviewed Nuclia audit templates")
     if "query_prompt" in template:
         result["query"] = expand(template["query_prompt"])
     if "filter_expression" in template:
@@ -197,4 +232,14 @@ def prepare_arguments(template, arguments, *, context=None):
                 "Runtime filters cannot override the configured Nuclia filter template"
             )
         result["filter_expression"] = expand(template["filter_expression"])
+    audit = template.get("audit_metadata", {})
+    if audit.get("enabled"):
+        metadata = {}
+        for key, part in audit["fields"].items():
+            item = expand(part)
+            item = item if isinstance(item, str) else json.dumps(item, allow_nan=False)
+            if item:
+                metadata[key] = item
+        if validate_audit_values(metadata):
+            result["audit_metadata"] = metadata
     return result

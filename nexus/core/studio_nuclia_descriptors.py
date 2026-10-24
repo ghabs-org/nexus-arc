@@ -25,14 +25,20 @@ def validate_ask_settings(value):
         "rephrase",
         "prefer_markdown",
         "prompt",
+        "rag_strategies",
     }:
-        raise ValueError("Nuclia ask settings support top_k, rephrase, prefer_markdown and prompt")
+        raise ValueError(
+            "Nuclia ask settings support top_k, rephrase, prefer_markdown, prompt and rag_strategies"
+        )
     # Use the invocation validator, so saved and executed settings have one contract.
-    request_body("ask", {"query": "Validate configured settings", **value})
-    return json.loads(json.dumps(value, allow_nan=False))
+    body = request_body("ask", {"query": "Validate configured settings", **value})
+    normalized = json.loads(json.dumps(value, allow_nan=False))
+    if "rag_strategies" in value:
+        normalized["rag_strategies"] = body["rag_strategies"]
+    return normalized
 
 
-def convert_tool_descriptor(source, *, policy):
+def convert_tool_descriptor(source, *, policy, preserve_retrieval=False):
     """Return disabled native connection data for explicit review and binding.
 
     The strict profile preserves supported request settings. Presentation uses
@@ -41,6 +47,8 @@ def convert_tool_descriptor(source, *, policy):
     """
     if policy != POLICY:
         raise ValueError("Select the explicit Nuclia descriptor policy nexus-strict-v1")
+    if type(preserve_retrieval) is not bool:
+        raise ValueError("Nuclia preserve_retrieval must be an explicit boolean")
     if not isinstance(source, dict) or set(source) != {
         "tool_type",
         "component_module",
@@ -117,14 +125,6 @@ def convert_tool_descriptor(source, *, policy):
         raise ValueError(
             "Provider evaluation topics require manual adaptation to Nexus evaluations"
         )
-    audit = config.get("audit_metadata")
-    if audit is not None and (
-        not isinstance(audit, dict)
-        or set(audit) - {"enabled", "fields"}
-        or audit.get("enabled") is not False
-        or audit.get("fields", {}) != {}
-    ):
-        raise ValueError("Enabled or populated provider audit metadata requires manual adaptation")
     for field, default in {
         "output_response_as_artifact": True,
         "inline_citation_links": True,
@@ -147,12 +147,25 @@ def convert_tool_descriptor(source, *, policy):
         "prompt_rephrasing": config.get("prompt_rephrasing"),
         "filter_expression_template": config.get("filter_expression_template"),
     }
+    if config.get("audit_metadata") is not None:
+        templates["audit_metadata"] = config["audit_metadata"]
     converted = convert_template_settings(templates, policy=policy)
+    # Earlier bindings accepted disabled, empty audit settings without a native field.
+    if converted["template"].get("audit_metadata") == {"enabled": False, "fields": {}}:
+        converted["template"].pop("audit_metadata")
     settings = {
         "top_k": config.get("top_k", 5),
         "rephrase": config.get("rephrase", False),
         "prefer_markdown": config.get("prefer_markdown", True),
     }
+    adaptations = list(DESCRIPTOR_ADAPTATIONS)
+    if preserve_retrieval:
+        from nexus.core.studio_nuclia_retrieval import EXPANDED_CONTEXT
+
+        settings["rag_strategies"] = list(EXPANDED_CONTEXT)
+        adaptations[-1] = (
+            "Neighbouring paragraphs (two before/two after) and title/summary hierarchy context are fixed explicitly; expanded provider context may increase usage."
+        )
     if config.get("user_prompt") is not None:
         settings["prompt"] = {"user": config["user_prompt"]}
     from nexus.core.studio_remote import validate_remote
@@ -161,7 +174,7 @@ def convert_tool_descriptor(source, *, policy):
     return {
         "name": name,
         "policy": policy,
-        "adaptations": [*converted["adaptations"], *DESCRIPTOR_ADAPTATIONS],
+        "adaptations": [*converted["adaptations"], *adaptations],
         "connector": {
             "type": "nuclia",
             "enabled": False,
@@ -189,7 +202,11 @@ def bind_tool_descriptor(bridge, source, path, refs):
             "Bind this Nuclia tool name to an existing connection with explicit nexus-strict-v1 policy",
         )
         return True
-    converted = convert_tool_descriptor(source, policy=binding.get("policy"))
+    converted = convert_tool_descriptor(
+        source,
+        policy=binding.get("policy"),
+        preserve_retrieval=binding.get("preserve_retrieval", False),
+    )
     target = binding.get("connector_id")
     selected = bridge.studio.catalog.get("connectors", target)["data"]
     expected = converted["connector"]

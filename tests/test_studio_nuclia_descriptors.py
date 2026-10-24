@@ -126,7 +126,7 @@ def test_source_defaults_legacy_parameters_and_query_compatibility():
         lambda s: s["tool_config"].update(output_filename_base="PRIVATE_SECRET"),
         lambda s: s["tool_config"].update(artifact_description_query_max_length=True),
         lambda s: s["tool_config"].update(remi_publish_topic="PRIVATE_SECRET"),
-        lambda s: s["tool_config"].update(audit_metadata={"enabled": True}),
+        lambda s: s["tool_config"].update(audit_metadata={"enabled": "PRIVATE_SECRET"}),
         lambda s: s["tool_config"].update(context_parameters=[]),
         lambda s: s["tool_config"].update(top_k=float("nan")),
     ],

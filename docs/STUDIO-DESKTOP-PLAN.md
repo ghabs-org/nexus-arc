@@ -1,6 +1,9 @@
 # Nexus Studio standalone desktop delivery plan
 
-Status: locally-accepted; framework distribution, Tauri 2 shell configuration, locking, security, import, and CLI are verified per [STUDIO-M9-DESKTOP-CHECKPOINT.json](STUDIO-M9-DESKTOP-CHECKPOINT.json).
+Status: incomplete prototype; last delivery. Supporting helpers have scoped unit
+coverage, but native backend startup, portable bundling and clean installation
+on macOS, Linux and Windows remain open per
+[STUDIO-M9-DESKTOP-CHECKPOINT.json](STUDIO-M9-DESKTOP-CHECKPOINT.json).
 Requested: 21 October 2026.
 Placement: reusable framework distribution and desktop launcher.
 

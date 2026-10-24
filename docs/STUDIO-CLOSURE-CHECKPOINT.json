@@ -13,7 +13,10 @@
     "Milestone 8 local integration runs an actual experiment/tool-backed chat, inspects generated traces and stops writers before backup.",
     "False aggregate completion labels were withdrawn; a read-only consistency audit rejects contradictory totals or premature completion claims.",
     "Named experiments pause at approval/input gates and continue their current case through existing graph/YAML checkpoints and fenced jobs. Each pause has a fresh confirmation token; completed cases and nodes survive file/SQL restart. See STUDIO-EXPERIMENT-CONTINUATION-CHECKPOINT.json for scoped evidence; no milestone or frozen acceptance totals are promoted.",
-    "Explicit read-only artifact object capture and offline localization now reuse existing filesystem/S3/GCS/Azure stores. Current/historical revisions, owners, citations and file/SQL restore are fixture-verified; an actual S3 SDK HTTP simulation covers failure shapes. See STUDIO-OBJECT-BACKUP-CHECKPOINT.json. No live cloud or VM acceptance is claimed."
+    "Explicit read-only artifact object capture and offline localization now reuse existing filesystem/S3/GCS/Azure stores. Current/historical revisions, owners, citations and file/SQL restore are fixture-verified; an actual S3 SDK HTTP simulation covers failure shapes. See STUDIO-OBJECT-BACKUP-CHECKPOINT.json. No live cloud or VM acceptance is claimed.",
+    "Cited conversation fields now expose explicit paged attachment discovery and selected canonical file downloads. Opaque choices bind owner/source/configuration, discard message text and provider links, and reuse private receipts across restart. See STUDIO-NUCLIA-ATTACHMENTS-CHECKPOINT.json; whole Nuclia/catalog acceptance remains open.",
+    "Explicit Nuclia audit templates now preserve reviewed scalar/context values, reject spoofing and oversized payloads before HTTP, and survive file/SQLite configuration restart. Search/answer and non-replay checks use actual local HTTP. See STUDIO-NUCLIA-AUDIT-CHECKPOINT.json; full catalog acceptance remains open.",
+    "Explicit preserve_retrieval bindings and fixed native rag_strategies now preserve neighbouring-paragraph and title/summary context with bounded normalized counts, reviewed usage changes, legacy compatibility and file/SQLite restart. Real HTTP checks retain both private expanded citation files without replay. See STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json; the whole catalog entry remains open."
   ],
   "validation": {
     "studio_regressions": {
@@ -87,6 +90,33 @@
       "skipped": 0,
       "report": "/private/tmp/nexus-local-tls-followup.xml",
       "status": "passed"
+    },
+    "nuclia_conversation_attachments": {
+      "checkpoint": "STUDIO-NUCLIA-ATTACHMENTS-CHECKPOINT.json",
+      "backend_passed": 272,
+      "frontend_passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "live_verified": false,
+      "scope": "Cited conversation file browsing and selected capture; no whole-plan promotion."
+    },
+    "nuclia_audit_metadata": {
+      "checkpoint": "STUDIO-NUCLIA-AUDIT-CHECKPOINT.json",
+      "affected_regressions_passed": 288,
+      "actual_http_passed": 18,
+      "frontend_passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "live_verified": false
+    },
+    "nuclia_retrieval_context": {
+      "checkpoint": "STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json",
+      "affected_regressions_passed": 318,
+      "actual_http_passed": 19,
+      "frontend_passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "live_verified": false
     }
   },
   "inventory": {
@@ -180,7 +210,7 @@
     "inconsistencies": []
   },
   "remaining_implementation": [
-    "Complete Nuclia descriptor/configuration adaptation and conversation binary original attachments; reconcile frozen document/evaluation equivalence.",
+    "Complete Nuclia descriptor/configuration adaptation outside the supported profile, non-file/split attachment references, and frozen document/evaluation equivalence. Conversation binaries and referenced file-field originals now have scoped local acceptance.",
     "Finish cross-cutting schema, isolation, recovery, clean-install and delivery evidence; no blanket acceptance promotions.",
     "Desktop startup/session/ownership integration, bundled Python, native features, updates and clean per-OS installers remain unimplemented or unverified. Keep milestone 9 last."
   ],
@@ -254,6 +284,15 @@
       "skipped": 0,
       "report": "/private/tmp/nexus-object-backup-required-final.xml"
     },
+    "whole_plan_complete": false
+  },
+  "status_reconciliation": {
+    "date": "2026-10-24",
+    "authoring_local_gate": true,
+    "authoring_regressions_passed": 23,
+    "desktop_plan_status": "incomplete-prototype",
+    "frozen_accepted": 98,
+    "frozen_open": 37,
     "whole_plan_complete": false
   }
 }

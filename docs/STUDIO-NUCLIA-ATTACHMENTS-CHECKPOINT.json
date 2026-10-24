@@ -1,0 +1,142 @@
+{
+  "format": "nexus-studio-nuclia-attachments-checkpoint/v1",
+  "date": "2026-10-24",
+  "status": "fixture-verified",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Explicit paged discovery and selected capture of conversation binary attachments and same-resource file-field references from owned Nuclia citations.",
+  "implemented": [
+    "Existing original-document jobs now list cited conversation metadata and download only an explicitly selected opaque attachment choice. No new transport, scheduler or authorization service is introduced.",
+    "Canonical server-built paths bind owner, completed source run, citation index, resource, field and unchanged connector configuration. Caller URLs, message IDs and attachment indexes are rejected.",
+    "Choices retain bounded filenames and canonical identifiers only. Provider URLs, tokens and conversation text are discarded; permission/configuration/cancellation fences run again before publication or cached receipt reuse.",
+    "Conversation pages and batches of at most 100 choices have explicit navigation. Unsupported non-file or split references are counted rather than silently downloaded.",
+    "Selected files become immutable private artifact revisions. Existing source-original receipts survive restart and prevent repeated downloads after a completed capture.",
+    "Browser controls use safe text rendering and existing run polling without automatic POST replay. Phone, tablet and desktop widths have no horizontal overflow."
+  ],
+  "limits": {
+    "metadata_bytes": 262144,
+    "binary_bytes": 16777216,
+    "request_timeout_seconds": 60,
+    "conversation_pages": 1000,
+    "choices_per_page": 10000,
+    "choices_per_response": 100,
+    "attachments_per_message_per_kind": 50
+  },
+  "validation": {
+    "required": {
+      "tests": 190,
+      "passed": 190,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-attachment-required.xml"
+    },
+    "actual_http": {
+      "tests": 17,
+      "passed": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-attachment-http.xml",
+      "scope": "Existing Postman simulation and real framework transport/jobs; includes denied, redirect, partial, oversized and malformed metadata cases."
+    },
+    "compatibility": {
+      "tests": 65,
+      "passed": 65,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-attachment-compatibility.xml"
+    },
+    "frontend": {
+      "tests": 160,
+      "passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "command": "node --test tests/studio*.test.cjs",
+      "report": "/private/tmp/nexus-nuclia-attachment-frontend.log"
+    },
+    "example": {
+      "path": "examples/nexus-bot/src/studio_nuclia_attachments.py",
+      "status": "passed",
+      "conversation_pages": 2,
+      "saved_files": 3,
+      "cached_repeat": true,
+      "provider_requests": 6,
+      "live_verified": false
+    },
+    "browser": {
+      "scope": "Full local Studio and framework jobs against synthetic Nuclia HTTP responses. Actual paged browsing and selected saves exercised. This is not physical-device or personal-VM acceptance.",
+      "viewport_widths": [
+        390,
+        820,
+        1280
+      ],
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "screenshots": [
+        "/private/tmp/nexus-conversation-attachments-phone.png",
+        "/private/tmp/nexus-conversation-attachments-desktop.png"
+      ]
+    },
+    "simulation_log": {
+      "path": "/private/tmp/nexus-nuclia-attachments-simulation.ndjson",
+      "requests": 170,
+      "methods": {
+        "GET": 119,
+        "POST": 51
+      },
+      "status_codes": {
+        "200": 153,
+        "403": 2,
+        "307": 7,
+        "206": 2,
+        "429": 6
+      },
+      "scope": "Combined synthetic HTTP acceptance and browser requests, including diagnostic attempt counters and intentional failure scenarios; no live provider account."
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false
+    }
+  },
+  "source_evidence": {
+    "vendor_repository": "https://github.com/nuclia/nucliadb",
+    "commit": "274e33dc73cbadea7b25ac42ecc00fb43ab062c5",
+    "paths": [
+      "nucliadb/src/nucliadb/reader/api/v1/download.py",
+      "nucliadb/src/nucliadb/reader/api/v1/resource.py",
+      "nucliadb_models/src/nucliadb_models/conversation.py",
+      "nucliadb_models/src/nucliadb_models/common.py"
+    ],
+    "documentation": "https://docs.rag.progress.cloud/docs/develop/dotnet-sdk/IResourceFieldsService/",
+    "discovery": "Orbit returned unrelated provider operations; none were substituted. Existing local simulation was extended from primary vendor evidence."
+  },
+  "migration": "Additive private version-1 source-attachment-selections records and optional original-document operation/page/offset/attachment_id arguments. Existing two-selector file downloads and receipt keys remain compatible. Existing state/backup services retain the collection; no credential migration is required.",
+  "static": "Changed Python lint and formatting, JavaScript syntax and diff whitespace checks pass.",
+  "validation_pending": [
+    "Descriptor settings outside the supported binding profile and frozen document/evaluation equivalence, including independent REMi scoring semantics.",
+    "Non-file and split attachment references; vendor ephemeral-link equivalence and remote historical original revisions. Saved captures explicitly report remote_revision_pinned=false.",
+    "Live Nuclia credentials, account permissions, generation quality and billing; physical devices and personal HTTPS VM deployment.",
+    "Remaining frozen milestone and cross-cutting acceptance gates. This slice does not promote the Nuclia catalog entry or entire plan."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_nuclia_attachments.py": "b16583f4a31355a2cc2de2af9cdbc48b039f3bf4cd6f4f650dfb4442e6a318a2",
+    "nexus/core/studio_nuclia_documents.py": "bb7aa510250367c9a6751a75f05bcc7a56e0c7728e1fbeb8bc8a810af14c360d",
+    "nexus/studio_static/content.js": "c3419471ac70da810b25163b919783cbd02ae6677e7613c028cb22ae8088f233",
+    "nexus/studio_static/studio.css": "d3bfaa2505dd6cfbf458f701b3216288d451ad8e782b02fbb7affabda534e764",
+    "postman/contracts/studio-nuclia.md": "52ed6eeff4ef80aeb5ab6d36fbb370852a984846a2aae444b7ab91963ff31252",
+    "postman/mocks/studio-nuclia/default.js": "2dc4709b5d489661efc8c26dea15990e5cf393b8f010d6755320c1ec19f82869",
+    "tests/test_studio_nuclia_attachments.py": "0352a2084b412c7e36ea98cc910b01e814bf33c93a3c1f1d61cfcd4fd50e994c",
+    "tests/studio_nuclia_attachments_acceptance.py": "f70bde91df42570a0473b608f387dca3230317e0aacad94996e154504df26a59",
+    "tests/studio_original_document.test.cjs": "8356829a6fac199205e300bf8e2eb8ed8e55e6fab457ac513579ad4c19f81c4e",
+    "examples/nexus-bot/src/studio_nuclia_attachments.py": "258864231b14fb8a128abc85c86765ef786c1d51390edd1f15ad675138d03422",
+    "docs/STUDIO-NUCLIA.md": "7061b86c61485b9e8fc6fc34fc875d68d4cbf35f3d83d244d9105a165e811d62"
+  },
+  "real_account_requests_performed": false,
+  "user_studio_restarted": false,
+  "desktop_stays_last": true,
+  "concurrent_changes": "index.html and quick-build.js changes are outside this slice. studio.css hash captures the current shared checkout, including independent pre-existing Quick Build rules."
+}
