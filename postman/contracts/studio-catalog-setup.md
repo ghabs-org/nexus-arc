@@ -28,7 +28,16 @@ Package checks read installed distribution metadata only. Templates retain secre
 references and disabled connector defaults; selection placeholders require review
 and normal validators before saving. SQL driver selection remains explicit.
 
-Existing `POST /api/studio/integrations/{id}/configure` remains unchanged. Catalog
+`POST /api/studio/integrations/filesystem/configure` accepts an optional
+`server_script` absolute path. With a script, `command` selects the installed
+runtime (for example the absolute Node executable) and the saved MCP arguments
+are `[server_script, workspace_root]`. Without a script, the existing installed
+executable and `[workspace_root]` arguments remain unchanged. Empty script fields
+retain that legacy behavior. Relative, multiline, non-string and oversized script
+paths fail before saving. No shell, package download or environment inheritance
+is added. Node 24 or later is required by the pinned filesystem server.
+
+Other `POST /api/studio/integrations/{id}/configure` routes remain unchanged. Catalog
 inspection grants no new execution permissions. Runtime authorization, connection
 activation, selected-tool grants and approved mutation paths remain authoritative.
 Missing optional software disables the catalog tool-run button. Setup instructions

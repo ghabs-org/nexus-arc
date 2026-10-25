@@ -403,6 +403,9 @@ h1,h2,h3,.dialog-heading,.provider-row p,.callout{overflow-wrap:anywhere}
 .integration-catalog .library-row>button, button[data-integration-setup] { align-self:flex-start; flex-shrink:0; white-space:nowrap; padding:7px 14px; font-size:12px; height:auto; min-width:88px; }
 .integration-catalog article[hidden],.integration-catalog section[hidden] { display:none; }
 .enterprise-fields fieldset[hidden] { display:none; }
+.nuclia-answer-settings fieldset{border:0;padding:0;min-width:0;display:grid;gap:14px}
+.nuclia-answer-settings label.check-label{margin-top:14px;margin-bottom:14px}
+.nuclia-answer-settings input:not([type="checkbox"]),.nuclia-answer-settings select{min-width:0;max-width:100%;width:100%}
 .document-navigation { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
 .document-navigation label { display:flex; align-items:center; gap:6px; }
 .document-navigation input { min-height:44px; font-size:16px; }

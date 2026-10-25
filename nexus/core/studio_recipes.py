@@ -1,6 +1,7 @@
 """Community catalog equivalents configure ordinary Nexus services and tools."""
 
 from copy import deepcopy
+from pathlib import Path
 
 OFFICIAL = [
     (
@@ -412,10 +413,20 @@ class StudioRecipes:
             command = data.get("command")
             if not command:
                 raise ValueError("Select an already installed MCP filesystem server executable")
+            script = data.get("server_script", "")
+            if not isinstance(script, str) or (
+                script
+                and (
+                    len(script) > 2000
+                    or any(c in script for c in "\r\n\x00")
+                    or not Path(script).is_absolute()
+                )
+            ):
+                raise ValueError("Choose an absolute installed MCP server script path")
             config = {
                 "type": "mcp",
                 "command": command,
-                "args": [str(self.studio.root)],
+                "args": ([script] if script else []) + [str(self.studio.root)],
                 "actions": ["discover"],
                 "tools": [],
                 "read_only_tools": [],

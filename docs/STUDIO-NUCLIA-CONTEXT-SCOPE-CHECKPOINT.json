@@ -1,0 +1,146 @@
+{
+  "format": "nexus-studio-nuclia-context-scope-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified",
+  "whole_catalog_entry_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Explicit private original-retrieval context capture, uncited provenance, version-1/version-2 readers, scoped promotion and native adaptation of configured evaluation topics.",
+  "implemented": [
+    "Optional evaluation_context selects cited (default) or retrieved. Only explicit capture_evaluation=true saves evidence. Full context writes version-2 evidence with retrieved-paragraphs-only scope and a cited boolean on each original retrieved source; augmented-only blocks remain outside that scope.",
+    "Uncited paragraph text stays in the private evidence artifact. Internal retrieval context is removed before normal tool result publication and is not added to chat citations, source snapshots or execution events. Capture adds no provider request.",
+    "Version-2 identities, digests, context/source alignment, cited markers and existing byte/count bounds are checked before publication or promotion. Missing or oversized full retrieval fails rather than silently falling back or truncating.",
+    "Existing cited-only capture keeps version-1 output. Both versions pass revision-pinned owner checks, feedback promotion and stopped file/SQLite backup restore. Promotion copies context without selecting or invoking a judge.",
+    "Explicit preserve_evaluation descriptor bindings adapt a configured evaluation topic to private full-retrieval capture. Topics are never published or used as endpoints. Review reports changed transport/privacy; absent/empty topics enable no extra capture. Matching native settings and separate activation remain required.",
+    "Connection-editor Evaluation context select exposes scope, preserves the preference with capture off, and avoids changing absent legacy defaults. Mobile save/reopen, capture disable/retain and 390/820/1280 pixel layout checks pass without enabling the synthetic connector. Public shell cache advances to version 56."
+  ],
+  "limits": {
+    "original_retrieved_paragraphs": 20,
+    "paragraph_utf8_bytes": 16000,
+    "combined_context_text_bytes": 64000,
+    "encoded_context_bytes": 96000,
+    "report_json_bytes": 160000,
+    "topic_utf8_bytes": 1000
+  },
+  "validation": {
+    "affected_regressions": {
+      "tests": 440,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 440,
+      "report": "/private/tmp/nexus-nuclia-context-scope-required.xml"
+    },
+    "actual_http": {
+      "tests": 26,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 26,
+      "report": "/private/tmp/nexus-nuclia-context-scope-http.xml",
+      "scope": "Real framework transport and native Studio API/jobs against the saved local Postman stand-in. Includes full-context capture, feedback promotion and an explicitly selected synthetic judge; no live provider/model account."
+    },
+    "frontend": {
+      "tests": 164,
+      "passed": 164,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-context-scope-frontend.log",
+      "command": "node --test tests/studio*.test.cjs"
+    },
+    "example": {
+      "path": "examples/nexus-bot/src/studio_nuclia.py --retrieved",
+      "provider_requests": 9,
+      "failure_cases": 6,
+      "explicit_generation": true,
+      "private_revision_citations": true,
+      "full_context_judge_flow": true,
+      "live_verified": false
+    },
+    "browser": {
+      "scope": "Temporary Studio workspace and disabled synthetic connector; no provider invocation. Explicit full-capture save/reopen and capture-off scope retention verified.",
+      "widths": [
+        390,
+        820,
+        1280
+      ],
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "screenshots": [
+        "/private/tmp/nexus-evaluation-context-phone.png",
+        "/private/tmp/nexus-evaluation-context-desktop.png"
+      ],
+      "viewport_reset": true,
+      "own_tab_closed": true
+    },
+    "simulation": {
+      "log": "/private/tmp/nexus-nuclia-context-scope-simulation.ndjson",
+      "requests": 251,
+      "methods": {
+        "GET": 174,
+        "POST": 77
+      },
+      "status_codes": {
+        "200": 224,
+        "429": 15,
+        "307": 8,
+        "403": 2,
+        "206": 2
+      },
+      "members_served": [
+        "nuclia"
+      ],
+      "members_silent": [],
+      "scope": "Combined explicit HTTP suite, diagnostic counters and intentional failures; no live account."
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "report": "/private/tmp/nexus-nuclia-context-scope-completion.json"
+    }
+  },
+  "authority": {
+    "frozen_tool_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+    "source_behavior": "Evaluation payload construction traverses original retrieval resources/fields/paragraphs, then publishes question, answer, contexts, status and identifiers. The producer does not itself compute scores. Native private capture/promotion adapts this without the excluded external event broker.",
+    "external_request_contract": "No new external endpoint, authentication mode or SDK. Existing Nuclia synchronous response and local simulation are reused; new behavior is native evidence scope and format."
+  },
+  "migration": {
+    "forward": "Optional configuration and version-2 evidence writer, with readers for both versions. No existing state or credential rewrite. Explicit full-context capture only; cited-only remains version 1.",
+    "rollback": "Retain version-2 artifact bytes. Disable new capture or select cited-only when using an older release; version-2 promotion needs the new reader. Existing version-1 captures and copied evaluation cases remain readable.",
+    "verified": [
+      "Version-1 default format unchanged",
+      "Both versions retained through stopped file and SQLite logical backup/restore",
+      "Pinned older evidence remains promotable after a later malformed revision",
+      "No automatic provider or judge invocation during restore or promotion"
+    ]
+  },
+  "validation_pending": [
+    "Independent reference-runtime, downstream evaluation/scoring quality and live Nuclia account permissions/billing.",
+    "Remaining catalog/source semantic audit, unsupported original-reference and document-viewing equivalents, personal HTTPS VM and physical devices.",
+    "Other frozen cross-cutting/operational gates; standalone desktop remains incomplete and last."
+  ],
+  "static": "Changed Python lint/format, frontend JavaScript syntax and diff whitespace checks pass.",
+  "source_sha256": {
+    "nexus/core/studio_retrieval_evidence.py": "6fb43247eb9cc8e7236c58192b6b88ee26a078e96dcc523f997cc92a17d465cf",
+    "nexus/core/studio_nuclia.py": "1c6cb13da239534821477c6dd2b7a8c40b3bc5eb1df37e49aef7017821e1e762",
+    "nexus/core/studio_enterprise.py": "606998f419a4141ecf0e6b845eafc87d88df7f57d56a1bc67b510c27eb63d457",
+    "nexus/core/studio_nuclia_descriptors.py": "f2312d865820d475c19b162e439b28ac811a520fb205d23ad36ba74d06178706",
+    "nexus/core/studio_interop_configuration.py": "1daba490b79d83661067b7887fd45995b8f5b13ad2e004b5d8b4e311787c4466",
+    "nexus/studio_static/features.js": "8aa15424397bda82dd5265bcffc3de280e5992f251b42e84a799e38d264d40a6",
+    "nexus/studio_static/service-worker.js": "edd474ac9ce24add10a1548f5c84b1f77cbe00755b0b9353df8fb0d63c8fb113",
+    "tests/test_studio_retrieved_evidence.py": "bf121ad373547548f3fd900df2db584c5566e8bed8e70e0b1105e60a41a8fe18",
+    "tests/studio_nuclia_acceptance.py": "74d3e37937c88192163a5b057aace506a8a7e84d08ab4319d7c1fd82d3bfda55",
+    "tests/studio_nuclia_templates.test.cjs": "5ce9604a26e1b1178b3fc1589b0557582d4cbca3fc7c1869283895f75b8b9c83",
+    "examples/nexus-bot/src/studio_nuclia.py": "7a38e13b02a80afe37e94057f0b14961f64a4d5d511e7105a4b3214ec71240a1",
+    "postman/contracts/studio-nuclia.md": "d3229f63cf0dab4404e3634f7c95766b9b6bb02ac82480f02d831ef2052f15d1",
+    "postman/simulations/studio-nuclia.context.md": "86621250235cc349692985e87ed5ef1929de65ba8e9fcebee08cb7e1536719d7",
+    "docs/STUDIO-NUCLIA.md": "6c135991b94a5a89a2a4ab27e66a7474b2a8f826eeaed11756f46ad213dd3368"
+  },
+  "real_account_requests_performed": false,
+  "user_studio_restarted": false,
+  "cloud_publication": false,
+  "temporary_services_stopped": true,
+  "desktop_stays_last": true
+}

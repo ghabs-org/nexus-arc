@@ -97,7 +97,9 @@ def validate_enterprise(data):
             "knowledge_box",
             "template",
             "capture_evaluation",
+            "evaluation_context",
             "ask_settings",
+            "answer_options",
         }
         remote = validate_remote(
             {
@@ -116,6 +118,10 @@ def validate_enterprise(data):
             if type(data["capture_evaluation"]) is not bool:
                 raise ValueError("Capture evaluation evidence must be true or false")
             result["capture_evaluation"] = data["capture_evaluation"]
+        if "evaluation_context" in data:
+            from nexus.core.studio_retrieval_evidence import validate_evaluation_context
+
+            result["evaluation_context"] = validate_evaluation_context(data["evaluation_context"])
         if "template" in data:
             from nexus.core.studio_nuclia_templates import validate_template
 
@@ -124,6 +130,10 @@ def validate_enterprise(data):
             from nexus.core.studio_nuclia_descriptors import validate_ask_settings
 
             result["ask_settings"] = validate_ask_settings(data["ask_settings"])
+        if "answer_options" in data:
+            from nexus.core.studio_nuclia_presentation import validate_answer_options
+
+            result["answer_options"] = validate_answer_options(data["answer_options"])
         result["knowledge_box"] = identifier(data.get("knowledge_box"), "Knowledge box ID")
         if "/" in result["knowledge_box"]:
             raise ValueError("Choose a knowledge box ID without a path")
@@ -822,7 +832,12 @@ class StudioEnterprise:
 
             return publish_answer(
                 self.studio,
-                answer_sources(result),
+                answer_sources(
+                    result,
+                    citation_mode=body["citations"],
+                    capture_retrieval=data.get("capture_evaluation", False)
+                    and data.get("evaluation_context") == "retrieved",
+                ),
                 identity,
                 data,
                 connector_id,

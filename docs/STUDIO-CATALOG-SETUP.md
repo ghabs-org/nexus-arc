@@ -45,9 +45,17 @@ Remote MCP accounts start with discovery only and no selected callable tools.
 Writes/sends retain their existing reviewed approval path.
 
 Python installation instructions pin the selected optional adapter packages.
-Filesystem MCP pins `@modelcontextprotocol/server-filesystem@2.0.0`, with an
-explicit installed executable and workspace root. Studio never invokes `npx` to
-fetch a missing server. These are reproducible setup selections, not guarantees
+Filesystem MCP pins `@modelcontextprotocol/server-filesystem@2.0.0`, which needs
+Node 24 or later. In **Set up Filesystem MCP**, choose the absolute Node path
+under **Installed executable or runtime** and the installed package's
+`dist/index.js` under **Server script (optional)**. This works when Node is outside
+the system PATH, including Homebrew installations. Studio saves ordinary MCP
+`command`/`args`, appending the workspace root after the selected script. No shell
+or extra environment inheritance is added. For a standalone filesystem executable,
+leave the script empty; existing configurations retain their argument format.
+Older Studio releases can still read the resulting ordinary MCP configuration.
+
+Studio never invokes `npx` to fetch a missing server. These are reproducible setup selections, not guarantees
 about external service entitlement or every optional dependency combination.
 SQL Server and Oracle installation pins are now included. Reviewed-build local
 activation checks are described in [activation setup](STUDIO-ACTIVATION-SETUP.md);
@@ -76,3 +84,30 @@ metadata in disposable state without configuring accounts or running tools.
 
 This is passive setup coverage. It does not complete per-entry semantic invocation
 acceptance, full activation readiness, account validation or the whole M7 catalog.
+
+## Filesystem invocation acceptance
+
+The filesystem entry now also has separate real-server acceptance. Its isolated
+example discovers the selected server, reads an allowed file, denies unselected
+tools and model self-approval, writes only after explicit review, denies sibling,
+traversal and symlink escapes, and reads again after a rejected operation. Both
+per-call and persistent sessions pass on macOS. No user workspace is used. The
+server's allowed folder is the Studio workspace; this is not a per-file sandbox
+inside that folder. Grant its tools only to agents authorized for that workspace.
+
+Optional acceptance dependencies have a committed npm lockfile, independent of
+Studio's frontend and Python installation. Install them separately with scripts
+disabled:
+
+```sh
+npm ci --prefix tests/fixtures/studio_filesystem --ignore-scripts --no-audit --no-fund
+export NEXUS_FILESYSTEM_NODE=/absolute/path/to/node
+export NEXUS_FILESYSTEM_MCP_PACKAGE="$PWD/tests/fixtures/studio_filesystem/node_modules/@modelcontextprotocol/server-filesystem"
+PYTHONPATH=. python -m pytest tests/studio_filesystem_acceptance.py -q -o addopts=''
+PYTHONPATH=. python examples/nexus-bot/src/studio_filesystem.py --runtime "$NEXUS_FILESYSTEM_NODE" --script "$NEXUS_FILESYSTEM_MCP_PACKAGE/dist/index.js"
+```
+
+The suite fails with a prerequisite message when the selected server/runtime is
+missing; it never silently skips or installs software. Linux/Windows process and
+symlink permissions, personal-VM execution and other package versions remain
+separate validation. See [filesystem checkpoint](STUDIO-FILESYSTEM-CHECKPOINT.json).

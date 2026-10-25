@@ -57,15 +57,17 @@ def setup_metadata(row):
         packages = ["mcp"]
         requirements = [
             "Installed filesystem MCP executable, restricted to this workspace.",
+            "Node 24 or later for the pinned server; select its absolute executable and installed server script when Node is outside the system PATH.",
             "Discover/select tools; writes require existing reviewed-action permissions.",
         ]
         installation = [
             "npm install --prefix /YOUR_PRIVATE_MCP_DIRECTORY @modelcontextprotocol/server-filesystem@2.0.0",
-            "Choose its installed node_modules/.bin/mcp-server-filesystem executable. No npx download occurs at invocation.",
+            "Choose the absolute Node executable and installed node_modules/@modelcontextprotocol/server-filesystem/dist/index.js script, or a standalone filesystem executable. No npx download occurs at invocation.",
         ]
         template = {
             "configure": {
-                "command": "/YOUR_PRIVATE_MCP_DIRECTORY/node_modules/.bin/mcp-server-filesystem"
+                "command": "/YOUR_NODE_DIRECTORY/node",
+                "server_script": "/YOUR_PRIVATE_MCP_DIRECTORY/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
             }
         }
         billing = "Local filesystem service; selected AI provider billing remains separate."

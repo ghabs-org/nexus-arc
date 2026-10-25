@@ -53,7 +53,13 @@ http.createServer((req, res) => {
   if (body.query.startsWith('Region:') && body.query !== 'Region: emea; Question: What is the return policy?') return reply(400, {});
   if (body.query.startsWith('Workspace:') && body.query !== 'Workspace: workspace; Question: What is the return policy?') return reply(400, {});
   if (req.url.endsWith('/find')) return reply(200, {...retrieval, page_number:body.page_number||0});
-  if (req.headers['x-synchronous'] !== 'true' || body.citations !== 'default') return reply(400, {});
+  if (req.headers['x-synchronous'] !== 'true' || !['default','none','llm_footnotes'].includes(body.citations)) return reply(400, {});
+  if(body.query.startsWith('fixture:presentation')){
+    if(body.query==='fixture:presentation-reject')return reply(429,{error:'PRIVATE_PROVIDER_DETAIL'});
+    if(body.citations==='none')return reply(200,{status:'success',answer:'Thirty days.',retrieval_results:retrieval,citations:{}});
+    if(body.citations==='llm_footnotes')return reply(200,{status:'success',answer:'Thirty days.[^policy]',retrieval_results:retrieval,citations:{},citation_footnote_to_context:{policy:paragraph}});
+    return reply(200,{status:'success',answer:'Thirty days.',retrieval_results:retrieval,citations:{[paragraph]:[[0,12]]}});
+  }
   if(body.query==='fixture:expanded'){
     const strategies=body.rag_strategies;
     if(!Array.isArray(strategies)||strategies.length!==2||strategies[0].name!=='neighbouring_paragraphs'||strategies[0].before!==2||strategies[0].after!==2||strategies[1].name!=='hierarchy'||strategies[1].count!==0)return reply(422,{});

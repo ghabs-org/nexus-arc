@@ -12,6 +12,57 @@ from nexus.plugins import PluginKind, PluginRegistry, PluginSetup
 from tests.test_studio_team import team as team
 
 
+@pytest.mark.parametrize(
+    "script",
+    [
+        "relative/index.js",
+        "../index.js",
+        "/tmp/x\n.js",
+        "/tmp/\x00x",
+        "/" + "x" * 2000,
+        None,
+        [],
+        {},
+    ],
+)
+def test_filesystem_script_rejects_invalid_paths_before_saving(tmp_path, script):
+    studio = StudioService(tmp_path)
+    try:
+        with pytest.raises(ValueError, match="absolute installed MCP server script"):
+            studio.recipes.configure(
+                "filesystem", {"command": "/installed/node", "server_script": script}, None
+            )
+        assert not studio.catalog.list("connectors")
+    finally:
+        studio.close()
+
+
+def test_filesystem_script_configuration_preserves_legacy_and_minimal_environment(tmp_path):
+    import sys
+
+    studio = StudioService(tmp_path)
+    try:
+        script = str(tmp_path / "installed/index.js")
+        native = studio.recipes.configure(
+            "filesystem", {"command": sys.executable, "server_script": script}, None
+        )
+        assert native["data"]["command"] == sys.executable
+        assert native["data"]["args"] == [script, str(tmp_path)]
+        assert native["data"]["env"] == {} and not native["data"]["enabled"]
+        for index, options in enumerate(({}, {"server_script": ""})):
+            legacy = studio.recipes.configure(
+                "filesystem",
+                {"name": "Legacy " + str(index), "command": sys.executable, **options},
+                None,
+            )
+            assert legacy["data"]["args"] == [str(tmp_path)]
+            assert legacy["data"]["env"] == {}
+        # Both variants use the existing serialized MCP format, without a new state field.
+        assert "server_script" not in native["data"]
+    finally:
+        studio.close()
+
+
 def test_plugin_catalog_never_constructs_instances_and_keeps_legacy_specs():
     def forbidden(*args):
         raise AssertionError("Browsing constructed a plugin")
@@ -151,3 +202,33 @@ def test_catalog_http_uses_existing_auth_and_never_resolves_credentials(team):
         assert len(listing["items"]) + len(listing["official_items"]) == 27
         assert all(row["setup_metadata"]["billing"] for row in listing["items"])
         assert not any(row["readiness"]["live_verified"] for row in listing["official_items"])
+
+
+def test_filesystem_runtime_http_reuses_permissions_and_saved_mcp_format(team):
+    import sys
+
+    service, policy, _, request, _ = team
+
+    def forbidden(*args):
+        raise AssertionError("Creating a disabled connection must not resolve credentials")
+
+    policy.environment_resolver = forbidden
+    path = "/api/studio/integrations/filesystem/configure"
+    payload = {
+        "name": "Filesystem runtime",
+        "command": sys.executable,
+        "server_script": str(service.root / "installed/index.js"),
+    }
+    assert request(path, payload)[0] in {401, 403}
+    assert request(path, payload, user="viewer")[0] == 403
+    assert request(path, payload, user="bob")[0] == 403
+    assert request(path, payload, user="alice")[0] == 403
+    assert not service.catalog.list("connectors")
+    invalid = {**payload, "server_script": "relative.js"}
+    assert request(path, invalid, user="owner")[0] == 400
+    assert not service.catalog.list("connectors")
+    status, record = request(path, payload, user="owner")
+    assert status == 201
+    assert record["data"]["args"] == [payload["server_script"], str(service.root)]
+    assert record["data"]["env"] == {} and not record["data"]["enabled"]
+    assert service.catalog.get("connectors", record["id"])["data"] == record["data"]

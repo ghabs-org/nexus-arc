@@ -22,6 +22,21 @@ test('older servers remain readable when setup metadata is absent',()=>{
   assert.equal(context.integrationSetupDetails({}), '');
 });
 
+test('filesystem setup passes an explicit runtime and optional script without enabling it',async()=>{
+  const configure=source.slice(source.indexOf('async function configureIntegration('),source.indexOf('window.addEventListener("studio-ready",()=>{',source.indexOf('async function configureIntegration(')));
+  const calls=[];let rendered='';
+  const context=vm.createContext({escapeHtml,
+    featureApi:async(path,body)=>{calls.push({path,body});return {items:[{id:'filesystem',name:'Filesystem MCP',mode:'filesystem'}]};},
+    inputField:(name,label)=>`<label>${label}<input name="${name}"></label>`,
+    fieldsDialog:async(title,html,submit)=>{rendered=html;assert.equal(submit,'Create disabled connection');return new Map([['name','Local files'],['command','/selected/node'],['server_script','/installed/index.js']]);},
+    location:{hash:''},$:()=>({close(){}}),refreshLibrary:async()=>{},notify:()=>{}});
+  vm.runInContext(helper+configure,context);await context.configureIntegration('filesystem');
+  assert.match(rendered,/Server script \(optional\)/);assert.match(rendered,/Node 24 or later/);
+  assert.equal(calls[1].path,'integrations/filesystem/configure');
+  assert.equal(calls[1].body.command,'/selected/node');assert.equal(calls[1].body.server_script,'/installed/index.js');
+  assert.equal(calls[1].body.enabled,undefined);
+});
+
 test('catalog setup blocks missing dependencies and preserves configured/legacy controls',async()=>{
   const configure=source.slice(source.indexOf('async function configureIntegration('),source.indexOf('window.addEventListener("studio-ready",()=>{',source.indexOf('async function configureIntegration(')));
   for(const [readiness,blocked] of [[{state:'dependencies-missing'},true],[{state:'configuration-present'},false],[undefined,false]]){

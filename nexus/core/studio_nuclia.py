@@ -8,6 +8,13 @@ from datetime import UTC, datetime
 
 from nexus.core.studio_catalog import _text
 from nexus.core.studio_data_tools import current_run_id
+from nexus.core.studio_nuclia_presentation import (
+    footnote_citations,
+    prepare_segments,
+    presented_answer,
+    validate_answer_options,
+    validate_citation_mode,
+)
 from nexus.core.studio_nuclia_retrieval import validate_rag_strategies
 
 
@@ -35,7 +42,7 @@ def request_body(action, arguments, template=None, *, context=None, ask_settings
         arguments = prepare_arguments(template, arguments, context=context)
     allowed = {"query", "top_k", "page", "filter_expression", "audit_metadata"}
     if action == "ask":
-        allowed |= {"prompt", "rephrase", "prefer_markdown", "rag_strategies"}
+        allowed |= {"prompt", "rephrase", "prefer_markdown", "rag_strategies", "citations"}
     if set(arguments) - allowed:
         raise ValueError(
             "Unsupported Nuclia arguments: " + ", ".join(sorted(set(arguments) - allowed))
@@ -93,7 +100,7 @@ def request_body(action, arguments, template=None, *, context=None, ask_settings
             raise ValueError("Nuclia filter exceeds 8 KiB")
         body["filter_expression"] = expression
     if action == "ask":
-        body["citations"] = "default"
+        body["citations"] = validate_citation_mode(arguments.get("citations", "default"))
         if "rag_strategies" in arguments:
             body["rag_strategies"] = validate_rag_strategies(arguments["rag_strategies"])
         if "prompt" in arguments:
@@ -114,7 +121,8 @@ def request_body(action, arguments, template=None, *, context=None, ask_settings
     return body
 
 
-def answer_sources(value):
+def answer_sources(value, *, citation_mode="default", capture_retrieval=False):
+    citation_mode = validate_citation_mode(citation_mode)
     if (
         not isinstance(value, dict)
         or value.get("status") not in {"success", "no_context", "no_retrieval_data"}
@@ -131,6 +139,7 @@ def answer_sources(value):
         or not isinstance(citations, dict)
     ):
         raise ValueError("Nuclia returned invalid retrieval or citation data")
+    citations, footnotes = footnote_citations(value, citations, citation_mode, answer)
     sources = {}
     for resource_id, resource in retrieval["resources"].items():
         if not isinstance(resource, dict) or not isinstance(resource.get("fields"), dict):
@@ -159,6 +168,7 @@ def answer_sources(value):
                     "text": text,
                     "sha256": hashlib.sha256(text.encode()).hexdigest(),
                 }
+    retrieved = list(sources.values()) if capture_retrieval else None
     augmented = value.get("augmented_context")
     if augmented is not None:
         if not isinstance(augmented, dict):
@@ -226,6 +236,9 @@ def answer_sources(value):
         "sources": selected,
         "provider_citations": citations,
         "untrusted": True,
+        **({"_retrieved_sources": retrieved} if retrieved is not None else {}),
+        **({"citation_mode": citation_mode} if citation_mode != "default" else {}),
+        **({"footnote_sources": footnotes} if citation_mode == "llm_footnotes" else {}),
         **({"learning_id": learning_id} if learning_id is not None else {}),
     }
 
@@ -237,11 +250,30 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
         studio.team.assert_execution(identity)
         actor = {"nexus_id": identity, "role": studio.team.bindings[identity]}
     run_id = current_run_id.get()
+    retrieved = result.get("_retrieved_sources")
+    result = {key: value for key, value in result.items() if key != "_retrieved_sources"}
+    options = validate_answer_options(data["answer_options"]) if "answer_options" in data else None
+    segments = prepare_segments(result) if options is not None else None
+    answer_file = options is None or options["output_response_as_artifact"]
     evidence = None
     if data.get("capture_evaluation"):
-        from nexus.core.studio_retrieval_evidence import evidence_document
+        from nexus.core.studio_retrieval_evidence import (
+            evidence_document,
+            validate_evaluation_context,
+        )
 
-        evidence = evidence_document(result, question, connector_id, run_id)
+        scope = validate_evaluation_context(data.get("evaluation_context", "cited"))
+        if scope == "retrieved" and retrieved is None:
+            raise ValueError(
+                "Original retrieval context is unavailable; ask again with capture enabled"
+            )
+        evidence = evidence_document(
+            result,
+            question,
+            connector_id,
+            run_id,
+            retrieved_sources=retrieved if scope == "retrieved" else None,
+        )
     with studio.lock:
         if studio.team:
             studio.team.assert_execution(identity)
@@ -254,7 +286,10 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
             if len(run.get("citations", [])) + len(result["sources"]) > 40:
                 raise ValueError("Nuclia result would exceed the run citation limit")
             if (
-                len(run.get("structured_content", [])) + len(result["sources"]) + 1 + bool(evidence)
+                len(run.get("structured_content", []))
+                + len(result["sources"])
+                + int(answer_file)
+                + bool(evidence)
                 > 40
             ):
                 raise ValueError("Nuclia result would exceed the run artifact limit")
@@ -272,14 +307,17 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
                     "content_base64": base64.b64encode(content.encode()).decode(),
                 }
             )
-        files.append(
-            {
-                "filename": "nuclia-answer.md",
-                "content_base64": base64.b64encode(
-                    (f"Nuclia answer status: {result['status']}\n\n" + result["output"]).encode()
-                ).decode(),
-            }
-        )
+        if options is None:
+            files.append(
+                {
+                    "filename": "nuclia-answer.md",
+                    "content_base64": base64.b64encode(
+                        (
+                            f"Nuclia answer status: {result['status']}\n\n" + result["output"]
+                        ).encode()
+                    ).decode(),
+                }
+            )
         if evidence is not None:
             files.append(
                 {
@@ -292,6 +330,7 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
         saved = studio.data_tools.publish(
             {"stdout": result["output"], "files": files}, actor, run_id
         )
+        evidence_artifact = saved["artifacts"][-1] if evidence is not None else None
         citations = list(studio.run(run_id).get("citations", [])) if run_id else []
         for source, artifact in zip(
             result["sources"], saved["artifacts"][: len(result["sources"])], strict=True
@@ -332,8 +371,33 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
             )
         if run_id:
             studio._update_run(run_id, citations=citations)
+        presentation = {}
+        if options is not None:
+            body, compact = presented_answer(result, segments, options)
+            if answer_file:
+                prefix = (question or "")[: options["artifact_description_query_max_length"]]
+                answer_saved = studio.data_tools.publish(
+                    {
+                        "stdout": result["output"],
+                        "files": [
+                            {
+                                "filename": options["output_filename_base"] + ".md",
+                                "description": "Nuclia answer for: " + prefix,
+                                "content_base64": base64.b64encode(body.encode()).decode(),
+                            }
+                        ],
+                    },
+                    actor,
+                    run_id,
+                )
+                saved["artifacts"].extend(answer_saved["artifacts"])
+                presentation["response_artifact"] = answer_saved["artifacts"][0]
+            else:
+                presentation["response_content"] = body
+            if options["include_citations_in_tool_response"]:
+                presentation["citations"] = compact
         if evidence is not None:
-            artifact = saved["artifacts"][-1]
+            artifact = evidence_artifact
             if run_id:
                 studio.execution.record(
                     run_id,
@@ -343,5 +407,10 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
                     artifact_id=artifact["id"],
                     artifact_revision=artifact["revision"],
                 )
-            return {**result, "artifacts": saved["artifacts"], "evaluation_evidence": artifact}
-        return {**result, "artifacts": saved["artifacts"]}
+            return {
+                **result,
+                **presentation,
+                "artifacts": saved["artifacts"],
+                "evaluation_evidence": artifact,
+            }
+        return {**result, **presentation, "artifacts": saved["artifacts"]}

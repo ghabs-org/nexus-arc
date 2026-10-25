@@ -8,17 +8,18 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "templates,portable_template,evidence,originals",
+    "templates,portable_template,evidence,originals,retrieved",
     [
-        (False, False, False, False),
-        (True, False, False, False),
-        (False, True, False, False),
-        (False, False, True, False),
-        (False, False, False, True),
+        (False, False, False, False, False),
+        (True, False, False, False, False),
+        (False, True, False, False, False),
+        (False, False, True, False, False),
+        (False, False, False, True, False),
+        (False, False, True, False, True),
     ],
 )
 def test_nuclia_opt_in_generation_and_private_revision_citations(
-    templates, portable_template, evidence, originals
+    templates, portable_template, evidence, originals, retrieved
 ):
     example = runpy.run_path(
         str(Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_nuclia.py")
@@ -29,6 +30,7 @@ def test_nuclia_opt_in_generation_and_private_revision_citations(
         portable_template=portable_template,
         evidence=evidence,
         originals=originals,
+        retrieved=retrieved,
     )
     assert result == {
         "requests": 10 if originals else 9,
@@ -92,6 +94,30 @@ def test_reviewed_audit_templates_search_answer_and_failure_over_http():
         "provider_requests": 4,
         "search_and_answer": True,
         "preflight_rejections": 3,
+        "no_action_replay": True,
+        "live_verified": False,
+    }
+
+
+@pytest.mark.parametrize("mode", ["default", "none", "llm_footnotes"])
+@pytest.mark.parametrize("artifact", [False, True])
+def test_reviewed_answer_presentation_over_http(mode, artifact):
+    example = runpy.run_path(
+        str(
+            Path(__file__).resolve().parents[1]
+            / "examples/nexus-bot/src/studio_nuclia_presentation.py"
+        )
+    )
+    result = example["exercise"](
+        os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia"),
+        mode=mode,
+        artifact=artifact,
+    )
+    assert result == {
+        "provider_requests": 2,
+        "mode": mode,
+        "answer_file": artifact,
+        "plain_output_preserved": True,
         "no_action_replay": True,
         "live_verified": False,
     }

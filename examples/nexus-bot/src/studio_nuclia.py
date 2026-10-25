@@ -31,7 +31,14 @@ def exercise(
     portable_template=False,
     evidence=False,
     originals=False,
+    retrieved=False,
 ):
+    evidence = evidence or retrieved
+    expected_contexts = (
+        ["Thirty days.", "This paragraph was retrieved but not cited."]
+        if retrieved
+        else ["Thirty days."]
+    )
     templates = templates or portable_template
     url = urlparse(base)
     if url.scheme != "http" or url.hostname != "127.0.0.1" or url.username or url.password:
@@ -45,11 +52,12 @@ def exercise(
 
         async def execute_agent(self, context):
             if "Evaluate the answer using only the rubric." in context.prompt:
-                assert '["Thirty days."]' in context.prompt
+                assert json.dumps(expected_contexts) in context.prompt
                 return AgentResult(
                     success=True,
                     output='{"score":1.0,"reason":"Grounded in saved reference context"}',
                 )
+            assert "This paragraph was retrieved but not cited." not in context.prompt
             if evidence and len(prompts) >= 2:
                 return AgentResult(success=True, output="Thirty days.")
             prompts.append(context.prompt)
@@ -144,6 +152,7 @@ def exercise(
                         **record["data"],
                         "actions": ["query", "ask", *(["download_original"] if originals else [])],
                         **({"capture_evaluation": True} if evidence else {}),
+                        **({"evaluation_context": "retrieved"} if retrieved else {}),
                     },
                 },
             )
@@ -273,7 +282,15 @@ def exercise(
                 )
                 artifact = studio.artifacts.revision(report["artifact_id"], report["revision"])
                 document = json.loads(studio.artifacts.get(artifact))
-                assert document["contexts"] == ["Thirty days."]
+                assert document["contexts"] == expected_contexts
+                if retrieved:
+                    assert document["format"] == "nexus-retrieval-evidence/v2"
+                    assert document["context_scope"] == "retrieved-paragraphs-only"
+                    assert [source["cited"] for source in document["sources"]] == [True, False]
+                    assert "This paragraph was retrieved but not cited." not in json.dumps(run)
+                    assert "This paragraph was retrieved but not cited." not in json.dumps(
+                        studio.records("execution-events", limit=None)
+                    )
                 assert document["learning_id"] == "synthetic-learning-id"
                 assert document["question"] == "What is the return policy?"
                 headers = {"X-Nexus-Studio-Token": "synthetic-nuclia-csrf"}
@@ -306,7 +323,7 @@ def exercise(
                 )
                 promoted.raise_for_status()
                 suite = promoted.json()
-                assert suite["data"]["cases"][0]["contexts"] == ["Thirty days."]
+                assert suite["data"]["cases"][0]["contexts"] == expected_contexts
                 evaluation = studio.start_run(
                     {
                         "kind": "evaluation",
@@ -383,6 +400,11 @@ if __name__ == "__main__":
     parser.add_argument("--portable-template", action="store_true")
     parser.add_argument("--evidence", action="store_true")
     parser.add_argument("--originals", action="store_true")
+    parser.add_argument(
+        "--retrieved",
+        action="store_true",
+        help="Explicitly capture all retrieved paragraphs in private evidence",
+    )
     args = parser.parse_args()
     print(
         exercise(
@@ -391,5 +413,6 @@ if __name__ == "__main__":
             portable_template=args.portable_template,
             evidence=args.evidence,
             originals=args.originals,
+            retrieved=args.retrieved,
         )
     )

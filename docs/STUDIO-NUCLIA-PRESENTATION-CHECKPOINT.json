@@ -1,0 +1,149 @@
+{
+  "format": "nexus-studio-nuclia-presentation-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified",
+  "whole_catalog_entry_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Explicit native answer-file/inline presentation, bounded filename/description settings, source-marker controls, compact citations and default/none/identifier-based LLM-footnote response modes.",
+  "implemented": [
+    "Optional versioned connector answer_options use existing validation, configuration, artifact, ownership and job services. The existing output field retains original provider text; response_content or response_artifact carries the selected presentation.",
+    "Answer files combine formatted text and private source links, with safe basenames and bounded effective-query-prefix descriptions. Disabling the answer file retains private cited sources and optional evaluation evidence.",
+    "Optional compact citations expose private artifact IDs, exact revisions and original provider pages. Inline markers may be linked or plain numeric text; all generated source links use local authenticated artifact revision routes.",
+    "Ask citation modes default, none and llm_footnotes are validated and can be fixed in ask_settings. Only returned identifier-based footnotes become source snapshots; unknown references, malformed mappings/positions and capacity exhaustion fail before publication. Uncited retrieval is not promoted to evidence.",
+    "Explicit preserve_presentation descriptor bindings map source presentation settings and citation mode. Review declares native link/artifact adaptations. Legacy imports and connection shapes remain unchanged unless explicitly selected; matching native settings are required.",
+    "Source/native configuration export and file/SQLite restart retain presentation. Existing connection-editor controls now expose a collapsible answer settings section with opt-in customization, file output, filename, prefix length, citation mode, inline links and separate citation details.",
+    "Phone editor save/reopen retains selected settings without enabling the connection. Customization toggles disable its controls. Browser measurements at 390/820/1280 pixels show no horizontal overflow or console errors. Public shell cache is version 55."
+  ],
+  "limits": {
+    "safe_filename_base_characters": 100,
+    "query_description_prefix_characters": [
+      1,
+      1000
+    ],
+    "footnote_mapping_entries": 100,
+    "footnote_markers": 2000,
+    "citation_positions_per_source": 100,
+    "cited_sources": 20,
+    "run_artifacts_and_citations": 40
+  },
+  "validation": {
+    "affected_regressions": {
+      "tests": 408,
+      "passed": 408,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-presentation-required.xml",
+      "scope": "Nuclia, enterprise, configuration, retrieval evidence, private downloads, artifact/data publication and dynamic embed compatibility."
+    },
+    "actual_http": {
+      "tests": 25,
+      "passed": 25,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-presentation-http.xml",
+      "scope": "Real framework transport and configuration workflow against the existing local Postman Nuclia dependency stand-in. Six presentation variants verify source revisions, original output, preflight rejection and non-replay."
+    },
+    "frontend": {
+      "tests": 163,
+      "passed": 163,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-presentation-frontend.log",
+      "command": "node --test tests/studio*.test.cjs"
+    },
+    "example": {
+      "path": "examples/nexus-bot/src/studio_nuclia_presentation.py",
+      "variants": 6,
+      "provider_requests_per_variant": 2,
+      "plain_output_preserved": true,
+      "no_action_replay": true,
+      "live_verified": false
+    },
+    "browser": {
+      "scope": "Actual temporary Studio UI/API and synthetic disabled connector only. Save/reopen of inline mode, custom filename/prefix, footnotes and plain markers; no provider invocation.",
+      "widths": [
+        390,
+        820,
+        1280
+      ],
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "screenshots": [
+        "/private/tmp/nexus-answer-presentation-phone.png",
+        "/private/tmp/nexus-answer-presentation-desktop.png"
+      ],
+      "viewport_reset": true,
+      "own_tab_closed": true
+    },
+    "simulation": {
+      "log": "/private/tmp/nexus-nuclia-presentation-simulation.ndjson",
+      "requests": 225,
+      "methods": {
+        "GET": 157,
+        "POST": 68
+      },
+      "status_codes": {
+        "200": 200,
+        "429": 14,
+        "307": 7,
+        "403": 2,
+        "206": 2
+      },
+      "members_served": [
+        "nuclia"
+      ],
+      "members_silent": [],
+      "scope": "Combined explicit HTTP suite including diagnostic counters and intentional failures; no live account."
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "report": "/private/tmp/nexus-nuclia-presentation-completion.json"
+    }
+  },
+  "authority": {
+    "vendor_model": "https://github.com/nuclia/nucliadb/blob/274e33dc73cbadea7b25ac42ecc00fb43ab062c5/nucliadb_models/src/nucliadb_models/search.py",
+    "vendor_documentation": "https://docs.rag.progress.cloud/docs/nucliadb-agentic-api/",
+    "frozen_tool_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+    "scope": "CitationsType and SyncAskResponse footnote mapping; frozen configuration, citation formatter and answer artifact behavior. Native links/provenance are explicitly adapted, not an independent frozen runtime certification.",
+    "discovery": "Orbit returned unrelated citation APIs. None was substituted. The existing primary-source-backed Nuclia simulation was extended; owner mock discovery remains unavailable while Postman is signed out."
+  },
+  "migration": "Additive optional answer_options, citation modes and preserve_presentation binding. No state rewrite or credential migration. Existing plain output, native defaults and legacy descriptor rejections remain unchanged without explicit options. Generic artifact publication accepts an optional validated description through the existing catalog. PWA shell cache advances from 54 to 55.",
+  "validation_pending": [
+    "Provider-specific positional-only footnote context indices cannot be inferred safely without returned source identities; they fail explicitly.",
+    "Broader source/native semantic audit, non-file/split originals, ephemeral-link and remote historical-original equivalence, and independent evaluation/scoring acceptance.",
+    "Live Nuclia model support/quality, permissions and account billing; real devices and personal HTTPS VM.",
+    "Other frozen catalog, cross-cutting and deployment acceptance gates. Standalone desktop distribution remains last and incomplete."
+  ],
+  "static": "Changed Python lint/format, JavaScript syntax and diff whitespace checks pass.",
+  "source_sha256": {
+    "nexus/core/studio_nuclia_presentation.py": "82f77ec4433c655ff70857a934ede43c0285c1f815456b8237526ecd6a783c47",
+    "nexus/core/studio_nuclia.py": "fda66a7bbef6a96818171460fe2acdb734e7d3f8f9474c2ea350c8d92f70c54a",
+    "nexus/core/studio_nuclia_descriptors.py": "506092a419526bc2ef9952809af1e94530fb5247a56e3ebfb323e2e6da5cf199",
+    "nexus/core/studio_interop_configuration.py": "6d422084799728042d42b01b1793ff2252c281f027504c5849fdb6909e5745e6",
+    "nexus/core/studio_enterprise.py": "b15a43c3af6588e630d62523864021f338f6d3cea6fadb4db2d7c5d713bf4128",
+    "nexus/core/studio_data_tools.py": "f3a8c5b1e2f70d3ce8da6bec4e9f750e446a44d5081dc824b16223dbe3d0b32d",
+    "nexus/studio_static/features.js": "ca3dda486d7f1ca86da6b6bddb1ff5e0870121c5bedb33a8565c30fa507a8eae",
+    "nexus/studio_static/studio.css": "1972164f9472e40c4dd5d1aa0adf77a49bcd2fd71ccfe5bfffae3cc3e2847602",
+    "nexus/studio_static/service-worker.js": "c280585455df3ced24cafb7b5fae55aba165025532e397593c47af4620e7318b",
+    "tests/test_studio_nuclia_presentation.py": "d3bc2317d55e88ee181a4c6fabd578606d6c03076f85a3f5dd3a81b450946823",
+    "tests/test_studio_nuclia.py": "c1da3379a84027c056a16d25df9639d6d1daf7c33dfc6215b99a3397622303ca",
+    "tests/studio_nuclia_templates.test.cjs": "3fee34d6fd870baefb447b8752ce7ae4d07e6c898fea963e6fb221d9c3c9d01f",
+    "tests/studio_nuclia_acceptance.py": "fbe1a4192dc034d2e1431d503571c72fdd3244ca2a083af6e9501b5237f7aa2c",
+    "examples/nexus-bot/src/studio_nuclia_presentation.py": "ad52f9caa584fbe4539a99efff98ce5a68978212d9488adea8c0bc2dfb6a401b",
+    "postman/contracts/studio-nuclia.md": "e8e5673ab4777dc220345128eb9552a43ea720b1d69b6dd814ef2454ebfa792b",
+    "postman/mocks/studio-nuclia/default.js": "e74747bf00504fe3a87bb8016d6f3748fcb9de491f8c4a02febf9f8c7891fd71",
+    "postman/simulations/studio-nuclia.context.md": "95e3b73c258deffb753729715762b874d2e768571abd4a7e5d33b2a55fc78670",
+    "docs/STUDIO-NUCLIA.md": "9137d204b0b44703ae9cd4b94fdcb98a084ea134c1e3c8c9a73f8617e4fab642"
+  },
+  "real_account_requests_performed": false,
+  "user_studio_restarted": false,
+  "cloud_publication": false,
+  "temporary_services_stopped": true,
+  "desktop_stays_last": true
+}

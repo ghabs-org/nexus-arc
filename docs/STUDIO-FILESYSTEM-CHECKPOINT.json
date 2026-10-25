@@ -1,0 +1,108 @@
+{
+  "format": "nexus-studio-filesystem-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified",
+  "scope": "Pinned installed filesystem MCP invocation and explicit runtime/script catalog setup; no whole-milestone or plan completion claim.",
+  "requirement_ids": [
+    "CAT-02-filesystem",
+    "M07-EXIT"
+  ],
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "problem": "The catalog suggested the npm executable with /usr/bin/env node, but MCP deliberately uses the minimal system PATH. Actual discovery failed with env: node: No such file or directory on a Homebrew Node installation.",
+  "implemented": [
+    "Optional absolute server_script makes the existing command select an installed runtime, with [script, workspace_root] arguments. Absent/empty scripts preserve existing standalone executable behavior. No shell, installation or inherited account environment is added.",
+    "Catalog form and passive metadata explain explicit Node/script selection and Node 24 minimum. Connections stay disabled, discovery-only and without selected tools until separately reviewed.",
+    "Actual filesystem MCP 2.0.0 discovers named tools, reads allowed text, enforces selected-tool grants and review, denies model self-approval, writes a reviewed file and denies sibling/traversal/symlink escapes. Both per-call and persistent sessions recover for another read after rejected operations.",
+    "Authenticated local HTTP creation preserves owner-only access and returns 201 using the existing serialized MCP fields. Invalid script paths leave no connection; disabled creation resolves no account credentials.",
+    "Optional npm acceptance lockfile pins the real server and dependency tree. Installation and tests are explicit; missing prerequisites fail rather than skip or download software."
+  ],
+  "validation": {
+    "affected_backend": {
+      "tests": 87,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 87,
+      "report": "/private/tmp/nexus-filesystem-required.xml"
+    },
+    "committed_lock_invocation": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 2,
+      "report": "/private/tmp/nexus-filesystem-locked.xml"
+    },
+    "frontend": {
+      "passed": 165,
+      "tests": 165,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-filesystem-frontend.log"
+    },
+    "browser": {
+      "widths": [
+        390,
+        820,
+        1280
+      ],
+      "page_horizontal_overflow": false,
+      "dialog_horizontal_overflow": false,
+      "setup_save_reopen": "passed; command, script/root arguments and empty environment retained; connector not enabled",
+      "console_errors": 0,
+      "screenshots": [
+        "/private/tmp/nexus-filesystem-setup-phone.png",
+        "/private/tmp/nexus-filesystem-saved-desktop.png"
+      ],
+      "viewport_reset": true,
+      "own_tab_closed": true
+    },
+    "completion_claims": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "report": "/private/tmp/nexus-filesystem-completion.json"
+    },
+    "static": "Affected Python lint/format, frontend JavaScript syntax and diff whitespace passed.",
+    "counting_note": "The locked-server two-case run repeats invocation cases from the 87-test affected backend group. Do not add it as unique coverage. The 165 frontend fixtures are not physical-device evidence."
+  },
+  "runtime": {
+    "os": "Darwin",
+    "python": "3.13.16",
+    "node": "26.12.0",
+    "python_mcp": "2.3.0",
+    "filesystem_server": "2.0.0",
+    "npm_server_sdk": "2.4.0",
+    "server_integrity": "sha512-JT+bt9wrNIMqhGvOr49vEE9NpbkBxdjQxyLVqh3lYHsB2zGgbzePmDOGrm1glBT1DPR5YvkM6h/NXztWSRhywg=="
+  },
+  "example": "examples/nexus-bot/src/studio_filesystem.py",
+  "migration": {
+    "forward": "Additive configure input only. Persisted command/args/env use the existing MCP schema; no record/secret rewrite.",
+    "rollback": "Existing MCP readers can execute saved runtime/script arguments. Older setup forms can create standalone executable connections. No new persisted format is required."
+  },
+  "limits": [
+    "The real third-party server enforces one explicitly authorized Studio workspace root. Selected read/write tools may access that entire root; this does not isolate individual files within it.",
+    "Symlink check is mandatory in this explicit suite. Windows may require Developer Mode or appropriate symlink privileges.",
+    "Linux/Windows real processes, personal VM, other Node/server versions and independent frozen-entry semantic reconciliation remain separate checks.",
+    "Nuclia bounded-profile/source review and remaining catalog evidence reconciliation stay open; standalone desktop remains incomplete and last."
+  ],
+  "no_live_accounts_used": true,
+  "user_studio_restarted": false,
+  "temporary_services_stopped": true,
+  "cloud_publication": false,
+  "source_sha256": {
+    "nexus/core/studio_recipes.py": "0d25518cfe9de2d2bb7c1e96585d39ab006490389f2ec1087ad03accad41159d",
+    "nexus/core/studio_catalog_setup.py": "428a87784f01a9b6d79252b8ba9fdaf3c142dc24ef346341a1f592bb2294d030",
+    "nexus/studio_static/features.js": "36e0b70b7c98d7ee90a9b3515273cb611aebe4802f932e7b67fee3e5d8616654",
+    "nexus/studio_static/service-worker.js": "4cd26b83dd70f96b8bfd7f7859f3b7ef81265dd72da78cdb190fce183e857c50",
+    "examples/nexus-bot/src/studio_filesystem.py": "4f0cdf1c0492ac8787c2eeaf56046775f6b48b2b9b877d4a618e03a98043711d",
+    "tests/studio_filesystem_acceptance.py": "6e0f0643983e056369fee659cedd72a2cada50028d8900193ce4c259d877ca06",
+    "tests/test_studio_catalog_setup.py": "b3f32ffe8a87e9c6eca3d8abdea94dc25712c7e6d9ebab018b43c271ac9a9d6b",
+    "tests/studio_catalog_setup.test.cjs": "42b35aa258cfd4be7f124bfc55db71226bf2fdc3b649078df9b742c9eeaeaba6",
+    "tests/fixtures/studio_filesystem/package.json": "612f37d11c55ec28d9d080fc078d95e73f98396c792b3da367832462819e33b0",
+    "tests/fixtures/studio_filesystem/package-lock.json": "4097a9d57f9769713c665ca6c61becd6f9c60deea6ca4a6f30ea810e147fc2f3",
+    "postman/contracts/studio-catalog-setup.md": "5f7bb285b120c75715b36545f651e3bee12b42a98c4e081ba1035d495e337b3f"
+  }
+}

@@ -229,6 +229,7 @@ class StudioDataTools:
                 {
                     "id": uuid.uuid4().hex,
                     "name": file["filename"],
+                    "description": file.get("description", ""),
                     "requester_nexus_id": actor["nexus_id"] if actor else None,
                     "data": {
                         "filename": file["filename"],

@@ -2,6 +2,7 @@
 
 import json
 import re
+import string
 
 from nexus.core.studio_nuclia_interop import POLICY, convert_template_settings
 
@@ -26,9 +27,10 @@ def validate_ask_settings(value):
         "prefer_markdown",
         "prompt",
         "rag_strategies",
+        "citations",
     }:
         raise ValueError(
-            "Nuclia ask settings support top_k, rephrase, prefer_markdown, prompt and rag_strategies"
+            "Nuclia ask settings support top_k, rephrase, prefer_markdown, prompt, rag_strategies and citations"
         )
     # Use the invocation validator, so saved and executed settings have one contract.
     body = request_body("ask", {"query": "Validate configured settings", **value})
@@ -38,7 +40,14 @@ def validate_ask_settings(value):
     return normalized
 
 
-def convert_tool_descriptor(source, *, policy, preserve_retrieval=False):
+def convert_tool_descriptor(
+    source,
+    *,
+    policy,
+    preserve_retrieval=False,
+    preserve_presentation=False,
+    preserve_evaluation=False,
+):
     """Return disabled native connection data for explicit review and binding.
 
     The strict profile preserves supported request settings. Presentation uses
@@ -49,6 +58,10 @@ def convert_tool_descriptor(source, *, policy, preserve_retrieval=False):
         raise ValueError("Select the explicit Nuclia descriptor policy nexus-strict-v1")
     if type(preserve_retrieval) is not bool:
         raise ValueError("Nuclia preserve_retrieval must be an explicit boolean")
+    if type(preserve_presentation) is not bool:
+        raise ValueError("Nuclia preserve_presentation must be an explicit boolean")
+    if type(preserve_evaluation) is not bool:
+        raise ValueError("Nuclia preserve_evaluation must be an explicit boolean")
     if not isinstance(source, dict) or set(source) != {
         "tool_type",
         "component_module",
@@ -121,23 +134,69 @@ def convert_tool_descriptor(source, *, policy, preserve_retrieval=False):
             r"(?:[A-Za-z0-9_-]{1,128}|\$\{[A-Za-z_][A-Za-z0-9_]*\})", account
         ):
             raise ValueError("Nuclia account ID must be an identifier or environment reference")
-    if config.get("remi_publish_topic") is not None:
+    topic = config.get("remi_publish_topic")
+    if topic is not None and not preserve_evaluation:
         raise ValueError(
             "Provider evaluation topics require manual adaptation to Nexus evaluations"
         )
-    for field, default in {
+    if topic is not None:
+        if (
+            not isinstance(topic, str)
+            or len(topic.encode()) > 1000
+            or any(ord(char) < 32 or ord(char) == 127 for char in topic)
+        ):
+            raise ValueError("Evaluation topic requires bounded static text/plain placeholders")
+        try:
+            for _, name, specification, conversion in string.Formatter().parse(topic):
+                if name is not None and (
+                    name not in {"interaction_id", "tool_name", "learning_id"}
+                    or specification
+                    or conversion
+                ):
+                    raise ValueError
+        except ValueError:
+            raise ValueError(
+                "Evaluation topic supports plain interaction_id, tool_name and learning_id placeholders only"
+            ) from None
+    presentation_defaults = {
         "output_response_as_artifact": True,
         "inline_citation_links": True,
         "include_citations_in_tool_response": False,
-    }.items():
-        if type(config.get(field, default)) is not bool or config.get(field, default) != default:
-            raise ValueError("Non-default Nuclia presentation flags require manual adaptation")
-    if config.get("citations", "default") != "default":
-        raise ValueError("Only default Nuclia citations map to private Nexus sources")
-    filename = config.get("output_filename_base", "nuclia_answer")
-    length = config.get("artifact_description_query_max_length", 150)
-    if filename != "nuclia_answer" or type(length) is not int or length != 150:
-        raise ValueError("Custom Nuclia artifact presentation requires manual adaptation")
+        "output_filename_base": "nuclia_answer",
+        "artifact_description_query_max_length": 150,
+    }
+    answer_options = None
+    if preserve_presentation:
+        from nexus.core.studio_nuclia_presentation import (
+            validate_answer_options,
+            validate_citation_mode,
+        )
+
+        answer_options = validate_answer_options(
+            {key: config.get(key, default) for key, default in presentation_defaults.items()}
+        )
+        validate_citation_mode(config.get("citations", "default"))
+    else:
+        for field in (
+            "output_response_as_artifact",
+            "inline_citation_links",
+            "include_citations_in_tool_response",
+        ):
+            default = presentation_defaults[field]
+            if (
+                type(config.get(field, default)) is not bool
+                or config.get(field, default) != default
+            ):
+                raise ValueError("Non-default Nuclia presentation flags require manual adaptation")
+        if config.get("citations", "default") != "default":
+            raise ValueError("Only default Nuclia citations map to private Nexus sources")
+        length = config.get("artifact_description_query_max_length", 150)
+        if (
+            config.get("output_filename_base", "nuclia_answer") != "nuclia_answer"
+            or type(length) is not int
+            or length != 150
+        ):
+            raise ValueError("Custom Nuclia artifact presentation requires manual adaptation")
     if "context_parameters" in config and "template_parameters" in config:
         raise ValueError("Use template_parameters or legacy context_parameters, not both")
     templates = {
@@ -159,6 +218,17 @@ def convert_tool_descriptor(source, *, policy, preserve_retrieval=False):
         "prefer_markdown": config.get("prefer_markdown", True),
     }
     adaptations = list(DESCRIPTOR_ADAPTATIONS)
+    if preserve_evaluation:
+        adaptations[5] = (
+            "Configured evaluation topic adapts to private full-retrieval evidence, including uncited paragraphs. No broker publication occurs; judge selection and execution remain explicit."
+            if topic
+            else "No evaluation topic is configured; no additional capture is enabled."
+        )
+    if preserve_presentation:
+        settings["citations"] = config.get("citations", "default")
+        adaptations[4] = (
+            "Answer-file output, filename, query-prefix description, inline marker style and compact citations follow reviewed settings. Private native source snapshots remain available, with authenticated revision links instead of broker URLs."
+        )
     if preserve_retrieval:
         from nexus.core.studio_nuclia_retrieval import EXPANDED_CONTEXT
 
@@ -184,6 +254,12 @@ def convert_tool_descriptor(source, *, policy, preserve_retrieval=False):
             "actions": ["ask"],
             "template": converted["template"],
             "ask_settings": validate_ask_settings(settings),
+            **({"answer_options": answer_options} if answer_options is not None else {}),
+            **(
+                {"capture_evaluation": True, "evaluation_context": "retrieved"}
+                if preserve_evaluation and topic
+                else {}
+            ),
         },
     }
 
@@ -206,6 +282,8 @@ def bind_tool_descriptor(bridge, source, path, refs):
         source,
         policy=binding.get("policy"),
         preserve_retrieval=binding.get("preserve_retrieval", False),
+        preserve_presentation=binding.get("preserve_presentation", False),
+        preserve_evaluation=binding.get("preserve_evaluation", False),
     )
     target = binding.get("connector_id")
     selected = bridge.studio.catalog.get("connectors", target)["data"]

@@ -430,13 +430,77 @@ conflicting caller replacements fail before HTTP. Search (`query`) rejects this
 ask-only argument. Cited expanded text retains private revision-pinned artifacts
 and augmentation provenance through the existing citation path.
 
-Ephemeral provider links, non-default presentation flags, custom artifact naming,
-non-default citation modes, provider evaluation topics and unknown fields still
-require manual adaptation and fail before saving. Audit metadata now has the
-explicit template support described above. This bounded profile does not close
-the whole Nuclia catalog entry. See
+Ephemeral provider links, provider evaluation topics and unknown fields still
+require manual adaptation and fail before saving. Non-default presentation and
+citation modes require explicit preservation as described below. Audit metadata
+has the explicit template support described above. This bounded profile does not
+close the whole Nuclia catalog entry. See
 [retrieval context evidence](STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json). Live retrieval
 quality and billing remain separate from local request/citation acceptance.
+
+### Answer files, inline responses and citations
+
+Open a saved Nuclia connection and expand **Answer presentation**. Select
+**Customize answer presentation** to choose answer-file output, filename,
+description query-prefix length, citation mode, inline links and separate
+citation details. Settings save through the existing catalog validator. Turning
+customization off removes the formatting options; previously fixed provider
+settings, including citation mode, remain unchanged. New connections do not
+gain presentation settings automatically. Private source snapshots remain
+available even when the Markdown answer file is disabled.
+
+Configuration-as-code uses optional connector data:
+
+```json
+{
+  "answer_options": {
+    "output_response_as_artifact": false,
+    "output_filename_base": "policy-notes",
+    "artifact_description_query_max_length": 150,
+    "inline_citation_links": true,
+    "include_citations_in_tool_response": true
+  },
+  "ask_settings": {"citations": "llm_footnotes"}
+}
+```
+
+`output` always retains the provider's original text, including original model
+footnote markers. Inline mode adds Markdown `response_content`. File mode adds
+`response_artifact` and saves the formatted answer with its sources in the
+chosen Markdown filename. Only the configured effective-query prefix enters its
+private description. The optional `citations` result lists source artifact IDs,
+exact revisions, provider pages and authenticated local URLs. Native structured
+`sources` remain available independently of this compact-field flag.
+
+The three fixed citation modes are **Source markers** (`default`), **No citations**
+(`none`) and **Model footnotes** (`llm_footnotes`). None mode does not turn uncited
+retrieval into evidence. Footnote mode validates the documented provider mapping
+and retains only referenced sources. Mappings must resolve to returned
+paragraph/field IDs; positional-only context indices are rejected, never guessed.
+The selected provider/model must support
+this mode; no fallback or repeat request occurs when it fails. Unknown references,
+malformed offsets/mappings and capacity exhaustion fail before publication.
+Generated source links point only to private, pinned Nexus artifact revisions.
+
+Filenames use safe basenames up to 100 characters, with an optional `.md` suffix;
+paths, control characters and reserved platform names reject. Query-prefix
+length is an integer from 1 to 1000. Formats and limits are checked during save,
+configuration preflight and execution. Source/native export and file/SQLite
+restart preserve the settings. Ordinary connector edits retain unrelated fixed
+request settings and templates.
+
+For descriptor conversion, add `"preserve_presentation": true` alongside the
+connection ID and strict policy in its `bindings.nuclia` entry. Create matching
+connection data with `convert_tool_descriptor(source, policy="nexus-strict-v1",
+preserve_presentation=True)`. Review declares the native artifact/link adaptations.
+Without the flag, the previous strict profile and non-default-setting rejections
+remain unchanged. This option can be combined with `preserve_retrieval`.
+
+Run `examples/nexus-bot/src/studio_nuclia_presentation.py --mode llm_footnotes
+--inline --base http://127.0.0.1:<port>/nuclia` against the local simulation.
+See [presentation evidence](STUDIO-NUCLIA-PRESENTATION-CHECKPOINT.json) for scoped
+HTTP, ownership, restart and responsive checks. Live model quality and billing
+remain unverified.
 
 ```sh
 postman simulation run postman/simulations/studio-nuclia.sim.yaml --port 50950 --output ndjson
@@ -466,6 +530,69 @@ expression mapping remain unverified or unimplemented as noted above. Native
 cited-only evaluation evidence is described below.
 
 ## Native evaluation evidence and feedback
+
+### Choose the saved context
+
+**Save private evaluation evidence** remains off by default. When enabling it,
+choose **Evaluation context** in the connection editor:
+
+- **Cited sources only** keeps the existing version-1 format and default behavior.
+- **All retrieved paragraphs** explicitly saves original retrieval paragraphs,
+  including uncited text, in private version-2 evidence. Augmented-only blocks
+  remain outside this original-retrieval scope; their ordinary citation snapshots
+  are unchanged.
+
+Configuration uses `capture_evaluation: true` with
+`evaluation_context: "retrieved"`. Choosing the scope without enabling capture
+records nothing. Turning capture off retains the selected scope for later use.
+The provider's existing response supplies the paragraphs; no extra request occurs.
+
+Version 2 uses `format: "nexus-retrieval-evidence/v2"` and
+`context_scope: "retrieved-paragraphs-only"`. Each source includes a `cited`
+boolean, exact text digest, identity and available provider page. Uncited text
+stays in the private evidence artifact; it does not enter normal tool output,
+chat source navigation or execution events. Citation mode `none` can still
+capture explicitly requested retrieval context, with every source marked uncited.
+It never manufactures citations from those paragraphs.
+
+Both versions support owner-scoped, revision-pinned feedback promotion. The new
+reader also verifies version-2 scope, source/context alignment, cited flags and
+digests. Context is copied into an editable evaluation case only after promotion
+checks. Only an explicitly configured and executed judge receives that copy as
+untrusted reference material. Capturing or promoting never starts judging.
+
+Existing bounds apply to both versions: 20 passages, 16,000 UTF-8 bytes per
+passage, 64,000 combined text bytes, 96,000 encoded context bytes and 160,000
+report bytes. Oversized or unavailable retrieval fails before any artifact is
+saved; it never truncates or silently substitutes cited-only context.
+
+The strict descriptor binding optionally accepts `preserve_evaluation: true`.
+With a configured evaluation topic, conversion maps the original payload to
+native private full-retrieval capture and reports the transport/privacy change
+before review. The topic is never published or used as a destination. A matching
+native connection is required. Only static topic text and plain
+`interaction_id`, `tool_name`, `learning_id` placeholders are portable. Empty or
+absent topics enable no extra capture; old bindings retain their rejection of
+topic settings unless explicitly adapted. Original broker transport remains
+excluded from this independent Nexus implementation.
+
+The frozen Nuclia tool constructs and publishes an evaluation payload; it does
+not compute evaluation scores itself. Native private capture, feedback promotion
+and explicitly selected judging provide the corresponding Nexus flow. This is
+not a claim about independent judge quality or downstream scoring equivalence.
+
+No existing files or records are rewritten. Version-1 captures remain readable.
+File and SQLite backup/restore tests retain both formats and their private
+revision provenance. Older releases can continue using cited-only capture;
+version-2 promotion requires the new reader. Rollback preserves version-2 bytes
+and should disable new capture or select cited-only mode until upgrading again.
+
+Run `examples/nexus-bot/src/studio_nuclia.py --retrieved --base
+http://127.0.0.1:<port>/nuclia` against the local simulation to exercise capture,
+feedback promotion and a synthetic explicitly selected judge. See
+[full-context evidence](STUDIO-NUCLIA-CONTEXT-SCOPE-CHECKPOINT.json).
+
+### Default cited-only capture
 
 Enable **Save private evaluation evidence** in a Nuclia connection to preserve a
 reusable evaluation sample for each `ask` result. Configuration-as-code uses
@@ -587,7 +714,9 @@ No schema/credential migration is required. New citations optionally retain a
 configuration digest, file-field identity and source selector. Older citations
 remain readable. The version-1 `source-originals` receipts use existing state,
 artifact, backup and authorization services. Public shell cache version is 40.
-Descriptor settings outside the explicit binding profile, non-file or split attachment references,
-vendor ephemeral-link equivalence, historical original
-revisions and live Nuclia/VM acceptance remain open. Milestones 7 and 8 are not
-complete.
+The final bounded-profile review, broader expression compatibility and independent
+runtime comparison remain open. The [source reconciliation](STUDIO-NUCLIA-COVERAGE.md)
+separates intentional private-access adaptations from additional capabilities:
+general non-file/split originals and historical remote originals are not promises
+of the inspected frozen file-only citation implementation. Live Nuclia/VM
+acceptance remains separate. Milestones 7 and 8 are not complete.

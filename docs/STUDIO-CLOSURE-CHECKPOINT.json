@@ -16,7 +16,10 @@
     "Explicit read-only artifact object capture and offline localization now reuse existing filesystem/S3/GCS/Azure stores. Current/historical revisions, owners, citations and file/SQL restore are fixture-verified; an actual S3 SDK HTTP simulation covers failure shapes. See STUDIO-OBJECT-BACKUP-CHECKPOINT.json. No live cloud or VM acceptance is claimed.",
     "Cited conversation fields now expose explicit paged attachment discovery and selected canonical file downloads. Opaque choices bind owner/source/configuration, discard message text and provider links, and reuse private receipts across restart. See STUDIO-NUCLIA-ATTACHMENTS-CHECKPOINT.json; whole Nuclia/catalog acceptance remains open.",
     "Explicit Nuclia audit templates now preserve reviewed scalar/context values, reject spoofing and oversized payloads before HTTP, and survive file/SQLite configuration restart. Search/answer and non-replay checks use actual local HTTP. See STUDIO-NUCLIA-AUDIT-CHECKPOINT.json; full catalog acceptance remains open.",
-    "Explicit preserve_retrieval bindings and fixed native rag_strategies now preserve neighbouring-paragraph and title/summary context with bounded normalized counts, reviewed usage changes, legacy compatibility and file/SQLite restart. Real HTTP checks retain both private expanded citation files without replay. See STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json; the whole catalog entry remains open."
+    "Explicit preserve_retrieval bindings and fixed native rag_strategies now preserve neighbouring-paragraph and title/summary context with bounded normalized counts, reviewed usage changes, legacy compatibility and file/SQLite restart. Real HTTP checks retain both private expanded citation files without replay. See STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json; the whole catalog entry remains open.",
+    "Nuclia answer presentation now supports inline/file output, safe custom filenames/descriptions, marker/link styles, separate citation details and all three bounded citation modes. Explicit descriptor preservation, file/SQLite restart, private revision downloads, actual HTTP and responsive editor save/reopen pass. See STUDIO-NUCLIA-PRESENTATION-CHECKPOINT.json; whole catalog acceptance stays open.",
+    "Nuclia evaluation scope now supports explicit private original-retrieval capture, including uncited paragraphs marked as uncited. Both evidence versions, pinned promotion, stopped file/SQLite restore, reviewed evaluation-topic adaptation and responsive editor scope retention pass local acceptance. Ordinary tool results/citations/events exclude uncited context; judges remain explicit. See STUDIO-NUCLIA-CONTEXT-SCOPE-CHECKPOINT.json; full catalog acceptance remains open.",
+    "Filesystem catalog configuration now supports explicit runtime/script selection without inheriting ambient environment or changing persisted MCP format. Real pinned-server invocation passes both session modes, selected grants, reviewed writes and sibling/traversal/symlink rejection. See STUDIO-FILESYSTEM-CHECKPOINT.json; no milestone totals are promoted."
   ],
   "validation": {
     "studio_regressions": {
@@ -114,6 +117,24 @@
       "affected_regressions_passed": 318,
       "actual_http_passed": 19,
       "frontend_passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "live_verified": false
+    },
+    "nuclia_answer_presentation": {
+      "checkpoint": "STUDIO-NUCLIA-PRESENTATION-CHECKPOINT.json",
+      "affected_regressions_passed": 408,
+      "actual_http_passed": 25,
+      "frontend_passed": 163,
+      "failures": 0,
+      "skipped": 0,
+      "live_verified": false
+    },
+    "nuclia_evaluation_context_scope": {
+      "checkpoint": "STUDIO-NUCLIA-CONTEXT-SCOPE-CHECKPOINT.json",
+      "affected_regressions_passed": 440,
+      "actual_http_passed": 26,
+      "frontend_passed": 164,
       "failures": 0,
       "skipped": 0,
       "live_verified": false
@@ -294,5 +315,7 @@
     "frozen_accepted": 98,
     "frozen_open": 37,
     "whole_plan_complete": false
-  }
+  },
+  "filesystem_followup": "docs/STUDIO-FILESYSTEM-CHECKPOINT.json",
+  "nuclia_source_reconciliation": "docs/STUDIO-NUCLIA-COVERAGE.md"
 }

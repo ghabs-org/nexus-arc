@@ -198,7 +198,8 @@ def test_only_cited_paragraphs_become_evidence_and_no_context_is_explicit():
 @pytest.mark.parametrize(
     "mode", ["cancel", "completed", "changed", "citation_limit", "artifact_limit"]
 )
-def test_late_result_never_publishes_after_execution_fence_changes(tmp_path, mode):
+@pytest.mark.parametrize("presentation", [False, True])
+def test_late_result_never_publishes_after_execution_fence_changes(tmp_path, mode, presentation):
     studio = StudioService(tmp_path)
     token = None
     try:
@@ -213,6 +214,7 @@ def test_late_result_never_publishes_after_execution_fence_changes(tmp_path, mod
                     "token_env": "NUCLIA_TOKEN",
                     "actions": ["ask"],
                     "enabled": True,
+                    **({"answer_options": {}} if presentation else {}),
                 },
             },
         )
@@ -301,7 +303,8 @@ def test_account_revocation_blocks_source_publication(team):
     assert not studio.catalog.list("artifacts")
 
 
-def test_source_snapshots_use_existing_private_download_authorization(team):
+@pytest.mark.parametrize("presentation", [False, True])
+def test_source_snapshots_use_existing_private_download_authorization(team, presentation):
     studio, _, _, request, _ = team
     studio._write(
         studio._path("runs", "nuclia-private"),
@@ -318,7 +321,10 @@ def test_source_snapshots_use_existing_private_download_authorization(team):
     token = current_run_id.set("nuclia-private")
     try:
         result = publish_answer(
-            studio, answer_sources(response()), "alice", {"knowledge_box": "private"}
+            studio,
+            answer_sources(response()),
+            "alice",
+            {"knowledge_box": "private", **({"answer_options": {}} if presentation else {})},
         )
     finally:
         current_run_id.reset(token)
@@ -329,3 +335,9 @@ def test_source_snapshots_use_existing_private_download_authorization(team):
     assert request(path, user="viewer")[0] in {403, 404}
     assert request(path, user="owner")[0] == 200
     assert request(path)[0] in {401, 403}
+    if presentation:
+        answer = result["response_artifact"]
+        path = f"/api/catalog/artifacts/{answer['id']}/versions/{answer['revision']}"
+        assert request(path, user="alice")[0] == 200
+        assert request(path, user="bob")[0] in {403, 404}
+        assert request(path)[0] in {401, 403}
