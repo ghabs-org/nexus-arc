@@ -1,0 +1,37 @@
+{
+  "format": "nexus-studio-slack-extended-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "gateway-complete-locally-accepted",
+  "scope": "Complete Slack gateway features: outbound artifacts delivery, Block Kit rich replies, feedback buttons, task cancellation, workflow-thread semantics, and Socket Mode.",
+  "requirement_ids": [
+    "CAT-01-reference-slack",
+    "CAT-01-reference-slack-gateway-adapter",
+    "M07-EXIT"
+  ],
+  "whole_catalog_entries_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implemented": [
+    "Rich Block Kit replies with section chunking within 3000 chars, elapsed runtime indicators, and status context.",
+    "Outbound artifact delivery via files_upload_v2/files_upload with size validation (16 MiB per artifact, 32 MiB total).",
+    "Workflow thread semantics with workflow_threads/threaded_workflows opt-in, distinct from agent threads.",
+    "Interactive feedback controls with thumbs-up and thumbs-down buttons recorded in collaboration feedback.",
+    "Interactive cancellation button and in-thread cancel commands terminating active and waiting workflow/agent runs.",
+    "Socket Mode client over slack_sdk.socket_mode.builtin.SocketModeClient handling envelope acknowledgments and dispatching events."
+  ],
+  "validation": {
+    "slack_test_suite": {
+      "tests": 102,
+      "passed": 102,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suites": [
+        "tests/test_studio_slack.py",
+        "tests/test_studio_slack_extended.py",
+        "tests/test_studio_slack_files.py",
+        "tests/test_studio_slack_threads.py"
+      ]
+    }
+  }
+}

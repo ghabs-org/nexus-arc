@@ -15,7 +15,9 @@ from nexus.core.studio_knowledge_vectors import StudioKnowledgeVectors, rank_fus
 
 
 def owner(actor):
-    return actor["nexus_id"] if actor else "desktop"
+    if isinstance(actor, dict):
+        return actor.get("nexus_id", "desktop")
+    return str(actor) if actor else "desktop"
 
 
 class IndexInterruptedError(ValueError):

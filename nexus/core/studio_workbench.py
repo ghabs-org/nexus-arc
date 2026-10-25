@@ -389,9 +389,9 @@ class StudioWorkbench:
                 "owner_id": run.get("requester_nexus_id"),
                 "kind": run["kind"],
                 "status": run["status"],
-                "provider": run["provider"],
+                "provider": run.get("provider", "local"),
             }
-            if run["status"] in {"completed", "failed", "interrupted", "cancelled"}:
+            if run["status"] in {"completed", "failed", "interrupted", "cancelled"} and run.get("created_at"):
                 event["duration_seconds"] = max(
                     0,
                     (datetime.now(UTC) - datetime.fromisoformat(run["created_at"])).total_seconds(),

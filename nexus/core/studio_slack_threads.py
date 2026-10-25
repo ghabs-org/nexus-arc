@@ -46,20 +46,23 @@ def capture(record, body, sender, channel, owner):
 def assert_current(studio, event, record):
     binding = event.get("slack_thread")
     data = record["data"]
+    is_agent_thread = data.get("threaded_conversations") and data.get("target_kind") == "agent"
+    is_wf_thread = (
+        data.get("workflow_threads") or data.get("threaded_workflows")
+    ) and data.get("target_kind") == "workflow"
     if (
         not isinstance(binding, dict)
         or set(binding) != FIELDS
         or binding["format"] != FORMAT
         or data.get("type") != "slack"
-        or not data.get("threaded_conversations")
+        or not (is_agent_thread or is_wf_thread)
         or not data["enabled"]
         or binding["entrypoint_id"] != record["id"]
         or type(binding["entrypoint_revision"]) is not int
         or binding["entrypoint_revision"] != record["revision"]
         or not isinstance(binding["workspace_id"], str)
         or not re.fullmatch(r"[A-Za-z0-9_-]{0,96}", binding["workspace_id"])
-        or binding["target_kind"] != "agent"
-        or data["target_kind"] != "agent"
+        or binding["target_kind"] != data["target_kind"]
         or binding["target_id"] != data["target_id"]
         or any(binding[key] != event[key] for key in ("sender", "channel"))
         or binding["owner_id"] != event["requester_nexus_id"]

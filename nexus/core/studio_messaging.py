@@ -56,6 +56,24 @@ def validate_channel(data):
         ):
             raise ValueError("Threaded Slack conversations require a boolean and an agent target")
         result["threaded_conversations"] = threaded
+    if "workflow_threads" in data or "threaded_workflows" in data:
+        wf_threaded = (
+            data.get("workflow_threads")
+            if "workflow_threads" in data
+            else data.get("threaded_workflows")
+        )
+        if (
+            type(wf_threaded) is not bool
+            or kind != "slack"
+            or (wf_threaded and data.get("target_kind") != "workflow")
+        ):
+            raise ValueError("Workflow Slack threads require a boolean and a workflow target")
+        result["workflow_threads"] = wf_threaded
+    if "rich_replies" in data:
+        rich = data["rich_replies"]
+        if type(rich) is not bool:
+            raise ValueError("rich_replies must be a boolean")
+        result["rich_replies"] = rich
     if "capture_slack_files" in data:
         capture_files = data["capture_slack_files"]
         if (
@@ -210,7 +228,15 @@ class StudioMessaging:
             raise PermissionError("Local channel users must map to desktop")
         digest = hashlib.sha256(f"{identity}:{event_id}".encode()).hexdigest()
         thread = {}
-        if kind == "slack" and data.get("threaded_conversations") and not callback:
+        if (
+            kind == "slack"
+            and (
+                data.get("threaded_conversations")
+                or data.get("workflow_threads")
+                or data.get("threaded_workflows")
+            )
+            and not callback
+        ):
             from nexus.core.studio_slack_threads import capture
 
             thread = {"slack_thread": capture(record, body, sender, channel, actor)}
@@ -332,10 +358,17 @@ class StudioMessaging:
         )
 
     def approval(self, token, event):
-        if not token.startswith("nexus:") or len(token) != 38:
-            raise PermissionError("Unknown approval button")
+        prefix = ""
+        action_id = ""
+        for p in ("nexus:", "nexus_feedback:", "nexus_cancel:"):
+            if token.startswith(p):
+                prefix = p
+                action_id = token[len(p) :]
+                break
+        if not prefix or len(action_id) != 32:
+            raise PermissionError("Unknown approval or action button")
         with self.studio.lock:
-            path = self.studio._path("channel-actions", token[6:])
+            path = self.studio._path("channel-actions", action_id)
             action = self.studio._read(path)
             if (
                 action["used"]
@@ -345,7 +378,31 @@ class StudioMessaging:
                     for key in ("entrypoint_id", "requester_nexus_id", "sender", "channel")
                 )
             ):
-                raise PermissionError("Approval button expired, used or belongs to another user")
+                raise PermissionError("Action button expired, used or belongs to another user")
+
+            action_type = action.get("type", "approval")
+            if action_type == "feedback":
+                action["used"] = True
+                self.studio._write(path, action)
+                if hasattr(self.studio, "collaboration") and hasattr(
+                    self.studio.collaboration, "feedback"
+                ):
+                    self.studio.collaboration.feedback(
+                        {
+                            "run_id": action["run_id"],
+                            "rating": action["rating"],
+                            "comment": action.get("comment", ""),
+                        },
+                        actor=event["requester_nexus_id"],
+                    )
+                return
+
+            if action_type == "cancel":
+                action["used"] = True
+                self.studio._write(path, action)
+                self.studio.cancel_run(action["run_id"], actor=event["requester_nexus_id"])
+                return
+
             run = self.studio.run(action["run_id"])
             if run["status"] != "waiting" or action["gates"] != run.get("awaiting_approval"):
                 raise ValueError("Approval step has changed; use its latest buttons")
@@ -377,7 +434,11 @@ class StudioMessaging:
                             raise ValueError("Slack file event has no verified attachment manifest")
                     elif (
                         data["type"] == "slack"
-                        and data.get("threaded_conversations")
+                        and (
+                            data.get("threaded_conversations")
+                            or data.get("workflow_threads")
+                            or data.get("threaded_workflows")
+                        )
                         and event["status"] in {"received", "running"}
                         and not event["callback"]
                     ):
@@ -398,7 +459,8 @@ class StudioMessaging:
                             self.approval(event["callback"], event)
                             event["status"] = "completed"
                         else:
-                            if not event["task"].strip() or len(event["task"]) > 16000:
+                            task_text = event["task"].strip()
+                            if not task_text or len(task_text) > 16000:
                                 raise ValueError(
                                     "Channel text must be nonempty, up to 16000 characters"
                                 )
@@ -411,6 +473,38 @@ class StudioMessaging:
                                 context = thread_context(self.studio, event, record)
                                 if context is None:
                                     continue
+                                if task_text.lower() in {"cancel", "/cancel"} and context.get("session_id"):
+                                    session_runs = [
+                                        r
+                                        for r in self.studio.records("runs", limit=None)
+                                        if r.get("session_id") == context["session_id"]
+                                        and r["status"] in {"queued", "running", "waiting"}
+                                    ]
+                                    for r in session_runs:
+                                        self.studio.cancel_run(
+                                            r["id"], actor=event["requester_nexus_id"]
+                                        )
+                                    event["status"] = "completed"
+                                    self.studio._write(
+                                        self.studio._path("channel-events", event["id"]), event
+                                    )
+                                    continue
+                                if data.get("target_kind") == "workflow" and context.get("session_id"):
+                                    waiting_input = [
+                                        r
+                                        for r in self.studio.records("runs", limit=None)
+                                        if r.get("session_id") == context["session_id"]
+                                        and r["status"] == "waiting"
+                                        and r.get("awaiting_input")
+                                    ]
+                                    if waiting_input:
+                                        r = waiting_input[0]
+                                        self.studio.graph.resume(r["id"], task_text)
+                                        event["status"] = "completed"
+                                        self.studio._write(
+                                            self.studio._path("channel-events", event["id"]), event
+                                        )
+                                        continue
                                 if event.get("slack_files"):
                                     context.update(self.slack_files.context(event))
                             # Claim before enqueue: an ambiguous crash is reviewed, never replayed.
@@ -522,6 +616,69 @@ class StudioMessaging:
                     },
                 )
                 buttons.append({"label": decision.title(), "callback_data": "nexus:" + token})
+            if data["type"] == "slack":
+                cancel_token = secrets.token_hex(16)
+                self.studio._write(
+                    self.studio._path("channel-actions", cancel_token),
+                    {
+                        **{
+                            key: event[key]
+                            for key in ("entrypoint_id", "requester_nexus_id", "sender", "channel")
+                        },
+                        "type": "cancel",
+                        "run_id": run["id"],
+                        "used": False,
+                        "expires": time.time() + 86400,
+                    },
+                )
+                buttons.append(
+                    {"label": "Cancel Task", "callback_data": "nexus_cancel:" + cancel_token}
+                )
+        feedback_tokens = None
+        if run["status"] == "completed" and data.get("type") == "slack":
+            pos_token = secrets.token_hex(16)
+            neg_token = secrets.token_hex(16)
+            for tok, rating in ((pos_token, 1), (neg_token, -1)):
+                self.studio._write(
+                    self.studio._path("channel-actions", tok),
+                    {
+                        **{
+                            key: event[key]
+                            for key in ("entrypoint_id", "requester_nexus_id", "sender", "channel")
+                        },
+                        "type": "feedback",
+                        "run_id": run["id"],
+                        "rating": rating,
+                        "used": False,
+                        "expires": time.time() + 86400,
+                    },
+                )
+            feedback_tokens = (pos_token, neg_token)
+
+        run_artifacts = None
+        if (
+            run["status"] == "completed"
+            and data.get("type") == "slack"
+            and (data.get("rich_replies") or data.get("upload_artifacts"))
+            and run.get("artifacts")
+        ):
+            from nexus.core.studio_slack_artifacts import SlackArtifacts
+
+            uploader = SlackArtifacts(self.studio)
+            run_artifacts = uploader.get_run_artifacts(run)
+            if data.get("upload_artifacts"):
+                for art in run_artifacts:
+                    try:
+                        uploader.upload_artifact(
+                            connector_id=data["notification_connector_id"],
+                            channel=event["channel"],
+                            artifact_id=art["id"],
+                            thread_ts=thread.get("thread_ts"),
+                            title=art["name"],
+                        )
+                    except Exception:
+                        pass
+
         text = (
             ("Approval requested: " + ", ".join(gate["name"] for gate in run["awaiting_approval"]))
             if waiting and not operator
@@ -530,12 +687,36 @@ class StudioMessaging:
         if operator:
             text = f"Studio run {run['id']}: {run['status']}\n" + str(run.get("output") or "")[:12000]
             text += f"\nInspect results or pending gates: /nexus studio status {run['id']}"
+
+        extra_args = {}
+        if data.get("type") == "slack" and data.get("rich_replies"):
+            from nexus.core.studio_slack_rich import build_rich_reply_blocks
+
+            blocks = build_rich_reply_blocks(
+                text=text[:16000],
+                status=run["status"],
+                run_id=run["id"],
+                artifacts=run_artifacts if run_artifacts else None,
+                feedback_tokens=(
+                    ("nexus_feedback:" + feedback_tokens[0], "nexus_feedback:" + feedback_tokens[1])
+                    if feedback_tokens
+                    else None
+                ),
+                cancel_token=(
+                    ("nexus_cancel:" + cancel_token)
+                    if "cancel_token" in locals() and cancel_token
+                    else None
+                ),
+                buttons=buttons if waiting else None,
+            )
+            extra_args["blocks"] = blocks
+
         asyncio.run(
             self.studio.connections.execute(
                 data["notification_connector_id"],
                 {
                     "action": "send",
-                    "arguments": {"text": text[:16000], "buttons": buttons, **thread},
+                    "arguments": {"text": text[:16000], "buttons": buttons, **extra_args, **thread},
                 },
                 event["requester_nexus_id"],
                 approved=True,

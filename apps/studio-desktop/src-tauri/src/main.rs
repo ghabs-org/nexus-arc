@@ -8,7 +8,7 @@
 
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
-use tauri::{AppHandle, Manager, WebviewUrl};
+use tauri::{AppHandle, Manager};
 
 static BACKEND_PORT: AtomicU16 = AtomicU16::new(0);
 
@@ -45,6 +45,14 @@ fn start_backend_and_navigate(app: &AppHandle) {
     let port = find_free_port();
     BACKEND_PORT.store(port, Ordering::SeqCst);
 
+    // Spawn sidecar backend process
+    use tauri_plugin_shell::ShellExt;
+    if let Ok(sidecar_cmd) = app.shell().sidecar("nexus-sidecar") {
+        let _ = sidecar_cmd
+            .args(["--port", &port.to_string(), "--host", "127.0.0.1"])
+            .spawn();
+    }
+
     // 2. Poll bootstrap readiness
     let url = format!("http://127.0.0.1:{}/api/bootstrap", port);
     let mut attempts = 0;
@@ -62,7 +70,7 @@ fn start_backend_and_navigate(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let dest = format!("http://127.0.0.1:{}", port);
         if let Ok(parsed_url) = dest.parse() {
-            let _ = window.navigate(WebviewUrl::External(parsed_url));
+            let _ = window.navigate(parsed_url);
         }
     }
 }

@@ -48,6 +48,9 @@ Thumbs.db
 .cache/
 *.pid
 .env
+target/
+**/src-tauri/target/
+**/src-tauri/gen/
 node_modules/
 # Accidental pip output files
 =*

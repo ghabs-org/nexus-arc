@@ -67,6 +67,8 @@ WRITE_ACTIONS = {
     "call",
     "create_pr",
     "pr_comment",
+    "upload_file",
+    "upload_artifact",
 }
 
 
@@ -438,8 +440,8 @@ class StudioConnections:
         if data["type"] == "slack" and "thread_ts" in arguments:
             from nexus.adapters.notifications.slack import validate_timestamp
 
-            if action != "send":
-                raise ValueError("Slack thread timestamps apply to sends only")
+            if action not in {"send", "upload_file", "upload_artifact"}:
+                raise ValueError("Slack thread timestamps apply to sends and file uploads only")
             validate_timestamp(arguments["thread_ts"])
         adapter = None
         try:
@@ -547,62 +549,95 @@ class StudioConnections:
                     "channel": data["channel"],
                     "authorization_verified": False,
                 }
-            elif action in {"send", "update_message"}:
-                from nexus.adapters.notifications.base import Button, Message
-
-                text = arguments.get("text")
-                if not isinstance(text, str) or not text.strip() or len(text) > 16000:
-                    raise ValueError("Message text must be nonempty, up to 16000 characters")
-                raw_buttons = arguments.get("buttons", [])
-                if (
-                    not isinstance(raw_buttons, list)
-                    or len(raw_buttons) > 5
-                    or any(
-                        not isinstance(b, dict)
-                        or set(b) != {"label", "callback_data"}
-                        or not isinstance(b["label"], str)
-                        or not 1 <= len(b["label"]) <= 60
-                        or not isinstance(b["callback_data"], str)
-                        or not 1 <= len(b["callback_data"]) <= 64
-                        for b in raw_buttons
+            elif action in {"send", "update_message", "upload_file", "upload_artifact"}:
+                if action == "upload_artifact":
+                    if data["type"] != "slack":
+                        raise ValueError("Artifact uploads currently supported for Slack only")
+                    from nexus.core.studio_slack_artifacts import SlackArtifacts
+                    uploader = SlackArtifacts(self.studio)
+                    result = uploader.upload_artifact(
+                        connector_id=identity,
+                        channel=data["channel"],
+                        artifact_id=arguments["artifact_id"],
+                        thread_ts=arguments.get("thread_ts"),
+                        title=arguments.get("title"),
                     )
-                ):
-                    raise ValueError("Use at most five short callback buttons")
-                buttons = [Button(**b) for b in raw_buttons] or None
-                if data["type"] == "telegram":
-                    if data["type"] not in self.factories:
-                        await asyncio.wait_for(adapter.initialize(), 30)
-                    method = adapter.send_message if action == "send" else adapter.edit_message_text
-                    kwargs = {"chat_id": data["channel"], "text": text}
-                    if buttons:
-                        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-
-                        kwargs["reply_markup"] = InlineKeyboardMarkup(
-                            [
-                                [
-                                    InlineKeyboardButton(b.label, callback_data=b.callback_data)
-                                    for b in buttons
-                                ]
-                            ]
-                        )
-                    if action == "update_message":
-                        kwargs["message_id"] = arguments["message_id"]
-                    message = await method(**kwargs)
-                    result = {"message_id": str(message.message_id)}
+                elif action == "upload_file":
+                    if data["type"] != "slack":
+                        raise ValueError("File uploads currently supported for Slack only")
+                    content = arguments.get("content")
+                    if isinstance(content, str):
+                        content = content.encode("utf-8")
+                    result = await adapter.upload_file(
+                        channel=data["channel"],
+                        content=content,
+                        filename=arguments.get("filename", "file.bin"),
+                        thread_ts=arguments.get("thread_ts"),
+                        title=arguments.get("title"),
+                    )
                 else:
-                    result = (
-                        await adapter.send_message(
-                            data["channel"],
-                            Message(text=text, buttons=buttons),
-                            **(
-                                {"thread_ts": arguments["thread_ts"]}
-                                if data["type"] == "slack" and "thread_ts" in arguments
-                                else {}
-                            ),
+                    from nexus.adapters.notifications.base import Button, Message
+
+                    text = arguments.get("text")
+                    if not isinstance(text, str) or not text.strip() or len(text) > 16000:
+                        raise ValueError("Message text must be nonempty, up to 16000 characters")
+                    raw_buttons = arguments.get("buttons", [])
+                    if (
+                        not isinstance(raw_buttons, list)
+                        or len(raw_buttons) > 5
+                        or any(
+                            not isinstance(b, dict)
+                            or set(b) != {"label", "callback_data"}
+                            or not isinstance(b["label"], str)
+                            or not 1 <= len(b["label"]) <= 60
+                            or not isinstance(b["callback_data"], str)
+                            or not 1 <= len(b["callback_data"]) <= 64
+                            for b in raw_buttons
                         )
-                        if action == "send"
-                        else await adapter.update_message(str(arguments["message_id"]), text)
-                    )
+                    ):
+                        raise ValueError("Use at most five short callback buttons")
+                    buttons = [Button(**b) for b in raw_buttons] or None
+                    if data["type"] == "telegram":
+                        if data["type"] not in self.factories:
+                            await asyncio.wait_for(adapter.initialize(), 30)
+                        method = adapter.send_message if action == "send" else adapter.edit_message_text
+                        kwargs = {"chat_id": data["channel"], "text": text}
+                        if buttons:
+                            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+                            kwargs["reply_markup"] = InlineKeyboardMarkup(
+                                [
+                                    [
+                                        InlineKeyboardButton(b.label, callback_data=b.callback_data)
+                                        for b in buttons
+                                    ]
+                                ]
+                            )
+                        if action == "update_message":
+                            kwargs["message_id"] = arguments["message_id"]
+                        message = await method(**kwargs)
+                        result = {"message_id": str(message.message_id)}
+                    else:
+                        slack_kwargs = {}
+                        if data["type"] == "slack":
+                            if "thread_ts" in arguments:
+                                slack_kwargs["thread_ts"] = arguments["thread_ts"]
+                            if "blocks" in arguments:
+                                slack_kwargs["blocks"] = arguments["blocks"]
+
+                        result = (
+                            await adapter.send_message(
+                                data["channel"],
+                                Message(text=text, buttons=buttons),
+                                **slack_kwargs,
+                            )
+                            if action == "send"
+                            else await adapter.update_message(
+                                str(arguments["message_id"]),
+                                text,
+                                **({"blocks": arguments["blocks"]} if data["type"] == "slack" and "blocks" in arguments else {}),
+                            )
+                        )
             else:
                 raise ValueError("Choose a supported messaging action")
 
