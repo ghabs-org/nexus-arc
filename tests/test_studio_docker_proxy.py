@@ -119,7 +119,7 @@ def test_studio_cli_worker_and_analysis_requests_are_allowed(env):
         (lambda b, e: b.update(ExposedPorts={"80/tcp": {}}), "ExposedPorts"),
         (lambda b, e: b["NetworkingConfig"]["EndpointsConfig"].update(host={}), "network attachment"),
         (lambda b, e: b["HostConfig"]["Mounts"].append({"Type": "bind", "Source": "/", "Target": "/home/nexus"}), "outside"),
-        (lambda b, e: b["HostConfig"]["Mounts"].append({"Type": "bind", "Source": "/run/docker.sock", "Target": "/var/run/docker.sock"}), "not allowed"),
+        (lambda b, e: b["HostConfig"]["Mounts"].append({"Type": "bind", "Source": e["creds"], "Target": "/var/run/docker.sock"}), "not allowed"),
         (lambda b, e: b["HostConfig"]["Mounts"].append({"Type": "volume", "Source": "data", "Target": "/data"}), "bind"),
         (lambda b, e: b["HostConfig"]["Mounts"][1].update(ReadOnly=False), "workspace"),
         (lambda b, e: b["HostConfig"]["Mounts"][0].update(BindOptions={"Propagation": "rshared"}), "propagation"),
