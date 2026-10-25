@@ -219,3 +219,99 @@ test("interactive guide respects non-interruption rules, steps through views, an
   assert.equal(location.hash,"#workflows");
   assert.ok(apiCalls.every(call=>call.path==="/api/workbench/guide"));
 });
+
+test("install app button is hidden when running inside standalone or desktop app", () => {
+  const source = fs.readFileSync("nexus/studio_static/experience.js", "utf8");
+  const slice = source.slice(
+    source.indexOf("function isDesktopOrStandalone()"),
+    source.indexOf('$("install-app").addEventListener("click"')
+  );
+
+  // Case 1: Browser normal mode - not hidden
+  {
+    const elements = new Map();
+    const $ = id => {
+      if (!elements.has(id)) elements.set(id, { id, hidden: false });
+      return elements.get(id);
+    };
+    const context = vm.createContext({
+      $,
+      URLSearchParams,
+      matchMedia: () => ({ matches: false }),
+      navigator: { standalone: false },
+      window: { addEventListener() {} },
+      location: { search: "" },
+      document: { cookie: "", addEventListener() {}, documentElement: { classList: { add() {} } } },
+      sessionStorage: { getItem: () => null, setItem() {} }
+    });
+    vm.runInContext(slice, context);
+    vm.runInContext("hideInstallAppIfDesktop()", context);
+    assert.equal($("install-app").hidden, false);
+  }
+
+  // Case 2: Desktop app with window.__TAURI__
+  {
+    const elements = new Map();
+    const $ = id => {
+      if (!elements.has(id)) elements.set(id, { id, hidden: false });
+      return elements.get(id);
+    };
+    const context = vm.createContext({
+      $,
+      URLSearchParams,
+      matchMedia: () => ({ matches: false }),
+      navigator: { standalone: false },
+      window: { __TAURI__: {}, addEventListener() {} },
+      location: { search: "" },
+      document: { cookie: "", addEventListener() {}, documentElement: { classList: { add() {} } } },
+      sessionStorage: { getItem: () => null, setItem() {} }
+    });
+    vm.runInContext(slice, context);
+    vm.runInContext("hideInstallAppIfDesktop()", context);
+    assert.equal($("install-app").hidden, true);
+  }
+
+  // Case 3: Desktop app with ?desktop=1 query param
+  {
+    const elements = new Map();
+    const $ = id => {
+      if (!elements.has(id)) elements.set(id, { id, hidden: false });
+      return elements.get(id);
+    };
+    const context = vm.createContext({
+      $,
+      URLSearchParams,
+      matchMedia: () => ({ matches: false }),
+      navigator: { standalone: false },
+      window: { addEventListener() {} },
+      location: { search: "?desktop=1" },
+      document: { cookie: "", addEventListener() {}, documentElement: { classList: { add() {} } } },
+      sessionStorage: { getItem: () => null, setItem() {} }
+    });
+    vm.runInContext(slice, context);
+    vm.runInContext("hideInstallAppIfDesktop()", context);
+    assert.equal($("install-app").hidden, true);
+  }
+
+  // Case 4: Desktop app with nexus_desktop=1 cookie
+  {
+    const elements = new Map();
+    const $ = id => {
+      if (!elements.has(id)) elements.set(id, { id, hidden: false });
+      return elements.get(id);
+    };
+    const context = vm.createContext({
+      $,
+      URLSearchParams,
+      matchMedia: () => ({ matches: false }),
+      navigator: { standalone: false },
+      window: { addEventListener() {} },
+      location: { search: "" },
+      document: { cookie: "nexus_desktop=1; other=foo", addEventListener() {}, documentElement: { classList: { add() {} } } },
+      sessionStorage: { getItem: () => null, setItem() {} }
+    });
+    vm.runInContext(slice, context);
+    vm.runInContext("hideInstallAppIfDesktop()", context);
+    assert.equal($("install-app").hidden, true);
+  }
+});

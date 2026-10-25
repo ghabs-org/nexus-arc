@@ -5,9 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Nexus Studio</title>
   <meta name="theme-color" content="#173a36">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="stylesheet" href="/studio.css">
+  <script>
+    if (
+      window.__TAURI__ ||
+      window.__TAURI_INTERNALS__ ||
+      location.search.includes("desktop=1") ||
+      document.cookie.includes("nexus_desktop=1") ||
+      sessionStorage.getItem("nexus-desktop") === "1"
+    ) {
+      document.documentElement.classList.add("desktop-app");
+    }
+  </script>
   <script defer src="/vendor/marked.js"></script>
   <script defer src="/vendor/purify.js"></script>
   <script defer src="/content.js"></script>

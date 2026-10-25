@@ -387,6 +387,7 @@ h1,h2,h3,.dialog-heading,.provider-row p,.callout{overflow-wrap:anywhere}
 .speech-actions,
 .speech-playback-slot{display:inline-flex;align-items:center;gap:8px}
 .single-agent .sidebar,.single-agent #install-app,.single-agent .chat-controls label:not(:has(#chat-agent)),.single-agent .chat-controls .profile-field{display:none}.single-agent{grid-template-columns:minmax(0,1fr)}.single-agent .topbar .breadcrumb,.single-agent .topbar .slash{display:none}
+.desktop-app #install-app,:root.desktop-app #install-app,.standalone-app #install-app{display:none!important}
 .prompt-suggestions { display:grid; gap:2px; padding:6px; border:1px solid var(--line,#ddd); background:var(--surface,#fff); border-radius:8px; max-height:240px; overflow:auto; }
 .prompt-suggestions[hidden] { display:none; }
 .prompt-suggestions button { text-align:left; white-space:normal; background:transparent; color:inherit; border-color:transparent; }

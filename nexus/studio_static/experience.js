@@ -27,9 +27,31 @@ window.addEventListener("focus",()=>{if(view()==="inbox")refreshInbox();});
 setInterval(()=>{if(state.ready&&!document.hidden&&navigator.onLine!==false)refreshInbox();},20000);
 
 let installPrompt=null,appRegistration=null;
-window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;});
-window.addEventListener("appinstalled",()=>{$("install-app").hidden=true;installPrompt=null;});
-if(matchMedia("(display-mode: standalone)").matches||navigator.standalone)$("install-app").hidden=true;
+function isDesktopOrStandalone(){
+  return Boolean(
+    (typeof matchMedia==="function"&&matchMedia("(display-mode: standalone)").matches) ||
+    (typeof navigator!=="undefined"&&navigator.standalone) ||
+    (typeof window!=="undefined"&&(window.__TAURI__||window.__TAURI_INTERNALS__)) ||
+    (typeof location!=="undefined"&&location.search&&(location.search.includes("desktop=1")||(typeof URLSearchParams!=="undefined"&&new URLSearchParams(location.search).has("desktop")))) ||
+    (typeof document!=="undefined"&&document.cookie&&document.cookie.includes("nexus_desktop=1")) ||
+    (typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexus-desktop")==="1")
+  );
+}
+function hideInstallAppIfDesktop(){
+  if(isDesktopOrStandalone()){
+    if(typeof sessionStorage!=="undefined")sessionStorage.setItem("nexus-desktop","1");
+    if(typeof document!=="undefined"){
+      document.documentElement.classList.add("desktop-app");
+      if(document.body)document.body.classList.add("desktop-app");
+    }
+    const btn=$("install-app");
+    if(btn)btn.hidden=true;
+  }
+}
+hideInstallAppIfDesktop();
+window.addEventListener("beforeinstallprompt",event=>{if(isDesktopOrStandalone())return;event.preventDefault();installPrompt=event;});
+window.addEventListener("appinstalled",()=>{const btn=$("install-app");if(btn)btn.hidden=true;installPrompt=null;});
+if(typeof document!=="undefined")document.addEventListener("DOMContentLoaded",hideInstallAppIfDesktop);
 $("install-app").addEventListener("click",async()=>{
   if(installPrompt){const prompt=installPrompt;installPrompt=null;await prompt.prompt();await prompt.userChoice;return;}
   showDetail("Install Nexus Studio",'<p>On iPhone or iPad, open this workspace in Safari, tap Share, then Add to Home Screen. On Android or desktop, use your browser’s Install app or Add to Home Screen menu.</p><p>Installation needs HTTPS or localhost. To use your computer’s workspace from a phone, open its authenticated team HTTPS address.</p><p>The app can open its interface offline. Running agents, reviewing approvals and loading private data need a connection. No actions are queued offline.</p>');

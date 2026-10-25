@@ -4,11 +4,11 @@
   "version": "1.0.0",
   "identifier": "com.nexusarc.studio",
   "build": {
-    "frontendDist": "../../../nexus/studio_static",
+    "frontendDist": "../ui",
     "devUrl": null
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Nexus Studio",
