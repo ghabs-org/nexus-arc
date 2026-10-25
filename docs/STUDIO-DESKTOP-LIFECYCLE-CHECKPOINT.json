@@ -1,0 +1,75 @@
+{
+ "format": "nexus-studio-desktop-lifecycle-checkpoint/v1",
+ "date": "2026-10-25",
+ "milestone": 9,
+ "status": "partial-macos-lifecycle",
+ "whole_milestone_complete": false,
+ "whole_plan_complete": false,
+ "scope": "Descendants outside the backend's process group (stdio MCP servers, Docker sandbox containers) and the macOS installed lifecycle (upgrade, rollback, newer-workspace refusal, uninstall data retention). Ad-hoc signed builds; not Linux/Windows; no workspace chooser yet.",
+ "implemented": [
+  "Fixed: serve_studio ran end_owned_process_group in its finally block, so any native startup error (e.g. a newer workspace) SIGKILLed the backend before its message and exit status reached the shell. Group cleanup now runs only after a normal shutdown.",
+  "NewerStateError (ValueError subclass, exit 65) for a workspace whose schema is newer than this release; the CLI exits 65 with the message and the shell shows a 'newer workspace' screen. Other invalid versions keep plain ValueError.",
+  "Shell grace raised from 5 s to 12 s, above the backend's 10 s bounded close, so a slow healthy close is not cut off; the window hides immediately on close/quit."
+ ],
+ "validation": {
+  "mcp_stdio": {
+   "method": "Installed connected backend launched as the shell does; persistent stdio MCP connector created and discovered through the authenticated API; synthetic server (system Python) that starts its own child; 'polite' exits on stdin EOF, 'stubborn' ignores it.",
+   "server_outside_backend_group": true,
+   "results": {
+    "stop": "both cleaned",
+    "shell_gone_eof": "both cleaned",
+    "hard_kill_no_close": "polite cleaned; stubborn server and its child survive"
+   },
+   "note": "MCP SDK 2.3 starts stdio servers with start_new_session=True and hides the process; no private-API hook was added."
+  },
+  "docker_sandbox": {
+   "method": "Real StudioSandbox with a pinned local python:3.14-slim image ID and 5 s timeout; driving process SIGKILLed mid-job.",
+   "container_alive_after_backend_kill": true,
+   "removed_seconds_after_kill": 4.5
+  },
+  "lifecycle": {
+   "releases": {
+    "previous": "1.0.0 core DMG sha256 c739dafc0c8c3873\u2026",
+    "next": "1.0.1 core DMG sha256 1161532ed7f826159065c8e7395ab1c75aae6944a2651e08b86e0923e6feff7c"
+   },
+   "results": [
+    "1.0.0 installed and real app healthy; agent created",
+    "Replaced with 1.0.1: real app healthy on the existing workspace, agent present, schema still 1",
+    "Rolled back to 1.0.0: real app healthy, agent present",
+    "Newer schema (2): 1.0.0 refused by silent SIGKILL (bug reproduced on the old build), 1.0.1 exits 65 with the message; workspace byte-identical in both",
+    "User saw the installed 1.0.1 app show the newer-version message",
+    "Uninstall (delete app): workspace and agent files kept"
+   ],
+   "workspace": "Real app-data path ~/Library/Application Support/com.nexusarc.studio/workspace; created by the drill and removed afterwards."
+  },
+  "tests": {
+   "python": {
+    "tests": 566,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/round5-regression.xml"
+   },
+   "rust": {
+    "tests": 10,
+    "passed": 10,
+    "clippy_warnings": 0
+   }
+  }
+ },
+ "remaining": [
+  "Stubborn (EOF-ignoring) stdio MCP servers after a backend crash; would need SDK support or a verified process ledger.",
+  "Workspace chooser/import flow in the native app; pre-import backup restore via the normal recovery flow from the app.",
+  "Real schema migrations with pre-upgrade backup (current release has only schema 1).",
+  "Developer ID signing/notarization, signature-verified updates, Linux/Windows."
+ ],
+ "source_sha256": {
+  "nexus/studio.py": "0a7496528c3d95af7faeff0dca2cd0532233a600adf9ae3925de8f69d49499af",
+  "nexus/cli.py": "f67cc4e7321e66794c6d336f5c14cceb757abf816aed067d62fd18ea559892f3",
+  "nexus/core/studio_schema.py": "e6a7e9f7c38e115ffd7f1b0b35d5a2194811f975ea437c7ba1ae455b77a8bd83",
+  "apps/studio-desktop/src-tauri/src/backend.rs": "27ba37daac629fba291e897dae0d27a7701db235ddecba8f04d03eda3d814b3d",
+  "apps/studio-desktop/src-tauri/src/main.rs": "6ae9bf32f81a1afc2c3cee00f46e1619bd735601f52cd4f21b299624a8f539a3",
+  "apps/studio-desktop/ui/startup.js": "2d460070ea573b400d05afa12f655a7b0a75bc6b1c23e5f8fca53b07f7bcb119",
+  "tests/test_studio_desktop.py": "f1384faaca9cc80ac14c116f061cb650e2ae8f07e7d2a8526e4ea970845d798f"
+ }
+}

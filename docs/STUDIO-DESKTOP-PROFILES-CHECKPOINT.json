@@ -1,0 +1,169 @@
+{
+  "format": "nexus-studio-desktop-profiles-checkpoint/v1",
+  "date": "2026-10-25",
+  "scope": "Explicit connected desktop SDK packaging gate and actual relocated backend acceptance; no live service or native installer certification",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_desktop_profiles.py",
+    "nexus/core/studio_desktop_bundle.py",
+    "nexus/core/studio_desktop_sidecar.py",
+    "apps/studio-desktop/build_desktop.py",
+    "examples/nexus-bot/src/studio_desktop_bundle.py",
+    "tests/test_studio_desktop_bundle.py",
+    "tests/studio_desktop_bundle_acceptance.py"
+  ],
+  "documentation": "docs/STUDIO-DESKTOP-PROFILES.md",
+  "validation": {
+    "affected": {
+      "report": "/private/tmp/nexus-desktop-connected-required.xml",
+      "tests": 80,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "relocated_connected": {
+      "report": "/private/tmp/nexus-desktop-connected-runtime.xml",
+      "tests": 1,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "duration_seconds": 18.251
+    },
+    "attempt_history": [
+      "First relocated connected run passed in 17.55 seconds.",
+      "A repeat failed in 55.43 seconds because PDF preview lacked pages; the original assertion hid the extraction result behind KeyError.",
+      "The assertion now prints the preview object on failure. A subsequent full relocated run passed in 18.25 seconds.",
+      "Direct frozen PDF worker execution succeeded in 4.56 seconds. The intermittent failure cause is not established; no runtime timeout or extraction guard was relaxed.",
+      "Direct PDF worker with the exact Studio restricted environment also succeeded in 1.53 seconds."
+    ]
+  },
+  "artifact": {
+    "manifest": "/private/tmp/nexus-connected-sidecar/nexus-sidecar-aarch64-apple-darwin.manifest.json",
+    "executable": "/private/tmp/nexus-connected-sidecar/nexus-sidecar-aarch64-apple-darwin/nexus-sidecar",
+    "layout": "onedir",
+    "sha256": "0ed4d46fa51e70367a7f331cdd069d2122fbf0a9ad605845b6a8feae03ef185c",
+    "tree_sha256": "20d860452d642247906d64e4a26aa4f8d5966920e3b149f98b825280dff3d6db",
+    "size_bytes": 117508107,
+    "file_count": 2617,
+    "target": "aarch64-apple-darwin"
+  },
+  "frozen_dependency_profile": {
+    "format": "nexus-desktop-profile/v1",
+    "profile": "connected",
+    "passed": true,
+    "packages": {
+      "openai": {
+        "module": "openai",
+        "version": "3.37.0",
+        "imported": true
+      },
+      "anthropic": {
+        "module": "anthropic",
+        "version": "2.3.0",
+        "imported": true
+      },
+      "mcp": {
+        "module": "mcp.client.streamable_http",
+        "version": "2.3.0",
+        "imported": true
+      },
+      "slack-sdk": {
+        "module": "slack_sdk.web.client",
+        "version": "3.45.0",
+        "imported": true
+      },
+      "sqlalchemy": {
+        "module": "sqlalchemy",
+        "version": "2.1.6",
+        "imported": true
+      },
+      "psycopg2-binary": {
+        "module": "psycopg2",
+        "version": "2.9.13",
+        "imported": true
+      },
+      "pymysql": {
+        "module": "pymysql",
+        "version": "1.2.3",
+        "imported": true
+      },
+      "pymssql": {
+        "module": "pymssql",
+        "version": "2.4.5",
+        "imported": true
+      },
+      "oracledb": {
+        "module": "oracledb",
+        "version": "26.0.1",
+        "imported": true
+      },
+      "jsonschema": {
+        "module": "jsonschema",
+        "version": "4.26.0",
+        "imported": true
+      },
+      "referencing": {
+        "module": "referencing",
+        "version": "0.37.0",
+        "imported": true
+      },
+      "boto3": {
+        "module": "boto3",
+        "version": "1.43.118",
+        "imported": true
+      },
+      "pymongo": {
+        "module": "pymongo",
+        "version": "4.19.0",
+        "imported": true
+      },
+      "pypdf": {
+        "module": "pypdf",
+        "version": "6.21.2",
+        "imported": true
+      },
+      "Pillow": {
+        "module": "PIL.Image",
+        "version": "13.0.0",
+        "imported": true
+      },
+      "httpx": {
+        "module": "httpx",
+        "version": "0.28.1",
+        "imported": true
+      },
+      "cryptography": {
+        "module": "cryptography.hazmat.primitives.ciphers.aead",
+        "version": "50.0.2",
+        "imported": true
+      }
+    },
+    "scope": "Offline imports only; not client invocation, account, model or service validation"
+  },
+  "verified": [
+    "Missing build SDKs fail before compilation/output mutation.",
+    "Unknown profiles cannot select arbitrary imports; reported import failures exclude exception values.",
+    "Frozen SDK import failure preserves the previous staged artifact.",
+    "All 17 connected imports and distribution metadata load from the actual frozen backend with empty PATH and isolated HOME.",
+    "The whole one-folder bundle is relocated into a path with spaces and its executable renamed.",
+    "Authenticated startup, anonymous API denial, workspace agent YAML save, UI/vendor/favicon serving, frozen PDF worker and parent EOF shutdown pass."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_desktop_profiles.py": "bfe9afc4c8ca3c9f145e5ceb0c0aaf6416084a160c683c0595103b5d015d597d",
+    "nexus/core/studio_desktop_bundle.py": "2ad0b035e3973fdd297cf5aab0e9c83554d078e27ab3bff39896128b20ed870a",
+    "nexus/core/studio_desktop_sidecar.py": "ccbb8553c9f16651fb1de438df42214e7018341efa88b5976778747a13e381b3",
+    "apps/studio-desktop/build_desktop.py": "173c929148eaca5b3224660267a6d56548ea3cedefc8445b4cd643ac858c54f7",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "bf30f00a7223417ff964085d17a9953d7a537daced7403ef0e3773736bc41cc3",
+    "tests/test_studio_desktop_bundle.py": "bfa2186bb6238c1e0c014bf5e83212c42d152ececa72b96610d9d964bdd6277b",
+    "tests/studio_desktop_bundle_acceptance.py": "608ac1c362ec020b256a799858ef64de8fd0b0f1b3d8b3fa2b9e07cd5d6a7933"
+  },
+  "migration": "No persisted records changed. Core build profile remains compatible; connected profile is explicit. No dependency install or API-provider fallback occurs at runtime. One-folder layout changes were coordinated with the separate native lifecycle work.",
+  "pending": [
+    "Finance, local Whisper/model tooling, gRPC, GCS/Azure, additional channel SDKs and other optional capabilities need reviewed packaging and invocation proof.",
+    "SDK import success does not prove current adapter API compatibility, database connections, provider scopes, protocol behavior or account billing.",
+    "Native installed application, release signing, update and Windows/Linux acceptance remain separate.",
+    "Physical recording/playback, real local models and personal VM acceptance remain open.",
+    "Investigate the intermittent PDF preview failure seen in one repeat under concurrent build activity; later passing runs do not establish its cause or close stability acceptance."
+  ]
+}

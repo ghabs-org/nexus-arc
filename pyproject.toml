@@ -36,6 +36,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+studio-desktop-build = ["pyinstaller==6.22.3"]
+studio-desktop-connected = ["nexus-arc[studio-desktop-build,openai,anthropic,slack,mcp,studio-oauth,studio-connectors,studio-enterprise,studio-images,documents]"]
+studio-desktop-full = ["nexus-arc[studio-desktop-connected,all,studio-terminal,studio-grpc,studio-research]"]
 studio-terminal = ["rich>=14.1,<15", "prompt-toolkit>=3.0.52,<4"]
 studio-oauth = ["mcp>=1.0", "httpx>=0.27", "cryptography>=42.0"]
 studio-grpc = ["a2a-sdk[grpc]==1.1.5"]
@@ -169,7 +172,7 @@ where = ["."]
 include = ["nexus*"]
 
 [tool.setuptools.package-data]
-nexus = ["studio_static/*.html", "studio_static/*.css", "studio_static/*.js", "studio_static/*.webmanifest", "studio_static/*.png", "studio_static/vendor/*.js", "studio_static/vendor/*.txt", "studio_static/vendor/*.json", "studio_static/vendor/**/*.mjs"]
+nexus = ["studio_static/*.html", "studio_static/*.css", "studio_static/*.js", "studio_static/*.webmanifest", "studio_static/*.png", "studio_static/*.ico", "studio_static/vendor/*.js", "studio_static/vendor/*.txt", "studio_static/vendor/*.json", "studio_static/vendor/**/*.mjs"]
 
 [tool.black]
 line-length = 100

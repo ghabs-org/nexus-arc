@@ -10,6 +10,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
 from nexus.core.studio import StudioService
+from nexus.core.studio_desktop import (
+    DesktopLaunchCredential,
+    WorkspaceInUseError,
+    WorkspaceLock,
+    check_workspace_root,
+    end_owned_process_group,
+)
 from nexus.core.studio_team import TeamAccessError
 
 _ASSETS = {
@@ -27,6 +34,7 @@ _ASSETS = {
     "/experience.js": ("experience.js", "text/javascript; charset=utf-8"),
     "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
     "/service-worker.js": ("service-worker.js", "text/javascript; charset=utf-8"),
+    "/favicon.ico": ("favicon.ico", "image/x-icon"),
     "/icon-192.png": ("icon-192.png", "image/png"),
     "/icon-512.png": ("icon-512.png", "image/png"),
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -41,6 +49,7 @@ _ASSETS = {
     "/studio.js": ("studio.js", "text/javascript; charset=utf-8"),
 }
 _MAX_BODY = 1024 * 1024
+_DESKTOP_SESSION_REQUIRED = {"error": "Open this workspace from Nexus Studio Desktop"}
 
 # Vendored diagram modules are an explicit local inventory, never a generic
 # filesystem route. URL traversal cannot reach a file outside this allowlist.
@@ -49,8 +58,14 @@ for _module in (Path(__file__).parent / "studio_static" / "vendor" / "mermaid").
     _ASSETS["/" + _relative] = (_relative, "text/javascript; charset=utf-8")
 
 
-def make_studio_handler(service: StudioService, token: str):
-    """Bind the reusable service to a loopback-only browser API."""
+def make_studio_handler(
+    service: StudioService, token: str, launch: DesktopLaunchCredential | None = None
+):
+    """Bind the reusable service to a loopback-only browser API.
+
+    With a native ``launch`` credential, ``/api/`` routes without their own
+    authentication also require the shell-issued desktop session cookie.
+    """
 
     class StudioHandler(BaseHTTPRequestHandler):
         server_version = "NexusStudio/1"
@@ -98,6 +113,9 @@ def make_studio_handler(service: StudioService, token: str):
                 f"127.0.0.1:{self.server.server_port}",
                 f"localhost:{self.server.server_port}",
             }
+
+        def desktop_session(self):
+            return launch is None or launch.session_ok(self.headers.get("Cookie"))
 
         def visible_items(self, records):
             if not service.team:
@@ -267,6 +285,16 @@ def make_studio_handler(service: StudioService, token: str):
             if not self.trusted_host():
                 return self.send_payload(403, {"error": "Unrecognized local host"})
             route = urlparse(self.path).path
+            if launch and route == "/api/desktop/handshake":
+                try:
+                    proof = launch.proof(
+                        self.headers.get("X-Nexus-Desktop-Challenge", ""),
+                        str(service.root),
+                        self.server.server_port,
+                    )
+                except ValueError:
+                    return self.send_payload(400, {"error": "Invalid desktop challenge"})
+                return self.send_payload(200, {"proof": proof})
             self.actor = service.team.principal(self.headers) if service.team else None
             if route.startswith("/api/a2a/"):
                 if route.strip("/").split("/")[3:4] == ["rest"]:
@@ -294,7 +322,9 @@ def make_studio_handler(service: StudioService, token: str):
                         200,
                         {
                             "mode": "team" if service.team else "desktop",
-                            "authenticated": bool(self.actor) if service.team else True,
+                            "authenticated": bool(self.actor)
+                            if service.team
+                            else self.desktop_session(),
                             "login_url": service.team.login_url if service.team else None,
                         },
                     )
@@ -306,6 +336,8 @@ def make_studio_handler(service: StudioService, token: str):
                             "login_url": service.team.login_url,
                         },
                     )
+                if route.startswith("/api/") and not self.desktop_session():
+                    return self.send_payload(401, _DESKTOP_SESSION_REQUIRED)
                 if route == "/api/studio/oauth/callback":
                     return self.send_payload(
                         200,
@@ -595,6 +627,8 @@ def make_studio_handler(service: StudioService, token: str):
             if route.startswith("/api/a2a/") and parts[3:4] == ["rest"]:
                 return self.handle_a2a_rest(route)
             if len(parts) == 3 and parts[0] == "api" and parts[1] in {"agents", "workflows"}:
+                if not self.desktop_session():
+                    return self.send_payload(401, _DESKTOP_SESSION_REQUIRED)
                 self.actor = service.team.principal(self.headers) if service.team else None
                 try:
                     authorized = secrets.compare_digest(
@@ -758,6 +792,8 @@ def make_studio_handler(service: StudioService, token: str):
                     return self.send_payload(403, {"error": str(exc)})
                 except (ValueError, FileNotFoundError, KeyError, TypeError, AttributeError):
                     return self.send_payload(400, {"error": "Invalid incoming channel event"})
+            if not self.desktop_session():
+                return self.send_payload(401, _DESKTOP_SESSION_REQUIRED)
             try:
                 authorized = secrets.compare_digest(
                     self.headers.get("X-Nexus-Studio-Token", ""),
@@ -937,9 +973,15 @@ def serve_studio(
     state_dir: str | None = None,
     runtime_config: str | None = None,
     worker_only: bool = False,
+    launch: DesktopLaunchCredential | None = None,
+    parent_input=None,
 ) -> None:
     """Run desktop mode, or an explicitly configured authenticated team service."""
     policy, transport = None, None
+    if launch and team_config:
+        raise ValueError("A native desktop launch credential applies only to desktop mode")
+    if parent_input is not None and (launch is None or worker_only):
+        raise ValueError("Parent lifetime monitoring requires a native desktop HTTP launch")
     if team_config:
         from nexus.core.studio_team import load_team_configuration
 
@@ -948,6 +990,20 @@ def serve_studio(
         policy, transport = load_team_configuration(team_config)
     elif host not in {"127.0.0.1", "localhost"}:
         raise ValueError("Public binding requires explicit team authentication configuration")
+    if launch:
+        # Native launches only; terminal `nexus studio` keeps its existing folders.
+        check_workspace_root(root)
+    lock = None
+    if not team_config and not worker_only:
+        # Taken before the workspace is touched. A quitting native instance may
+        # still be closing, so a native launch waits briefly for it.
+        lock = WorkspaceLock(root)
+        if not lock.acquire(port, metadata={"mode": "desktop"}, wait=5.0 if launch else 0.0):
+            holder = lock.read() or {}
+            raise WorkspaceInUseError(
+                "Workspace is already open in another Nexus Studio"
+                + (f" (process {holder['pid']}, port {holder['port']})" if "pid" in holder else "")
+            )
     service, server = None, None
     try:
         from nexus.core.studio_runtime import load_runtime_configuration
@@ -970,8 +1026,12 @@ def serve_studio(
                 pass
             return
         server = ThreadingHTTPServer(
-            (host, port), make_studio_handler(service, secrets.token_urlsafe(32))
+            (host, port), make_studio_handler(service, secrets.token_urlsafe(32), launch)
         )
+        if parent_input is not None:
+            from nexus.core.studio_desktop_parent import watch_parent_input
+
+            watch_parent_input(parent_input, server.shutdown)
         service.operations.start()
         print(
             f"Nexus Studio: {policy.public_url if policy else f'http://{host}:{server.server_port}'}"
@@ -981,9 +1041,23 @@ def serve_studio(
     except KeyboardInterrupt:
         pass
     finally:
+        if parent_input is not None:
+            import os
+            import threading
+
+            # The shell may already be gone; never let a hung close outlive it.
+            watchdog = threading.Timer(10, os._exit, (1,))
+            watchdog.daemon = True
+            watchdog.start()
         if server:
             server.server_close()
         if service:
             service.close()
         elif transport:
             transport.close()
+        if lock:
+            lock.release()
+    # Only after a normal shutdown: a startup error must reach the shell as its
+    # message and exit status, not as a self-inflicted SIGKILL.
+    if parent_input is not None:
+        end_owned_process_group()

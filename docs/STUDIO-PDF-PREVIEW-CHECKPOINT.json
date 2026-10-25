@@ -1,0 +1,86 @@
+{
+  "format": "nexus-studio-pdf-preview-checkpoint/v1",
+  "date": "2026-10-25",
+  "scope": "Safe PDF failure classification and actual repeated portable preview acceptance; historical intermittent cause remains unproven",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_artifacts.py",
+    "nexus/core/studio_artifact_extract.py",
+    "tests/test_studio_pdf_failures.py",
+    "examples/nexus-bot/src/studio_desktop_bundle.py",
+    "tests/studio_desktop_bundle_acceptance.py"
+  ],
+  "contract": "postman/contracts/studio-pdf-preview.md",
+  "documentation": "docs/STUDIO-PDF-PREVIEW.md",
+  "validation": {
+    "affected": {
+      "report": "/private/tmp/nexus-pdf-failures-required.xml",
+      "tests": 70,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 15.541
+    },
+    "relocated_1": {
+      "report": "/private/tmp/nexus-pdf-runtime-1.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 26.208
+    },
+    "relocated_2": {
+      "report": "/private/tmp/nexus-pdf-runtime-2.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 22.804
+    },
+    "relocated_3": {
+      "report": "/private/tmp/nexus-pdf-runtime-3.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 20.354
+    }
+  },
+  "artifact": {
+    "manifest": "/private/tmp/nexus-pdf-diagnostics-sidecar/nexus-backend-aarch64-apple-darwin.manifest.json",
+    "executable": "/private/tmp/nexus-pdf-diagnostics-sidecar/nexus-backend-aarch64-apple-darwin/nexus-sidecar",
+    "target": "aarch64-apple-darwin",
+    "layout": "onedir",
+    "sha256": "c71e4f348668db17a3018645a53ad9f4ef2407e23c746e6fdf4bbf1f12df3663",
+    "tree_sha256": "b9f3e8de374f473beeee47c17eb8316d7084d92ec9fa05a92414131802ce1f69",
+    "size_bytes": 117509499
+  },
+  "verified": [
+    "Timeout, missing dependency, unreadable PDF, launch error, signal termination, other nonzero exit and invalid JSON/schema each receive a safe stable category.",
+    "Preview retains empty text and extraction_available=false on failure; original file remains unchanged.",
+    "Malformed worker data cannot produce a KeyError in preview.",
+    "Actual source workers reject damaged/encrypted PDFs and report missing dependencies without traceback output.",
+    "Three separate relocated connected-bundle runs pass authenticated startup, private agent save, bundled assets, valid PDF extraction, damaged/encrypted PDF error responses and parent EOF shutdown.",
+    "All 17 selected SDK imports pass inside each relocated run without host Python.",
+    "No external providers/accounts, models, user documents or personal VM used."
+  ],
+  "limits": {
+    "wall_seconds": 15,
+    "cpu_seconds": 10,
+    "linux_address_space_mib": 768,
+    "max_input_mib": 16
+  },
+  "migration": "Successful output and persisted records unchanged. Failure previews gain optional error_code; internal worker failures use exit codes 20\u201322. No provider fallback or automatic action retry.",
+  "source_sha256": {
+    "nexus/core/studio_artifacts.py": "81ffce544e375e89a1428094a592b8f42ca5b6c83bee1c2bd3d4bf53aa00c0c0",
+    "nexus/core/studio_artifact_extract.py": "3d32063cdf031337fc3cea27fdc4a69eed656b18e4e4ce71680265cb51c75bd9",
+    "tests/test_studio_pdf_failures.py": "eab066f6c22c50dcf62dd9bd6c4c33e469225a3f41823eb888975ca1f5a37c46",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "0171388b3303626ff02bf4e1e3e9c530f0f835c32b02ef613c995523dd445740",
+    "tests/studio_desktop_bundle_acceptance.py": "50b7e8736239b4dd9ba717374fa3bb7d476932afda85a4420871f5fbe2754ad5"
+  },
+  "pending": [
+    "The original intermittent preview failure had no captured cause; these diagnostics do not prove it fixed. Any recurrence must be classified before desktop stability acceptance.",
+    "Actual installed native app, remaining SDK/integration invocation, Windows/Linux, physical voice/model and personal VM acceptance remain separate."
+  ]
+}

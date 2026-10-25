@@ -4,6 +4,7 @@ import asyncio
 import base64
 import binascii
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -63,6 +64,29 @@ DEFAULT_PROFILES = {
 }
 
 
+def local_readiness(profile):
+    """Inspect installed prerequisites without importing models or starting software."""
+    missing = []
+    model = Path(profile.get("model_path") or "/nonexistent-model")
+    if not model.is_file():
+        missing.append("Installed local model")
+    if profile["kind"] == "whisper":
+        try:
+            whisper_installed = importlib.util.find_spec("whisper") is not None
+        except (ImportError, ValueError):
+            whisper_installed = False
+        if not whisper_installed:
+            missing.append("Whisper Python runtime")
+        if not shutil.which("ffmpeg"):
+            missing.append("FFmpeg executable")
+    elif profile["kind"] == "piper":
+        if not shutil.which("piper"):
+            missing.append("Piper executable")
+        if not Path(str(model) + ".json").is_file():
+            missing.append("Piper voice configuration (.onnx.json)")
+    return missing
+
+
 class StudioSpeech:
     def __init__(self, studio, profiles=None, client_factory=None):
         self.studio = studio
@@ -80,18 +104,20 @@ class StudioSpeech:
         result = []
         for name, p in self.profiles.items():
             local = p["kind"] in {"whisper", "piper"}
-            ready = Path(p.get("model_path") or "/nonexistent-model").is_file() if local else True
-            if p["kind"] == "piper":
-                ready = ready and bool(shutil.which("piper"))
+            missing = local_readiness(p) if local else []
             result.append(
                 {
                     "id": name,
                     "action": p["action"],
                     "local": local,
-                    "model_ready": bool(ready),
+                    "model_ready": not missing,
+                    "missing_prerequisites": missing,
+                    "verification_scope": "local prerequisites only"
+                    if local
+                    else "account not checked",
                     "voices": p.get("voices", []),
                     "billing": "Local model" if local else "Separate API account and billing",
-                    "setup": "Configure an installed model in private runtime speech profiles"
+                    "setup": "Configure the installed local model and required runtime software"
                     if local
                     else "Configure the speech provider API credential in your Nexus account environment",
                 }
@@ -363,15 +389,16 @@ class StudioSpeech:
                         raise ValueError(
                             "Configure an installed local Whisper model; automatic model download is disabled"
                         )
+                    from nexus.core.studio_desktop_sidecar import worker_command
+
                     result = await local_process(
-                        [
-                            sys.executable,
-                            "-m",
+                        worker_command(
                             "nexus.core.studio_speech_worker",
                             str(model.resolve()),
                             str(source),
                             payload["speech_language"],
-                        ],
+                            executable=sys.executable,
+                        ),
                         stdout=subprocess.PIPE,
                         stderr=subprocess.DEVNULL,
                         timeout=130,

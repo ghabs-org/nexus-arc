@@ -21,6 +21,22 @@ from nexus.core.studio_connections import env_name
 ARTIFACT_LIMIT = 16 * 1024 * 1024
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 
+PDF_ERRORS = {
+    "pdf_timeout": "PDF text extraction exceeded its 15-second limit. The original file is still available.",
+    "pdf_dependency_missing": "PDF text extraction software is missing. Install nexus-arc[documents] on the Studio server or use a desktop build with PDF support.",
+    "pdf_unreadable": "This PDF could not be read. It may be damaged or encrypted.",
+    "pdf_worker_unavailable": "The PDF extraction worker could not start. Check the Studio installation.",
+    "pdf_worker_terminated": "The PDF extraction worker was stopped before completion. The original file is still available.",
+    "pdf_worker_failed": "The PDF extraction worker failed. The original file is still available.",
+    "pdf_invalid_response": "The PDF extraction worker returned an invalid result. Check the Studio installation.",
+}
+
+
+class PDFExtractionError(ValueError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(PDF_ERRORS[code])
+
 
 class CheckedArtifactStore:
     def __init__(self, store):
@@ -212,7 +228,10 @@ class StudioArtifacts:
         )
 
     def pdf_text(self, content, page=None):
-        command = [sys.executable, "-m", "nexus.core.studio_artifact_extract"]
+        from nexus.core.studio_artifact_extract import DEPENDENCY_MISSING, UNREADABLE_DOCUMENT
+        from nexus.core.studio_desktop_sidecar import worker_command
+
+        command = worker_command("nexus.core.studio_artifact_extract", executable=sys.executable)
         if page is not None:
             if type(page) is not int or page < 1:
                 raise ValueError("Page must be a positive integer")
@@ -232,11 +251,34 @@ class StudioArtifacts:
                 timeout=15,
                 check=True,
             )
-            return json.loads(result.stdout)
-        except (subprocess.SubprocessError, ValueError):
-            raise ValueError(
-                "PDF text extraction failed. Install nexus-arc[documents], or choose OpenAI API to send the PDF directly to a vision-capable model"
-            ) from None
+        except subprocess.TimeoutExpired:
+            raise PDFExtractionError("pdf_timeout") from None
+        except subprocess.CalledProcessError as error:
+            code = {
+                DEPENDENCY_MISSING: "pdf_dependency_missing",
+                UNREADABLE_DOCUMENT: "pdf_unreadable",
+            }.get(
+                error.returncode,
+                "pdf_worker_terminated" if error.returncode < 0 else "pdf_worker_failed",
+            )
+            raise PDFExtractionError(code) from None
+        except OSError:
+            raise PDFExtractionError("pdf_worker_unavailable") from None
+        try:
+            extracted = json.loads(result.stdout)
+            if (
+                not isinstance(extracted, dict)
+                or type(extracted.get("pages")) is not int
+                or extracted["pages"] < 0
+                or (
+                    extracted.get("page_unavailable") is not True
+                    and not isinstance(extracted.get("text"), str)
+                )
+            ):
+                raise ValueError
+            return extracted
+        except (ValueError, UnicodeError):
+            raise PDFExtractionError("pdf_invalid_response") from None
 
     def document_preview(self, record, content, page=1):
         """Return one bounded source unit, retaining its immutable revision."""
@@ -274,6 +316,8 @@ class StudioArtifacts:
             raise ValueError("Page or section is outside this document revision") from None
         except (ValueError, OSError, SyntaxError, zipfile.BadZipFile) as exc:
             result.update(extraction_available=False, text="", message=str(exc))
+            if isinstance(exc, PDFExtractionError):
+                result["error_code"] = exc.code
         return result
 
     def preview(self, record, page=1):

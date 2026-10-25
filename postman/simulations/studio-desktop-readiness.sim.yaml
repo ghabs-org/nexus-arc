@@ -1,0 +1,5 @@
+simulation: studio-desktop-readiness
+routing: path
+mocks:
+  - routeKey: api
+    path: ../mocks/studio-desktop-readiness/config.yaml

@@ -100,3 +100,30 @@ permissions and filename collisions. These close queued-profile pinning and loca
 interrupted/startup audio-cleanup acceptance within milestone 8. Local model/API
 live checks and physical microphones/playback remain separate work. Full
 milestone 8 acceptance remains open.
+
+## Passive prerequisite checks
+
+The voice picker now lists missing local prerequisites before recording or
+synthesis begins. Whisper needs its configured model file, the Whisper Python
+runtime and FFmpeg. Piper needs its model, the Piper executable and adjacent
+`.onnx.json` voice configuration. A model file alone no longer marks a local
+profile ready. Selecting an unavailable local profile stops before microphone
+capture; it never switches to a separately billed API automatically.
+
+`GET /api/studio/speech` retains existing profile fields and adds
+`missing_prerequisites` and `verification_scope`. Checks inspect module specs and
+executable/file presence without importing models, starting software, downloading
+files or resolving API accounts. API profiles explicitly report `account not
+checked`. Passing passive readiness does not prove model loading, audio quality,
+physical recording/playback or deployed VM operation.
+
+Queue formats, pinned profiles, cleanup and credential resolution are unchanged.
+The public response contains display names rather than private model/executable
+paths. See [the readiness contract](../postman/contracts/studio-speech-readiness.md).
+
+The combined public asset/readiness example starts only a disposable local
+server and no jobs:
+
+```sh
+PYTHONPATH=. python examples/nexus-bot/src/studio_brand_readiness.py
+```

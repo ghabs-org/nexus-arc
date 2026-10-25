@@ -1,0 +1,81 @@
+{
+ "format": "nexus-studio-desktop-macos-release-checkpoint/v1",
+ "date": "2026-10-25",
+ "milestone": 9,
+ "status": "partial-macos-arm64-dmg-adhoc",
+ "whole_milestone_complete": false,
+ "whole_plan_complete": false,
+ "scope": "macOS arm64 DMG releases of the core and connected profiles with a standalone (non-framework) Python, ad-hoc signed; descendant cleanup with live child processes. Not Developer ID signed or notarized; not Linux/Windows; full profile not built.",
+ "implemented": [
+  "Builder refuses bundles with directory symlinks (macOS framework Python), naming them; file symlinks install as content and are accepted. Build instructions use uv venv --managed-python.",
+  "Generated Tauri release config requests an ad-hoc macOS signature (signingIdentity '-') so the app passes strict verification and a quarantined copy can be allowed in Settings instead of reported damaged.",
+  "DMG built with CI=true to skip Finder AppleScript styling."
+ ],
+ "builds": {
+  "interpreter": "uv-managed CPython 3.13.16 (python-build-standalone, no framework), installed in ~/.local/share/uv/python",
+  "inputs": "Snapshot of nexus/, pyproject.toml, README.md and build_desktop.py in the scratchpad, because the other agent was editing sources and the builder correctly rejected changing inputs.",
+  "core": {
+   "app_mib": 48.1,
+   "dmg_mib": 22.1,
+   "files": 161,
+   "bytes": 34908143,
+   "tree_sha256": "bb536165a538c8896ca5a9fc46edcced048d159e99a64fbb51f0fbdae697c997",
+   "symlinks": 0
+  },
+  "connected": {
+   "app_mib": 147.2,
+   "dmg_mib": 77.9,
+   "files": 2556,
+   "bytes": 122890255,
+   "tree_sha256": "1dddfa55bb86c1a6f6a09a7d105f2f38b2d6a8be9d77560ed24bfcbec04f1202",
+   "file_symlinks": 23,
+   "profile_packages": 17,
+   "profile_passed": true,
+   "dmg_sha256": "864ebeafe4376fd7cea30c0219dd43d1c4dc970464c515016de625e6a7062ffb"
+  },
+  "framework_python_rejected": "Directory symlinks _internal/Python.framework/Resources and Versions/Current named; nothing staged."
+ },
+ "validation": {
+  "unit": {
+   "tests": 45,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/release-suites.xml"
+  },
+  "dmg": "hdiutil verify VALID for both; mounted read-only; app copied out like a user install; installed sidecar tree_sha256 equals manifest for both.",
+  "signature": "codesign --verify --deep --strict passes on DMG-installed apps (ad-hoc, hardened runtime on the shell, identifier com.nexusarc.studio).",
+  "relocated_acceptance": [
+   "core: tests/studio_desktop_bundle_acceptance.py passed on the standalone bundle and under ad-hoc hardened runtime (library validation relaxed for the drill)",
+   "connected: NEXUS_ACCEPTANCE_PROFILE=connected passed against the DMG-installed backend (/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/connected-relocated.xml)"
+  ],
+  "installed_drills": {
+   "environment": "env -i HOME USER TMPDIR PATH=/usr/bin:/bin, cwd /, app under '<scratchpad>/Install Root/Applications'",
+   "core": "SIGKILL and SIGTERM to the shell: backend exited, lock free, no processes; ready 0.83\u20131.36 s.",
+   "connected": "SIGKILL: same result, ready ~3.3\u20133.5 s. User confirmed the full UI and closed the window: shell and backend exited, lock free, no processes.",
+   "common": "One backend process leading its own group; no files open under the repo; lock held by the backend; anonymous /api/bootstrap 401; ~70 client connections from the webview."
+  },
+  "descendant_cleanup": {
+   "method": "Frozen installed backend launched as the shell does; authenticated POST /api/runs with provider claude-code; PATH holds a synthetic `claude` that starts its own child and records both PIDs (no live account).",
+   "results": "core and connected, stop and orphan modes: CLI and its child in the backend's group before; all gone after (backend exit -9 after close, ~0.7\u20130.8 s); run record ends 'interrupted' (clean close ran first)."
+  },
+  "signing_probe": "Inside-out ad-hoc signing with hardened runtime: library validation blocks ad-hoc libs (no Team ID); with only that relaxed, launch and frozen PDF worker pass."
+ },
+ "corrections": [
+  "STUDIO-DESKTOP-INSTALLED-CHECKPOINT.json said the flattened framework layout would not pass code signing; ad-hoc deep verification passes for it. The verified blocker for notarization is that --deep does not sign Mach-O files under Contents/Resources."
+ ],
+ "remaining": [
+  "Developer ID signing (inside-out) and notarization; no certificate available.",
+  "full profile installed build (other agent's profile work).",
+  "Linux AppImage/deb and Windows installers on their own hosts; updates; uninstall data retention."
+ ],
+ "cleanup": "Drill-created Application Support, WebKit and Caches folders for com.nexusarc.studio removed after every run.",
+ "source_sha256": {
+  "nexus/core/studio_desktop_bundle.py": "37b30e3b90e6b3c98654f5ca81e5a3ba46ef1f833f5eb4570c7770523c7c03de",
+  "apps/studio-desktop/build_desktop.py": "1dc3c1c864ef02e2f38c920842b4d1a7fdcbb8dbe996a43dd9ea1ad073818d47",
+  "tests/test_studio_desktop_bundle.py": "f7e9d296723ac2976c411a488ac61f2aced155c483d06b33c895419576cfe4de",
+  "apps/studio-desktop/src-tauri/src/main.rs": "446d23bfcc1f9c6680c2ebcba78d5ce7a8b007f267246fb758d6eb9fd41f3081",
+  "docs/STUDIO-DESKTOP-BUNDLE.md": "02c75054304826e0c6402a4b28295ac47db899d58ceb2538c53ab5739156863b"
+ },
+ "source_sha256_note": "Recorded after the last concurrent edit by the other agent; the DMG bundles were built from the scratchpad snapshot."
+}

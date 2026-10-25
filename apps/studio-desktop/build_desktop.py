@@ -6,6 +6,7 @@ Prepares the sidecar runner, verifies frontend assets, and stages the Tauri 2 bu
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
@@ -44,7 +45,7 @@ def stage_sidecar(target_dir: Path) -> Path:
     triple = get_target_triple()
     script = f"""#!/bin/sh
 # Nexus Studio Desktop sidecar launcher
-exec "{sys.executable}" -m nexus.cli studio "$@"
+exec "{sys.executable}" -m nexus.core.studio_desktop_sidecar "$@"
 """
     # Write base and triple-suffixed scripts
     paths = [
@@ -74,7 +75,12 @@ def verify_frontend_assets(repo_root: Path) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Package Nexus Studio desktop shell")
     parser.add_argument("--sidecar-only", action="store_true", help="Stage only the sidecar runner")
+    parser.add_argument("--development-wrapper", action="store_true", help="Explicit source-checkout wrapper; never a standalone distribution")
+    parser.add_argument("--output", type=Path, help="Explicit staging directory for the bundled executable")
+    parser.add_argument("--profile", choices=["core", "connected", "full"], default="core", help="Required offline SDK import gate")
     args = parser.parse_args()
+    if args.development_wrapper and args.profile != "core":
+        parser.error("Dependency profiles require a bundled build; omit --development-wrapper")
 
     desktop_dir = Path(__file__).parent.resolve()
     repo_root = desktop_dir.parent.parent.resolve()
@@ -82,8 +88,26 @@ def main() -> int:
     if not verify_frontend_assets(repo_root):
         return 1
 
-    sidecar = stage_sidecar(desktop_dir)
-    print(f"Staged desktop sidecar runner at: {sidecar}")
+    if args.development_wrapper:
+        sidecar = stage_sidecar(desktop_dir)
+        print(f"Staged development-only wrapper at: {sidecar}")
+    else:
+        from nexus.core.studio_desktop_bundle import build_bundle
+
+        output = args.output or desktop_dir / "src-tauri" / "binaries"
+        result = build_bundle(repo_root, output, profile=args.profile)
+        print(f"Bundled desktop sidecar: {result['executable']}")
+        print(f"Dependency and asset manifest: {result['manifest']}")
+        # Release apps ship this target's folder as the `sidecar` resource and never
+        # the development wrapper; `tauri build --config <this file>` applies it.
+        release = Path(output).resolve() / "tauri.bundle.conf.json"
+        bundle = {"externalBin": [], "resources": {result["directory"] + "/": "sidecar/"}}
+        if sys.platform == "darwin":
+            # Ad-hoc until a Developer ID exists: a quarantined unsigned app opens as
+            # "damaged" on Apple Silicon, an ad-hoc one can be allowed in Settings.
+            bundle["macOS"] = {"signingIdentity": "-"}
+        release.write_text(json.dumps({"bundle": bundle}, indent=2) + "\n")
+        print(f"Tauri release configuration: {release}")
 
     if args.sidecar_only:
         return 0

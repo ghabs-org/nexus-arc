@@ -18,7 +18,6 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from html.parser import HTMLParser
-from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 import requests
@@ -476,15 +475,16 @@ class StudioResearch:
             raise ValueError("Install the studio-research extra to use yfinance")
         with tempfile.TemporaryDirectory(prefix="nexus-finance-") as directory:
             try:
+                from nexus.core.studio_desktop_sidecar import worker_command
+
                 process = subprocess.run(
-                    [
-                        sys.executable,
-                        "-I",
-                        str(Path(__file__).with_name("studio_finance_worker.py")),
+                    worker_command(
+                        "nexus.core.studio_finance_worker",
                         ticker,
                         period,
                         operation,
-                    ],
+                        executable=sys.executable,
+                    ),
                     cwd=directory,
                     env={"PATH": os.defpath, "HOME": directory},
                     capture_output=True,

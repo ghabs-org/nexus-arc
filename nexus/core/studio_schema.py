@@ -10,8 +10,16 @@ from datetime import UTC, datetime
 SCHEMA_VERSION = 1
 
 
+class NewerStateError(ValueError):
+    """The workspace was written by a newer Studio release; nothing was changed."""
+
+    exit_code = 65  # EX_DATAERR; the native shell maps it to a specific screen.
+
+
 def _version(record):
     version = record.get("version") if isinstance(record, dict) else None
+    if type(version) is int and version > SCHEMA_VERSION:
+        raise NewerStateError("Unsupported Studio state version; use a compatible Studio release")
     if type(version) is not int or not 0 <= version <= SCHEMA_VERSION:
         raise ValueError("Unsupported Studio state version; use a compatible Studio release")
     return version

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import hmac
+from http.cookies import CookieError, SimpleCookie
 import json
 import os
 from pathlib import Path
@@ -16,6 +18,7 @@ import platform
 import re
 import secrets
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -122,80 +125,156 @@ def is_process_alive(pid: int) -> bool:
         return False
 
 
+_LOCK_BYTE = 1 << 30  # Windows locks a byte past the metadata so readers still work.
+
+
+def _try_lock(fd: int) -> bool:
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            os.lseek(fd, _LOCK_BYTE, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def _close_locked(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, _LOCK_BYTE, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    os.close(fd)
+
+
+class UnsafeWorkspaceError(ValueError):
+    """A folder Studio must not take over as a workspace."""
+
+    exit_code = 64  # EX_USAGE; the native shell maps it to a specific screen.
+
+
+_SYSTEM_FOLDERS = {
+    "darwin": ["/System", "/Library", "/usr", "/bin", "/sbin", "/private/etc", "/Applications", "/dev"],
+    "linux": ["/usr", "/etc", "/bin", "/sbin", "/boot", "/proc", "/sys", "/dev", "/lib", "/opt"],
+    "windows": [os.environ.get("SystemRoot", r"C:\Windows"), os.environ.get("ProgramFiles", r"C:\Program Files")],
+}
+
+
+def check_workspace_root(path: str | Path) -> Path:
+    """Refuse the home folder or any of its ancestors, system folders and app bundles.
+
+    Studio creates agents/, workflows/, files/ and private state in its workspace,
+    so it needs a dedicated folder.
+    """
+    root = Path(path).resolve()
+    system = [Path(p).resolve() for p in _SYSTEM_FOLDERS.get(get_desktop_platform(), [])]
+    if (
+        Path.home().resolve().is_relative_to(root)
+        or any(root.is_relative_to(folder) for folder in system)
+        or any(part.endswith(".app") for part in root.parts)
+    ):
+        raise UnsafeWorkspaceError(f"Choose a dedicated folder for a Studio workspace, not {root}")
+    return root
+
+
+class WorkspaceInUseError(RuntimeError):
+    """Another Studio process already serves this workspace."""
+
+    exit_code = 75  # EX_TEMPFAIL; the native shell maps it to a specific screen.
+
+
 class WorkspaceLock:
-    """Per-workspace single instance file lock to prevent duplicate servers."""
+    """Exclusive single-writer lock held by the process serving a workspace.
+
+    Uses an OS file lock (flock / msvcrt) that the kernel releases when the
+    holder exits or crashes, so stale owners never need PID guessing and no
+    unrelated process is ever treated as the owner. The JSON body is
+    informational metadata for status displays; trust it only while locked.
+    """
 
     def __init__(self, workspace_path: Union[str, Path], lock_name: str = ".nexus-workspace.lock"):
         self.workspace = Path(workspace_path).resolve()
         self.lock_file = self.workspace / lock_name
+        self._fd: int | None = None
 
-    def acquire(self, port: int, token: str, metadata: Optional[dict[str, Any]] = None) -> bool:
-        """Attempt to acquire workspace lock. Returns True on success, False if actively locked."""
+    def acquire(
+        self,
+        port: int,
+        token: str = "",
+        metadata: dict[str, Any] | None = None,
+        wait: float = 0.0,
+    ) -> bool:
+        """Take the lock, waiting up to ``wait`` seconds for a closing holder."""
+        if self._fd is not None:
+            return False
         self.workspace.mkdir(parents=True, exist_ok=True)
-
-        if self.lock_file.is_file():
-            info = self.read()
-            if info:
-                pid = info.get("pid", -1)
-                if is_process_alive(pid):
-                    return False
-                # Stale lock: prior process died without unlocking
-                try:
-                    self.lock_file.unlink()
-                except OSError:
-                    pass
-
-        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        lock_data = {
+        fd = os.open(self.lock_file, os.O_RDWR | os.O_CREAT, 0o600)
+        deadline = time.monotonic() + wait
+        while not _try_lock(fd):
+            if time.monotonic() >= deadline:
+                os.close(fd)
+                return False
+            time.sleep(0.1)
+        info = {
             "pid": os.getpid(),
             "port": port,
-            "token_hash": token_hash,
+            "token_hash": hashlib.sha256(token.encode("utf-8")).hexdigest() if token else None,
             "acquired_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "platform": get_desktop_platform(),
             "metadata": metadata or {},
         }
-
-        tmp_lock = self.lock_file.with_name(f"{self.lock_file.name}.{os.getpid()}.tmp")
-        try:
-            tmp_lock.write_text(json.dumps(lock_data, indent=2), encoding="utf-8")
-            tmp_lock.replace(self.lock_file)
-            return True
-        except Exception:
-            if tmp_lock.is_file():
-                tmp_lock.unlink()
-            return False
+        os.ftruncate(fd, 0)
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.write(fd, json.dumps(info, indent=2).encode("utf-8"))
+        self._fd = fd
+        return True
 
     def release(self) -> bool:
-        """Release the workspace lock if held by this process."""
-        if not self.lock_file.is_file():
-            return True
-        try:
-            info = self.read()
-            if info and info.get("pid") == os.getpid():
-                self.lock_file.unlink()
-                return True
-        except OSError:
-            pass
-        return False
+        """Release the lock if this instance holds it. The file is kept on purpose:
+        unlinking a lock file lets a waiter lock an orphaned inode."""
+        if self._fd is not None:
+            _close_locked(self._fd)
+            self._fd = None
+        return True
 
     def is_locked(self) -> bool:
-        """Check if workspace is actively held by a live process."""
-        if not self.lock_file.is_file():
+        """True while any process, including this one, holds the lock."""
+        if self._fd is not None:
+            return True
+        try:
+            fd = os.open(self.lock_file, os.O_RDWR)
+        except OSError:
             return False
-        info = self.read()
-        if not info:
+        if _try_lock(fd):
+            _close_locked(fd)
             return False
-        pid = info.get("pid", -1)
-        return is_process_alive(pid)
+        os.close(fd)
+        return True
 
     def read(self) -> Optional[dict[str, Any]]:
-        """Read current lock data if valid."""
+        """Read current lock metadata if valid."""
         if not self.lock_file.is_file():
             return None
         try:
             return json.loads(self.lock_file.read_text(encoding="utf-8"))
         except Exception:
             return None
+
+
+def end_owned_process_group() -> None:
+    """Kill leftovers in the process group the native shell created for us, ourselves included.
+
+    Only acts when this process leads its own group (the shell spawns the sidecar
+    that way), so a terminal session or test runner's group is never touched.
+    """
+    if os.name == "posix" and os.getpgrp() == os.getpid():
+        os.killpg(os.getpid(), signal.SIGKILL)
 
 
 class DesktopSecurityPolicy:
@@ -252,6 +331,61 @@ class DesktopSecurityPolicy:
         return True
 
 
+class DesktopLaunchCredential:
+    """Per-launch secret shared only by the native shell and the backend it owns.
+
+    The shell writes it to the child's standard input, never argv, environment,
+    URLs or logs. The backend proves knowledge with an HMAC over a fresh shell
+    challenge bound to its workspace and port, so the secret is never sent and a
+    proof cannot be relayed to another port. The webview then receives an HttpOnly
+    session cookie derived from the same secret.
+    """
+
+    COOKIE = "nexus_desktop_session"
+
+    def __init__(self, secret: bytes):
+        if len(secret) != 32:
+            raise ValueError("Desktop launch credential must be 32 bytes")
+        self._secret = secret
+
+    @classmethod
+    def generate(cls) -> DesktopLaunchCredential:
+        return cls(secrets.token_bytes(32))
+
+    @classmethod
+    def read(cls, stream) -> DesktopLaunchCredential:
+        """Read one lowercase-hex line from a binary stream without echoing it."""
+        line = stream.readline(65)
+        if not re.fullmatch(rb"[0-9a-f]{64}\n", line):
+            raise ValueError("Invalid desktop launch credential on standard input")
+        return cls(bytes.fromhex(line[:64].decode()))
+
+    def line(self) -> bytes:
+        return self._secret.hex().encode() + b"\n"
+
+    def _mac(self, *parts: str) -> str:
+        return hmac.new(self._secret, "\0".join(parts).encode(), hashlib.sha256).hexdigest()
+
+    def proof(self, challenge: str, workspace: str, port: int) -> str:
+        if not re.fullmatch(r"[0-9a-f]{64}", challenge):
+            raise ValueError("Desktop challenge must be 64 lowercase hex characters")
+        return self._mac("nexus-desktop-launch/v1", challenge, workspace, str(port))
+
+    def session(self) -> str:
+        return self._mac("nexus-desktop-session/v1")
+
+    def session_ok(self, cookie_header: str | None) -> bool:
+        cookies = SimpleCookie()
+        try:
+            cookies.load(cookie_header or "")
+        except CookieError:
+            return False
+        morsel = cookies.get(self.COOKIE)
+        return morsel is not None and hmac.compare_digest(
+            morsel.value.encode(), self.session().encode()
+        )
+
+
 def import_workspace(
     source_dir: Union[str, Path],
     target_dir: Union[str, Path],
@@ -264,9 +398,14 @@ def import_workspace(
     if not src.is_dir():
         raise FileNotFoundError(f"Source workspace directory not found: {src}")
 
+    if src == dst or src.is_relative_to(dst) or dst.is_relative_to(src):
+        raise ValueError("Source and destination workspaces must be separate folders")
     lock = WorkspaceLock(dst)
     if lock.is_locked():
         raise ValueError(f"Destination workspace is locked by another running process (PID {lock.read().get('pid')})")
+    if WorkspaceLock(src).is_locked():
+        # A copy taken while another Studio writes the source could be inconsistent.
+        raise ValueError("Source workspace is open in another Nexus Studio; close it before importing")
 
     backup_path = None
     if backup_first and dst.is_dir() and any(dst.iterdir()):
@@ -395,8 +534,8 @@ class DesktopBackendRunner:
         self.process: Optional[subprocess.Popen] = None
 
     def start(self, timeout_seconds: float = 15.0) -> dict[str, Any]:
-        """Acquire lock, spawn backend child process, and poll readiness."""
-        if not self.lock.acquire(self.port, self.token):
+        """Spawn the backend child, which owns the workspace lock, and poll readiness."""
+        if self.lock.is_locked():
             info = self.lock.read() or {}
             return {
                 "success": False,
@@ -440,7 +579,6 @@ class DesktopBackendRunner:
         import urllib.request
         while time.time() - start_time < timeout_seconds:
             if self.process.poll() is not None:
-                self.lock.release()
                 _, stderr = self.process.communicate()
                 return {
                     "success": False,

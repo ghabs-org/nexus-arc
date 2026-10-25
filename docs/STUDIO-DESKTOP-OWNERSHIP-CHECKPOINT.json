@@ -1,0 +1,112 @@
+{
+ "format": "nexus-studio-desktop-ownership-checkpoint/v1",
+ "date": "2026-10-25",
+ "milestone": 9,
+ "status": "partial-native-workspace-ownership",
+ "whole_milestone_complete": false,
+ "whole_plan_complete": false,
+ "scope": "Single-writer workspace ownership for native and terminal launches, and native close/crash cleanup. Built jointly with the parent-pipe watcher in STUDIO-DESKTOP-PARENT-CHECKPOINT.json. Not portable packaging or installed OS acceptance.",
+ "implemented": [
+  "WorkspaceLock uses an OS file lock (flock on POSIX, msvcrt byte lock on Windows) held for the serving process's lifetime. The kernel releases it on exit or crash, so stale owners need no PID checks and a reused PID is never treated as the owner. The lock file is kept on release; its JSON is metadata for status only.",
+  "serve_studio takes the lock for every local desktop launch (native sidecar, `nexus studio`, `nexus desktop launch` child) before StudioService touches the workspace; team and worker-only modes are unchanged. Native launches wait up to 5 s for a closing previous instance. A held workspace raises WorkspaceInUseError; the CLI exits 75 with the holder's PID and port.",
+  "DesktopBackendRunner (browser `nexus desktop launch`) no longer takes the lock itself; it reports an existing holder and lets its child own the lock.",
+  "With parent_input (native launch), close is bounded by a 10 s watchdog and ends with end_owned_process_group: when the sidecar leads its own process group (the shell spawns it that way) it kills leftover descendants, itself included, after StudioService.close(). Terminal sessions and test runners, which do not lead a dedicated group, are never touched.",
+  "Native shell graceful stop: window close/app exit writes one line to the sidecar's private stdin (handled by the parent watcher), waits up to 5 s for exit, then kills the process group as before. Shell crash closes the pipe, which triggers the same clean close. Exit code 75 shows a dedicated 'workspace in use' startup screen."
+ ],
+ "validation": {
+  "rust": {
+   "tests": 10,
+   "passed": 10,
+   "failed": 0,
+   "ignored": 0,
+   "clippy_warnings": 0,
+   "fmt": "clean",
+   "scope": "Graceful request precedes group kill and waits for exit; hung child force-stopped after grace; first exit code kept; earlier ownership and handshake tests."
+  },
+  "python_desktop": {
+   "suites": [
+    "tests/test_studio_desktop.py",
+    "tests/test_studio_desktop_parent.py"
+   ],
+   "tests": 25,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "scope": "Kernel-owned lock survives only while the holder lives (SIGKILLed holder releases it; live unrelated PID in the file ignored); second CLI exits 75 without creating workspace state; group cleanup only when leading a dedicated group (both cases run as real subprocesses)."
+  },
+  "parent_acceptance": {
+   "suite": "tests/studio_desktop_parent_acceptance.py",
+   "tests": 6,
+   "failures": 0,
+   "skipped": 0,
+   "owner": "other agent; re-run green with these changes"
+  },
+  "native_acceptance": {
+   "suite": "tests/studio_desktop_native_acceptance.py",
+   "tests": 6,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/native-ownership.xml",
+   "real_sidecar": "Example additionally refuses a terminal launch (exit 75) while the sidecar runs, then a stop line closes the sidecar with exit 0 and frees the lock.",
+   "simulation": {
+    "port": 49742,
+    "requests": 70,
+    "failed": 0,
+    "statuses": {
+     "200": 58,
+     "302": 12
+    }
+   }
+  },
+  "http_regression": {
+   "suites": 28,
+   "tests": 515,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/ownership-regression.xml"
+  },
+  "other": [
+   "tests/studio_m9_exit_acceptance.py passed",
+   "examples/nexus-bot/src/studio_desktop.py passed"
+  ],
+  "native_window_drills": {
+   "platform": "macOS aarch64 development binary, real WKWebView, development sidecar wrapper",
+   "sigkill_shell": "Sidecar (own process group) exited 0.6 s later; lock released; no processes left.",
+   "sigterm_shell": "Sidecar exited 0.47 s later; lock released; no processes left.",
+   "terminal_launch_while_open": "`nexus studio` on the native workspace exited 75 naming the sidecar's PID and port, both drills.",
+   "app_launch_while_terminal_holds": "Native sidecar waited 5 s, exited 75 with the holder's message; shell stayed on its startup screen with no sidecar.",
+   "window_close": "User closed the window. The sidecar logged completion of StudioService.close() before group cleanup; shell and sidecar exited; lock released; no processes left.",
+   "instrumentation": "Drill-only scratchpad sidecar logged request line/status and a close marker; restored afterwards with the drill-created app data, WebKit and cache folders removed."
+  }
+ },
+ "compatibility": "Two concurrent `nexus studio` processes on one workspace were previously allowed; the second now exits 75. Team and worker-only modes do not lock. `.nexus-workspace.lock` stays on disk after release (contents are status metadata). Native launches started by a different shell must keep the stdin writer open (see parent checkpoint). No HTTP route, session, storage or schema change.",
+ "remaining": [
+  "Active external descendants (terminal agents, MCP stdio servers, containers) during close: covered structurally by group cleanup on POSIX, not yet exercised with live workloads; Docker containers are outside the process group.",
+  "Windows: msvcrt lock and job-object cleanup are untested; Linux: flock path untested on a native window.",
+  "Lock metadata records the requested port, so `--port 0` launches report port 0.",
+  "Portable runtime and clean installed macOS/Linux/Windows builds, signing and updates."
+ ],
+ "guide": "docs/STUDIO-DESKTOP.md",
+ "contract": "postman/contracts/studio-desktop-readiness.md",
+ "example": "examples/nexus-bot/src/studio_desktop_readiness.py",
+ "related": [
+  "docs/STUDIO-DESKTOP-SESSION-CHECKPOINT.json",
+  "docs/STUDIO-DESKTOP-PARENT-CHECKPOINT.json"
+ ],
+ "real_account_requests_performed": false,
+ "personal_vm_changed": false,
+ "source_sha256": {
+  "nexus/core/studio_desktop.py": "44d2db1e662cc8e78a9e5b16a81ffb78e1a0eeb8b8312713cd7601f2016e1660",
+  "nexus/core/studio_desktop_parent.py": "3f649fb8a76a74ddfebebceef1987dbae89a0a5f9a171d4ef56e4087780a4b6a",
+  "nexus/studio.py": "905cee90481c2df747d98e59c69c61138f9d856577e7cbab1994a7a9420e635b",
+  "nexus/cli.py": "22d280bd0ed74ec3ee59e5bd70b853a5ccd8fb032e973a5bb2f67de4b91fafd2",
+  "apps/studio-desktop/src-tauri/src/backend.rs": "e6ab18571d629f47c4a674b51c3b789e7f90967aa5fe87f4261c562502662075",
+  "apps/studio-desktop/src-tauri/src/main.rs": "1387aee22b56a143de9d90d5daba385b8113202a53c4d51440c8ea1b932f3a38",
+  "apps/studio-desktop/ui/startup.js": "f0c454cadcaad36d8b7c4b674511b3e8ec2a3c34fb4f6708df60673a01fa35f9",
+  "tests/test_studio_desktop.py": "496c5e126cd5a854a1da0930f3f47e2fb30e99c92d615af0639b993c890a9d24",
+  "tests/studio_desktop_native_acceptance.py": "39ceb77d46717d6cf6aa5d31b4e556efebbabe911a716e758df330792636dcfa",
+  "examples/nexus-bot/src/studio_desktop_readiness.py": "cdc8e104f48921a3d514ee14cd33691cf79bd4bded840615bbcecbe3b76fddc6"
+ }
+}

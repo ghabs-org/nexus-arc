@@ -161,6 +161,11 @@ def build_parser():
     studio_parser.add_argument(
         "--worker-only", action="store_true", help="Consume SQL jobs without an HTTP listener"
     )
+    studio_parser.add_argument(
+        "--desktop-launch-stdin",
+        action="store_true",
+        help="Read the native desktop shell's per-launch credential from standard input",
+    )
 
     init_parser = subparsers.add_parser("init", help="Scaffold a new Nexus project")
     init_parser.add_argument(
@@ -253,15 +258,36 @@ def main():
     elif args.command == "studio":
         from nexus.studio import serve_studio
 
-        serve_studio(
-            args.dir,
-            port=args.port,
-            host=args.host,
-            team_config=args.team_config,
-            state_dir=args.state_dir,
-            runtime_config=args.runtime_config,
-            worker_only=args.worker_only,
-        )
+        launch, parent_input = None, None
+        if args.desktop_launch_stdin:
+            import sys
+
+            from nexus.core.studio_desktop import DesktopLaunchCredential
+
+            try:
+                # Do not prefetch lifetime bytes into a BufferedReader that the
+                # parent watcher cannot safely hold during interpreter shutdown.
+                parent_input = getattr(sys.stdin.buffer, "raw", sys.stdin.buffer)
+                launch = DesktopLaunchCredential.read(parent_input)
+            except ValueError as exc:
+                parser.exit(2, f"{exc}\n")
+        from nexus.core.studio_desktop import UnsafeWorkspaceError, WorkspaceInUseError
+        from nexus.core.studio_schema import NewerStateError
+
+        try:
+            serve_studio(
+                args.dir,
+                port=args.port,
+                host=args.host,
+                team_config=args.team_config,
+                state_dir=args.state_dir,
+                runtime_config=args.runtime_config,
+                worker_only=args.worker_only,
+                launch=launch,
+            parent_input=parent_input,
+            )
+        except (WorkspaceInUseError, NewerStateError, UnsafeWorkspaceError) as exc:
+            parser.exit(exc.exit_code, f"{exc}\n")
     elif args.command == "init":
         if args.gui:
             from nexus.studio import serve_studio

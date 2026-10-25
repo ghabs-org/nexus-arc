@@ -4,8 +4,22 @@ import io
 import json
 import sys
 
+DEPENDENCY_MISSING = 20
+UNREADABLE_DOCUMENT = 21
+WORKER_FAILED = 22
+
 
 def main():
+    try:
+        extract()
+    except ImportError:
+        raise SystemExit(DEPENDENCY_MISSING) from None
+    except Exception:
+        # Never write document/parser exception values to the parent process.
+        raise SystemExit(WORKER_FAILED) from None
+
+
+def extract():
     try:
         import resource
     except ImportError:
@@ -19,9 +33,12 @@ def main():
     content = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
     if len(content) > 16 * 1024 * 1024:
         raise ValueError("PDF too large")
-    reader = PdfReader(io.BytesIO(content), strict=True)
+    try:
+        reader = PdfReader(io.BytesIO(content), strict=True)
+    except Exception:
+        raise SystemExit(UNREADABLE_DOCUMENT) from None
     if reader.is_encrypted:
-        raise ValueError("Encrypted PDF")
+        raise SystemExit(UNREADABLE_DOCUMENT)
     selected = int(sys.argv[1]) if len(sys.argv) == 2 else None
     if selected is not None and selected < 1:
         raise ValueError("Page must be a positive integer")

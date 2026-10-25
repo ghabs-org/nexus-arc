@@ -1,0 +1,97 @@
+{
+  "format": "nexus-studio-brand-voice-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified-scoped-readiness-and-branding",
+  "whole_plan_complete": false,
+  "implemented": [
+    "Browser favicon now wraps the existing unmodified 192px Nexus PNG in an ICO container. Studio/shared pages and native startup assets declare it; the public asset allowlist serves /favicon.ico with image/x-icon.",
+    "Wheel package-data includes ICO files; service-worker public shell cache advances to v60 and includes favicon. Existing install/touch icons stay unchanged.",
+    "Passive local Whisper readiness checks model, module spec and FFmpeg. Piper checks model, executable and adjacent .onnx.json. Display-only missing_prerequisites and verification_scope are additive public fields.",
+    "Voice picker lists missing prerequisites and rejects unavailable local selection before recording/submission. It preserves explicit selection and never auto-selects a separately billed API. API credentials are not checked by passive readiness."
+  ],
+  "validation": {
+    "backend": {
+      "tests": 37,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-brand-voice-required.xml"
+    },
+    "frontend": {
+      "tests": 174,
+      "passed": 174,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-brand-voice-frontend.log"
+    },
+    "public_http_recheck": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-brand-http-final.xml",
+      "scope": "Two overlapping public HTTP checks rerun after incoming optional native-auth changes; not additional unique tests."
+    },
+    "packaging": {
+      "status": "passed",
+      "builder": "setuptools.build_meta.build_wheel in temporary source staging; no installation, network or source build-directory changes.",
+      "exact_favicon_bytes_in_wheel": true,
+      "report": "/private/tmp/nexus-brand-wheel.log"
+    },
+    "icon_decoder": "macOS sips identifies the ICO as 192 by 192; existing PNG bytes are preserved exactly.",
+    "browser": {
+      "favicon_href": "http://127.0.0.1:60455/favicon.ico",
+      "favicon_type": "image/x-icon",
+      "voice_default": "local-whisper \u00b7 Local model \u00b7 setup required",
+      "model_present_but_missing": "Whisper Python runtime",
+      "microphone_requested": false,
+      "api_selected": false,
+      "runs_started": 0,
+      "console_errors": 0,
+      "console_warnings": 0,
+      "screenshot": "/private/tmp/nexus-brand-voice-readiness.png",
+      "temporary_tab_closed": true
+    },
+    "actual_host_prerequisites": {
+      "environment": "/private/tmp/nexus-attachment-env",
+      "Whisper module": false,
+      "Piper executable": false,
+      "FFmpeg executable": true,
+      "live_speech_verified": false
+    },
+    "static": "Affected Python lint/format, JavaScript syntax and diff whitespace pass."
+  },
+  "compatibility": "No persisted records or queued profile/job formats change. model_ready now reflects known passive local prerequisites rather than a model file alone. Public metadata adds display labels without private paths. API availability is explicitly account-not-checked, not entitlement proof.",
+  "remaining": [
+    "Actual installed local speech model loading and transcription/synthesis quality.",
+    "Explicitly configured API accounts, real microphones/playback, physical devices and personal HTTPS VM operation.",
+    "Separate native session, portable runtime, workspace ownership and installed OS gates; concurrent native work is not certified by this slice."
+  ],
+  "guide": "docs/STUDIO-SPEECH.md",
+  "contract": "postman/contracts/studio-speech-readiness.md",
+  "example": "examples/nexus-bot/src/studio_brand_readiness.py",
+  "user_studio_restarted": false,
+  "personal_vm_changed": false,
+  "real_account_requests_performed": false,
+  "models_downloaded": false,
+  "temporary_services_stopped": {
+    "preview_60455": true
+  },
+  "source_sha256": {
+    "nexus/studio_static/favicon.ico": "55e55a78002504ae3dbd060107887b4d96f5855e90395799b5708dc9d428cb07",
+    "nexus/studio_static/index.html": "78631bcc2158ab667d930e5c6c2692bd6f9e58a9214331b2c30bf7efec58a305",
+    "nexus/studio_static/shared.html": "daa79a5ed703d645c38da2bdb85f215a2c57d54a214d292ae461823d74215ed9",
+    "nexus/studio_static/service-worker.js": "a25682ad07956181ef2c7aca904c49b058ff6218a37c2051f86400f260e0c486",
+    "nexus/studio_static/features.js": "248e1a0fd3aab41ad7bd0b14e00be909390764fc1d73c7c12b7e5f5e2ac11ff7",
+    "apps/studio-desktop/ui/index.html": "82f458e52af4c37e54fe5badee61d588b18114b9f90141e6826809cac6c61905",
+    "apps/studio-desktop/ui/favicon.ico": "55e55a78002504ae3dbd060107887b4d96f5855e90395799b5708dc9d428cb07",
+    "nexus/core/studio_speech.py": "91f8f98f15ded4bc89cdcb2301b892de3c03026a1479dabafe812f3bbd15d706",
+    "nexus/studio.py": "3cbafd703f7c95afb8e2cf8e1175879944aab6afb305456b6f9c02084e4d6c5a",
+    "pyproject.toml": "9a1387e77bf146460f75cd2505c85803670831e9c386aeccbd7149a345e009c5",
+    "tests/test_studio_speech_readiness.py": "fd37407325b94ef30d5a40682a8ead4282d9119a8a6cbf8264352e474ba66f79",
+    "tests/studio_speech_readiness.test.cjs": "b45b3912fc28d4739c85587fa781fc0f448156eb40de15e9d332f9e1a9950f63",
+    "tests/studio_brand_readiness_acceptance.py": "716536e6d6170c00f411d3b2f7cfe0b3af946835075f485f8bbe3473e6316ee0",
+    "examples/nexus-bot/src/studio_brand_readiness.py": "1a9ea0e01c4bd7fe8d25dc29bc5f8f1104e43108cb4a543cf7f2d15f208aa70a",
+    "postman/contracts/studio-speech-readiness.md": "3a6263477897ded8a98214d4b7513d6a1d5cfc9cc9c09637b655a5ee12d21ca4"
+  }
+}

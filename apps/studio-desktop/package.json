@@ -6,9 +6,13 @@
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build",
+    "build": "npm run package-sidecar && tauri build --config src-tauri/binaries/tauri.bundle.conf.json",
     "preflight": "python3 -m nexus.cli desktop preflight",
-    "package-sidecar": "python3 build_desktop.py --sidecar-only"
+    "package-sidecar": "python3 build_desktop.py --sidecar-only",
+    "package-sidecar:connected": "python3 build_desktop.py --sidecar-only --profile connected",
+    "build:connected": "npm run package-sidecar:connected && tauri build --config src-tauri/binaries/tauri.bundle.conf.json",
+    "package-sidecar:full": "python3 build_desktop.py --sidecar-only --profile full",
+    "build:full": "npm run package-sidecar:full && tauri build --config src-tauri/binaries/tauri.bundle.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/api": "^2.0.0",

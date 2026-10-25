@@ -1,0 +1,78 @@
+{
+  "format": "nexus-studio-desktop-bundle-checkpoint/v1",
+  "date": "2026-10-25",
+  "scope": "Portable core/PDF backend prototype; no native installer or all-feature release certification",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "target": "aarch64-apple-darwin",
+  "artifact": {
+    "path": "/private/tmp/nexus-portable-sidecar/nexus-sidecar-aarch64-apple-darwin",
+    "manifest": "/private/tmp/nexus-portable-sidecar/nexus-sidecar-aarch64-apple-darwin.manifest.json",
+    "sha256": "bac8c8ad47d33d7110c8a2459cf9a2e290770c14636e0717d50d5fc4ef4ae933",
+    "size_bytes": 17896624
+  },
+  "runtime": {
+    "format": "nexus-sidecar-info/v1",
+    "frozen": true,
+    "python": "3.13.16",
+    "nexus": "0.1.1",
+    "frontend_present": true,
+    "optional_sdk_presence": {
+      "openai": false,
+      "anthropic": false,
+      "slack_sdk": false,
+      "mcp": false,
+      "sqlalchemy": false,
+      "pypdf": true,
+      "whisper": false,
+      "boto3": false,
+      "pymongo": false
+    },
+    "verification_scope": "Package presence only; not model/account/service validation"
+  },
+  "validation": {
+    "affected": {
+      "report": "/private/tmp/nexus-desktop-bundle-required.xml",
+      "tests": 76,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "relocated_runtime": {
+      "report": "/private/tmp/nexus-desktop-bundle-runtime.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "verified": [
+    "Relocated executable in a path with spaces starts without source checkout, host Python, PYTHONPATH or commands on PATH.",
+    "Private stdin launch authentication and handshake succeed; anonymous API access is denied.",
+    "Authenticated agent creation writes workspace YAML; bundled UI, vendor library and favicon are served.",
+    "PDF upload and preview dispatch the fixed worker through the frozen executable.",
+    "Parent EOF shuts down the owned backend with exit status zero.",
+    "Failed compilation or concurrent build-input changes preserve the previous artifact."
+  ],
+  "implementation": [
+    "nexus/core/studio_desktop_bundle.py",
+    "nexus/core/studio_desktop_sidecar.py",
+    "apps/studio-desktop/build_desktop.py"
+  ],
+  "example": "examples/nexus-bot/src/studio_desktop_bundle.py",
+  "documentation": "docs/STUDIO-DESKTOP-BUNDLE.md",
+  "source_sha256": {
+    "nexus/core/studio_desktop_bundle.py": "58aef33620565ad2e509ecaa95459494d7611e72e3e7c35fee89f6f2abdcffdf",
+    "nexus/core/studio_desktop_sidecar.py": "245f9c189375986cdf207fa573cf80a519d184a5594f2637c833ef490249555c",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "1e1f35fcefc739bdf0fe47b4229d56ef427c23b4ffe6fe99a37c8bbe9279c05f",
+    "tests/test_studio_desktop_bundle.py": "571358a67bd65995bd9253398bbe54f8cc7eb0008cb11831500a08345caf612b",
+    "tests/studio_desktop_bundle_acceptance.py": "3d676ee8d87980103a8d28a0e746d4639205c446e1384720929a8043fef00694"
+  },
+  "pending": [
+    "Reviewed SDK-complete profile and actual invocation of each selected capability; current prototype includes pypdf but not optional provider/database/voice SDKs.",
+    "Native Tauri package installation with this executable and one-file bootloader lifecycle/active external descendant cleanup.",
+    "Native Linux and Windows builds, clean installation, update, signing and OS permission acceptance.",
+    "Models, account credentials, host CLI subscriptions, Docker/Node, physical device and personal VM acceptance remain separate."
+  ],
+  "migration": "No persisted schema changes. Source-mode worker commands retain their existing module or isolated-file execution. Development wrapper requires explicit opt-in; default packaging fails rather than falling back."
+}

@@ -233,9 +233,14 @@ operationFormData=function(form){
 let voiceRecorder=null,voiceStream=null,voiceChunks=[];
 async function chooseSpeech(action,text=""){
   const available=(await featureApi("speech")).items.filter(p=>p.action===action);
-  const html=`<label>Speech provider<select name="profile">${available.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.id)} · ${escapeHtml(p.billing)}${p.local&&!p.model_ready?" · model setup required":""}</option>`).join("")}</select></label><p>API voice uses separately billed credentials. Local voice requires installed models.</p>`+(action==="speak"?'<label>Voice (API profile)<input name="voice" placeholder="Provider default"></label>':'<label>Language hint (optional)<input name="language" maxlength="20" placeholder="en"></label>');
+  if(!available.length)throw new Error("No configured speech provider supports this action");
+  const warnings=available.filter(p=>p.local&&!p.model_ready).map(p=>`<li>${escapeHtml(p.id)}: ${escapeHtml((p.missing_prerequisites||["Installed local model"]).join(", "))}</li>`).join("");
+  const html=`<label>Speech provider<select name="profile">${available.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.id)} · ${escapeHtml(p.billing)}${p.local&&!p.model_ready?" · setup required":""}</option>`).join("")}</select></label><p>API voice uses separately billed credentials. Local voice requires installed models and runtime software.</p>${warnings?`<p>Local setup required:</p><ul>${warnings}</ul>`:""}`+(action==="speak"?'<label>Voice (API profile)<input name="voice" placeholder="Provider default"></label>':'<label>Language hint (optional)<input name="language" maxlength="20" placeholder="en"></label>');
   const form=await fieldsDialog(action==="speak"?"Generate spoken response":"Record a voice message",html,action==="speak"?"Generate speech":"Start recording");if(!form)return null;
-  return {profile:form.get("profile"),voice:form.get("voice")||undefined,language:form.get("language")||undefined,text};
+  const selected=available.find(p=>p.id===form.get("profile"));
+  if(!selected)throw new Error("Choose a configured speech provider");
+  if(selected.local&&!selected.model_ready)throw new Error("Local speech setup required: "+(selected.missing_prerequisites||["Installed local model"]).join(", "));
+  return {profile:selected.id,voice:form.get("voice")||undefined,language:form.get("language")||undefined,text};
 }
 async function beginRecording(){
   if(voiceRecorder){voiceRecorder.stop();return;}

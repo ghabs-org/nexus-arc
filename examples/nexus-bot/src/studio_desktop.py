@@ -13,8 +13,10 @@ import tempfile
 from nexus.core.studio_desktop import (
     DesktopBackendRunner,
     DesktopSecurityPolicy,
+    UnsafeWorkspaceError,
     WorkspaceLock,
     check_desktop_prerequisites,
+    check_workspace_root,
     get_desktop_dirs,
     get_desktop_platform,
     import_workspace,
@@ -92,6 +94,43 @@ def run_security_policy_demo() -> None:
     print("External URL opener: rejects local files, javascript, and internal network addresses.")
 
 
+def run_workspace_choice_demo(tmp_dir: Path) -> None:
+    print("\n=== Step 6: Safe workspace choice, import and newer-release data ===")
+    try:
+        check_workspace_root(Path.home())
+        raise AssertionError("home folder must be refused")
+    except UnsafeWorkspaceError as error:
+        print(f"Native launch refuses the home folder (exit {error.exit_code}).")
+    print(f"Dedicated folder accepted: {check_workspace_root(tmp_dir / 'Projects' / 'studio')}")
+
+    source = tmp_dir / "cli_workspace"
+    source.mkdir()
+    for target, reason in ((source / "nested", "nested folders"), (tmp_dir / "copy", "source open elsewhere")):
+        lock = WorkspaceLock(source)
+        lock.acquire(5003)
+        try:
+            import_workspace(source, target, backup_first=False)
+            raise AssertionError(f"import must refuse {reason}")
+        except ValueError as error:
+            print(f"Import refused ({reason}): {error}")
+        finally:
+            lock.release()
+
+    from nexus.core.studio import StudioService
+    from nexus.core.studio_schema import NewerStateError
+
+    newer = tmp_dir / "newer_release_workspace"
+    schema = newer / ".nexus" / "studio" / "system" / "schema.json"
+    schema.parent.mkdir(parents=True)
+    schema.write_text(json.dumps({"version": 2}), encoding="utf-8")
+    try:
+        StudioService(newer).close()
+        raise AssertionError("an older release must refuse newer data")
+    except NewerStateError as error:
+        print(f"Newer-release workspace refused without changes (exit {error.exit_code}).")
+    assert json.loads(schema.read_text(encoding="utf-8")) == {"version": 2}
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp_dir = Path(td)
@@ -100,6 +139,7 @@ def main() -> None:
         run_workspace_lock_demo(tmp_dir / "workspace")
         run_workspace_import_demo(tmp_dir)
         run_security_policy_demo()
+        run_workspace_choice_demo(tmp_dir)
 
     print("\nDesktop lifecycle demonstration passed successfully.")
 

@@ -28,7 +28,13 @@
     "Catalog independent audit completed: all 31 baseline entries reconciled, with 27 supported-native-reviewed and 4 explicit platform exclusions. Filesystem source review verified against pinned @modelcontextprotocol/server-filesystem@2.0.0. See STUDIO-CATALOG-INVOCATION-AUDIT.json and STUDIO-FILESYSTEM-COVERAGE.md.",
     "OpenClaw milestone 12 integration fully validated: Postman CLI simulation executed 8 HTTP fault cases cleanly with zero automatic retries, and 22 plugin tests passed. See STUDIO-M12-OPENCLAW-CHECKPOINT.json.",
     "Standalone desktop application staged and built: Tauri 2 shell with bundled sidecar launcher, target triple detection, RGBA icons, and loopback port allocation compiled natively into Mach-O arm64 binary. See STUDIO-M9-DESKTOP-CHECKPOINT.json.",
-    "Milestone 7 catalog and tools exit gate closed (10/10 clauses locally accepted). Frozen requirements now reflect 100 accepted / 35 open with zero inconsistencies."
+    "Milestone 7 catalog and tools exit gate closed (10/10 clauses locally accepted). Frozen requirements now reflect 100 accepted / 35 open with zero inconsistencies.",
+    "Native desktop startup now retains sidecar ownership and rejects late spawn, early exit and invalid/unready bootstrap before navigation. Six Rust and eighteen focused Python checks pass; the native development binary builds. The desktop completion flag was corrected to partial: portable runtime, authenticated native session, integrated workspace ownership and installed OS acceptance remain open. See STUDIO-DESKTOP-STARTUP-CHECKPOINT.json and STUDIO-NEXT-AGENT-PLAN.md.",
+    "Web/native-startup favicon assets now reuse the existing Nexus mark and are included in packaged/offline assets. Passive voice prerequisites surface missing local runtimes before recording without API fallback. The scoped gate passed 37 backend and 174 frontend checks with zero skips; actual model/device/VM operation remains separate. See STUDIO-BRAND-VOICE-CHECKPOINT.json.",
+    "Native backend parent-pipe lifetime monitoring fixes the documented idle-backend orphan after shell SIGTERM/SIGKILL. Existing service cleanup handles EOF; unbuffered input avoids interpreter shutdown deadlock. Thirty scoped unit/process/desktop/CLI checks pass without skips. Active external descendants, workspace ownership and installed OS delivery remain separate. See STUDIO-DESKTOP-PARENT-CHECKPOINT.json.",
+    "Portable core/PDF backend now bundles Python, Studio assets and fixed worker dispatch. Default release packaging builds the executable before Tauri. All 76 affected checks and one relocated authenticated runtime check pass without skips. Full SDK coverage and installed native OS acceptance remain open. See STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json.",
+    "Explicit connected desktop dependency profile now gates compilation and staging on 17 offline SDK imports. A real macOS arm64 one-folder build passes relocated authenticated startup, agent save, assets, PDF processing and EOF shutdown; 80 affected checks and one runtime check pass without skips. Remaining SDK families, service invocation and installed OS acceptance remain open. See STUDIO-DESKTOP-PROFILES-CHECKPOINT.json.",
+    "PDF preview failure diagnostics now distinguish timeout, missing dependencies, unreadable documents, failed launch, signal termination, other worker exit and invalid output. Seventy affected tests and three rebuilt relocated connected-backend checks pass without skips. Historical intermittent failure cause remains open; see STUDIO-PDF-PREVIEW-CHECKPOINT.json."
   ],
   "validation": {
     "studio_regressions": {
@@ -147,6 +153,75 @@
       "failures": 0,
       "skipped": 0,
       "live_verified": false
+    },
+    "portable_backend": {
+      "checkpoint": "STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json",
+      "affected": {
+        "report": "/private/tmp/nexus-desktop-bundle-required.xml",
+        "tests": 76,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "relocated_runtime": {
+        "report": "/private/tmp/nexus-desktop-bundle-runtime.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "desktop_connected_profile": {
+      "checkpoint": "STUDIO-DESKTOP-PROFILES-CHECKPOINT.json",
+      "affected": {
+        "report": "/private/tmp/nexus-desktop-connected-required.xml",
+        "tests": 80,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      "relocated_connected": {
+        "report": "/private/tmp/nexus-desktop-connected-runtime.xml",
+        "tests": 1,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      }
+    },
+    "pdf_preview_recovery": {
+      "checkpoint": "STUDIO-PDF-PREVIEW-CHECKPOINT.json",
+      "affected": {
+        "report": "/private/tmp/nexus-pdf-failures-required.xml",
+        "tests": 70,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 15.541
+      },
+      "relocated_1": {
+        "report": "/private/tmp/nexus-pdf-runtime-1.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 26.208
+      },
+      "relocated_2": {
+        "report": "/private/tmp/nexus-pdf-runtime-2.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 22.804
+      },
+      "relocated_3": {
+        "report": "/private/tmp/nexus-pdf-runtime-3.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 20.354
+      }
     }
   },
   "inventory": {
@@ -249,7 +324,8 @@
     "Physical phone/tablet microphone, touch, accessibility and playback checks not run.",
     "Real local voice models and selected external account/service quality, permissions and billing checks not certified.",
     "Live database-family, remote object-store and desktop platform installation checks remain separate from injected contract fixtures.",
-    "Object backup: actual GCS/Azure SDK runtime checks and selected live cloud-account permissions, retention/history and restore drills remain separate from local store contracts and the S3 HTTP simulation."
+    "Object backup: actual GCS/Azure SDK runtime checks and selected live cloud-account permissions, retention/history and restore drills remain separate from local store contracts and the S3 HTTP simulation.",
+    "Connected desktop bundle: one repeated relocated acceptance run lost PDF extraction metadata; later full and direct worker runs pass. Cause remains unproven; retain this stability gap (STUDIO-DESKTOP-PROFILES-CHECKPOINT.json)."
   ],
   "migration": "No bulk state rewrite. Existing templates and text/structured task contracts stay readable. Optional native context_path parameters extend template v1. Pending stdio MCP activation plans require fresh setup review; completed transition receipts retain replay behavior.",
   "source_sha256": {
@@ -331,5 +407,8 @@
   "slack_followup": "docs/STUDIO-SLACK-CHECKPOINT.json",
   "catalog_invocation_audit": "docs/STUDIO-CATALOG-INVOCATION-AUDIT.json",
   "slack_thread_followup": "docs/STUDIO-SLACK-THREADS-CHECKPOINT.json",
-  "slack_file_followup": "docs/STUDIO-SLACK-FILES-CHECKPOINT.json"
+  "slack_file_followup": "docs/STUDIO-SLACK-FILES-CHECKPOINT.json",
+  "native_startup_followup": "docs/STUDIO-DESKTOP-STARTUP-CHECKPOINT.json",
+  "brand_voice_followup": "docs/STUDIO-BRAND-VOICE-CHECKPOINT.json",
+  "native_parent_followup": "docs/STUDIO-DESKTOP-PARENT-CHECKPOINT.json"
 }

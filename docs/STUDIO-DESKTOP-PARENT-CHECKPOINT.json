@@ -1,0 +1,116 @@
+{
+  "format": "nexus-studio-desktop-parent-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified-native-parent-lifetime",
+  "milestone": 9,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Opt-in native backend shutdown on private parent-pipe EOF. Fixes the documented idle-backend orphan after abnormal shell termination; not full installed/process-descendant acceptance.",
+  "implemented": [
+    "Native CLI reuses the existing private stdin launch channel for lifetime monitoring. Credential reads are unbuffered so lifecycle bytes are not prefetched.",
+    "The watcher performs one unbuffered OS read and requests normal HTTP shutdown on EOF, broken input or unexpected bytes. It does not poll PIDs, close caller stdin, log credential data or kill processes.",
+    "Existing HTTP/service close paths handle teardown and worker cleanup. Daemon OS reads avoid holding BufferedReader locks when the interpreter exits with a still-open parent pipe.",
+    "Parent monitoring is opt-in with the existing native CLI flag; programmatic parent_input requires a native HTTP launch. Ordinary browser/CLI and team paths keep their existing behavior."
+  ],
+  "validation": {
+    "focused": {
+      "tests": 30,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-desktop-parent-required.xml",
+      "suites": [
+        "tests/studio_desktop_parent_acceptance.py",
+        "tests/test_studio_desktop_parent.py",
+        "tests/test_studio_desktop.py",
+        "tests/test_studio_cli.py"
+      ]
+    },
+    "actual_processes": [
+      "A real native CLI starts in a disposable workspace, proves its launch secret and rejects anonymous bootstrap; closing its parent writer yields exit code zero and a closed listener.",
+      "A synthetic shell starts an actual native CLI, then is terminated or killed. Both the native listener and backend PID disappear within the deadline.",
+      "Closing the launch pipe before readiness, including extra trailing bytes, exits without hanging or echoing input.",
+      "A process exits successfully while its parent stdin remains open; no fatal Python buffered-reader shutdown error."
+    ],
+    "unit": "Open pipe remains live until writer closure; EOF, extra bytes, broken/invalid stream and unsupported parent-monitor modes are checked.",
+    "host": "macOS Python 3.13 local process checks. Native installed-window, Linux and Windows drills remain separate.",
+    "claims": {
+      "format": "nexus-studio-completion-audit/v1",
+      "scope": "Recorded-claim consistency only; this command does not run acceptance tests or certify runtime behavior.",
+      "total": 135,
+      "accepted": 135,
+      "open": 0,
+      "open_ids": [],
+      "milestones": {
+        "1": {
+          "accepted": 6,
+          "total": 6
+        },
+        "2": {
+          "accepted": 8,
+          "total": 8
+        },
+        "3": {
+          "accepted": 8,
+          "total": 8
+        },
+        "4": {
+          "accepted": 7,
+          "total": 7
+        },
+        "5": {
+          "accepted": 10,
+          "total": 10
+        },
+        "6": {
+          "accepted": 9,
+          "total": 9
+        },
+        "7": {
+          "accepted": 10,
+          "total": 10
+        },
+        "8": {
+          "accepted": 9,
+          "total": 9
+        }
+      },
+      "checkpoints_complete": {
+        "7": true,
+        "8": true,
+        "9": false,
+        "10": true,
+        "11": true,
+        "12": true
+      },
+      "plan_complete": false,
+      "inconsistencies": []
+    },
+    "static": "Focused Python lint/format and diff whitespace pass."
+  },
+  "compatibility": "No persisted schema, authentication/session format or HTTP route changes. Existing --desktop-launch-stdin callers must retain the input writer for the native launch lifetime; sending the secret then closing stdin deliberately stops the backend. Programmatic launch credentials without parent_input preserve previous behavior. Browser/team and worker-only scheduling architecture are unchanged.",
+  "remaining": [
+    "Cross-process native/CLI workspace ownership.",
+    "Actual native window close/quit/relaunch and active external CLI/container descendant cleanup on every target OS.",
+    "Portable Python sidecar/runtime packaging, signed clean installed OS builds and update/restore drills."
+  ],
+  "example": "examples/nexus-bot/src/studio_desktop_parent.py",
+  "guide": "docs/STUDIO-DESKTOP.md",
+  "handoff": "docs/STUDIO-NEXT-AGENT-PLAN.md",
+  "previous": "docs/STUDIO-DESKTOP-SESSION-CHECKPOINT.json",
+  "personal_vm_changed": false,
+  "user_studio_restarted": false,
+  "native_user_app_started": false,
+  "live_jobs_started": 0,
+  "real_account_requests_performed": false,
+  "owned_test_processes_stopped": true,
+  "source_sha256": {
+    "nexus/core/studio_desktop_parent.py": "3f649fb8a76a74ddfebebceef1987dbae89a0a5f9a171d4ef56e4087780a4b6a",
+    "nexus/cli.py": "22d280bd0ed74ec3ee59e5bd70b853a5ccd8fb032e973a5bb2f67de4b91fafd2",
+    "nexus/studio.py": "905cee90481c2df747d98e59c69c61138f9d856577e7cbab1994a7a9420e635b",
+    "examples/nexus-bot/src/studio_desktop_parent.py": "048da97b3a7d68da9af51ed76a17df4c7ef9ae59cbdc22029d6246fc6945821d",
+    "tests/test_studio_desktop_parent.py": "ab82a35fedf664a7b57fba2dcb143ff397b8ddce92917707fff5f510faecc63f",
+    "tests/studio_desktop_parent_acceptance.py": "fbc0d48677ba142c75c0d6e9d226f39bb7149724c79d1b3a08394899b2da85e9",
+    "postman/contracts/studio-desktop-readiness.md": "36f6b70979d0c93aed4155f27d213a510d65a5bf331a405401ffcc5d19d13585"
+  }
+}
