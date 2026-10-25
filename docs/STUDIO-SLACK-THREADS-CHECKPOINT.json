@@ -1,0 +1,168 @@
+{
+  "format": "nexus-studio-slack-threads-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified-scoped-agent-threads",
+  "scope": "Opt-in Slack agent thread continuity through native private Nexus conversations and actual SDK thread replies; broader gateway remains partial.",
+  "requirement_ids": [
+    "CAT-01-reference-slack",
+    "CAT-01-reference-slack-gateway-adapter",
+    "M07-EXIT"
+  ],
+  "whole_catalog_entries_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implemented": [
+    "Explicit boolean threaded_conversations on Slack agent entrypoints; missing/false preserves legacy behavior and true on workflow targets is rejected.",
+    "Verified parent/root timestamp, signed workspace, channel, Slack sender, mapped owner, target and entrypoint revision bind private native history. Untrusted runtime session IDs are ignored.",
+    "Same thread follows server receipt order through existing sessions, runs, jobs and workspace/SQL lock. Duplicate event IDs never dispatch twice.",
+    "Two SQL controllers, file/SQL restart and stopped backup/restore retain binding/history. Archived, foreign/tampered or missing historical sessions fail rather than being silently adopted/recreated.",
+    "Versioned receipt states prevent old readers from handling pending work. Interrupted launching becomes uncertain and blocks continuation until explicit owner review/revision reset; no ambiguous action replay.",
+    "Mapping/configuration changes and project revocation suppress queued dispatch and late replies. Real SDK replies use verified parent, fixed channel and reply_broadcast:false.",
+    "Responsive entrypoint checkbox retains saved state, hides outside Slack and disables for workflow targets. Existing service worker cache advances to v58."
+  ],
+  "validation": {
+    "affected_backend": {
+      "tests": 183,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-slack-threads-required.xml"
+    },
+    "real_sdk_http": {
+      "tests": 3,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-slack-threads-http.xml"
+    },
+    "frontend": {
+      "tests": 168,
+      "passed": 168,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-slack-threads-frontend.log"
+    },
+    "sdk": "slack-sdk==3.45.0",
+    "simulation": {
+      "requests": 33,
+      "methods": {
+        "GET": 20,
+        "POST": 13
+      },
+      "statuses": {
+        "200": 29,
+        "429": 2,
+        "500": 2
+      },
+      "members_served": [
+        "slack"
+      ],
+      "members_silent": [],
+      "sdk_mutations": 13,
+      "thread_replies": 3,
+      "log": "/private/tmp/nexus-slack-threads-simulation.ndjson",
+      "lost_response": "Separate direct local HTTP peer applies one effect and closes response; one request, no replay."
+    },
+    "browser": {
+      "widths": [
+        390,
+        820,
+        1280
+      ],
+      "heights": [
+        844,
+        1180,
+        900
+      ],
+      "dialog_widths": [
+        372,
+        598,
+        598
+      ],
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "console_warnings": 0,
+      "save_reopen": "Disabled synthetic entrypoint changed true to false to true, saved and reopened; remained disabled. Keyboard focus checked; non-Slack control hidden.",
+      "screenshots": [
+        "/private/tmp/nexus-slack-threads-phone.png",
+        "/private/tmp/nexus-slack-threads-desktop.png"
+      ],
+      "temporary_tab_closed": true,
+      "viewport_reset": true,
+      "physical_device": false
+    },
+    "static": "Affected Python lint/format, JavaScript syntax and diff whitespace pass. Existing unrelated messaging formatting left unchanged.",
+    "completion_claims": {
+      "accepted": 97,
+      "open": 38,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "scope": "Recorded claim consistency only, not runtime completeness."
+    }
+  },
+  "migration": {
+    "flag_default": false,
+    "session_metadata": "Additive slack_thread_binding / nexus-slack-thread/v1, stored in existing sessions. No new authentication, scheduler or job service.",
+    "receipt_states": [
+      "slack_received",
+      "slack_launching",
+      "slack_running"
+    ],
+    "uncertain_recovery": "New reader startup converts interrupted slack_launching to uncertain. Inspect Activity/remote effects before saving a new entrypoint revision and sending a fresh message; old run is never replayed.",
+    "downgrade": "Pause opted-in entrypoints before downgrade or mixed-version deployment. Old readers ignore versioned pending receipts but do not understand the flag on fresh messages. Retain receipts/session metadata and resume with new reader after review.",
+    "revision_reset": "Any entrypoint save starts fresh thread history; previous owned conversations remain readable."
+  },
+  "privacy": "Separate history per Slack sender and mapped Nexus owner. Replies remain visible to Slack channel/thread members; no Slack history is fetched.",
+  "remaining": [
+    "Workflow-thread semantics beyond opt-in agent conversations.",
+    "Inbound files/images and outbound artifact transfer/downloads.",
+    "Rich structured artifact replies, feedback/evaluation controls.",
+    "Task cancellation and artifact/help command interactions.",
+    "Socket Mode transport and its independent acceptance.",
+    "Independent source/invocation review for other catalog entries."
+  ],
+  "live_validation_pending": [
+    "Real Slack bot scopes, account delivery/edit permissions and rate limits.",
+    "Personal HTTPS VM, physical devices and real Slack transport.",
+    "Milestone 8 operations and standalone desktop delivery; desktop remains last."
+  ],
+  "contract": {
+    "official_sources": [
+      "https://docs.slack.dev/reference/methods/chat.postMessage/",
+      "https://docs.slack.dev/reference/events/message/"
+    ],
+    "orbit_endpoint": "urn:orbit:endpoint:v1:aGr0AU43bLMOIL3xTeahF5HUoMzixI4h:slack:chat-postmessage",
+    "orbit_disposition": "Integrated brief omitted thread_ts and /api path. Official docs and installed SDK used instead.",
+    "owner_mock": "Hosted discovery unavailable while signed out; local stand-in derives from public Slack contract.",
+    "document": "postman/contracts/studio-slack.md"
+  },
+  "example": "examples/nexus-bot/src/studio_slack_threads.py",
+  "guide": "docs/STUDIO-SLACK.md",
+  "prior_checkpoint": "docs/STUDIO-SLACK-CHECKPOINT.json",
+  "no_live_accounts_used": true,
+  "user_studio_restarted": false,
+  "temporary_services_stopped": {
+    "simulation_49654": true,
+    "preview_50625": true
+  },
+  "cloud_publication": false,
+  "source_sha256": {
+    "nexus/core/studio.py": "441b316d14fd38fb8de78154368e7c68e9a1b61a671706cf7030c8ab1ea6ad2b",
+    "nexus/core/studio_slack_threads.py": "3514bd0a757557a1452fb326024f2dc438bbcda44c6a52375f3c75f36a7f8ebb",
+    "nexus/core/studio_messaging.py": "807a61034b8b2eea9afbccc4b9ef03cf7b3d8ee29de7f4427f4d2df80da9d06e",
+    "nexus/core/studio_connections.py": "d8b466875d8a95a01d8be07bdda5b71ecb318e0668c9b8ab8d7de1bb47eac284",
+    "nexus/core/studio_catalog_setup.py": "56a7e9f5bbf3d8bfb81752694272a3fa76cd590db479bbacbca595b02576ae0f",
+    "nexus/adapters/notifications/slack.py": "0f655abee292c1bfd463928de5a8ab88788f4efe02b9200e52b396a0c2407371",
+    "nexus/studio_static/operations.js": "b41fcb338fd226bf2da2380b7e7e66fdc04d7098944322fcf13fa90365f8afff",
+    "nexus/studio_static/service-worker.js": "46cd07d1f83f35e6235857a90a947a13bcc01560cf1d26b1edcc5236533f5f53",
+    "tests/test_studio_slack_threads.py": "eb11d72ee8725629c80f106dab23b403f81915bd7a5035affa6fe726a5028240",
+    "tests/studio_slack_threads.test.cjs": "1e5bce9608e1af422a818b01aea850395076b2b87b97d0029367d337cf383e9c",
+    "tests/studio_slack_acceptance.py": "75af59cc893b7a7d499b364859c5fecd768fb59c516e46a39f5fb13ed531607e",
+    "examples/nexus-bot/src/studio_slack_threads.py": "d3910cf6f85bb37c87bb7fc37aa5558f7b42da889c73a591c3bd127ceea25e93",
+    "postman/mocks/studio-slack/default.js": "c7f274e85e6a0454a100635e39fba87cdbcb1ee6e05135f75304c6cd86a06f7d",
+    "postman/contracts/studio-slack.md": "d4208e0eb26adaa8329ce033f0fd0c1c6dfb746231fbaa3f4934b8fc3eaf70aa",
+    "postman/simulations/studio-slack.context.md": "1fd08b98f3e25e3a8aea77e4fd70526ef20303539e334a62630ba2ca5d73f0ad",
+    "docs/STUDIO-SLACK.md": "9d8bf3d59ca19c4e4dd169deb84e74386d01259697e263b4fd97893820e75ee4"
+  },
+  "file_followup": "docs/STUDIO-SLACK-FILES-CHECKPOINT.json"
+}

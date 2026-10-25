@@ -18,6 +18,39 @@ def validate_citation_mode(value):
     return value
 
 
+def validate_filename_base(name):
+    """Normalize one local Markdown basename without exposing rejected values."""
+    if not isinstance(name, str):
+        raise ValueError("Nuclia answer filename requires a safe basename")
+    name = name[:-3] if name.lower().endswith(".md") else name
+    if (
+        not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", name)
+        or ".." in name
+        or name.endswith(".")
+        or re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", name.split(".")[0], re.I)
+    ):
+        raise ValueError("Nuclia answer filename requires a safe basename")
+    return name
+
+
+def prepare_answer_filename(action, arguments, options=None):
+    """Separate local presentation data from provider query/template arguments."""
+    if "output_filename_base" not in arguments:
+        return arguments, None
+    name = arguments["output_filename_base"]
+    if (
+        action != "ask"
+        or name is not None
+        and options is not None
+        and not options.get("output_response_as_artifact", True)
+    ):
+        raise ValueError("An answer filename requires the selected ask action and file output")
+    return (
+        {key: value for key, value in arguments.items() if key != "output_filename_base"},
+        validate_filename_base(name) if name is not None else None,
+    )
+
+
 def validate_answer_options(value):
     if not isinstance(value, dict) or set(value) - DEFAULTS.keys():
         raise ValueError("Use supported Nuclia answer presentation options only")
@@ -29,18 +62,7 @@ def validate_answer_options(value):
     ):
         if type(result[key]) is not bool:
             raise ValueError("Nuclia answer presentation flags must be boolean")
-    name = result["output_filename_base"]
-    if not isinstance(name, str):
-        raise ValueError("Nuclia answer filename requires a safe basename")
-    name = name[:-3] if name.lower().endswith(".md") else name
-    if (
-        not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", name)
-        or ".." in name
-        or name.endswith(".")
-        or re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", name.split(".")[0], re.I)
-    ):
-        raise ValueError("Nuclia answer filename requires a safe basename")
-    result["output_filename_base"] = name
+    result["output_filename_base"] = validate_filename_base(result["output_filename_base"])
     count = result["artifact_description_query_max_length"]
     if type(count) is not int or not 1 <= count <= 1000:
         raise ValueError("Nuclia description query prefix must be 1–1000 characters")

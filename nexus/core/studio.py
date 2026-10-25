@@ -291,7 +291,12 @@ class StudioService:
                     remote["status"] = "uncertain"
                     self._write(self._path("external-runs", remote["id"]), remote)
             for event in self.records("channel-events", limit=None):
-                if event.get("status") == "launching":
+                if event.get("status") in {
+                    "launching",
+                    "slack_launching",
+                    "slack_files_fetching",
+                    "slack_files_launching",
+                }:
                     event.update(
                         status="uncertain",
                         error="Studio stopped while launching this event. Inspect its run before submitting again.",

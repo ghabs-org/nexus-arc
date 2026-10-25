@@ -1,0 +1,263 @@
+{
+  "format": "nexus-studio-slack-files-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified-scoped-private-inbound-files",
+  "scope": "Opt-in private hosted inbound files for signed Slack agent thread messages. Broader gateway and both catalog aliases remain partial.",
+  "requirement_ids": [
+    "CAT-01-reference-slack",
+    "CAT-01-reference-slack-gateway-adapter",
+    "M07-EXIT"
+  ],
+  "whole_catalog_entries_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implemented": [
+    "Optional explicit capture_slack_files requires Slack agent threads and a matching enabled fixed-channel account connection; no outgoing-send action required.",
+    "Signed ordinary/file_share messages acknowledge durable receipt with only one to five distinct file IDs and pinned connection revision; provider event URLs are discarded.",
+    "Existing event worker claims under native workspace/SQL lock and releases lock during bounded HTTP. Capture and launch use versioned states, preserving ordering and duplicate suppression.",
+    "Actual files.info plus original-byte downloads validate identity, selected-channel shares, hosted/non-external mode, name and exact size. Only canonical private HTTPS files.slack.com/files-pri/ URLs; no redirects, proxies or retries.",
+    "Private native artifact storage and expected immutable revisions feed the ordinary agent attachment path. Empty file-only messages get a default inspection task. Text model execution and PNG capture are verified; vision providers are separate.",
+    "Entry, connection, identity and project revocation are checked before capture/save/dispatch. Recovery fences stale claims; interrupted fetching/launching becomes uncertain and is never automatically replayed.",
+    "File/SQLite restart and stopped backup/restore retain manifest, private bytes and references; restored gateways remain disabled.",
+    "Responsive opt-in setup saves/reopens and explains selected-provider transfer. Existing service worker cache advances to v59."
+  ],
+  "validation": {
+    "affected_backend": {
+      "tests": 246,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-slack-files-required.xml"
+    },
+    "actual_http_sdk": {
+      "tests": 4,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-slack-files-http.xml"
+    },
+    "frontend": {
+      "tests": 171,
+      "passed": 171,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-slack-files-frontend.log"
+    },
+    "simulation": {
+      "requests": 48,
+      "methods": {
+        "GET": 35,
+        "POST": 13
+      },
+      "statuses": {
+        "200": 42,
+        "302": 1,
+        "500": 3,
+        "429": 2
+      },
+      "members_served": [
+        "slack"
+      ],
+      "members_silent": [],
+      "metadata_download_requests": 11,
+      "sdk_requests": 13,
+      "diagnostic_reads": 24,
+      "log": "/private/tmp/nexus-slack-files-simulation.ndjson",
+      "scope": "Final successful four-test HTTP/SDK run only. Full log also retains earlier fixture/debug runs. Lost-response direct peer is separate."
+    },
+    "privacy": "Shared-mode checks resolve Alice credentials, save Alice-owned artifacts, reject Bob downloads/revisions and stop pending dispatch after project revocation.",
+    "browser": {
+      "widths": [
+        390,
+        820,
+        1280
+      ],
+      "heights": [
+        844,
+        1180,
+        900
+      ],
+      "dialog_widths": [
+        340,
+        542,
+        542
+      ],
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "console_warnings": 0,
+      "save_reopen": "Disabled synthetic entrypoint saved capture true to false to true, remained disabled, reopened at revision 3. Checkbox disables without threads and hides outside Slack. Tab moves to next checkbox.",
+      "screenshots": [
+        "/private/tmp/nexus-slack-files-phone.png"
+      ],
+      "temporary_tab_closed": true,
+      "viewport_reset": true,
+      "physical_device": false
+    },
+    "static": "Affected Python lint, newly changed focused file formatting, JavaScript syntax and diff whitespace pass. Unrelated existing messaging formatting is preserved.",
+    "completion_claims": {
+      "format": "nexus-studio-completion-audit/v1",
+      "scope": "Recorded-claim consistency only; this command does not run acceptance tests or certify runtime behavior.",
+      "total": 135,
+      "accepted": 97,
+      "open": 38,
+      "open_ids": [
+        "M07-EXIT",
+        "M08-01",
+        "M08-02",
+        "M08-08",
+        "M08-EXIT",
+        "BASE-01",
+        "BASE-02",
+        "BASE-03",
+        "BASE-04",
+        "BASE-05",
+        "DEFAULT-01",
+        "DEFAULT-02",
+        "DEFAULT-03",
+        "DEFAULT-04",
+        "DEFAULT-05",
+        "ARCH-01",
+        "ARCH-02",
+        "ARCH-03",
+        "ARCH-04",
+        "ARCH-05",
+        "ARCH-06",
+        "ARCH-07",
+        "ARCH-08",
+        "ARCH-09",
+        "TEST-01",
+        "TEST-02",
+        "TEST-03",
+        "TEST-04",
+        "TEST-05",
+        "TEST-06",
+        "TEST-07",
+        "TEST-08",
+        "DELIVERY-01",
+        "DELIVERY-02",
+        "DELIVERY-03",
+        "DELIVERY-04",
+        "CAT-01-reference-slack-gateway-adapter",
+        "CAT-01-reference-slack"
+      ],
+      "milestones": {
+        "1": {
+          "accepted": 6,
+          "total": 6
+        },
+        "2": {
+          "accepted": 8,
+          "total": 8
+        },
+        "3": {
+          "accepted": 8,
+          "total": 8
+        },
+        "4": {
+          "accepted": 7,
+          "total": 7
+        },
+        "5": {
+          "accepted": 10,
+          "total": 10
+        },
+        "6": {
+          "accepted": 9,
+          "total": 9
+        },
+        "7": {
+          "accepted": 9,
+          "total": 10
+        },
+        "8": {
+          "accepted": 5,
+          "total": 9
+        }
+      },
+      "checkpoints_complete": {
+        "7": false,
+        "8": false,
+        "9": false,
+        "10": true,
+        "11": true,
+        "12": false
+      },
+      "plan_complete": false,
+      "inconsistencies": []
+    }
+  },
+  "limits": {
+    "file_count": 5,
+    "per_file_bytes": 16777216,
+    "combined_bytes": 33554432,
+    "metadata_bytes": 262144,
+    "connect_timeout_seconds": 5,
+    "idle_read_timeout_seconds": 15,
+    "download_hosts": [
+      "files.slack.com"
+    ],
+    "provider_formats": "Existing CLI/API attachment and vision limitations apply; no provider fallback."
+  },
+  "migration": {
+    "default": false,
+    "format": "nexus-slack-files/v1",
+    "receipt_states": [
+      "slack_files_pending",
+      "slack_files_fetching",
+      "slack_files_ready",
+      "slack_files_launching",
+      "slack_files_running"
+    ],
+    "records": "Additive manifest, claim nonce and native artifact references in existing channel-events; no new collection/auth/scheduler/store.",
+    "compatibility": "Earlier readers ignore these versioned pending states. Pause opted-in entrypoints before downgrade or mixed-version deployment because older readers do not understand fresh incoming file events. Retain all receipt/session/artifact metadata.",
+    "recovery": "Interrupted fetching/launching is uncertain; stale workers cannot save or overwrite recovered state. Review Activity/private files before explicitly saving a new entrypoint revision and sending a fresh message. No automatic replay.",
+    "partial_failure": "All downloads finish before saving. A storage interruption may leave private inspectable artifacts; no run starts until complete capture and expected-revision preflight."
+  },
+  "remaining": [
+    "Outbound Slack artifact transfer/downloads and richer artifact replies.",
+    "Workflow threads/files, Slack feedback/evaluations, cancellation and help/artifact interactions.",
+    "Verified Socket Mode transport and independent catalog invocation/source reviews.",
+    "Milestone 8 operations and standalone desktop delivery; desktop remains last."
+  ],
+  "live_validation_pending": [
+    "Real Slack files:read scopes, selected channel shares/permissions and actual workspace delivery.",
+    "Real provider vision execution, physical devices and personal HTTPS VM."
+  ],
+  "discovery": {
+    "orbit_endpoint": "urn:orbit:endpoint:v1:aGr0AU43bLdFfAqJhB7t5PkyIXDmBi9H:slack:files-info",
+    "fit": "Partial: metadata/auth/scopes provided; original-byte download omitted. Official file-object documentation supplies download contract.",
+    "official_sources": [
+      "https://docs.slack.dev/reference/methods/files.info/",
+      "https://docs.slack.dev/reference/objects/file-object/",
+      "https://docs.slack.dev/reference/events/message/file_share/"
+    ],
+    "owner_mock": "Existing hosted discovery unavailable while signed out. Existing local Slack simulation extended from public contracts; no external workspace binding/publication."
+  },
+  "example": "examples/nexus-bot/src/studio_slack_files.py",
+  "guide": "docs/STUDIO-SLACK.md",
+  "prior_checkpoint": "docs/STUDIO-SLACK-THREADS-CHECKPOINT.json",
+  "no_live_accounts_used": true,
+  "user_studio_restarted": false,
+  "temporary_services_stopped": {
+    "simulation_51874": true,
+    "preview_52389": true
+  },
+  "cloud_publication": false,
+  "source_sha256": {
+    "nexus/core/studio.py": "8caf725ffa36209291c81eb4375c73f9e0ab05fcf25cbac808901e60c82da480",
+    "nexus/core/studio_slack_files.py": "6915058067444f0fce0503f973af112c8f917d2dd8e953038947dcc873364d49",
+    "nexus/core/studio_slack_threads.py": "8ac277c90bccfbe9b208b9c275ce2500cdddfa2f7003a63812756307e95739dc",
+    "nexus/core/studio_messaging.py": "4a76f9a2aa49a2c44a36a11bf33b794efb7e7e31cdc2af30fc28381ca62a8f33",
+    "nexus/core/studio_catalog_setup.py": "0acc0777c63e95bc43e29cfcdd2919b73122cfc8d8fbfab2a4ce7ece8eb3287b",
+    "nexus/studio_static/operations.js": "4617405d8116e4b22bf0092fadbe8a41fe0d8c9e508cf77aec55ccce6997f320",
+    "nexus/studio_static/service-worker.js": "038d4742a8d9f22ccaea947b1a56dfff0a8a0c638c9e9039698ef185715e4d5d",
+    "tests/test_studio_slack_files.py": "8ebfa9464499c1d793c6049636b4c2edf6395e6076c91797ff55419a60a072d7",
+    "tests/studio_slack_files.test.cjs": "ce413e1db11f25eb793eed8792a0c6a401b1996c66a531b236546bef6caaf4d7",
+    "tests/studio_slack_files_acceptance.py": "0b2cbb76ba79314c2f528394509d5f3d48ce26f6760e47157b35626ccf136899",
+    "examples/nexus-bot/src/studio_slack_files.py": "eb6d7c248d4f799c001ee216dd34d141eb72dd9ccc39c99df65f701a18c5da75",
+    "postman/mocks/studio-slack/default.js": "bd10158fdf62d922fb8226e850b3fbf4f7d8ef404f3bee3a6360e469df7e9e41",
+    "postman/contracts/studio-slack.md": "2a97cc750fabb3932f1f284613d5fb1cb12356822f8412d32423dfddb35009f3",
+    "postman/simulations/studio-slack.context.md": "2a51bdce43989db9c5c337fbf3f3039808294c1a9a23cf403770487c82c6177d",
+    "docs/STUDIO-SLACK.md": "239ca1aeed08a83222d7fff35dfea2c4396ba0128806afce372711989dee278a"
+  }
+}

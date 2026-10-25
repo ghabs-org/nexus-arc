@@ -21,6 +21,7 @@ import requests
 from nexus.core.models import AgentResult
 from nexus.core.studio import StudioService
 from nexus.core.studio_nuclia_interop import POLICY, convert_template_settings
+from nexus.core.studio_nuclia_presentation import validate_filename_base
 from nexus.studio import make_studio_handler
 
 
@@ -32,6 +33,7 @@ def exercise(
     evidence=False,
     originals=False,
     retrieved=False,
+    output_filename_base=None,
 ):
     evidence = evidence or retrieved
     expected_contexts = (
@@ -72,6 +74,11 @@ def exercise(
                                     "action": "ask",
                                     "arguments": {
                                         "query": "What is the return policy?",
+                                        **(
+                                            {"output_filename_base": output_filename_base}
+                                            if output_filename_base is not None
+                                            else {}
+                                        ),
                                         **(
                                             {
                                                 "parameters": {
@@ -215,6 +222,14 @@ def exercise(
                 time.sleep(0.01)
             assert run["status"] == "completed", run
             assert run["output"] == "Thirty days [source:1]."
+            if output_filename_base is not None:
+                answer = next(
+                    file
+                    for file in run["structured_content"]
+                    if file.get("filename") == validate_filename_base(output_filename_base) + ".md"
+                )
+                assert answer["artifact_id"] and answer["revision"] == 1
+                assert studio.catalog.get("connectors", record["id"])["data"] == record["data"]
             assert len(run["citations"]) == 1 and len(run["structured_content"]) == (
                 3 if evidence else 2
             )
@@ -400,6 +415,7 @@ if __name__ == "__main__":
     parser.add_argument("--portable-template", action="store_true")
     parser.add_argument("--evidence", action="store_true")
     parser.add_argument("--originals", action="store_true")
+    parser.add_argument("--answer-name", help="Safe local basename for this generated answer only")
     parser.add_argument(
         "--retrieved",
         action="store_true",
@@ -414,5 +430,6 @@ if __name__ == "__main__":
             evidence=args.evidence,
             originals=args.originals,
             retrieved=args.retrieved,
+            output_filename_base=args.answer_name,
         )
     )

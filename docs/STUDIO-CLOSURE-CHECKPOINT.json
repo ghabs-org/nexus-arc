@@ -19,7 +19,11 @@
     "Explicit preserve_retrieval bindings and fixed native rag_strategies now preserve neighbouring-paragraph and title/summary context with bounded normalized counts, reviewed usage changes, legacy compatibility and file/SQLite restart. Real HTTP checks retain both private expanded citation files without replay. See STUDIO-NUCLIA-RETRIEVAL-CHECKPOINT.json; the whole catalog entry remains open.",
     "Nuclia answer presentation now supports inline/file output, safe custom filenames/descriptions, marker/link styles, separate citation details and all three bounded citation modes. Explicit descriptor preservation, file/SQLite restart, private revision downloads, actual HTTP and responsive editor save/reopen pass. See STUDIO-NUCLIA-PRESENTATION-CHECKPOINT.json; whole catalog acceptance stays open.",
     "Nuclia evaluation scope now supports explicit private original-retrieval capture, including uncited paragraphs marked as uncited. Both evidence versions, pinned promotion, stopped file/SQLite restore, reviewed evaluation-topic adaptation and responsive editor scope retention pass local acceptance. Ordinary tool results/citations/events exclude uncited context; judges remain explicit. See STUDIO-NUCLIA-CONTEXT-SCOPE-CHECKPOINT.json; full catalog acceptance remains open.",
-    "Filesystem catalog configuration now supports explicit runtime/script selection without inheriting ambient environment or changing persisted MCP format. Real pinned-server invocation passes both session modes, selected grants, reviewed writes and sibling/traversal/symlink rejection. See STUDIO-FILESYSTEM-CHECKPOINT.json; no milestone totals are promoted."
+    "Filesystem catalog configuration now supports explicit runtime/script selection without inheriting ambient environment or changing persisted MCP format. Real pinned-server invocation passes both session modes, selected grants, reviewed writes and sibling/traversal/symlink rejection. See STUDIO-FILESYSTEM-CHECKPOINT.json; no milestone totals are promoted.",
+    "Nuclia native acceptance now reconciles all 21 frozen configuration fields and closes missing per-invocation answer filenames. Safe local-only names preserve existing output, saved settings, private sources and evidence. All 505 affected regressions and 30 actual HTTP/agent checks pass with zero skips; native strict-profile adaptations and live validation remain separate. Frozen counts now 99 accepted / 36 open; M7 aggregate catalog audit and whole plan remain open.",
+    "Slack actual SDK acceptance fixed implicit mutation retries, selected-channel bypass through qualified message IDs and oversized message blocks. The 131 affected regressions and two HTTP/SDK checks pass with zero skips. Frozen source review corrected both Slack gateway acceptance flags to partial; thread/file/interaction/Socket Mode coverage is explicitly open. Current frozen counts are 97 accepted / 38 open; prior checkpoint counts retain their historical scope.",
+    "Opt-in Slack agent conversations now retain private per-sender thread history and reply through the real SDK to the verified parent. Ordered dispatch, file/SQL restart and restore, shared SQL controllers, uncertain-launch blocking and mobile editor save/reopen pass locally. See STUDIO-SLACK-THREADS-CHECKPOINT.json. Whole gateway acceptance remains partial; frozen totals stay 97 accepted / 38 open and desktop stays last.",
+    "Opt-in Slack hosted inbound attachments now use signed file IDs, selected-channel metadata, private bounded authenticated downloads and pinned owner-scoped Nexus artifacts. Capture happens outside the workspace lock, rechecks revisions/permissions, blocks redirects and prevents stale recovered claims from committing. File/SQLite restart/restore, local HTTP and mobile save/reopen are verified in STUDIO-SLACK-FILES-CHECKPOINT.json. Both frozen gateway aliases remain partial; acceptance totals stay 97/38."
   ],
   "validation": {
     "studio_regressions": {
@@ -317,5 +321,10 @@
     "whole_plan_complete": false
   },
   "filesystem_followup": "docs/STUDIO-FILESYSTEM-CHECKPOINT.json",
-  "nuclia_source_reconciliation": "docs/STUDIO-NUCLIA-COVERAGE.md"
+  "nuclia_source_reconciliation": "docs/STUDIO-NUCLIA-COVERAGE.md",
+  "nuclia_final_acceptance": "docs/STUDIO-NUCLIA-FINAL-CHECKPOINT.json",
+  "slack_followup": "docs/STUDIO-SLACK-CHECKPOINT.json",
+  "catalog_invocation_audit": "docs/STUDIO-CATALOG-INVOCATION-AUDIT.json",
+  "slack_thread_followup": "docs/STUDIO-SLACK-THREADS-CHECKPOINT.json",
+  "slack_file_followup": "docs/STUDIO-SLACK-FILES-CHECKPOINT.json"
 }

@@ -41,6 +41,7 @@ http.createServer((req, res) => {
   attempts++;
   if (req.headers['x-nuclia-serviceaccount'] !== 'Bearer synthetic-nuclia-key' || req.headers.authorization) return reply(401, {error:'PRIVATE_ACCOUNT_DETAIL'});
   const body=req.body;
+  if(body&&Object.hasOwn(body,'output_filename_base'))return reply(422,{error:'Native filename must not reach provider'});
   if (!body?.query || body.top_k !== 10) return reply(400, {});
   if(body.audit_metadata){
     if(typeof body.audit_metadata!=='object'||Array.isArray(body.audit_metadata)||Object.values(body.audit_metadata).some(value=>typeof value!=='string')||Buffer.byteLength(JSON.stringify(body.audit_metadata))>10240)return reply(422,{});

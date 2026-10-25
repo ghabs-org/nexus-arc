@@ -1,5 +1,24 @@
 # Nuclia opt-in generation contract
 
+## Per-invocation answer filenames
+
+Native `ask` accepts optional `arguments.output_filename_base` when the selected
+connection produces an answer file. The value is local presentation data, stripped
+before Nuclia request/template processing. It uses the existing bounded basename
+validator, normalizes an optional `.md` suffix and rejects paths, reserved device
+names, controls and invalid types before HTTP. Missing or null values retain the
+connection's filename default. A supplied name on search or a non-null name on
+inline-only output fails before HTTP; callers cannot switch output modes or other
+saved presentation settings. Declared `arguments.parameters` remain independent.
+
+The override applies to one answer artifact, with the existing body, description,
+private source revisions and plain `output`. It never changes saved connection
+data, filenames of citations/evidence, artifact IDs or an earlier file revision.
+Agent tool descriptions advertise the argument only for enabled `ask` actions
+that produce files. Existing jobs/configuration formats and routes stay unchanged.
+
+## Configured request settings
+
 Server-bound template parameters can declare `context_path` as one to eight plain
 object keys. The server supplies selected workspace/identity metadata; runtime
 arguments cannot override it. The converter accepts only plain dotted context

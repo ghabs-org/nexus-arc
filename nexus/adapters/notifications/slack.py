@@ -6,6 +6,7 @@ Requires the ``slack`` optional extra::
 """
 
 import logging
+import re
 
 from nexus.adapters.notifications.base import Message, NotificationChannel
 from nexus.core.models import Severity
@@ -19,6 +20,14 @@ except ImportError:
     _SLACK_SDK_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+def validate_timestamp(value):
+    """Validate Slack timestamp identifiers without accepting paths or numbers."""
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]{1,20}\.[0-9]{1,12}", value):
+        raise ValueError("Use a Slack message timestamp")
+    return value
+
 
 # Severity → Slack colour sidestrip
 _SEVERITY_COLOUR = {
@@ -63,7 +72,8 @@ class SlackNotificationChannel(NotificationChannel):
         webhook_url: str | None = None,
     ):
         _require_slack_sdk()
-        self._client = WebClient(token=token)
+        # A lost response may follow a completed send; never replay a mutation automatically.
+        self._client = WebClient(token=token, retry_handlers=[])
         self._default_channel = default_channel
         self._webhook_url = webhook_url
 
@@ -71,7 +81,9 @@ class SlackNotificationChannel(NotificationChannel):
     def name(self) -> str:
         return "slack"
 
-    async def send_message(self, user_id: str, message: Message) -> str:
+    async def send_message(
+        self, user_id: str, message: Message, *, thread_ts: str | None = None
+    ) -> str:
         """Post a message to a Slack user (DM) or channel.
 
         Args:
@@ -82,16 +94,22 @@ class SlackNotificationChannel(NotificationChannel):
             Slack ``ts`` (timestamp) of the posted message, usable as message_id.
         """
         blocks = self._build_blocks(message)
+        thread = (
+            {"thread_ts": validate_timestamp(thread_ts), "reply_broadcast": False}
+            if thread_ts is not None
+            else {}
+        )
         try:
             response = self._client.chat_postMessage(
                 channel=user_id,
                 text=message.text,  # fallback for notifications
                 blocks=blocks,
                 unfurl_links=False,
+                **thread,
             )
             return response["ts"]
-        except SlackApiError as exc:
-            logger.error("Slack send_message failed: %s", exc.response["error"])
+        except SlackApiError:
+            logger.error("Slack send_message failed; inspect the remote outcome before retrying")
             raise
 
     async def update_message(self, message_id: str, new_text: str) -> None:
@@ -108,8 +126,8 @@ class SlackNotificationChannel(NotificationChannel):
 
         try:
             self._client.chat_update(channel=channel, ts=ts, text=new_text)
-        except SlackApiError as exc:
-            logger.error("Slack update_message failed: %s", exc.response["error"])
+        except SlackApiError:
+            logger.error("Slack update_message failed; inspect the remote outcome before retrying")
             raise
 
     async def send_alert(self, message: str, severity: Severity) -> None:
@@ -177,8 +195,9 @@ class SlackNotificationChannel(NotificationChannel):
         blocks: list = [
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": message.text},
+                "text": {"type": "mrkdwn", "text": message.text[offset : offset + 3000]},
             }
+            for offset in range(0, max(1, len(message.text)), 3000)
         ]
         if message.buttons:
             elements = []

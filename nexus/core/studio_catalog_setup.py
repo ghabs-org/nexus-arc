@@ -137,6 +137,7 @@ def setup_metadata(row):
             requirements = [
                 "Slack bot account token reference and selected channel.",
                 "Explicitly selected actions/scopes; outgoing messages require review.",
+                "Threaded agent chats and opt-in private inbound files are configured under Slack Entrypoints. Outbound artifacts and Slack feedback remain unsupported.",
             ]
             data.update(token_env="SLACK_BOT_TOKEN", channel="YOUR_CHANNEL_ID", actions=["send"])
         elif target == "nuclia":

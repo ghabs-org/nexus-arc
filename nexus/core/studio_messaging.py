@@ -47,6 +47,26 @@ def validate_channel(data):
     ):
         raise ValueError("Choose the allowed incoming channel IDs")
     result = {"type": kind, "identity_map": mapping, "allowed_channels": channels}
+    if "threaded_conversations" in data:
+        threaded = data["threaded_conversations"]
+        if (
+            type(threaded) is not bool
+            or kind != "slack"
+            or threaded and data.get("target_kind") != "agent"
+        ):
+            raise ValueError("Threaded Slack conversations require a boolean and an agent target")
+        result["threaded_conversations"] = threaded
+    if "capture_slack_files" in data:
+        capture_files = data["capture_slack_files"]
+        if (
+            type(capture_files) is not bool
+            or kind != "slack"
+            or (capture_files and not data.get("threaded_conversations"))
+        ):
+            raise ValueError(
+                "Slack file capture requires a boolean and threaded agent conversations"
+            )
+        result["capture_slack_files"] = capture_files
     if "operator_targets" in data:
         targets = data["operator_targets"]
         if (
@@ -64,7 +84,11 @@ def validate_channel(data):
     connector = data.get("notification_connector_id", "")
     if not isinstance(connector, str) or len(connector) > 96:
         raise ValueError("Choose a saved messaging connection")
-    if (result["auto_reply"] or result["approval_notifications"]) and not connector:
+    if (
+        result["auto_reply"]
+        or result["approval_notifications"]
+        or result.get("capture_slack_files")
+    ) and not connector:
         raise ValueError("Notifications require a saved, fixed-destination connection")
     result["notification_connector_id"] = connector
     if kind == "teams":
@@ -80,6 +104,9 @@ class StudioMessaging:
         from nexus.core.studio_teams_events import TeamsEvents
 
         self.teams = TeamsEvents(studio)
+        from nexus.core.studio_slack_files import SlackFiles
+
+        self.slack_files = SlackFiles(studio)
 
     def verify(self, data, headers, raw):
         headers = {key.lower(): value for key, value in headers.items()}
@@ -167,7 +194,7 @@ class StudioMessaging:
             return {"challenge": str(body.get("challenge", ""))[:500]}
         if kind == "discord" and body.get("type") == 1:
             return {"type": 1}
-        event = self.normalize(kind, body)
+        event = self.normalize(kind, body, allow_slack_files=data.get("capture_slack_files", False))
         if event is None:
             return {"ok": True}
         sender, channel, task, callback, event_id = event
@@ -182,27 +209,40 @@ class StudioMessaging:
         elif owner != "desktop":
             raise PermissionError("Local channel users must map to desktop")
         digest = hashlib.sha256(f"{identity}:{event_id}".encode()).hexdigest()
+        thread = {}
+        if kind == "slack" and data.get("threaded_conversations") and not callback:
+            from nexus.core.studio_slack_threads import capture
+
+            thread = {"slack_thread": capture(record, body, sender, channel, actor)}
         with self.studio.lock:
             path = self.studio._path("channel-events", digest)
             if not path.exists():
-                self.studio._write(
-                    path,
-                    {
-                        "id": digest,
-                        "entrypoint_id": identity,
-                        "sender": sender,
-                        "channel": channel,
-                        "task": task,
-                        "callback": callback,
-                        "requester_nexus_id": actor,
-                        "status": "received",
-                        "created": time.time(),
-                    },
-                )
+                receipt = {
+                    "id": digest,
+                    "entrypoint_id": identity,
+                    "sender": sender,
+                    "channel": channel,
+                    "task": task,
+                    "callback": callback,
+                    "requester_nexus_id": actor,
+                    "status": "slack_received" if thread else "received",
+                    **thread,
+                    "created": time.time(),
+                }
+                if (
+                    kind == "slack"
+                    and data.get("capture_slack_files")
+                    and not callback
+                    and body["event"].get("files")
+                ):
+                    receipt["slack_files"] = self.slack_files.capture(record, body, receipt)
+                    receipt["task"] = task or "Inspect the attached files."
+                    receipt["status"] = "slack_files_pending"
+                self.studio._write(path, receipt)
         return {"type": 6 if callback else 5} if kind == "discord" else {"ok": True}
 
     @staticmethod
-    def normalize(kind, body):
+    def normalize(kind, body, allow_slack_files=False):
         if kind == "telegram":
             callback = body.get("callback_query")
             msg = callback.get("message", {}) if callback else body.get("message", {})
@@ -231,6 +271,7 @@ class StudioMessaging:
                 event.get("type") not in {"message", "app_mention"}
                 or event.get("bot_id")
                 or event.get("subtype")
+                and not (allow_slack_files and event["subtype"] == "file_share")
             ):
                 return None
             return (
@@ -314,6 +355,9 @@ class StudioMessaging:
 
     def tick(self):
         for event in self.studio.records("channel-events", limit=None):
+            if event["status"] == "slack_files_pending":
+                self.slack_files.prepare(event["id"])
+                continue
             notification = None
             with self.studio.lock:
                 event = self.studio._read(self.studio._path("channel-events", event["id"]))
@@ -322,9 +366,25 @@ class StudioMessaging:
                 if not data["enabled"]:
                     continue
                 try:
+                    threaded = event["status"].startswith("slack_")
+                    if threaded:
+                        from nexus.core.studio_slack_threads import assert_current
+
+                        assert_current(self.studio, event, record)
+                        if event["status"].startswith("slack_files_") and not event.get(
+                            "slack_files"
+                        ):
+                            raise ValueError("Slack file event has no verified attachment manifest")
+                    elif (
+                        data["type"] == "slack"
+                        and data.get("threaded_conversations")
+                        and event["status"] in {"received", "running"}
+                        and not event["callback"]
+                    ):
+                        raise ValueError("Legacy Slack event has no verified thread binding")
                     if event["status"] == "teams_pending":
                         self.teams.resolve(event, record)
-                    if event["status"] == "received":
+                    if event["status"] in {"received", "slack_received", "slack_files_ready"}:
                         if self.studio.team:
                             self.studio.team.assert_execution(event["requester_nexus_id"])
                         # Recheck configuration after receipt; a mapping change revokes pending work.
@@ -342,16 +402,35 @@ class StudioMessaging:
                                 raise ValueError(
                                     "Channel text must be nonempty, up to 16000 characters"
                                 )
+                            context = {}
+                            if threaded:
+                                from nexus.core.studio_slack_threads import (
+                                    context as thread_context,
+                                )
+
+                                context = thread_context(self.studio, event, record)
+                                if context is None:
+                                    continue
+                                if event.get("slack_files"):
+                                    context.update(self.slack_files.context(event))
                             # Claim before enqueue: an ambiguous crash is reviewed, never replayed.
-                            event["status"] = "launching"
+                            phase = (
+                                "slack_files_"
+                                if event.get("slack_files")
+                                else "slack_" if threaded else ""
+                            )
+                            event["status"] = phase + "launching"
                             self.studio._write(
                                 self.studio._path("channel-events", event["id"]), event
                             )
                             run = self.studio.operations.launch_target(
-                                data, event["task"], event["requester_nexus_id"]
+                                data, event["task"], event["requester_nexus_id"], context=context
                             )
-                            event.update(status="running", run_id=run["id"])
-                    if event["status"] == "running":
+                            event.update(
+                                status=phase + "running",
+                                run_id=run["id"],
+                            )
+                    if event["status"] in {"running", "slack_running", "slack_files_running"}:
                         run = self.studio.run(event["run_id"])
                         if run["status"] in {
                             "waiting",
@@ -393,6 +472,15 @@ class StudioMessaging:
                         self.studio._write(self.studio._path("channel-events", event["id"]), latest)
 
     def notify(self, event, data, run):
+        thread = {}
+        if event.get("slack_thread") is not None:
+            from nexus.core.studio_slack_threads import assert_current
+
+            current = self.studio.catalog.get("entrypoints", event["entrypoint_id"])
+            binding = assert_current(self.studio, event, current)
+            if current["data"] != data:
+                raise PermissionError("Slack reply configuration changed")
+            thread = {"thread_ts": binding["thread_ts"]}
         operator = event.get("openclaw_operator", False)
         waiting = run["status"] == "waiting" and (
             run.get("awaiting_approval") or operator and run.get("awaiting_input")
@@ -447,7 +535,7 @@ class StudioMessaging:
                 data["notification_connector_id"],
                 {
                     "action": "send",
-                    "arguments": {"text": text[:16000], "buttons": buttons},
+                    "arguments": {"text": text[:16000], "buttons": buttons, **thread},
                 },
                 event["requester_nexus_id"],
                 approved=True,

@@ -30,6 +30,15 @@ tests/studio_nuclia_context_acceptance.py tests/studio_nuclia_attachments_accept
 ## Observations
 
 <!-- begin:observations -->
+25 October 2026: 30 final HTTP checks passed, including three citation modes with
+normalized runtime filenames and a complete agent/tool run. The sole `nuclia`
+member served all paths; none stayed silent. Native filename fields never reached
+the provider body; unsafe names and inline/search mode conflicts failed without
+traffic or artifact writes. No live account was used. The cumulative log at
+`/private/tmp/nexus-nuclia-filename-simulation.ndjson` includes 596 request events
+from final and preceding HTTP runs, diagnostic counters and intentional failures.
+The temporary simulation stopped after verification.
+
 25 October 2026: all 26 HTTP checks passed after adding explicit full-retrieval
 capture. The sole `nuclia` member served the new consumer and all existing paths;
 none stayed silent. Uncited text stayed out of ordinary agent prompts and run

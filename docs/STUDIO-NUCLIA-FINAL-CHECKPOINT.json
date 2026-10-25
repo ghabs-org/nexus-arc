@@ -1,0 +1,203 @@
+{
+  "format": "nexus-studio-nuclia-final-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "fixture-verified",
+  "requirement_ids": [
+    "CAT-01-reference-nuclia-tool"
+  ],
+  "whole_catalog_entry_complete": true,
+  "acceptance_scope": "Supported native equivalent and reviewed nexus-strict-v1 import profile, with explicit bounds/rejected constructs; not arbitrary reference-runtime equivalence.",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "completed_review": [
+    "All 21 frozen configuration fields mapped individually to native behavior, declared adaptation and behavioral suite; no reference Python code loaded.",
+    "Source audit found missing per-invocation output_filename_base. It now selects one private answer filename, stays out of provider requests, preserves saved defaults and handles null/extension normalization. Unsafe names and incompatible output/actions fail before requests or file publication.",
+    "Agent tool descriptions expose the local argument only for available file-producing ask actions. Actual agent execution publishes the selected filename and pinned source. Both legacy and configured presentation retain their prior output bodies and defaults.",
+    "Templates, audit/retrieval strategies, answer presentation, current originals/conversation attachments, private evidence/promotion and file/SQLite compatibility remain covered by the affected regression group and real HTTP consumers."
+  ],
+  "field_coverage": {
+    "tool_name": {
+      "native_behavior": "Native connector/binding identity; bounded identifier.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "base_url": {
+      "native_behavior": "Credential-free concrete API base and canonical native origin.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "kb_id": {
+      "native_behavior": "Selected native knowledge_box, fixed request scope.",
+      "behavioral_suite": "tests/test_studio_enterprise.py"
+    },
+    "token": {
+      "native_behavior": "Server-managed token_env reference, never an inline credential.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "account_id": {
+      "native_behavior": "Validated descriptor metadata; authenticated private originals replace token minting.",
+      "behavioral_suite": "tests/test_studio_nuclia_documents.py"
+    },
+    "top_k": {
+      "native_behavior": "Fixed ask_settings with native 1\u201350 bound and caller conflict rejection.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "output_response_as_artifact": {
+      "native_behavior": "Reviewed answer_options file/inline mode, not caller-overridable.",
+      "behavioral_suite": "tests/test_studio_nuclia_presentation.py"
+    },
+    "output_filename_base": {
+      "native_behavior": "Saved default plus safe optional per-invocation local-only name.",
+      "behavioral_suite": "tests/test_studio_nuclia_filenames.py"
+    },
+    "artifact_description_query_max_length": {
+      "native_behavior": "Explicit bounded effective-query prefix in private answer metadata.",
+      "behavioral_suite": "tests/test_studio_nuclia_presentation.py"
+    },
+    "inline_citation_links": {
+      "native_behavior": "Reviewed numeric/link marker style with authenticated local revisions.",
+      "behavioral_suite": "tests/test_studio_nuclia_presentation.py"
+    },
+    "citations": {
+      "native_behavior": "Explicit default/none/identifier-mapped model-footnote modes.",
+      "behavioral_suite": "tests/test_studio_nuclia_presentation.py"
+    },
+    "include_citations_in_tool_response": {
+      "native_behavior": "Optional compact private citation details independent of navigation.",
+      "behavioral_suite": "tests/test_studio_nuclia_presentation.py"
+    },
+    "prefer_markdown": {
+      "native_behavior": "Fixed validated provider request setting.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "template_parameters": {
+      "native_behavior": "Typed native templates/defaults/nullability; server parameters hidden.",
+      "behavioral_suite": "tests/test_studio_nuclia_templates.py"
+    },
+    "user_prompt": {
+      "native_behavior": "Fixed native user prompt; conflicting override rejected.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "rephrase": {
+      "native_behavior": "Fixed explicit provider request flag.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "prompt_rephrasing": {
+      "native_behavior": "Non-recursive named scalar template conversion; unsafe grammar rejected.",
+      "behavioral_suite": "tests/test_studio_nuclia_interop.py"
+    },
+    "filter_expression_template": {
+      "native_behavior": "Typed fixed templates; no silent filter removal or caller replacement.",
+      "behavioral_suite": "tests/test_studio_nuclia_templates.py"
+    },
+    "audit_metadata": {
+      "native_behavior": "Explicit opt-in reviewed fields, context/value validation and 10 KiB bound.",
+      "behavioral_suite": "tests/test_studio_nuclia_audit.py"
+    },
+    "context_parameters": {
+      "native_behavior": "Explicit legacy alias mapping to typed native templates.",
+      "behavioral_suite": "tests/test_studio_nuclia_descriptors.py"
+    },
+    "remi_publish_topic": {
+      "native_behavior": "Reviewed private full-retrieval evidence/promotion replaces excluded broker transport; judge stays explicit.",
+      "behavioral_suite": "tests/test_studio_retrieved_evidence.py"
+    }
+  },
+  "validation": {
+    "affected_backend": {
+      "tests": 505,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 505,
+      "report": "/private/tmp/nexus-nuclia-filename-required.xml"
+    },
+    "actual_http": {
+      "tests": 30,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 30,
+      "report": "/private/tmp/nexus-nuclia-filename-http.xml"
+    },
+    "total_backend_checks": 535,
+    "skipped": 0,
+    "simulation": {
+      "log": "/private/tmp/nexus-nuclia-filename-simulation.ndjson",
+      "requests": 596,
+      "members_served": [
+        "nuclia"
+      ],
+      "members_silent": [],
+      "methods": {
+        "GET": 412,
+        "POST": 184
+      },
+      "statuses": {
+        "200": 532,
+        "429": 38,
+        "307": 18,
+        "403": 4,
+        "206": 4
+      },
+      "scope": "Cumulative successful final and preceding HTTP runs plus diagnostic counters and intentional errors; counts are not unique tests. Existing provider stand-in reused with an assertion rejecting leaked native filename fields."
+    },
+    "static": "Changed Python lint/format, mock JavaScript syntax and diff whitespace pass. studio_operations.py retains its pre-existing B904 at line 83; modified registration block is clean.",
+    "frontend": "No frontend source changed; no new browser/device acceptance claimed.",
+    "completion_claims": {
+      "accepted": 99,
+      "open": 36,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "report": "/private/tmp/nexus-nuclia-final-completion.json"
+    }
+  },
+  "source_authority": {
+    "frozen_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+    "configuration_sha256": "83621a743f310064f22e595b8e73e0c9af280bd33b00849797f54b204c3fa9b7",
+    "tool_sha256": "f52ad878d0d501c08d50b670376c4468fc2cb4e918a68e4f45d49dd868cb440f",
+    "audit": "docs/STUDIO-NUCLIA-COVERAGE.md"
+  },
+  "examples": [
+    "examples/nexus-bot/src/studio_nuclia.py --answer-name agent-policy",
+    "examples/nexus-bot/src/studio_nuclia_presentation.py --answer-name runtime-policy.MD"
+  ],
+  "declared_adaptations": [
+    "Plain server object-key paths and named scalar placeholders only; general expressions/format specs/conversions reject before import.",
+    "Top-k 1\u201350 and documented source/artifact/context byte/count bounds; oversized captures fail rather than truncate.",
+    "Identifier-bound model footnotes only; positional-only context mappings reject instead of guessing.",
+    "Missing required/filter inputs fail rather than silently dropping filters. Unsafe runtime names fail rather than silently falling back.",
+    "Private revision-pinned local citations and authenticated current-file snapshots replace ephemeral broker URLs. Remote historical originals are not claimed.",
+    "Explicit full-retrieval private evaluation capture/promotion replaces excluded event-topic transport; no automatic judge selection or evaluation execution."
+  ],
+  "additional_backlog": [
+    "Historical remote-original service and general non-file/split originals are outside the inspected frozen file-only citation promise.",
+    "Broader expression or provider-specific footnote mapping support would need separate contracts and acceptance."
+  ],
+  "live_validation_pending": [
+    "Selected real Nuclia account credentials/permissions, provider/model retrieval/answer quality and billing.",
+    "Independent source/runtime comparison and downstream judge/scoring quality.",
+    "Personal HTTPS VM and physical-device operation; other frozen operational gates and standalone desktop remain open."
+  ],
+  "migration": {
+    "forward": "One optional invocation argument and clearer tool description; persisted MCP/connector/artifact/job schemas unchanged. Existing requests keep their output format and filenames.",
+    "rollback": "Older servers reject the new argument before provider HTTP. Omit it or explicitly review/resubmit affected pending work; no automatic request replay or settings rewrite."
+  },
+  "no_live_accounts_used": true,
+  "user_studio_restarted": false,
+  "temporary_services_stopped": true,
+  "cloud_publication": false,
+  "source_sha256": {
+    "nexus/core/studio_nuclia.py": "eebd46254334f84dc798e55caffbcef7a57aad2912a900e61daa85942a25a827",
+    "nexus/core/studio_nuclia_presentation.py": "f9844500579872238dcd21863f174570ee3f56d7d902d89e71f1dc825dc738f5",
+    "nexus/core/studio_enterprise.py": "23999642b44d0d0ccbf682cfd64290bbca1f76d592c9cf1a1f7a4cdea26ffda5",
+    "nexus/core/studio_operations.py": "24c785643322a4f8aabb8c6a338c27b1daaa93b6a298c3d2b077354a355cfebd",
+    "tests/test_studio_nuclia_filenames.py": "b01a6bbec8b1881f5ecfc22d06a223a2bef450c687201c00d3fcde6d4cbb4b79",
+    "tests/studio_nuclia_acceptance.py": "22dd331dd5e3fc695711261a02beb6338d82b7e3fc70ef1ebe76cd692521351d",
+    "examples/nexus-bot/src/studio_nuclia.py": "af790bc7f2524dc7c2a07e51b985b7b8ef891203276e14f1317e8d2d04b541d0",
+    "examples/nexus-bot/src/studio_nuclia_presentation.py": "473bd61ed0103d5def12d8178d940837afcffdeefe13870b0eb2fc4e4e0d8bac",
+    "postman/contracts/studio-nuclia.md": "05e478b83896950b3064d2ee0bc552166b30f214e87a8028cdc71bf29362448f",
+    "postman/mocks/studio-nuclia/default.js": "ae3d99e643e04eef8dd0c7ec528b0043b398601bb717bbead930b59ab43c832c",
+    "docs/STUDIO-NUCLIA.md": "5d6f9234055490e5ae68bef07807a5aa88637058b7e4ecc947238ca3b5741c70",
+    "docs/STUDIO-NUCLIA-COVERAGE.md": "2a237eacde333ab4280e31ccaaabe8fb3e77c04d9a6aeda1975116fa2993a3f9",
+    "postman/simulations/studio-nuclia.context.md": "0d1bc076ad5ff5c5585cbf30a4c204f50ab05781efc8db7b8235b134ab23e987"
+  }
+}

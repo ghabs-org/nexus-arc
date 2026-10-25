@@ -17,9 +17,16 @@ import requests
 from nexus.core.studio import StudioService
 from nexus.core.studio_nuclia_descriptors import convert_tool_descriptor
 from nexus.core.studio_nuclia_interop import POLICY
+from nexus.core.studio_nuclia_presentation import validate_filename_base
 
 
-def exercise(base="http://127.0.0.1:49873/nuclia", *, mode="default", artifact=True):
+def exercise(
+    base="http://127.0.0.1:49873/nuclia",
+    *,
+    mode="default",
+    artifact=True,
+    output_filename_base=None,
+):
     url = urlparse(base)
     if url.scheme != "http" or url.hostname != "127.0.0.1" or url.username or url.password:
         raise ValueError("This consumer accepts only its local HTTP simulation")
@@ -103,7 +110,10 @@ def exercise(base="http://127.0.0.1:49873/nuclia", *, mode="default", artifact=T
                     )
                 )
 
-            result = call(query="fixture:presentation")
+            arguments = {"query": "fixture:presentation"}
+            if output_filename_base is not None:
+                arguments["output_filename_base"] = output_filename_base
+            result = call(**arguments)
             assert result["output"] == (
                 "Thirty days.[^policy]" if mode == "llm_footnotes" else "Thirty days."
             )
@@ -111,7 +121,11 @@ def exercise(base="http://127.0.0.1:49873/nuclia", *, mode="default", artifact=T
             assert len(result["artifacts"]) == int(artifact) + len(result["citations"])
             if artifact:
                 file = result["response_artifact"]
-                assert file["filename"] == "policy-notes.md"
+                assert file["filename"] == (
+                    validate_filename_base(output_filename_base) + ".md"
+                    if output_filename_base is not None
+                    else "policy-notes.md"
+                )
                 record = studio.artifacts.revision(file["id"], file["revision"])
                 body = studio.artifacts.get(record).decode()
                 assert record["description"] == "Nuclia answer for: fixture"
@@ -130,6 +144,9 @@ def exercise(base="http://127.0.0.1:49873/nuclia", *, mode="default", artifact=T
                 assert "**Sources:**" not in body
             after = attempts()
             assert after == before + 1
+            stored = studio.catalog.get("connectors", "knowledge")
+            assert stored["data"]["answer_options"]["output_filename_base"] == "policy-notes"
+            artifacts = len(studio.catalog.list("artifacts"))
             for arguments in (
                 {
                     "query": "fixture:presentation",
@@ -139,6 +156,13 @@ def exercise(base="http://127.0.0.1:49873/nuclia", *, mode="default", artifact=T
                     "query": "fixture:presentation",
                     "answer_options": {"output_response_as_artifact": not artifact},
                 },
+                {"query": "fixture:presentation", "output_filename_base": "../escape"},
+                {"query": "fixture:presentation", "output_filename_base": "NUL.txt"},
+                *(
+                    [{"query": "fixture:presentation", "output_filename_base": "no-inline-file"}]
+                    if not artifact
+                    else []
+                ),
             ):
                 try:
                     call(**arguments)
@@ -147,6 +171,7 @@ def exercise(base="http://127.0.0.1:49873/nuclia", *, mode="default", artifact=T
                 else:
                     raise AssertionError("A caller changed reviewed presentation")
             assert attempts() == after
+            assert len(studio.catalog.list("artifacts")) == artifacts
             try:
                 call(query="fixture:presentation-reject")
             except ValueError as error:
@@ -171,5 +196,16 @@ if __name__ == "__main__":
     parser.add_argument("--base", default="http://127.0.0.1:49873/nuclia")
     parser.add_argument("--mode", choices=["default", "none", "llm_footnotes"], default="default")
     parser.add_argument("--inline", action="store_true")
+    parser.add_argument("--answer-name", help="Safe local basename for this generated answer only")
     args = parser.parse_args()
-    print(json.dumps(exercise(args.base, mode=args.mode, artifact=not args.inline), indent=2))
+    print(
+        json.dumps(
+            exercise(
+                args.base,
+                mode=args.mode,
+                artifact=not args.inline,
+                output_filename_base=args.answer_name,
+            ),
+            indent=2,
+        )
+    )

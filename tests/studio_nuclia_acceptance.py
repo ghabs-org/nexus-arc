@@ -99,9 +99,16 @@ def test_reviewed_audit_templates_search_answer_and_failure_over_http():
     }
 
 
-@pytest.mark.parametrize("mode", ["default", "none", "llm_footnotes"])
-@pytest.mark.parametrize("artifact", [False, True])
-def test_reviewed_answer_presentation_over_http(mode, artifact):
+@pytest.mark.parametrize(
+    "mode,artifact,output_filename_base",
+    [
+        (mode, artifact, name)
+        for mode in ["default", "none", "llm_footnotes"]
+        for artifact in [False, True]
+        for name in ([None, "runtime-policy.MD"] if artifact else [None])
+    ],
+)
+def test_reviewed_answer_presentation_over_http(mode, artifact, output_filename_base):
     example = runpy.run_path(
         str(
             Path(__file__).resolve().parents[1]
@@ -112,6 +119,7 @@ def test_reviewed_answer_presentation_over_http(mode, artifact):
         os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia"),
         mode=mode,
         artifact=artifact,
+        output_filename_base=output_filename_base,
     )
     assert result == {
         "provider_requests": 2,
@@ -121,3 +129,15 @@ def test_reviewed_answer_presentation_over_http(mode, artifact):
         "no_action_replay": True,
         "live_verified": False,
     }
+
+
+def test_agent_selected_answer_name_over_http():
+    example = runpy.run_path(
+        str(Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_nuclia.py")
+    )
+    result = example["exercise"](
+        os.environ.get("NEXUS_ACCEPTANCE_NUCLIA_URL", "http://127.0.0.1:49873/nuclia"),
+        output_filename_base="agent-policy",
+    )
+    assert result["requests"] == 9
+    assert result["private_revision_citations"] and not result["live_verified"]

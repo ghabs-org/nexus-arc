@@ -423,6 +423,24 @@ class StudioConnections:
         arguments = payload.get("arguments", {})
         if not isinstance(arguments, dict) or len(json.dumps(arguments)) > 64000:
             raise ValueError("Action arguments must be an object up to 64 KiB")
+        if data["type"] == "slack" and action == "update_message":
+            from nexus.adapters.notifications.slack import validate_timestamp
+
+            message_id = arguments.get("message_id")
+            if not isinstance(message_id, str) or len(message_id) > 250:
+                raise ValueError("Use a Slack message timestamp in the configured channel")
+            if ":" in message_id:
+                channel, message_id = message_id.split(":", 1)
+                if channel != data["channel"]:
+                    raise PermissionError("Slack updates must stay in the configured channel")
+            validate_timestamp(message_id)
+            arguments = {**arguments, "message_id": message_id}
+        if data["type"] == "slack" and "thread_ts" in arguments:
+            from nexus.adapters.notifications.slack import validate_timestamp
+
+            if action != "send":
+                raise ValueError("Slack thread timestamps apply to sends only")
+            validate_timestamp(arguments["thread_ts"])
         adapter = None
         try:
             from nexus.core.studio_enterprise import KINDS
@@ -574,7 +592,13 @@ class StudioConnections:
                 else:
                     result = (
                         await adapter.send_message(
-                            data["channel"], Message(text=text, buttons=buttons)
+                            data["channel"],
+                            Message(text=text, buttons=buttons),
+                            **(
+                                {"thread_ts": arguments["thread_ts"]}
+                                if data["type"] == "slack" and "thread_ts" in arguments
+                                else {}
+                            ),
                         )
                         if action == "send"
                         else await adapter.update_message(str(arguments["message_id"]), text)

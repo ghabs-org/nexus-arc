@@ -716,6 +716,11 @@ class StudioEnterprise:
         if data["type"] == "nuclia":
             headers = {"X-NUCLIA-SERVICEACCOUNT": headers["Authorization"]}
             from nexus.core.studio_nuclia import request_body
+            from nexus.core.studio_nuclia_presentation import prepare_answer_filename
+
+            arguments, output_filename_base = prepare_answer_filename(
+                action, arguments, data.get("answer_options")
+            )
 
             url = (
                 data["url"]
@@ -842,6 +847,7 @@ class StudioEnterprise:
                 data,
                 connector_id,
                 question=body["query"],
+                output_filename_base=output_filename_base,
             )
         if data["type"] == "powerbi":
             return validate_powerbi_response(result, data["dataset_id"], action)

@@ -1,0 +1,126 @@
+{
+  "format": "nexus-studio-slack-checkpoint/v1",
+  "date": "2026-10-25",
+  "status": "partial-local-acceptance",
+  "scope": "Real SDK acceptance and fixes for outgoing selected-channel text sends/updates; frozen gateway equivalence remains partial.",
+  "requirement_ids": [
+    "CAT-01-reference-slack",
+    "CAT-01-reference-slack-gateway-adapter",
+    "M07-EXIT"
+  ],
+  "whole_catalog_entries_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implemented": [
+    "Slack SDK automatic retries disabled at the reusable notification adapter; no implicit replay after a lost mutation response.",
+    "Studio update timestamps validated and qualified IDs restricted to the configured channel before adapter/account resolution, including approved workflow actions. Standalone adapter explicit cross-channel behavior remains compatible.",
+    "Long message text preserved across Markdown sections within the 3000-character bound; buttons and text fallback retained.",
+    "Send/update logs and Studio errors exclude raw provider error values.",
+    "Catalog setup discloses that text/update support does not provide threaded chats, files or Slack feedback."
+  ],
+  "validation": {
+    "affected_backend": {
+      "tests": 131,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 131,
+      "report": "/private/tmp/nexus-slack-required.xml"
+    },
+    "real_sdk_acceptance": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 2,
+      "report": "/private/tmp/nexus-slack-http.xml"
+    },
+    "sdk": "slack-sdk==3.45.0",
+    "simulation": {
+      "log": "/private/tmp/nexus-slack-simulation.ndjson",
+      "requests": 54,
+      "methods": {
+        "GET": 34,
+        "POST": 20
+      },
+      "statuses": {
+        "200": 46,
+        "429": 4,
+        "500": 4
+      },
+      "members_served": [
+        "slack"
+      ],
+      "members_silent": [],
+      "scope": "Two consumer runs plus diagnostic counters; synthetic ten-request send/update scenario per consumer. Direct lost-response peer is separate."
+    },
+    "lost_response": "A real local HTTP peer records one effect, closes the SDK socket without a response, and receives one request. No automatic replay or effect reversal is claimed.",
+    "static": "Affected Python lint/format, mock JavaScript syntax and diff whitespace pass.",
+    "frontend": "No frontend source changed; no new real-browser or physical-device claim.",
+    "completion_claims": {
+      "accepted": 97,
+      "open": 38,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "report": "/private/tmp/nexus-slack-completion.json"
+    }
+  },
+  "source_review": {
+    "frozen_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+    "aliases": [
+      "reference-slack",
+      "reference-slack-gateway-adapter"
+    ],
+    "source_sha256": {
+      "legacy-readme": "d93f289f3e2b1d86b036ae1e551a8be567b6c0fc941f90fda72201bbc2b9744c",
+      "legacy-component": "f4b9e7bc6715ea460ff08433df06bb477ee99a61d1f501563f8eacd5c41a97c1",
+      "legacy-handlers": "53c8ffd4865a216fda26cb0471e7c2527353c2ee774acfff2285ed450764b2db",
+      "gateway-readme": "f5476f2440b5fd078dfb703792aee1485792a80463bbb4da37a419a330e1cb14",
+      "gateway-adapter": "93b8e1055267f0f45bb93cb13ab579af1ffa2315f1ca416531b61c11924eee0f"
+    },
+    "integrity": "Downloaded source bytes match git blob identities in the pinned repository tree. Files remain outside the checkout; no reference code executed or copied.",
+    "observed": "Both aliases define gateways with Slack threads, files and interactions. The native notification adapter and URL challenge/signature fixtures are foundations and do not establish complete gateway equivalence.",
+    "disposition": "Withdraw both earlier generic acceptance flags; keep outgoing native evidence separate. Implement one shared gateway for both source aliases."
+  },
+  "remaining": [
+    "Thread/session continuity and replies in the originating thread.",
+    "Inbound private file/image capture and outbound artifact transfer/downloads.",
+    "Rich structured updates, artifact-aware formatting and feedback controls.",
+    "Task cancellation and artifact/help command interactions.",
+    "Verified Socket Mode transport alongside existing signed HTTPS events."
+  ],
+  "live_validation_pending": [
+    "Real Slack bot scopes, workspace delivery/edit permissions and account rate limits.",
+    "Socket Mode runtime, file/identity/feedback behavior, physical devices and personal HTTPS VM.",
+    "Other per-entry source/invocation review, milestone 8 and standalone desktop delivery remain open."
+  ],
+  "discovery": {
+    "orbit": "Search succeeded but returned unrelated providers; no irrelevant API was selected. Official Slack method/section documentation and installed SDK source supplied the contract.",
+    "owner_mock": "Published mock discovery unavailable: Postman not signed in. Local stand-in derives from official method contracts.",
+    "public_api_contract": "postman/contracts/studio-slack.md"
+  },
+  "example": "examples/nexus-bot/src/studio_slack.py",
+  "guide": "docs/STUDIO-SLACK.md",
+  "migration": "No schema, credential or resource rewrite. Legitimate selected-channel timestamp updates remain valid. Previously accepted foreign-channel overrides now fail. SDK errors may surface earlier without automatic retry; inspect remote outcomes before manual resubmission. Standalone explicit cross-channel adapter updates remain available.",
+  "no_live_accounts_used": true,
+  "user_studio_restarted": false,
+  "temporary_services_stopped": true,
+  "cloud_publication": false,
+  "source_sha256": {
+    "nexus/adapters/notifications/slack.py": "3f44c9ff3f7750a0678e28bdb5500246cbf9daa7321d316b4601929e22e33ebc",
+    "nexus/core/studio_connections.py": "cb356f11c34e9afd319351ae600da9a9573e0f71e45c60e7a2736aad75c69443",
+    "nexus/core/studio_catalog_setup.py": "9cae54008752168efcfcf1ac9baa06e826edeb586e0a529d36d7a104ae8290e7",
+    "tests/test_studio_slack.py": "ff5be2cff7521b8a51da2b84841be3bcb2f592ec2e68f1c97713cdad732734c6",
+    "tests/studio_slack_acceptance.py": "df317dc2c009642a02da45ae638be93139c1bade6093237b18df4dcd1ad5b39a",
+    "examples/nexus-bot/src/studio_slack.py": "17d8fa360b501b87ba1a0046f9af51a0fa2de2eb79ba8953936a46b75f71cb0a",
+    "postman/contracts/studio-slack.md": "c2bb5fc7f9b620feadfed8a02a9dcb628caeaeb95a503cf1331d3ddfdb579cf9",
+    "postman/mocks/studio-slack/config.yaml": "250acb16ba0b9457e20de280d028529b54e840a4009b7d9ebe9329bd7ebe33a5",
+    "postman/mocks/studio-slack/default.js": "efa2045b48d3157b2dff6398a0b200ca53fc55aed5073d4d2a390da37e768482",
+    "postman/simulations/studio-slack.sim.yaml": "489c057fc2b378d029ded388c3eb42fd6722a7b3cd9330d1d5246ea70fb86e3c",
+    "postman/simulations/studio-slack.context.md": "743fda11578dc98c69c41aa4d5773f55623adcda2457e61d4aac8a00f2aa3b6d",
+    "docs/STUDIO-SLACK.md": "b5d8b6c14005131acdd7eb0deb17d38142e3dd21979d2d3de65553e9cb283f90"
+  },
+  "thread_followup": "docs/STUDIO-SLACK-THREADS-CHECKPOINT.json",
+  "historical_scope": "Validation and hashes above describe the outgoing-only checkpoint. The linked follow-up implements scoped agent threads; whole gateway acceptance stays partial.",
+  "file_followup": "docs/STUDIO-SLACK-FILES-CHECKPOINT.json"
+}

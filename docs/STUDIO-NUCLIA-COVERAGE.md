@@ -1,9 +1,11 @@
 # Nuclia source reconciliation
 
-This is a source-based scope audit, not a new provider or reference-runtime test.
-It reconciles accumulated native evidence with frozen commit
-`7599710a38318a336c47cf605e4774d4add24d8e`. It does not promote whole-entry,
-milestone or plan completion.
+This source audit reconciles native behavior with frozen commit
+`7599710a38318a336c47cf605e4774d4add24d8e`. The supported native equivalent now
+has scoped local acceptance, including the previously missing per-invocation
+answer filename. The [final checkpoint](STUDIO-NUCLIA-FINAL-CHECKPOINT.json)
+records current regression/HTTP runs and all 21 configuration fields. This is
+not independent reference-runtime, live-provider, milestone or plan completion.
 
 Inspected source bytes:
 
@@ -27,6 +29,7 @@ code uses native implementations and loads no reference Python packages.
 | Neighbouring paragraphs and title/summary hierarchy | Explicit reviewed retrieval preservation, normalized counts and expanded citation snapshots; `test_studio_nuclia_retrieval.py` |
 | Provider status and no-context responses | Plain output compatibility, explicit no-context result and failure before partial publication; `test_studio_nuclia.py` |
 | Inline/file answers, filename, description and citation flags | Explicit answer options, safe local filenames, plain output retained and private artifact revisions; `test_studio_nuclia_presentation.py` |
+| Optional per-invocation answer filename | Local-only `arguments.output_filename_base`, saved-default preservation and agent discovery; `test_studio_nuclia_filenames.py`, `studio_nuclia_acceptance.py` |
 | Default, no-citation and model-footnote modes | Explicit modes with identifier-bound footnotes and revision-pinned local links; `test_studio_nuclia_presentation.py` |
 | Original and augmented citation positions/pages | Exact private paragraph/field snapshots with provenance; `test_studio_nuclia.py`, `studio_nuclia_context_acceptance.py` |
 | File originals through a token broker | Explicit authenticated canonical file download to a private immutable artifact; `test_studio_nuclia_documents.py`, `studio_nuclia_acceptance.py` |
@@ -50,9 +53,10 @@ by remote URL and page. Supported original files use authenticated local snapsho
 rather than distributing ephemeral provider tokens. These are deliberate native
 policies, not claims of byte-for-byte runtime equivalence.
 
-Broader expression compatibility and independent source/native runtime comparison
-remain open. The catalog entry remains partially accepted until the supported
-native profile and explicit rejected constructs have their final acceptance review.
+Broader expression compatibility is explicitly unsupported. Independent
+source/native runtime comparison remains unverified. The catalog entry's local
+acceptance covers the supported native profile and explicit rejected constructs;
+it does not claim arbitrary Python/formatting compatibility or every provider mode.
 Live permissions, answer/retrieval quality, billing, downstream judge quality and
 personal-VM/device operation remain separately unverified.
 

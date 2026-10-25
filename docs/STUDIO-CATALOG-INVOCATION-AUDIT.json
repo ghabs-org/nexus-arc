@@ -1,0 +1,482 @@
+{
+  "format": "nexus-studio-catalog-invocation-audit/v1",
+  "date": "2026-10-25",
+  "scope": "Independent per-entry evidence reconciliation. Candidate tests and previous acceptance flags are not fresh invocation or source proof.",
+  "baseline_entries": 31,
+  "counts": {
+    "entry-review-pending": 23,
+    "explicit-exclusion": 4,
+    "supported-native-reviewed": 1,
+    "source-reviewed-partial-gateway": 2,
+    "invocation-verified-source-review-pending": 1
+  },
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "entries": [
+    {
+      "requirement_id": "CAT-01-reference-bedrock-agent",
+      "catalog_id": "reference-bedrock-agent",
+      "source": "reference-archive:sha256:a3d25814cd81ce0698c75b32238eedda974084ebe3b8305759208cd6b982a2ab/7599710a38318a336c47cf605e4774d4add24d8e/reference-bedrock-agent",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_enterprise.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-event-mesh-agent",
+      "catalog_id": "reference-event-mesh-agent",
+      "source": "reference-archive:sha256:ab968ab6895168b6f11e4095b01afe97e660f0757002c7b00d6585f908b10809/7599710a38318a336c47cf605e4774d4add24d8e/reference-event-mesh-agent",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "explicit-exclusion",
+      "candidate_tests": [],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-event-mesh-gateway",
+      "catalog_id": "reference-event-mesh-gateway",
+      "source": "reference-archive:sha256:23513f2b89a6b53bc5b282b5cc20608b90fc02acb4cbe217b6bba6a929ae55a8/7599710a38318a336c47cf605e4774d4add24d8e/reference-event-mesh-gateway",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "explicit-exclusion",
+      "candidate_tests": [],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-event-mesh-identity-provider",
+      "catalog_id": "reference-event-mesh-identity-provider",
+      "source": "reference-archive:sha256:230723af3647da1656828da1017820eea405021d03b172b3165b9d99b8ed700f/7599710a38318a336c47cf605e4774d4add24d8e/reference-event-mesh-identity-provider",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "explicit-exclusion",
+      "candidate_tests": [],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-event-mesh-tool",
+      "catalog_id": "reference-event-mesh-tool",
+      "source": "reference-archive:sha256:af2f04ed9f67ffc943a647ee37d645cb2dda273ab1718e64bbe5928ca99f025f/7599710a38318a336c47cf605e4774d4add24d8e/reference-event-mesh-tool",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "explicit-exclusion",
+      "candidate_tests": [],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-geo-information",
+      "catalog_id": "reference-geo-information",
+      "source": "reference-archive:sha256:8ca5f5942dc7e641d8256feadcd4a68745eb06c2d7be4b14d7552a228c53e59d/7599710a38318a336c47cf605e4774d4add24d8e/reference-geo-information",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_geography_rulesets.py",
+        "tests/studio_geography_http_acceptance.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-mcp-server-gateway-adapter",
+      "catalog_id": "reference-mcp-server-gateway-adapter",
+      "source": "reference-archive:sha256:404d798f1c585f6147fd7bf4d41704f709d7689b3e43bdcbc7c986dec83348fb/7599710a38318a336c47cf605e4774d4add24d8e/reference-mcp-server-gateway-adapter",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_mcp_gateway.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-mermaid",
+      "catalog_id": "reference-mermaid",
+      "source": "reference-archive:sha256:fbcffcc6b26fecd08b407a8a8405712b8a379a5e123348b182bd535bc04b0644/7599710a38318a336c47cf605e4774d4add24d8e/reference-mermaid",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_artifacts.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-mongodb",
+      "catalog_id": "reference-mongodb",
+      "source": "reference-archive:sha256:27ca5c7b192956a524832e30bfce8789d2c0d5758c0150a842923684fd2061b5/7599710a38318a336c47cf605e4774d4add24d8e/reference-mongodb",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_enterprise.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-nuclia-tool",
+      "catalog_id": "reference-nuclia-tool",
+      "source": "reference-archive:sha256:7508639cb39e7622069ea74fcabb5c458e5cb5436b2313d0f020666fdcb0cf71/7599710a38318a336c47cf605e4774d4add24d8e/reference-nuclia-tool",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "supported-native-reviewed",
+      "candidate_tests": [
+        "tests/test_studio_nuclia.py",
+        "tests/studio_nuclia_acceptance.py",
+        "tests/test_studio_enterprise.py",
+        "tests/test_studio_nuclia_templates.py",
+        "tests/studio_nuclia_templates.test.cjs",
+        "tests/test_studio_nuclia_interop.py",
+        "tests/test_studio_retrieval_evidence.py",
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/test_studio_nuclia_documents.py",
+        "tests/studio_original_document.test.cjs",
+        "tests/test_studio_nuclia_filenames.py",
+        "tests/test_studio_nuclia_descriptors.py",
+        "tests/test_studio_nuclia_presentation.py",
+        "tests/test_studio_nuclia_retrieval.py",
+        "tests/test_studio_nuclia_audit.py",
+        "tests/test_studio_nuclia_attachments.py",
+        "tests/test_studio_retrieved_evidence.py",
+        "tests/studio_nuclia_context_acceptance.py",
+        "tests/studio_nuclia_attachments_acceptance.py"
+      ],
+      "checked_evidence": [
+        "docs/STUDIO-NUCLIA-FINAL-CHECKPOINT.json"
+      ],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-powerbi",
+      "catalog_id": "reference-powerbi",
+      "source": "reference-archive:sha256:35b840eff396234b978faec76eebd62f83798f667c8aba44d1a6c97ad3709536/7599710a38318a336c47cf605e4774d4add24d8e/reference-powerbi",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_powerbi.py",
+        "tests/studio_powerbi_acceptance.py",
+        "tests/test_studio_enterprise.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-rag",
+      "catalog_id": "reference-rag",
+      "source": "reference-archive:sha256:da090f0c9f5b4e5fb99c14a2efa2daf05e75ff0307b25ae262d767acb006b22b/7599710a38318a336c47cf605e4774d4add24d8e/reference-rag",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_parity_features.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-rest-gateway",
+      "catalog_id": "reference-rest-gateway",
+      "source": "reference-archive:sha256:96cc07bd269c7066bf54efe95cb09587d3ee9fa2d83195a16bffd6bdca517597/7599710a38318a336c47cf605e4774d4add24d8e/reference-rest-gateway",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_resources.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-ruleset-lookup-tool",
+      "catalog_id": "reference-ruleset-lookup-tool",
+      "source": "reference-archive:sha256:ae8b2f76607b0943688d152cc429926296dd250d53b494decff714f65ba5da13/7599710a38318a336c47cf605e4774d4add24d8e/reference-ruleset-lookup-tool",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_geography_rulesets.py",
+        "tests/studio_geography_http_acceptance.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-slack-gateway-adapter",
+      "catalog_id": "reference-slack-gateway-adapter",
+      "source": "reference-archive:sha256:e362ca37dda1436ad6d3b0c0048e3608bc03eb6a803fe7bac7d30c2ef2b2c11b/7599710a38318a336c47cf605e4774d4add24d8e/reference-slack-gateway-adapter",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "source-reviewed-partial-gateway",
+      "candidate_tests": [
+        "tests/test_studio_messaging.py",
+        "tests/test_studio_slack.py",
+        "tests/studio_slack_acceptance.py",
+        "tests/test_studio_slack_threads.py",
+        "tests/studio_slack_threads.test.cjs",
+        "tests/test_studio_slack_files.py",
+        "tests/studio_slack_files_acceptance.py"
+      ],
+      "checked_evidence": [
+        "docs/STUDIO-SLACK-CHECKPOINT.json",
+        "docs/STUDIO-SLACK-THREADS-CHECKPOINT.json",
+        "docs/STUDIO-SLACK-FILES-CHECKPOINT.json"
+      ],
+      "acceptance_flag": false,
+      "known_gaps": [
+        "Workflow-thread semantics beyond the verified opt-in agent conversation path.",
+        "Outbound artifact transfer/downloads and broader workflow file semantics.",
+        "Rich structured updates, artifact-aware formatting and feedback controls.",
+        "Task cancellation and artifact/help command interactions.",
+        "Verified Socket Mode transport alongside existing signed HTTPS events."
+      ]
+    },
+    {
+      "requirement_id": "CAT-01-reference-slack",
+      "catalog_id": "reference-slack",
+      "source": "reference-archive:sha256:dfa9f78057a43851f2ac0ba3805b743446ac890f31d30ab5d8b29dd7edd0f8cc/7599710a38318a336c47cf605e4774d4add24d8e/reference-slack",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "source-reviewed-partial-gateway",
+      "candidate_tests": [
+        "tests/test_studio_connections.py",
+        "tests/test_studio_slack.py",
+        "tests/studio_slack_acceptance.py",
+        "tests/test_studio_slack_threads.py",
+        "tests/studio_slack_threads.test.cjs",
+        "tests/test_studio_slack_files.py",
+        "tests/studio_slack_files_acceptance.py"
+      ],
+      "checked_evidence": [
+        "docs/STUDIO-SLACK-CHECKPOINT.json",
+        "docs/STUDIO-SLACK-THREADS-CHECKPOINT.json",
+        "docs/STUDIO-SLACK-FILES-CHECKPOINT.json"
+      ],
+      "acceptance_flag": false,
+      "known_gaps": [
+        "Workflow-thread semantics beyond the verified opt-in agent conversation path.",
+        "Outbound artifact transfer/downloads and broader workflow file semantics.",
+        "Rich structured updates, artifact-aware formatting and feedback controls.",
+        "Task cancellation and artifact/help command interactions.",
+        "Verified Socket Mode transport alongside existing signed HTTPS events."
+      ]
+    },
+    {
+      "requirement_id": "CAT-01-reference-sql-database-tool",
+      "catalog_id": "reference-sql-database-tool",
+      "source": "reference-archive:sha256:3246d21b48f0af1309021b23b547fcafe9418c23d4bd22c459387e3e625ffdbc/7599710a38318a336c47cf605e4774d4add24d8e/reference-sql-database-tool",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_remote_connectors.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-sql-database",
+      "catalog_id": "reference-sql-database",
+      "source": "reference-archive:sha256:ffe41eeb96ebadf994403291b8a19e7a865afa70d409503aa3b3007c4fefdbc9/7599710a38318a336c47cf605e4774d4add24d8e/reference-sql-database",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_remote_connectors.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-01-reference-webhook-gateway",
+      "catalog_id": "reference-webhook-gateway",
+      "source": "reference-archive:sha256:e42d58fa6a4781429d15547eba92596cefde9a449f3d555a44f49ec2262ffb7e/7599710a38318a336c47cf605e4774d4add24d8e/reference-webhook-gateway",
+      "source_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_resources.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-artifact-host-agent",
+      "catalog_id": "artifact-host-agent",
+      "source": "reference-archive:sha256:dd17f8cbe4813c58aa7dfe7d3931e5ad7741fe097d33ddb2ff07de9a7b6e77de/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/artifact-host-agent",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_parity_features.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-bright-data",
+      "catalog_id": "bright-data",
+      "source": "reference-archive:sha256:df9432fc7aa8a6f7cccf8fbd28d2cedf4a709d34770afc2f76e98adf65835439/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/bright-data",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_research.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-cli-entrypoint",
+      "catalog_id": "cli-entrypoint",
+      "source": "reference-archive:sha256:1b90e15fbca431197aa841e01988d1b25dbccbb6fda0f0b82853078580d2a034/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/cli-entrypoint",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_cli.py",
+        "tests/test_studio_terminal_chat.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-filesystem",
+      "catalog_id": "filesystem",
+      "source": "reference-archive:sha256:998ced74ae919691a3fb4e30afe3546d3a103639ef4a453626aaa51d2ec84bed/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/filesystem",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "invocation-verified-source-review-pending",
+      "candidate_tests": [
+        "tests/studio_filesystem_acceptance.py",
+        "tests/test_studio_catalog_setup.py",
+        "tests/test_studio_connections.py"
+      ],
+      "checked_evidence": [
+        "docs/STUDIO-FILESYSTEM-CHECKPOINT.json"
+      ],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-finance",
+      "catalog_id": "finance",
+      "source": "reference-archive:sha256:ee1fd6dce889e7a11d2029fb046188bda76835459ae2df0f4293445ffa921503/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/finance",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_finance.py",
+        "tests/test_studio_research.py",
+        "tests/studio_finance_sdk_acceptance.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-find-my-ip",
+      "catalog_id": "find-my-ip",
+      "source": "reference-archive:sha256:51f59b509f2402f8bea58199f76890cf31c39158f25a35519de605d0c39c386a/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/find-my-ip",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_research.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-imagemagick",
+      "catalog_id": "imagemagick",
+      "source": "reference-archive:sha256:944e63055d746be0d7f0e7768bbbc44e0539de0fa9215e342ea40a832b3ab118/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/imagemagick",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/studio_data_worker_acceptance.py",
+        "tests/test_studio_sandbox.py",
+        "tests/test_studio_data_publication.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-object-detection",
+      "catalog_id": "object-detection",
+      "source": "reference-archive:sha256:5fbeead37f6586cb2f9a60152dfe39b2d6709a8f4a6c6d28746833b3143a9afe/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/object-detection",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/studio_vision_worker_acceptance.py",
+        "tests/test_studio_sandbox.py",
+        "tests/test_studio_data_publication.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-send-grid",
+      "catalog_id": "send-grid",
+      "source": "reference-archive:sha256:688e34365e2b8912ef8595377fd35dbd3418a177dec83d291ba3a0aa258a7447/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/send-grid",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_sendgrid.py",
+        "tests/studio_sendgrid_acceptance.py",
+        "tests/test_studio_research.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-tavily",
+      "catalog_id": "tavily",
+      "source": "reference-archive:sha256:dd4acb1814098997a78b98b327150b652626700eea9cd804d5a7b7be14248c0c/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/tavily",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_research.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-web-agent",
+      "catalog_id": "web-agent",
+      "source": "reference-archive:sha256:daf3e80e8de9c1094bd512d485a2ac4662757eb736f61f1b1f3981686c919017/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/web-agent",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_research.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    },
+    {
+      "requirement_id": "CAT-02-zapier",
+      "catalog_id": "zapier",
+      "source": "reference-archive:sha256:2d72401bd88da0e5fa8f626aa28bb9c696222fc524a58a6c47e11831002a2a85/f3a733c1470fc79d7dbc7fc21ddeab077f4645f4/zapier",
+      "source_commit": "f3a733c1470fc79d7dbc7fc21ddeab077f4645f4",
+      "review_state": "entry-review-pending",
+      "candidate_tests": [
+        "tests/test_studio_research.py"
+      ],
+      "checked_evidence": [],
+      "acceptance_flag": true,
+      "known_gaps": []
+    }
+  ],
+  "next": "Implement one shared native Slack gateway for the two partial aliases, while reconciling defining-operation/example/failure/source evidence for the 23 remaining review entries. Filesystem source review remains distinct from its actual SDK invocation proof."
+}

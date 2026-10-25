@@ -1,5 +1,11 @@
 # Nuclia answers with private citation snapshots
 
+The supported native profile has scoped local acceptance. See the
+[final Nuclia checkpoint](STUDIO-NUCLIA-FINAL-CHECKPOINT.json) and
+[source reconciliation](STUDIO-NUCLIA-COVERAGE.md) for declared adaptations,
+current behavioral evidence and separate live/provider/VM checks. This does not
+complete the whole integration catalog or milestone 8.
+
 Nuclia connections retain their existing `query` search action. The new `ask`
 action explicitly enables provider-side answer generation through the same
 Nexus connector, permissions and scoped credential reference. No new login,
@@ -472,6 +478,21 @@ private description. The optional `citations` result lists source artifact IDs,
 exact revisions, provider pages and authenticated local URLs. Native structured
 `sources` remain available independently of this compact-field flag.
 
+An agent or explicit connector call can set `arguments.output_filename_base` for
+one answer, for example `{"query":"What is the return policy?",
+"output_filename_base":"meeting-notes"}`. Studio saves `meeting-notes.md` locally.
+Omit the argument or use null to retain the saved default. This works with legacy
+answer files and configured presentation; it does not change the output mode,
+saved settings, cited sources or evaluation evidence. Inline-only output rejects
+a non-null name. Search rejects the field. The argument is never sent to Nuclia.
+
+The existing filename rules apply: a bounded basename with optional `.md` suffix,
+no paths, controls, traversal or reserved device names. Unsafe names fail before
+HTTP rather than silently choosing another name. Tool descriptions advertise the
+argument only when the connection enables `ask` with file output. The end-to-end
+example accepts `--answer-name meeting-notes`; the presentation consumer supports
+the same flag. No new frontend, state or credential format is required.
+
 The three fixed citation modes are **Source markers** (`default`), **No citations**
 (`none`) and **Model footnotes** (`llm_footnotes`). None mode does not turn uncited
 retrieval into evidence. Footnote mode validates the documented provider mapping
@@ -714,8 +735,9 @@ No schema/credential migration is required. New citations optionally retain a
 configuration digest, file-field identity and source selector. Older citations
 remain readable. The version-1 `source-originals` receipts use existing state,
 artifact, backup and authorization services. Public shell cache version is 40.
-The final bounded-profile review, broader expression compatibility and independent
-runtime comparison remain open. The [source reconciliation](STUDIO-NUCLIA-COVERAGE.md)
+The bounded native profile's local review is complete. Broader expression
+compatibility remains explicitly unsupported, and independent runtime comparison
+remains unverified. The [source reconciliation](STUDIO-NUCLIA-COVERAGE.md)
 separates intentional private-access adaptations from additional capabilities:
 general non-file/split originals and historical remote originals are not promises
 of the inspected frozen file-only citation implementation. Live Nuclia/VM

@@ -434,6 +434,16 @@ class StudioOperations:
                     + json.dumps(schema, ensure_ascii=False)
                     + ". Configured defaults apply server-side; runtime filters cannot replace a stored filter."
                 )
+            if (
+                item["data"]["type"] == "nuclia"
+                and "ask" in item["data"]["actions"]
+                and item["data"].get("answer_options", {}).get("output_response_as_artifact", True)
+            ):
+                description += (
+                    "\nFor ask, arguments.output_filename_base optionally selects a safe basename "
+                    "for this private Markdown answer file only. Omit or use null for the saved "
+                    "default. Do not pass a path or change output mode."
+                )
             tool_registry.register(name, call, description=description, category="connector")
             self.tools[name] = call
 

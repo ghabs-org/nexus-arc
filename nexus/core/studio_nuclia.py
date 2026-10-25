@@ -14,6 +14,7 @@ from nexus.core.studio_nuclia_presentation import (
     presented_answer,
     validate_answer_options,
     validate_citation_mode,
+    validate_filename_base,
 )
 from nexus.core.studio_nuclia_retrieval import validate_rag_strategies
 
@@ -243,7 +244,9 @@ def answer_sources(value, *, citation_mode="default", capture_retrieval=False):
     }
 
 
-def publish_answer(studio, result, identity, data, connector_id=None, *, question=None):
+def publish_answer(
+    studio, result, identity, data, connector_id=None, *, question=None, output_filename_base=None
+):
     """Publish through existing artifacts while holding the final execution fence."""
     actor = None
     if studio.team:
@@ -255,6 +258,10 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
     options = validate_answer_options(data["answer_options"]) if "answer_options" in data else None
     segments = prepare_segments(result) if options is not None else None
     answer_file = options is None or options["output_response_as_artifact"]
+    if output_filename_base is not None:
+        output_filename_base = validate_filename_base(output_filename_base)
+        if not answer_file:
+            raise ValueError("An answer filename requires file output")
     evidence = None
     if data.get("capture_evaluation"):
         from nexus.core.studio_retrieval_evidence import (
@@ -310,7 +317,7 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
         if options is None:
             files.append(
                 {
-                    "filename": "nuclia-answer.md",
+                    "filename": (output_filename_base or "nuclia-answer") + ".md",
                     "content_base64": base64.b64encode(
                         (
                             f"Nuclia answer status: {result['status']}\n\n" + result["output"]
@@ -381,7 +388,10 @@ def publish_answer(studio, result, identity, data, connector_id=None, *, questio
                         "stdout": result["output"],
                         "files": [
                             {
-                                "filename": options["output_filename_base"] + ".md",
+                                "filename": (
+                                    output_filename_base or options["output_filename_base"]
+                                )
+                                + ".md",
                                 "description": "Nuclia answer for: " + prefix,
                                 "content_base64": base64.b64encode(body.encode()).decode(),
                             }
