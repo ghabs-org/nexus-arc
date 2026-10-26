@@ -1,0 +1,130 @@
+{
+  "format": "nexus-studio-container-cleanup-ui-checkpoint/v1",
+  "date": "2026-10-26",
+  "scope": "Owner cleanup action in existing Workspace tools / Deployment checks, preserving current runtime recovery and authorization.",
+  "status": "local-source-ui-http-docker-verified",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_workbench.py",
+    "nexus/core/studio_team.py",
+    "nexus/core/studio_readiness.py",
+    "nexus/studio_static/workbench.js",
+    "nexus/studio_static/index.html",
+    "nexus/studio_static/studio.css",
+    "nexus/studio_static/service-worker.js",
+    "tests/test_studio_cleanup_action.py",
+    "tests/studio_cleanup_action.test.cjs",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py",
+    "postman/contracts/studio-container-cleanup.yaml",
+    "postman/assertions/studio-container-cleanup.js"
+  ],
+  "documentation": "docs/STUDIO-DOCKER-SHUTDOWN.md",
+  "contract": "postman/contracts/studio-container-cleanup.yaml",
+  "validation": {
+    "backend": {
+      "report": "/private/tmp/nexus-cleanup-action-required.xml",
+      "tests": 76,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "frontend": {
+      "report": "/private/tmp/nexus-cleanup-action-frontend.xml",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "actual_docker": {
+      "report": "/private/tmp/nexus-cleanup-action-docker.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "postman": {
+      "report": "/private/tmp/nexus-cleanup-action-postman.json",
+      "assertions": 3,
+      "passed": 3,
+      "failed": 0,
+      "automatic_retries": 0,
+      "report_events": false,
+      "target": "Disposable local Studio with real Docker ownership records"
+    }
+  },
+  "permissions": [
+    "Anonymous requests return 401; viewer/operator/builder requests return 403.",
+    "Wrong CSRF and cross-origin owner requests return 403 before dispatch.",
+    "Spoofed principal fields cannot grant access; direct service calls recheck the current owner binding/project access.",
+    "Caller-selected context or worker settings are rejected; only server-injected identity fields accompany the empty request.",
+    "Concurrent requests return 409 without a second dispatch; closing returns 503.",
+    "GET readiness only counts ownership records; it never starts cleanup."
+  ],
+  "browser": {
+    "test_workspace": "Disposable local workspace, no real accounts or private files",
+    "actual_cleanup": "Browser click removed one owned stopped Docker container; active owner, other host and unacknowledged creation remained unresolved.",
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "document_scroll_width": 390,
+      "button_height": 44
+    },
+    "desktop": {
+      "width": 1280,
+      "height": 900,
+      "document_scroll_width": 1280,
+      "button_height": 44
+    },
+    "screenshots": {
+      "mobile": {
+        "path": "/private/tmp/nexus-cleanup-action-mobile.png",
+        "sha256": "e05bf88b71d97ac8cefd792414c2d9f4faf3c9d24609a61fafdfbe650a49efa3"
+      },
+      "desktop": {
+        "path": "/private/tmp/nexus-cleanup-action-desktop.png",
+        "sha256": "a6eb12417ef958d39dfcb77728089a969b5bd490e15d4b9d1550a2a098b29682"
+      }
+    },
+    "viewport_reset": true,
+    "preview_closed": true
+  },
+  "compatibility": [
+    "Additive analysis_cleanup metadata on existing readiness GET; existing fields retained.",
+    "New owner-only POST uses existing workbench routing, Nexus/desktop session, CSRF and origin checks.",
+    "No changes to saved ownership record format, profile configuration, task payload/output, scheduling or worker image.",
+    "Public shell cache moves to v61 for the changed assets; API/action traffic remains uncached."
+  ],
+  "postman_cli_note": "Explicit --retry 0 was rejected by this CLI before sending a request. Omitting it uses the documented zero-retry default; the actual request and all three saved assertions then passed. No external feedback message was sent.",
+  "pending": [
+    "Personal VM deployment and validation; no deployment occurred.",
+    "Physical mobile browser/device and installed desktop acceptance; source browser viewport checks are not device certification.",
+    "Earlier remote/SSH, actual daemon restart, optional full worker image and broader implementation-plan gates remain separate."
+  ],
+  "distribution": {
+    "dmg_rebuilt": false,
+    "policy": "Only rebuild on an explicit user request.",
+    "checksum_file_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+    "artifact_hashes_reverified": false,
+    "note": "Recorded checksum file unchanged; prior DMG files are absent from releases."
+  },
+  "source_sha256": {
+    "nexus/core/studio_workbench.py": "fda121525b1464286b2dc67d19ee22658e94ebbdd6533c52b58935808adfc363",
+    "nexus/core/studio_team.py": "a23cfd5955a18e53e8a54c8d4b7e7e7abc34dd59619e7e06a4e5fc734df6de16",
+    "nexus/core/studio_readiness.py": "9582b434e53ceaa74f1df5f0b8b75d0e8d6bddfbf74da36f3b4980d7af6804c5",
+    "nexus/studio_static/workbench.js": "af18de2ebbed1655086b5029c982a3907416965c2fb989e4de92e8f90c5baca6",
+    "nexus/studio_static/index.html": "7ba42cd98c3db2648a8a96d838cd18990d281191b8d9bdb8244591e171264847",
+    "nexus/studio_static/studio.css": "dbf4605f75d83f24ca5a58082af859bf2563e9d1412241c30be8652f3c9a5ca3",
+    "nexus/studio_static/service-worker.js": "9470f6c5f23a0e521cd85ad5fb923e833225895ea4bd996cd7e8cb7623ffd58d",
+    "tests/test_studio_cleanup_action.py": "82971fc9afb72b1ac46829c122635e2a960daf1881cdda4f041c8a4eeb9cd4e5",
+    "tests/studio_cleanup_action.test.cjs": "47b8034f9ffc56d12278e5666a4e5ee1cb262458f00e4b5256e5b308efe32ead",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py": "fdfc8599f3a6f060dc258b9778809b9ff1c26113a05b4f4226f21b1b5fe8c2bd",
+    "postman/contracts/studio-container-cleanup.yaml": "21f28aca1a5ea7cbca5ee08eade9ea5de8ed6e3f0171b920bcb4266c8b97dd06",
+    "postman/assertions/studio-container-cleanup.js": "5c8c98830a98033a192f14fdaff6596027ee247f989cce8b106b833227239e7a"
+  },
+  "full_worker_follow_up": {
+    "date": "2026-10-26",
+    "checkpoint": "STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json",
+    "status": "The earlier local dependency-complete data-worker prerequisite is resolved; historical test results and other deployment limits remain unchanged."
+  }
+}

@@ -10,16 +10,22 @@ import shutil
 import subprocess
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import requests
 from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from nexus.core.studio_desktop import DesktopLaunchCredential
 
 
-def exercise(executable, profile="core"):
+def exercise(executable, profile="core", pdf_repetitions=4, pdf_concurrency=2):
+    if type(pdf_repetitions) is not int or not 1 <= pdf_repetitions <= 16:
+        raise ValueError("Choose 1–16 PDF repetitions")
+    if type(pdf_concurrency) is not int or not 1 <= pdf_concurrency <= 4:
+        raise ValueError("Choose 1–4 concurrent PDF previews")
     executable = Path(executable).resolve()
     with tempfile.TemporaryDirectory(prefix="nexus-portable-acceptance-") as directory:
         root = Path(directory)
@@ -141,7 +147,24 @@ def exercise(executable, profile="core"):
                 )
                 assert (workspace / "agents" / "portable-reviewer.yaml").is_file()
                 writer = PdfWriter()
-                writer.add_blank_page(width=100, height=100)
+                page = writer.add_blank_page(width=612, height=792)
+                font = DictionaryObject(
+                    {
+                        NameObject("/Type"): NameObject("/Font"),
+                        NameObject("/Subtype"): NameObject("/Type1"),
+                        NameObject("/BaseFont"): NameObject("/Helvetica"),
+                    }
+                )
+                page[NameObject("/Resources")] = DictionaryObject(
+                    {
+                        NameObject("/Font"): DictionaryObject(
+                            {NameObject("/F1"): writer._add_object(font)}
+                        ),
+                    }
+                )
+                stream = DecodedStreamObject()
+                stream.set_data(b"BT /F1 12 Tf 72 720 Td (Portable document evidence) Tj ET")
+                page[NameObject("/Contents")] = writer._add_object(stream)
                 pdf = io.BytesIO()
                 writer.write(pdf)
                 artifact = request(
@@ -156,6 +179,42 @@ def exercise(executable, profile="core"):
                 ).json()
                 preview = request("/api/catalog/artifacts/" + artifact["id"] + "/preview").json()
                 assert preview.get("kind") == "pdf" and preview.get("pages") == 1, preview
+                assert (
+                    preview["extraction_available"]
+                    and preview["text"] == "Portable document evidence"
+                ), preview
+
+                def repeat_preview(index):
+                    started = time.monotonic()
+                    # Each concurrent request owns its HTTP session; no mutable
+                    # request/cookie state is shared between test threads.
+                    with requests.Session() as reader:
+                        reader.trust_env = False
+                        response = reader.get(
+                            address + "/api/catalog/artifacts/" + artifact["id"] + "/preview",
+                            headers=dict(client.headers),
+                            timeout=20,
+                            allow_redirects=False,
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        assert (
+                            result.get("extraction_available")
+                            and result.get("text") == "Portable document evidence"
+                        ), result
+                        assert result["pages"] == 1 and result["revision"] == artifact["revision"]
+                    return round(time.monotonic() - started, 3)
+
+                with ThreadPoolExecutor(max_workers=pdf_concurrency) as requests_pool:
+                    preview_seconds = list(
+                        requests_pool.map(repeat_preview, range(pdf_repetitions))
+                    )
+                outside = client.get(
+                    address + "/api/catalog/artifacts/" + artifact["id"] + "/preview?page=2",
+                    timeout=20,
+                    allow_redirects=False,
+                )
+                assert outside.status_code == 400 and "outside" in outside.json()["error"]
                 encrypted = io.BytesIO()
                 writer.encrypt("example-only-password")
                 writer.write(encrypted)
@@ -188,6 +247,10 @@ def exercise(executable, profile="core"):
                     "frontend_and_favicon": True,
                     "frozen_pdf_worker": True,
                     "frozen_pdf_errors": True,
+                    "pdf_preview_repetitions": pdf_repetitions,
+                    "pdf_preview_concurrency": pdf_concurrency,
+                    "pdf_preview_seconds": preview_seconds,
+                    "frozen_pdf_text_and_page_bounds": True,
                     "parent_eof_shutdown": True,
                     "live_providers_used": False,
                     "optional_sdk_presence": info["optional_sdk_presence"],
@@ -211,5 +274,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--executable", required=True)
     parser.add_argument("--profile", choices=["core", "connected", "full"], default="core")
+    parser.add_argument("--pdf-repetitions", type=int, default=4)
+    parser.add_argument("--pdf-concurrency", type=int, default=2)
     args = parser.parse_args()
-    print(json.dumps(exercise(args.executable, args.profile), indent=2))
+    print(
+        json.dumps(
+            exercise(args.executable, args.profile, args.pdf_repetitions, args.pdf_concurrency),
+            indent=2,
+        )
+    )

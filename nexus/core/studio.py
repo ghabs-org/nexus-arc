@@ -15,6 +15,7 @@ import re
 import shutil
 import sqlite3
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -1528,6 +1529,7 @@ class StudioService:
 
     def close(self) -> None:
         self.closing = True
+        shutdown_deadline = time.monotonic() + 8
         for listener in list(self.a2a.grpc_servers.values()):
             listener.close()
         if self.sql_state:
@@ -1535,12 +1537,29 @@ class StudioService:
         self.operations.close()
         with self.lock:
             tasks = list(self.active_tasks.values())
+        settled = []
         for loop, task in tasks:
+            event = threading.Event()
+            settled.append(event)
+
+            def cancel_owned(task=task, event=event):
+                if task.done():
+                    event.set()
+                    return
+                task.add_done_callback(lambda _: event.set())
+                task.cancel()
+
             try:
-                loop.call_soon_threadsafe(task.cancel)
+                loop.call_soon_threadsafe(cancel_owned)
             except RuntimeError:
-                pass  # The task's loop finished between the snapshot and shutdown.
+                event.set()  # The task's loop finished between the snapshot and shutdown.
+        # Persistent sessions and one-shot request contexts clean up concurrently.
+        # Both own separate process groups, outside the backend's final group kill.
+        self.data_tools.stop()
+        self.connections.mcp_sessions.close()
         self.executor.shutdown(wait=True, cancel_futures=True)
+        for event in settled:
+            event.wait(max(0, shutdown_deadline - time.monotonic()))
         self.connections.close()
         self.data_tools.close()
         self.research.close()

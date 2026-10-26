@@ -97,9 +97,9 @@ Required lifecycle checks include real subprocess exits in file/SQL modes,
 queued cancellation without workers, late local-output writes, expired worker
 leases, concurrent registration/collection, ownership persistence, private file
 permissions and filename collisions. These close queued-profile pinning and local
-interrupted/startup audio-cleanup acceptance within milestone 8. Local model/API
-live checks and physical microphones/playback remain separate work. Full
-milestone 8 acceptance remains open.
+interrupted/startup audio-cleanup acceptance within milestone 8. The real local
+model roundtrip below now has Mac acceptance. API-account, physical microphone/
+playback and personal-VM checks remain separate. Full milestone 8 remains open.
 
 ## Passive prerequisite checks
 
@@ -127,3 +127,55 @@ server and no jobs:
 ```sh
 PYTHONPATH=. python examples/nexus-bot/src/studio_brand_readiness.py
 ```
+
+
+## Real local voice acceptance — 26 October 2026
+
+A real Piper-to-Whisper roundtrip now passes through normal Studio speech jobs on
+the local Apple Silicon Mac. Piper 1.8.0 and the explicitly selected Lessac medium
+model generated a 2.879-second WAV. Whisper tiny.en transcribed the synthetic
+sentence correctly: “Studio can run local speech without an external account.”
+The generated audio used the private artifact store; recording/synthesis temporary
+files and ownership records were removed. No microphone, remote speech API client
+or account was used. This is one controlled English fixture, not a general
+speech-quality or device certification.
+
+The user explicitly approved model downloads and a temporary Piper environment.
+Both model digests were verified against upstream references before use. The
+model files and runtime remain optional external prerequisites, not app payloads.
+Their upstream licenses/model-card terms still apply; no redistribution permission
+is inferred from this acceptance. Sources and installed versions are frozen in
+`STUDIO-LOCAL-SPEECH-CHECKPOINT.json`.
+
+To repeat using already installed software and selected models:
+
+```sh
+PYTHONPATH=. python examples/nexus-bot/src/studio_local_speech.py \
+  --whisper-model /installed/tiny.en.pt \
+  --piper-model /installed/en_US-lessac-medium.onnx
+```
+
+Make the installed `piper` and `ffmpeg` executables available on PATH. The Python
+runtime must contain Whisper/PyTorch and Nexus. The example uses temporary Studio
+state and refuses remote speech-client construction; it does not download models,
+activate a running workspace or use a microphone. The opt-in test can launch a
+separate model-capable Python runtime without installing pytest in that runtime:
+
+```sh
+NEXUS_ACCEPTANCE_SPEECH_PYTHON=/path/to/model-runtime/python \
+NEXUS_ACCEPTANCE_WHISPER_MODEL=/installed/tiny.en.pt \
+NEXUS_ACCEPTANCE_PIPER_MODEL=/installed/en_US-lessac-medium.onnx \
+PYTHONPATH=. python -m pytest tests/studio_local_speech_acceptance.py -q -o addopts=''
+```
+
+Local verification also exposed an unconditional POSIX `resource` import that
+prevented the Whisper worker from starting on Windows. The worker now applies
+its existing resource limits only when that OS module exists. POSIX retains the
+120-second CPU limit and Linux retains its 4 GiB address-space limit. The parent
+transcription wall timeout remains 130 seconds on every platform. Controlled
+Windows/Mac/Linux branches are verified; actual native Windows inference and
+process-tree containment remain separate acceptance.
+
+The browser recording/playback controls, selected language/voice on real devices,
+API-account use, personal VM and installed desktop builds still need their own
+checks. No DMG or app installer was rebuilt for this change.

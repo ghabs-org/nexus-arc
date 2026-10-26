@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -229,3 +230,68 @@ def test_forwarded_head_forces_connection_close():
     head = proxy.rewrite_head(req, upgrade=False)
     assert b"keep-alive" not in head and head.endswith(b"Connection: close\r\n\r\n")
     assert proxy.rewrite_head(copy.copy(req), upgrade=True) == raw
+
+
+def test_cleanup_listing_is_limited_to_one_tracked_analysis_container(env):
+    from urllib.parse import urlencode
+
+    tracker = proxy.Tracker()
+    identity = "b" * 64
+    tracker.add(identity, ANALYSIS_NAME, [])
+    query = urlencode({"all": "1", "filters": json.dumps({"name": [f"^/{ANALYSIS_NAME}$"]})})
+    action, scoped = proxy.decide(request("GET", "/v1.56/containers/json?" + query), env["policy"], tracker)
+    assert action == "list"
+    assert json.loads(scoped["filters"][0]) == {
+        "name": [f"^/{ANALYSIS_NAME}$"], "id": [identity],
+    }
+
+
+def test_retired_ownership_remains_for_absence_checks_but_evicts_before_live_owners(monkeypatch):
+    monkeypatch.setattr(proxy, "MAX_TRACKED", 2)
+    tracker = proxy.Tracker()
+    live, retired, newer = "1" * 64, "2" * 64, "3" * 64
+    tracker.add(live, "nexus-analysis-" + "1" * 32, [])
+    tracker.add(retired, "nexus-analysis-" + "2" * 32, [])
+    tracker.retire(retired)
+    assert tracker.resolve(retired) == retired
+    tracker.add(newer, "nexus-analysis-" + "3" * 32, [])
+    assert tracker.resolve(live) == live and tracker.resolve(newer) == newer
+    assert tracker.resolve(retired) is None
+    assert len(tracker._by_id) == 2
+
+
+def test_name_or_short_id_ambiguity_never_selects_an_arbitrary_owner():
+    tracker = proxy.Tracker()
+    one, two = "b" * 12 + "1" * 52, "b" * 12 + "2" * 52
+    tracker.add(one, ANALYSIS_NAME, [])
+    tracker.add(two, ANALYSIS_NAME, [])
+    assert tracker.resolve(ANALYSIS_NAME) is None
+    assert tracker.resolve("b" * 12) is None
+    assert tracker.resolve(one) == one and tracker.resolve(two) == two
+
+
+def test_authorized_name_is_rewritten_to_full_id_before_forwarding(env):
+    identity = "a" * 64
+    tracker = proxy.Tracker()
+    tracker.add(identity, ANALYSIS_NAME, [])
+    req = request("POST", "/v1.56/containers/" + ANALYSIS_NAME + "/start")
+    action, selected = proxy.decide(req, env["policy"], tracker)
+    assert action == "pass" and selected == identity
+    assert proxy.rewrite_head(req, False, proxy.container_target(req.target, selected)).startswith(
+        ("POST /v1.56/containers/" + identity + "/start HTTP/1.1\r\n").encode()
+    )
+
+
+def test_standalone_mount_layout_needs_no_installed_nexus_or_ai_sdks(tmp_path):
+    import shutil
+
+    root = Path(__file__).resolve().parents[1]
+    shutil.copy2(root / "deploy/studio/docker_proxy.py", tmp_path / "docker_proxy.py")
+    shutil.copy2(root / "nexus/core/studio_docker_proxy_policy.py", tmp_path / "studio_docker_proxy_policy.py")
+    result = subprocess.run([
+        sys.executable, "-I", "-c",
+        "import runpy,sys; sys.modules['nexus']=None; ns=runpy.run_path(sys.argv[1]); assert ns['Tracker']().resolve('unknown') is None; print('standalone-ok')",
+        str(tmp_path / "docker_proxy.py"),
+    ], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "standalone-ok"

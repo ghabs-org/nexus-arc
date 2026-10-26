@@ -93,3 +93,13 @@ and proves the original paused run remains unchanged.
 
 No VM, DNS record, firewall rule, account grant or system service is provisioned by
 these example files. Current validation remains local until your host is supplied.
+
+
+## Rehearse server recovery locally
+
+The [isolated Linux gate](recovery-checks/README.md) now checks cooperative SIGTERM,
+SIGKILL restart, single-writer ownership and inactive file/SQLite backup/restore.
+It uses disposable loopback processes without host mounts or provider accounts.
+The source fix needs a normal package upgrade and service restart on your chosen
+host; this local drill does not deploy or certify that VM. See the
+[scoped checkpoint](../../docs/STUDIO-SERVER-RECOVERY-CHECKPOINT.json).

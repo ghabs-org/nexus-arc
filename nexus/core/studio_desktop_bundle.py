@@ -15,6 +15,24 @@ from pathlib import Path
 
 from nexus.core.studio_desktop_profiles import check_profile, profile_requirements
 
+FROZEN_ENTRYPOINT = '''"""Trusted sidecar entry; PDF workers do not bootstrap Studio or provider SDKs."""
+import multiprocessing
+import sys
+
+multiprocessing.freeze_support()
+if sys.argv[1:3] == ["--nexus-worker", "nexus.core.studio_artifact_extract"]:
+    import runpy
+    from pathlib import Path
+
+    worker = Path(__file__).resolve().parent / "nexus" / "core" / "studio_artifact_extract.py"
+    sys.argv = ["nexus.core.studio_artifact_extract", *sys.argv[3:]]
+    runpy.run_path(str(worker), run_name="__main__")
+else:
+    from nexus.core.studio_desktop_sidecar import main
+
+    main()
+'''
+
 
 def source_snapshot(repo_root):
     paths = list((repo_root / "nexus").rglob("*.py")) + [repo_root / "pyproject.toml"]
@@ -104,7 +122,7 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
     with tempfile.TemporaryDirectory(prefix="nexus-sidecar-build-") as directory:
         work = Path(directory)
         entry = work / "entry.py"
-        entry.write_text("from nexus.core.studio_desktop_sidecar import main\nmain()\n")
+        entry.write_text(FROZEN_ENTRYPOINT)
         command = [
             sys.executable,
             "-m",
@@ -125,6 +143,10 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
             "nexus",
             "--add-data",
             str(static) + os.pathsep + "nexus/studio_static",
+            "--add-data",
+            str(repo_root / "nexus" / "core" / "studio_artifact_extract.py")
+            + os.pathsep
+            + "nexus/core",
             "--copy-metadata",
             "nexus-arc",
             str(entry),
@@ -146,6 +168,16 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
                 "whisper",
                 "--collect-submodules",
                 "tiktoken_ext",
+                "--collect-all",
+                "kafka",
+                "--collect-all",
+                "eventlet",
+                "--collect-all",
+                "dns",
+                "--collect-submodules",
+                "engineio.async_drivers",
+                "--collect-submodules",
+                "socketio.async_drivers",
             ]
         log_path = Path(log_path) if log_path else output / "build.log"
         with log_path.open("w") as log:

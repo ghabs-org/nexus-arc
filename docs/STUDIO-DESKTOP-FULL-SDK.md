@@ -36,7 +36,9 @@ that fail stop packaging; no SDK installation or reduced-profile fallback occurs
 The builder collects explicit SDK imports, recursive distribution metadata,
 SQLAlchemy dialects, Bedrock/S3 model descriptions, Whisper assets and tokenizer
 plugins. Three additional offline checks verify speech mel-filter/tokenizer data,
-cloud service descriptions and gRPC message serialization. They never instantiate
+cloud service descriptions and gRPC message serialization. Kafka protocol
+schemas, Eventlet hub/DNS modules and channel async drivers receive explicit
+collection rules; their runtime discovery is not visible to static analysis. They never instantiate
 provider clients, load a speech model, transcribe user audio or request a URL.
 Import and resource failures report only safe exception classes.
 

@@ -5,6 +5,7 @@ import base64
 import contextvars
 import hashlib
 import json
+import logging
 import uuid
 
 from nexus.core.studio_connections import execution_identity
@@ -94,8 +95,10 @@ elif params['action']=='detect_objects':
 
 class StudioDataTools:
     def __init__(self, studio, profiles=None):
+        from nexus.core.studio_container_recovery import ContainerRecovery
+
         self.studio = studio
-        self.sandbox = StudioSandbox(profiles)
+        self.sandbox = StudioSandbox(profiles, recovery=ContainerRecovery(studio))
         self.names = {}
         namespace = hashlib.sha256(str(studio.state).encode()).hexdigest()[:12]
         from nexus.tools import tool_registry
@@ -124,9 +127,14 @@ class StudioDataTools:
             )
             self.names[name] = function
 
+    def stop(self):
+        self.sandbox.close(wait=False)
+
     def close(self):
         from nexus.tools import tool_registry
 
+        if not self.sandbox.close():
+            logging.getLogger(__name__).warning("Analysis container cleanup could not be confirmed")
         for name, function in self.names.items():
             tool_registry.unregister(name, func=function)
 
@@ -209,6 +217,8 @@ class StudioDataTools:
         # Container work may finish after a cancellation or access revocation.
         # Recheck ownership before publishing any result into the workspace.
         with self.studio.lock:
+            if self.studio.closing:
+                raise asyncio.CancelledError
             self.actor()
             run_id = current_run_id.get()
             if run_id:

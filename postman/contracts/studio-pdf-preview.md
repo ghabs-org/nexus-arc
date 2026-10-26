@@ -18,3 +18,11 @@ worker and preview service. Controlled subprocess failures verify timeout,
 termination, launch and malformed-output classification. These are worker failure
 injections, not simulations of an external HTTP service. The relocated native
 bundle must exercise the same worker dispatch without host Python.
+
+PDF startup isolation follow-up: the source extractor now runs its trusted script
+with Python isolated mode, avoiding Nexus/provider imports. Frozen builds dispatch
+the allowlisted PDF worker from the trusted packaged script before loading Studio.
+Successful JSON/page-selection behavior, authorization and all extraction limits
+remain unchanged. No new route, credentials, automatic retry or provider fallback
+is introduced. Historical timeout evidence must remain separate from the confirmed
+provider-import coupling regression and its fix.

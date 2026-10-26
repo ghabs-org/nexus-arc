@@ -130,16 +130,11 @@ class MCPSessionPool:
 
     async def shutdown(self):
         tasks = [entry[1] for entry in self.entries.values()]
-        for queue, _ in list(self.entries.values()):
-            # Cancellation closes contexts in their owning tasks, even with a full queue.
-            try:
-                queue.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
+        # Closing is explicit: do not spend five seconds waiting for an active
+        # remote call before starting the SDK's bounded process-tree cleanup.
+        for task in tasks:
+            task.cancel()
         if tasks:
-            _, pending = await asyncio.wait(tasks, timeout=5)
-            for task in pending:
-                task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def close(self):

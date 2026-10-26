@@ -18,11 +18,13 @@ def test_relocated_sidecar_serves_ui_and_runs_internal_pdf_worker_without_host_p
         "frontend_and_favicon",
         "frozen_pdf_worker",
         "frozen_pdf_errors",
+        "frozen_pdf_text_and_page_bounds",
         "parent_eof_shutdown",
     ]:
         assert result[name]
     assert not result["host_python_on_path"] and not result["live_providers_used"]
     assert result["dependency_profile"]["passed"]
+    assert len(result["pdf_preview_seconds"]) == result["pdf_preview_repetitions"]
     if os.environ.get("NEXUS_ACCEPTANCE_PROFILE") in {"connected", "full"}:
         from nexus.core.studio_desktop_profiles import profile_requirements
 

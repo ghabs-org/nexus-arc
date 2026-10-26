@@ -21,6 +21,8 @@ from pathlib import Path
 
 FORMAT = "nexus-studio-backup/v1"
 EXCLUDED = {
+    # Kernel locks and daemon cleanup ownership belong to the original host.
+    "analysis-workers",
     "mcp-homes",
     "speech-inputs",
     "speech-input-owners",

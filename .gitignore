@@ -78,3 +78,6 @@ data/
 /docs/STUDIO-POLICIES-CHECKPOINT.json
 /docs/STUDIO-POLICIES.md
 /docs/STUDIO-PROGRESS.md
+
+# Local distribution artifacts
+/releases/

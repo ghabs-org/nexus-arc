@@ -1,6 +1,10 @@
 # Nexus Studio — next-agent delivery plan
 
-Updated 25 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
+**Distribution rule — user request, 26 October 2026:** rebuild or create a DMG
+only after an explicit user request. Routine implementation must leave existing
+DMGs and their recorded checksums unchanged.
+
+Updated 26 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
 current implementation plan first. Inspect the working tree before edits and
 preserve work from other agents. This handoff identifies remaining delivery
 capabilities; do not rebuild features already present.
@@ -9,8 +13,9 @@ capabilities; do not rebuild features already present.
 
 - Web/browser favicon serving and package inclusion now reuse the existing Nexus
   mark. Passive local speech readiness reports missing model/runtime dependencies
-  before recording; no model was downloaded and no API fallback was introduced.
-  Actual voice/model/device/VM acceptance remains open.
+  before recording without downloading models or introducing API fallback.
+  A later user-approved local Piper/Whisper roundtrip is now verified; physical
+  devices, API accounts, native Windows/Linux and personal VM checks remain open.
 
 - Extended Slack gateway code now includes outbound artifacts, rich replies,
   feedback/cancellation, workflow threads and Socket Mode. Its checkpoint reports
@@ -35,10 +40,30 @@ configuration. Identify installed local Whisper/Piper models and explicitly
 configured API accounts. Show missing prerequisites without downloading models,
 installing hooks or switching to paid providers automatically.
 
+Local voice follow-up (26 October): real Piper and Whisper jobs now generate and
+transcribe a synthetic English sentence on this Mac. Private audio artifacts and
+temporary cleanup pass; no microphone or API client was used. Model/runtime
+preparation was explicitly approved and both model hashes verified. A discovered
+unconditional POSIX import was fixed; native Windows/Linux inference is still
+unverified. All 59 affected regressions plus the real-model acceptance pass without
+skips. See `STUDIO-LOCAL-SPEECH-CHECKPOINT.json` and the repeatable local speech
+example. No running workspace was activated and no installer/DMG rebuilt.
+
+Linux service recovery follow-up (26 October): SIGTERM previously terminated
+Studio without invoking service cleanup. Main-thread controller and worker
+launches now request cooperative stop, preserve repeated-stop handling during
+cleanup and restore the previous signal policy. Stops during initialization
+close before operational dispatch. File/SQLite restart and inactive restore
+retain approvals, artifact revisions, pinned citations and run identity. Scoped
+Mac and isolated Linux acceptance are recorded in
+`STUDIO-SERVER-RECOVERY-CHECKPOINT.json`. No running workspace or installer was
+changed; actual personal HTTPS VM, accounts and systemd deployment remain open.
+
 Acceptance:
 
-- Actual configured local transcription and speech generation complete through
-  normal jobs; API profiles are checked separately when an account is available.
+- Local Mac transcription/generation through normal jobs is verified above.
+  Repeat on deployment targets; check API profiles separately with a selected
+  account when available.
 - Browser microphone permission, recording, language/voice, speed, stop and opt-in
   playback work on the selected physical devices.
 - Temporary audio is removed after completion/failure/cancellation. Restart and
@@ -73,10 +98,83 @@ launch exits 75; no PID guessing); window close closes Studio cleanly, then
 group cleanup; a SIGKILLed or SIGTERMed shell no longer orphans its sidecar; a
 user-driven window close and the in-use cases were drilled on a real window.
 
+MCP follow-up (26 October): one-shot direct requests previously survived close;
+pooled close took about nine seconds. Direct calls now reuse existing execution
+ownership and pooled cleanup starts immediately. Source/frozen POSIX checks stop
+resistant server/child groups without replay, for normal stop and launcher death.
+Beta 2 includes the fix; see `STUDIO-MCP-SHUTDOWN-CHECKPOINT.json`.
+
+Docker follow-up (26 October, source runtime): a retained stdin lifetime channel
+now stops the container namespace, including a detached SIGTERM-resistant child,
+on close, owner death or Docker-client/group termination. Cleanup starts before
+executor joins and rejects late dispatch/publication. Explicit context selection
+also overrides ambient Docker host/TLS flags. All 126 required regressions and
+14 actual local Docker/MCP checks pass without skips. See
+`STUDIO-DOCKER-SHUTDOWN-CHECKPOINT.json`. No DMG was rebuilt; this fix is not in
+existing installers. Recorded release checksums were retained; the two DMG files
+are currently absent from `releases/`, so their hashes were not reverified.
+
+Container recovery follow-up (26 October, source runtime): stopped creation now
+precedes one acknowledged-ID start; uncertain creates are never replayed. Private
+host journals survive owner death/restart. Explicit bounded recovery skips active
+owners, other hosts and changed routes; it removes only verified name/label/ID ownership. Unknown
+creates remain pending when absent. Backup/restore excludes cleanup authority;
+Deployment checks expose record counts without Docker calls. See
+`STUDIO-CONTAINER-RECOVERY-CHECKPOINT.json` and `STUDIO-DOCKER-SHUTDOWN.md`.
+All 165 affected regressions and 13 actual local Docker/data checks pass with
+zero skips. That earlier Python-only run explicitly deselected its chart/image
+workflow; the full-worker follow-up below now closes that local prerequisite.
+No installer was rebuilt. Real remote/daemon-restart and OS acceptance stay open.
+
+Cleanup UI follow-up (26 October): owners can now choose **Retry container
+cleanup** in **Workspace tools → Deployment checks**. The action reuses saved
+recovery records, current Nexus permissions and CSRF. It rejects arbitrary worker
+settings, prevents duplicate dispatch within the server process and keeps every
+unresolved outcome visible. The phone-width layout fits without horizontal
+scrolling. No DMG was rebuilt. See
+`STUDIO-CONTAINER-CLEANUP-UI-CHECKPOINT.json` for scoped acceptance.
+
+Full data-worker follow-up (26 October): the existing image recipe now has fresh
+acceptance after the lifecycle/recovery changes. All nine actual Docker checks
+pass, without skips or deselections, including the six-operation workflow and
+private artifact provenance. JQ, chart PNG export and ImageMagick are verified on
+the separately built local arm64 image. No framework fix, runtime activation or
+DMG rebuild was needed. Frozen image/package/source evidence is in
+`STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json`. This closes the earlier optional
+full-worker prerequisite; remote, vision/model, device/VM and installed OS gates
+retain their own scope.
+
+Docker route follow-up (26 October): local fault injection reproduced a context
+changing after the final routing check but before start. Image inspection, create,
+start and cleanup now share a fixed connection: a resolved host for the default
+context or a private Docker-exported named-context snapshot. Recovery pins its
+connection too. Original journal hashes/formats remain compatible. Actual local
+named/default-selection races, lifecycle and full data tools pass; real CLI
+TLS/SSH configuration-copy checks retain transport settings and daemon headers
+without copying registry logins. See `STUDIO-DOCKER-ROUTE-CHECKPOINT.json`.
+No runtime was activated and no installer/DMG rebuilt.
+
+Filtering-proxy recovery follow-up (26 October): the hosted proxy previously
+denied the analysis cleanup lookup and forgot ownership after failed removal.
+The shared framework policy now allows one exact tracked analysis lookup,
+scopes upstream queries to its full ID, canonicalizes name/short-ID operations,
+and retains bounded deletion tombstones. Retired entries evict before live
+owners. Real proxy/daemon execution, stopped recovery, failed-removal retry,
+name reuse and restart uncertainty pass. The standalone launcher remains
+stdlib-only; Compose mounts its shared policy. See
+`STUDIO-PROXY-RECOVERY-CHECKPOINT.json`. No user workspace, VM or installer changed.
+
 Remaining acceptance:
 
-- Close/crash cleanup with active external descendants (terminal agents, MCP
-  stdio servers; Docker containers sit outside the process group).
+- Durable authenticated ownership across filtering-proxy restart remains open.
+  Unknown/evicted ownership now fails closed and requires operator review; it
+  never produces false absence or silently adopts a container by name.
+- Remote/SSH Docker connections, actual daemon restart/disconnection and
+  frozen/installed acceptance. Local context reconfiguration, unreachable
+  transport and delayed-create recovery now have source proof. Changes outside
+  Docker context selection (for example SSH aliases or DNS) retain their own scope.
+- MCP host descendants daemonized outside the SDK-owned group. Ordinary CLI/MCP
+  descendants have scoped macOS proof.
 - The same lock, close and crash drills on Windows (msvcrt lock, job objects)
   and Linux, and in installed builds.
 
@@ -135,6 +233,17 @@ The remaining optional SDKs and their invocation paths still need coverage.
 One repeat lost PDF extraction metadata; later full and direct worker runs passed.
 The checkpoint retains this intermittent failure. Diagnose it before closing
 portable PDF stability; no extraction guard or timeout was relaxed.
+PDF startup follow-up (26 October, source plus disposable core backend): direct
+investigation reproduced a valid PDF failing because an unrelated provider import
+failed before the extractor ran. PDF dispatch now uses its trusted isolated script;
+frozen packaging routes that invocation before importing Studio/provider SDKs.
+The same limits and JSON/page protocol remain. All 124 affected regressions pass,
+and relocated authenticated repeated/concurrent text previews, page bounds,
+damaged/encrypted errors and shutdown pass. No installer/DMG was rebuilt. See
+`STUDIO-PDF-ISOLATION-CHECKPOINT.json`. This closes the confirmed startup coupling
+failure path, not the unclassified historical event. Connected/full and installed
+OS acceptance for the new entrypoint remain separate.
+
 PDF failures now carry safe categories for timeout, dependency, unreadable file,
 launch, signal, worker exit and malformed output. Seventy affected checks and
 three rebuilt, relocated connected-backend runs pass (valid/damaged/encrypted
@@ -153,34 +262,28 @@ Acceptance:
   UI is served by the owned backend.
 - Reproducible build instructions and artifact manifests identify each OS/architecture.
 
-**Full SDK profile coordination (25 October, Codex in progress).** Codex is adding
-`--profile full` and `studio-desktop-full` for the remaining finance/cloud/protocol/
-channel/terminal and local Whisper SDKs. Offline speech filter/tokenizer assets,
-Bedrock/S3 descriptions and gRPC messages must also pass before staging. Builds
-go to `/private/tmp/nexus-full-sidecar` using a managed non-framework interpreter;
-framework Python was correctly rejected by the new link guard. Models, account and service acceptance
-remain separate. Connected/native commands now also use the generated Tauri
-release resource configuration. Preserve the existing installed-core work.
+**Full SDK profile (26 October, macOS arm64 backend verified).** `--profile full`
+and `studio-desktop-full` now cover 44 SDK imports and three fixed offline checks
+for speech data, cloud descriptions and gRPC messages. The clean managed-Python
+build passes after Tauri-style file copying and relocation, including protected
+startup, agent save, UI/PDF handling and shutdown. Kafka schema resources and
+Eventlet hub/DNS discovery needed explicit collection rules. A native dependency
+version snapshot contains 146 pinned packages. Connected/full build commands now
+use the generated Tauri resource configuration. See
+`STUDIO-DESKTOP-FULL-SDK-CHECKPOINT.json` and `STUDIO-DESKTOP-FULL-SDK.md`.
 
-**Native workspaces (26 October, done for macOS — Claude Code session; see
-`STUDIO-DESKTOP-WORKSPACES-CHECKPOINT.json`).** The shell's Workspace menu opens
-a folder in place, imports a copy into the app's `workspaces/` folder (through
-`--nexus-desktop import`, routed to the existing `nexus desktop` CLI) and reveals
-the folder. The choice is remembered only after a verified launch. Native launches
-refuse home, system and app-bundle folders (exit 64). Import refuses nested or
-open sources. The user drilled the menu on installed 1.0.2. Open: in-app
-pre-import backup restore, Windows/Linux.
+Keep full-profile installed app/signing and every live model/service/device/VM
+check separate. These are Python packaging/import/data checks, not whole-feature
+invocation certification. The historical intermittent PDF cause remains open.
 
-**Descendants and macOS lifecycle (25 October, done — Claude Code session; see
-`STUDIO-DESKTOP-LIFECYCLE-CHECKPOINT.json`).** Stdio MCP servers run in their own
-session (MCP SDK). Studio's normal close terminates them, but after a backend
-crash only servers that exit on stdin EOF stop. Docker sandbox containers outlive
-a dead backend by at most their timeout. Fixed a bug where any native startup
-error was hidden by a self-SIGKILL. A workspace from a newer release now exits 65
-and the native app shows a dedicated screen (user-confirmed). The shell grace is
-12 s, above the backend's 10 s bound. Upgrade 1.0.0→1.0.1, rollback and uninstall
-(data kept) passed with real installed apps. Open in section 4: the native
-workspace chooser/import flow and real schema migrations.
+**Friend-test full DMG (26 October).** A full SDK Apple Silicon DMG is now built
+and verified, with its actual macOS 14 minimum declared. The app copied from the
+DMG passes payload/signature checks, installed backend acceptance and actual native
+first-run/Conversations/Quick Build/close checks. It is ad-hoc signed and not
+notarized. The ignored `releases/` folder holds the shareable image, testing guide
+and checksum. See `STUDIO-DESKTOP-FRIEND-DMG-CHECKPOINT.json`. Keep clean downloaded
+quarantine acceptance on the friend's Mac, live integrations/models and signed
+release delivery open.
 
 ## 4. Workspace selection and installed OS lifecycle
 

@@ -1,0 +1,110 @@
+{
+  "format": "nexus-studio-container-recovery-checkpoint/v1",
+  "date": "2026-10-26",
+  "scope": "Source runtime: stopped creation, acknowledged-ID start, host-local cleanup journals and explicit bounded recovery. No HTTP mutation endpoint, scheduler or installer build.",
+  "status": "local-source-verified",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_container_recovery.py",
+    "nexus/core/studio_sandbox.py",
+    "nexus/core/studio_data_tools.py",
+    "nexus/core/studio_readiness.py",
+    "nexus/core/studio_backup.py",
+    "tests/test_studio_container_recovery.py",
+    "tests/studio_docker_lifecycle_acceptance.py",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py"
+  ],
+  "documentation": "docs/STUDIO-DOCKER-SHUTDOWN.md",
+  "contract": "postman/contracts/studio-analysis-lifecycle.md",
+  "validation": {
+    "required": {
+      "report": "/private/tmp/nexus-container-recovery-required.xml",
+      "tests": 165,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 34.173
+    },
+    "actual_docker_lifecycle_recovery": {
+      "report": "/private/tmp/nexus-container-recovery-actual.xml",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 25.663
+    },
+    "actual_standard_library_data": {
+      "report": "/private/tmp/nexus-container-recovery-data.xml",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 5.897,
+      "explicitly_deselected": "One six-operation chart/JQ/ImageMagick workflow requires dependencies absent from the approved Python-only image; no optional packages were installed."
+    }
+  },
+  "verified": [
+    "Create acknowledgment and shutdown gates permit at most one start; failed/timed-out creates never start or replay code.",
+    "Actual local close, owner SIGKILL and process-group kill stop detached resistant container children; restart resolves journals after kernel-lock release.",
+    "Actual unreachable Unix-socket transport retains cleanup ownership, then a reachable local engine permits verified removal.",
+    "Actual stopped late create is removed after an earlier absence kept creation uncertain.",
+    "A started wrapper receiving no initial frame exits with status 124 after its 15-second deadline.",
+    "Fixtures cover daemon timeout/return, changed route, identity/label mismatch, concurrent recovery, malformed records and lost removal replies.",
+    "Original host-local authority is omitted from backup and restore; pending counts appear in existing owner-only deployment readiness.",
+    "A second worker host cannot retire records on a shared volume merely because its own daemon reports absence; host fingerprints are checked before Docker access."
+  ],
+  "runtime": {
+    "host": "macOS Apple Silicon",
+    "docker_server": "29.9.2",
+    "context": "default",
+    "image_id": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "python": "3.14-slim",
+    "download_authorization": "User explicitly approved downloading the Python test image.",
+    "download": "Docker pull timed out. Host registry download verified manifest, config, compressed layer and uncompressed layer hashes before docker image load.",
+    "registry_arm64_manifest": "sha256:9c91bb40b4da9deb3ca7bd28bb593a5be44bc279fe4ccf59a50a564a679b04fb",
+    "registry_config_digest": "sha256:5916612a68632a9307c913a5a8b7ffe79d7d3eef312c5bae385d154d6edd0ad4",
+    "archive_bytes": 149125120,
+    "automatic_worker_pulls": 0,
+    "owned_containers_remaining_after_acceptance": 0
+  },
+  "migration": {
+    "record_format": "nexus-analysis-cleanup/v1",
+    "location": "<private-state>/analysis-workers/<generated-name>/record.json",
+    "storage": "Existing atomic workspace JSON writer and WorkspaceLock; hashed host/node identity binds records to the original host, including on shared state volumes.",
+    "payloads_or_credentials_stored": false,
+    "backup_restore": "Ownership records and lock markers are excluded.",
+    "compatibility": "No profile, public execution input/result or HTTP request changes. New runtime supplies wrapper; installed images need no rebuild.",
+    "rollback": "Stop workers and retain original-host ownership journals for explicit recovery; older runtimes ignore new records."
+  },
+  "pending": [
+    "Real remote/SSH disconnect and daemon restart acceptance; actual concurrent context reconfiguration during dispatch.",
+    "An absent unacknowledged create remains pending until original request is independently resolved; no expiry means success.",
+    "Native Windows and frozen/installed acceptance; existing DMGs do not contain this source change.",
+    "Full chart/JQ/ImageMagick workload needs an explicitly installed dependency-complete image; eight standard-library data checks passed here.",
+    "MCP host descendants daemonized outside the owned group, selected model/device/VM checks and historical intermittent PDF diagnosis remain separate.",
+    "Changed hostname/node identity requires operator review; cloned host identities and shared-volume locking need actual deployment acceptance."
+  ],
+  "distribution": {
+    "dmg_rebuilt": false,
+    "policy": "Rebuild only on explicit user request.",
+    "recorded_checksum_file_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+    "artifact_hashes_reverified": false,
+    "note": "Recorded checksum file retained; existing DMG files are absent from releases."
+  },
+  "source_sha256": {
+    "nexus/core/studio_container_recovery.py": "d114b8dbce566071e1261ebdeba8f43c07af01d794d43415dd3b3af8ea810589",
+    "nexus/core/studio_sandbox.py": "453b7ce61c03d41218d7bc0c892efa5d2934ea20ee7aab850ce1445548c2e4d2",
+    "nexus/core/studio_data_tools.py": "fa4c7576d08021a92d84727e4e06562240218b20a75c165221a4e682055006fa",
+    "nexus/core/studio_readiness.py": "52ad513c0720923258a8a59828323b9aeb3b7fd365ef2e589a9e460297dd65bf",
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
+    "tests/test_studio_container_recovery.py": "a61cc01201d68ab9f525b64f69f73d4747098c7c4cf06a0cd8c851ebac0bbca2",
+    "tests/studio_docker_lifecycle_acceptance.py": "dfa6f84da4a23cb188ef7f940508a9baa80e829c3fc819091ac5542a48ee0ab7",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py": "ea10e919b50e399c006ad351be7dfc2c7323c7be2f790ae275ea0db0e5d221fc"
+  },
+  "full_worker_follow_up": {
+    "date": "2026-10-26",
+    "checkpoint": "STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json",
+    "status": "The earlier local dependency-complete data-worker prerequisite is resolved; historical test results and other deployment limits remain unchanged."
+  }
+}

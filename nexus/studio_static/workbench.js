@@ -1,5 +1,5 @@
 "use strict";
-const wb={area:"memory",data:{},campaign:null,checkpoint:null,controlsRevision:0,areas:["memory","checkpoints","agents","campaigns","analytics","transcription","decisions","controls","storage","readiness"]};
+const wb={area:"memory",data:{},cleanupBusy:false,cleanupAvailable:false,campaign:null,checkpoint:null,controlsRevision:0,areas:["memory","checkpoints","agents","campaigns","analytics","transcription","decisions","controls","storage","readiness"]};
 const wbPlatformNames={linkedin:"LinkedIn",discord:"Discord",x:"X",meta_facebook:"Facebook",meta_instagram:"Instagram"};
 let decisionModels=[];
 async function refreshDecisionPresets(){
@@ -51,10 +51,53 @@ function renderDecisions(items){
   });
 }
 function renderControls(data){wb.controlsRevision=data.revision;const form=$("wb-controls-form");for(const name of ["max_prompt_chars","summary_max_chars","cooldown_seconds"])form.elements[name].value=data[name];form.elements.prompt_budget_enabled.checked=data.prompt_budget_enabled;$("wb-cooldown-status").textContent=`${data.active_cooldowns} active matching-task cooldowns. Settings apply to your own runs.`;}
-async function refreshWorkbench(){if(view()!=="workbench")return;const area=location.hash.split("/")[1]||wb.area;wb.area=wb.areas.includes(area)?area:"memory";document.querySelectorAll("[data-wb-panel]").forEach(panel=>panel.hidden=panel.dataset.wbPanel!==wb.area);document.querySelectorAll(".workbench-tabs [data-wb-area]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.wbArea===wb.area)));$("wb-error").textContent="";wbAgentChoices();try{const route=wb.area==="transcription"?"transcriptions":wb.area;const query=route==="analytics"?`?hours=${$("wb-analytics-hours").value}`:"";const data=await api(`/api/workbench/${route}${query}`);if(wb.area!==area&&area)return;if(route==="readiness"){$("deployment-checks").innerHTML=data.items.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.detail)}</p></div>${badge(({needs_setup:"Needs setup",not_verified:"Not verified",checked:"Checked",configured:"Configured",failed:"Failed"})[item.status],item.status==="checked"?"ready":item.status==="failed"?"failed":"")}</article>`).join("");}else if(route==="memory"){wb.data.memory=data.items;renderMemory();const sources=await api("/api/workbench/memorysources");$("wb-memory-sources").innerHTML=wbRows(sources.items,source=>`<button class="secondary" data-memory-source="${escapeHtml(source.id)}">Browse ${escapeHtml(source.name)}</button>`,"No legacy source is mapped to your account.");}else if(route==="checkpoints")renderCheckpoints(data);else if(route==="agents")$("wb-peers-list").innerHTML=wbRows(data.peers,item=>`<article class="library-row"><div><h3>${escapeHtml(item.agent_id||item.name)}</h3><p>${escapeHtml(item.description)} · ${escapeHtml(item.provider||"peer provider")} · ${escapeHtml(new Date(item.last_seen*1000).toLocaleTimeString())}</p></div>${badge(item.state,item.state==="running"?"running":"")}</article>`,"No recent peer announcements. Saved agents above are available for delegation.");else if(route==="campaigns")renderCampaigns(data.items);else if(route==="analytics")renderAnalytics(data);else if(route==="transcriptions")renderTranscriptions(data.items);else if(route==="decisions"){renderDecisions(data.items);await refreshDecisionPresets();}else if(route==="storage")$("wb-storage-list").innerHTML=wbRows(data.profiles,item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)} ${item.id===data.active?badge("Active","ready"):""}</h3><p>${escapeHtml(item.kind)} · ${escapeHtml(item.bucket)}</p></div><div class="card-actions"><button class="secondary" data-storage-test="${escapeHtml(item.id)}">Test with a temporary object</button><button data-storage-activate="${escapeHtml(item.id)}" ${item.id===data.active?"disabled":""}>Use for new files</button></div></article>`);else if(route==="controls"){renderControls(data);await refreshEffects();}}catch(error){wbError(error);}}
+function canRetryContainerCleanup(){return Boolean(state.ready)&&(state.mode!=="team"||state.user?.role==="owner");}
+function renderDeploymentReadiness(data){
+  $("deployment-checks").innerHTML=data.items.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.detail)}</p></div>${badge(({needs_setup:"Needs setup",not_verified:"Not verified",checked:"Checked",configured:"Configured",failed:"Failed"})[item.status]||"Needs review",item.status==="checked"?"ready":item.status==="failed"?"failed":"")}</article>`).join("");
+  wb.cleanupAvailable=data.analysis_cleanup?.available===true;
+  $("container-cleanup").hidden=!canRetryContainerCleanup()||!data.analysis_cleanup;
+  $("retry-container-cleanup").disabled=wb.cleanupBusy||!wb.cleanupAvailable;
+}
+function renderContainerCleanupResult(report){
+  const descriptions={
+    removed:["Removed","The owned container is gone and its saved record is resolved."],
+    owner_active:["Worker active","Its owner is still running. Cleanup left it alone."],
+    other_host:["Another server","Run cleanup on the server that created this worker."],
+    route_changed:["Docker connection changed","Restore the original Docker connection or ask the server administrator to review it."],
+    ownership_mismatch:["Ownership needs review","The container does not match its saved ownership. Nothing was removed."],
+    awaiting_creation:["Creation unconfirmed","The original creation request has no confirmed outcome. Its record stays saved for a later check."],
+    invalid_record:["Saved record needs review","Ask the server administrator to inspect this record. Nothing was removed."],
+    unconfirmed:["Cleanup unconfirmed","Docker could not confirm removal. Check its connection and try again when available."],
+  };
+  const items=report.items||[],removed=items.filter(item=>item.status==="removed").length;
+  const summary=!items.length&&!report.pending?"No saved workers need cleanup.":`${removed} removed · ${report.pending} active or unresolved records remain.`;
+  const remaining=report.pending-items.filter(item=>item.status!=="removed").length;
+  $("container-cleanup-result").innerHTML=`<p class="cleanup-summary">${escapeHtml(summary)}</p>${items.length?`<ul class="cleanup-results">${items.map(item=>{const [title,detail]=descriptions[item.status]||["Needs review","No confirmed outcome is available. Its saved record remains unchanged."];return `<li><strong>${escapeHtml(title)}</strong><p>${escapeHtml(detail)}</p><code>${escapeHtml(item.name)}</code></li>`;}).join("")}</ul>`:""}${remaining>0?'<p>More records remain. Run cleanup again to check the next available records.</p>':""}`;
+  $("container-cleanup-result").hidden=false;
+}
+async function retryContainerCleanup(){
+  if(wb.cleanupBusy||!wb.cleanupAvailable||!canRetryContainerCleanup())return;
+  const button=$("retry-container-cleanup"),result=$("container-cleanup-result");
+  wb.cleanupBusy=true;button.disabled=true;button.textContent="Checking workers…";
+  result.hidden=false;result.textContent="Checking saved worker records…";result.setAttribute("aria-busy","true");
+  try{
+    const report=await api("/api/workbench/readiness/cleanup",{});
+    renderContainerCleanupResult(report);
+    try{renderDeploymentReadiness(await api("/api/workbench/readiness"));}
+    catch(error){$("wb-error").textContent="Cleanup results are shown below. Refresh Deployment checks to update the server status.";}
+  }catch(error){
+    result.textContent=error.retryable&&!error.status?"No cleanup confirmation received. Refresh Deployment checks before trying again.":error.message;
+    if(error.status===401||error.status===403){wb.cleanupAvailable=false;$("container-cleanup").hidden=true;wbError(error);}
+  }finally{
+    wb.cleanupBusy=false;button.textContent="Retry container cleanup";
+    button.disabled=!wb.cleanupAvailable||!canRetryContainerCleanup();result.setAttribute("aria-busy","false");
+  }
+}
+async function refreshWorkbench(){if(view()!=="workbench")return;const area=location.hash.split("/")[1]||wb.area;wb.area=wb.areas.includes(area)?area:"memory";document.querySelectorAll("[data-wb-panel]").forEach(panel=>panel.hidden=panel.dataset.wbPanel!==wb.area);document.querySelectorAll(".workbench-tabs [data-wb-area]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.wbArea===wb.area)));$("wb-error").textContent="";wbAgentChoices();try{const route=wb.area==="transcription"?"transcriptions":wb.area;const query=route==="analytics"?`?hours=${$("wb-analytics-hours").value}`:"";const data=await api(`/api/workbench/${route}${query}`);if(wb.area!==area&&area)return;if(route==="readiness"){renderDeploymentReadiness(data);}else if(route==="memory"){wb.data.memory=data.items;renderMemory();const sources=await api("/api/workbench/memorysources");$("wb-memory-sources").innerHTML=wbRows(sources.items,source=>`<button class="secondary" data-memory-source="${escapeHtml(source.id)}">Browse ${escapeHtml(source.name)}</button>`,"No legacy source is mapped to your account.");}else if(route==="checkpoints")renderCheckpoints(data);else if(route==="agents")$("wb-peers-list").innerHTML=wbRows(data.peers,item=>`<article class="library-row"><div><h3>${escapeHtml(item.agent_id||item.name)}</h3><p>${escapeHtml(item.description)} · ${escapeHtml(item.provider||"peer provider")} · ${escapeHtml(new Date(item.last_seen*1000).toLocaleTimeString())}</p></div>${badge(item.state,item.state==="running"?"running":"")}</article>`,"No recent peer announcements. Saved agents above are available for delegation.");else if(route==="campaigns")renderCampaigns(data.items);else if(route==="analytics")renderAnalytics(data);else if(route==="transcriptions")renderTranscriptions(data.items);else if(route==="decisions"){renderDecisions(data.items);await refreshDecisionPresets();}else if(route==="storage")$("wb-storage-list").innerHTML=wbRows(data.profiles,item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)} ${item.id===data.active?badge("Active","ready"):""}</h3><p>${escapeHtml(item.kind)} · ${escapeHtml(item.bucket)}</p></div><div class="card-actions"><button class="secondary" data-storage-test="${escapeHtml(item.id)}">Test with a temporary object</button><button data-storage-activate="${escapeHtml(item.id)}" ${item.id===data.active?"disabled":""}>Use for new files</button></div></article>`);else if(route==="controls"){renderControls(data);await refreshEffects();}}catch(error){wbError(error);}}
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
  if(button.dataset.wbArea){const mapping={budgets:"controls"};openWorkbench(mapping[button.dataset.wbArea]||button.dataset.wbArea);}
  if(button.id==="wb-refresh")await refreshWorkbench();
+ if(button.id==="retry-container-cleanup")return await retryContainerCleanup();
  if(button.dataset.wbMemoryView){const item=await api(`/api/workbench/memory/${encodeURIComponent(button.dataset.wbMemoryView)}`);showDetail(item.title,item.messages.map(message=>`<article class="wb-review-channel"><h3>${escapeHtml(message.role)}</h3><pre class="workbench-output">${escapeHtml(message.content)}</pre></article>`).join(""));}
  if(button.dataset.wbMemoryEdit){const item=wb.data.memory.find(item=>item.id===button.dataset.wbMemoryEdit);showDetail("Conversation settings",`<form id="wb-memory-form" data-id="${escapeHtml(item.id)}"><label>Name<input name="title" value="${escapeHtml(item.title)}" maxlength="200" required></label><label class="check-label"><input name="archived" type="checkbox" ${item.archived?"checked":""}> Archive this conversation</label><button type="submit">Save conversation</button></form>`);}
  if(button.dataset.wbCapture){await api(`/api/workbench/checkpoints/${encodeURIComponent(button.dataset.wbCapture)}/capture`,{});await refreshWorkbench();await showCheckpoint(button.dataset.wbCapture);}

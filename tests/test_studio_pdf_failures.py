@@ -2,6 +2,9 @@
 
 import base64
 import io
+import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +20,83 @@ from nexus.core.studio_artifact_extract import (
     WORKER_FAILED,
 )
 from nexus.core.studio_artifacts import PDFExtractionError
+from nexus.core.studio_desktop_bundle import FROZEN_ENTRYPOINT
+from nexus.core.studio_desktop_sidecar import worker_command
+
+
+def blank_pdf():
+    buffer = io.BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
+def test_source_pdf_worker_does_not_import_an_unrelated_broken_provider(tmp_path):
+    # Before isolated-file dispatch, importing Nexus reached this optional SDK
+    # and failed before a valid PDF could even enter the bounded extractor.
+    (tmp_path / "anthropic.py").write_text("raise RuntimeError('unrelated-provider-import')\n")
+    result = subprocess.run(
+        worker_command("nexus.core.studio_artifact_extract", "1"),
+        input=blank_pdf(),
+        capture_output=True,
+        cwd=tmp_path,
+        env={
+            "PATH": os.defpath,
+            "PYTHONPATH": str(tmp_path) + os.pathsep + str(Path(__file__).resolve().parents[1]),
+        },
+        timeout=15,
+    )
+    assert result.returncode == 0 and not result.stderr
+    assert json.loads(result.stdout) == {
+        "text": "",
+        "page_texts": [""],
+        "pages": 1,
+        "truncated": False,
+    }
+
+
+def test_frozen_entry_pdf_path_runs_without_loading_the_studio_package(tmp_path):
+    package = tmp_path / "nexus"
+    (package / "core").mkdir(parents=True)
+    (package / "__init__.py").write_text(
+        "raise RuntimeError('Studio package must not load for PDF extraction')\n"
+    )
+    shutil.copyfile(
+        studio_artifact_extract.__file__, package / "core" / "studio_artifact_extract.py"
+    )
+    entry = tmp_path / "entry.py"
+    entry.write_text(FROZEN_ENTRYPOINT)
+    result = subprocess.run(
+        [sys.executable, str(entry), "--nexus-worker", "nexus.core.studio_artifact_extract", "1"],
+        input=blank_pdf(),
+        capture_output=True,
+        cwd=tmp_path,
+        env={"PATH": os.defpath},
+        timeout=15,
+    )
+    assert result.returncode == 0 and not result.stderr
+    assert json.loads(result.stdout)["pages"] == 1
+
+
+def test_frozen_entry_retains_existing_non_pdf_dispatch(tmp_path):
+    package = tmp_path / "nexus" / "core"
+    package.mkdir(parents=True)
+    (package.parent / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "studio_desktop_sidecar.py").write_text(
+        "import json,sys\ndef main(): print(json.dumps(sys.argv[1:]))\n"
+    )
+    entry = tmp_path / "entry.py"
+    entry.write_text(FROZEN_ENTRYPOINT)
+    result = subprocess.run(
+        [sys.executable, str(entry), "--nexus-bundle-info"],
+        capture_output=True,
+        cwd=tmp_path,
+        env={"PATH": os.defpath},
+        timeout=15,
+    )
+    assert result.returncode == 0 and json.loads(result.stdout) == ["--nexus-bundle-info"]
 
 
 @pytest.mark.parametrize(

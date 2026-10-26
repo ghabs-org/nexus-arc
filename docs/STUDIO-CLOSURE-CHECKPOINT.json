@@ -34,7 +34,18 @@
     "Native backend parent-pipe lifetime monitoring fixes the documented idle-backend orphan after shell SIGTERM/SIGKILL. Existing service cleanup handles EOF; unbuffered input avoids interpreter shutdown deadlock. Thirty scoped unit/process/desktop/CLI checks pass without skips. Active external descendants, workspace ownership and installed OS delivery remain separate. See STUDIO-DESKTOP-PARENT-CHECKPOINT.json.",
     "Portable core/PDF backend now bundles Python, Studio assets and fixed worker dispatch. Default release packaging builds the executable before Tauri. All 76 affected checks and one relocated authenticated runtime check pass without skips. Full SDK coverage and installed native OS acceptance remain open. See STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json.",
     "Explicit connected desktop dependency profile now gates compilation and staging on 17 offline SDK imports. A real macOS arm64 one-folder build passes relocated authenticated startup, agent save, assets, PDF processing and EOF shutdown; 80 affected checks and one runtime check pass without skips. Remaining SDK families, service invocation and installed OS acceptance remain open. See STUDIO-DESKTOP-PROFILES-CHECKPOINT.json.",
-    "PDF preview failure diagnostics now distinguish timeout, missing dependencies, unreadable documents, failed launch, signal termination, other worker exit and invalid output. Seventy affected tests and three rebuilt relocated connected-backend checks pass without skips. Historical intermittent failure cause remains open; see STUDIO-PDF-PREVIEW-CHECKPOINT.json."
+    "PDF preview failure diagnostics now distinguish timeout, missing dependencies, unreadable documents, failed launch, signal termination, other worker exit and invalid output. Seventy affected tests and three rebuilt relocated connected-backend checks pass without skips. Historical intermittent failure cause remains open; see STUDIO-PDF-PREVIEW-CHECKPOINT.json.",
+    "Full desktop Python SDK profile now passes 44 frozen imports and three offline package-data checks. Missing Kafka schemas and Eventlet/DNS modules were fixed. Ninety-nine affected regressions, updated packaging diagnostics and actual relocated native-style-copy acceptance pass with zero skips. Full-profile native installation and actual service/model/device/VM operation remain separate; see STUDIO-DESKTOP-FULL-SDK-CHECKPOINT.json.",
+    "MCP shutdown now tracks direct connector calls through existing run ownership and starts pooled transport cleanup immediately. Source and frozen one-shot/persistent fixtures stop resistant server/child groups after normal close or launcher death, without replay. The Beta 2 DMG includes the fix; 106 required and seven explicit acceptance checks pass without skips. Docker and other native/live gates remain separate; see STUDIO-MCP-SHUTDOWN-CHECKPOINT.json.",
+    "Source Docker lifecycle now stops active local analysis containers and detached resistant children after close, owner death and client/group termination. Explicit context routing and late-publication guards are verified. 126 required regressions plus 14 actual Docker/MCP checks pass without skips; no DMG rebuilt. Remote/frozen/installed recovery remains separate; see STUDIO-DOCKER-SHUTDOWN-CHECKPOINT.json.",
+    "Source Docker recovery now separates stopped creation from acknowledged-ID start, persists host-bound local ownership journals, and permits bounded verified cleanup after restart/unreachable transport without replay. Unknown absent creates remain uncertain; backup/restore excludes host cleanup authority. All 165 affected regressions and 13 actual Docker/data checks pass without skips; one dependency-heavy workflow is explicitly deselected. No DMG rebuilt. Real remote/daemon restart and installed OS checks remain open; see STUDIO-CONTAINER-RECOVERY-CHECKPOINT.json.",
+    "Deployment checks now offers owner-only Retry container cleanup using existing recovery, session/CSRF and current role/project access. Per-record outcomes preserve active owners, other hosts and uncertainty; duplicate actions and lost replies are not replayed. All 76 backend, 19 frontend, one real Docker/example check and three Postman assertions pass without skips. Browser phone/desktop fit and actual fixture-container removal are verified; no DMG rebuilt. See STUDIO-CONTAINER-CLEANUP-UI-CHECKPOINT.json.",
+    "The previously deselected full data-worker workflow is now verified against a separately built dependency-complete local arm64 image. All nine actual Docker checks pass without skips/deselections, including six operations, private artifacts and isolation/output bounds. Existing framework/example code was reused without product changes, workspace activation or DMG rebuild. Package/image/source evidence is in STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json; remote/device/VM/installed OS gates remain separate.",
+    "PDF investigation reproduced valid extraction failing on an unrelated provider import before parser startup. Source now uses trusted isolated-file dispatch; frozen packaging routes PDF before Studio initialization. All 124 affected regressions and one relocated-core acceptance pass; 16 direct repetitions and eight protected concurrent/repeated HTTP previews pass with unchanged limits. The historical unclassified event remains open. A disposable core backend was built for proof; no app installer or DMG rebuilt. See STUDIO-PDF-ISOLATION-CHECKPOINT.json.",
+    "User-approved real local Piper/Whisper model acceptance now passes through normal Studio jobs on this Mac: a synthetic sentence is generated, transcribed correctly, stored privately and temporary audio/ownership removed without a speech API client or microphone. Fixed unconditional POSIX resource import blocking Windows worker startup; platform branches retain POSIX limits and parent wall timeout. All 59 regressions plus real-model acceptance pass without skips. No running-workspace activation or DMG rebuild; devices/API accounts/native other OS/VM remain separate. See STUDIO-LOCAL-SPEECH-CHECKPOINT.json.",
+    "Cooperative SIGTERM now reaches existing controller/worker cleanup, including repeated stops and startup-stop races. Real file/SQLite CLI restart, SIGKILL recovery, exclusive ownership, inactive restore, artifact revisions and pinned citations pass locally. The same 92 scoped checks pass on macOS and isolated Linux/arm64 with zero skips. No VM or installer changed; actual HTTPS VM, external accounts, devices and native OS gates remain open. See STUDIO-SERVER-RECOVERY-CHECKPOINT.json.",
+    "Docker execution and explicit recovery now pin one connection across daemon commands, closing the local context-change race after preflight. Default hosts are explicit; named contexts use private Docker snapshots retaining TLS/SSH settings and daemon headers without registry logins. V1 journal hashes remain compatible. All 225 affected regressions, 10 actual lifecycle/route/transport-copy checks and nine full-worker checks pass with zero skips. Remote sessions/daemon restart, installed OS and VM remain open; no installer rebuilt. See STUDIO-DOCKER-ROUTE-CHECKPOINT.json.",
+    "Hosted filtering-proxy recovery now allows only exact tracked analysis lookup with full-ID scoping, canonicalizes name/short-ID operations and retains bounded failed-removal/tombstone authority. Shared policy lives in the framework and the standalone launcher remains SDK-free; Compose mounts both files. All 196 affected regressions and four actual proxy/daemon drills pass without skips, including failed removal, name reuse and fail-closed proxy restart. Durable ownership across proxy restart, remote/VM/MCP containment and installed OS gates remain open; no installer rebuilt. See STUDIO-PROXY-RECOVERY-CHECKPOINT.json."
   ],
   "validation": {
     "studio_regressions": {
@@ -221,6 +232,271 @@
         "errors": 0,
         "skipped": 0,
         "duration_seconds": 20.354
+      }
+    },
+    "desktop_full_sdk": {
+      "checkpoint": "STUDIO-DESKTOP-FULL-SDK-CHECKPOINT.json",
+      "affected": {
+        "report": "/private/tmp/nexus-full-sdk-required.xml",
+        "tests": 99,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 24.45
+      },
+      "final_packaging_unit": {
+        "report": "/private/tmp/nexus-full-profile-final-unit.xml",
+        "tests": 17,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 2.001
+      },
+      "relocated_full": {
+        "report": "/private/tmp/nexus-full-sdk-runtime.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 38.435
+      }
+    },
+    "mcp_shutdown": {
+      "checkpoint": "STUDIO-MCP-SHUTDOWN-CHECKPOINT.json",
+      "required": {
+        "report": "/private/tmp/nexus-mcp-lifecycle-required.xml",
+        "tests": 106,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 41.738
+      },
+      "beta2_acceptance": {
+        "report": "/private/tmp/nexus-mcp-beta2-acceptance.xml",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 91.44
+      }
+    },
+    "docker_shutdown": {
+      "checkpoint": "STUDIO-DOCKER-SHUTDOWN-CHECKPOINT.json",
+      "required": {
+        "report": "/private/tmp/nexus-docker-lifecycle-required.xml",
+        "tests": 126,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 34.044
+      },
+      "actual_docker_lifecycle": {
+        "report": "/private/tmp/nexus-docker-lifecycle-actual.xml",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 9.525
+      },
+      "actual_data_compatibility": {
+        "report": "/private/tmp/nexus-docker-data-compatibility.xml",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 7.335
+      },
+      "actual_source_mcp_compatibility": {
+        "report": "/private/tmp/nexus-docker-mcp-compatibility.xml",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 10.492
+      }
+    },
+    "container_recovery": {
+      "checkpoint": "STUDIO-CONTAINER-RECOVERY-CHECKPOINT.json",
+      "required": {
+        "report": "/private/tmp/nexus-container-recovery-required.xml",
+        "tests": 165,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 34.173
+      },
+      "actual_docker_lifecycle_recovery": {
+        "report": "/private/tmp/nexus-container-recovery-actual.xml",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 25.663
+      },
+      "actual_standard_library_data": {
+        "report": "/private/tmp/nexus-container-recovery-data.xml",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 5.897,
+        "explicitly_deselected": "One six-operation chart/JQ/ImageMagick workflow requires dependencies absent from the approved Python-only image; no optional packages were installed."
+      }
+    },
+    "container_cleanup_ui": {
+      "checkpoint": "STUDIO-CONTAINER-CLEANUP-UI-CHECKPOINT.json",
+      "backend": {
+        "report": "/private/tmp/nexus-cleanup-action-required.xml",
+        "tests": 76,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "frontend": {
+        "report": "/private/tmp/nexus-cleanup-action-frontend.xml",
+        "tests": 19,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "actual_docker": {
+        "report": "/private/tmp/nexus-cleanup-action-docker.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "postman": {
+        "report": "/private/tmp/nexus-cleanup-action-postman.json",
+        "assertions": 3,
+        "passed": 3,
+        "failed": 0,
+        "automatic_retries": 0,
+        "report_events": false,
+        "target": "Disposable local Studio with real Docker ownership records"
+      }
+    },
+    "full_analysis_worker": {
+      "checkpoint": "STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json",
+      "report": "/private/tmp/nexus-full-analysis-worker-acceptance.xml",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.86,
+      "deselected": 0
+    },
+    "pdf_startup_isolation": {
+      "checkpoint": "STUDIO-PDF-ISOLATION-CHECKPOINT.json",
+      "required": {
+        "report": "/private/tmp/nexus-pdf-isolation-required.xml",
+        "tests": 124,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 24.189
+      },
+      "relocated_frozen": {
+        "report": "/private/tmp/nexus-pdf-isolation-frozen.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 5.15
+      }
+    },
+    "real_local_speech": {
+      "checkpoint": "STUDIO-LOCAL-SPEECH-CHECKPOINT.json",
+      "required": {
+        "report": "/private/tmp/nexus-local-speech-required.xml",
+        "tests": 59,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 6.683
+      },
+      "actual_models": {
+        "report": "/private/tmp/nexus-local-speech-actual.xml",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 7.118
+      }
+    },
+    "server_recovery": {
+      "checkpoint": "STUDIO-SERVER-RECOVERY-CHECKPOINT.json",
+      "macos": {
+        "report": "/private/tmp/nexus-server-recovery-required.xml",
+        "tests": 92,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "deselected": 0,
+        "duration_seconds": 85.24,
+        "sha256": "b54b4be42c6f807a98b21bc26fb8e2c15e6d10b69ffb793c550ac28ae2f772f4"
+      },
+      "linux": {
+        "report": "/private/tmp/nexus-linux-server-recovery.log",
+        "tests": 92,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "deselected": 0,
+        "duration_seconds": 36.04,
+        "exit_code": 0,
+        "sha256": "f7ee3f810411c2ab9052fad021906b4836d1550df133a1106719bac52ca557c4"
+      }
+    },
+    "docker_route_stability": {
+      "checkpoint": "STUDIO-DOCKER-ROUTE-CHECKPOINT.json",
+      "required": {
+        "tests": 225,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-docker-route-required.xml",
+        "duration_seconds": 53.771,
+        "sha256": "4b1faade73f9a2b3e595e0970dc9739793cf23cd7b01d29064b9bede6b4d7a3d"
+      },
+      "actual_docker_lifecycle_and_routes": {
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-docker-route-lifecycle.xml",
+        "duration_seconds": 26.259,
+        "sha256": "4dd65457bf5ae2f4c230efa296ce07e3123db5f6a5742e632200a9da72c90f1d"
+      },
+      "full_worker": {
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-docker-route-data.xml",
+        "duration_seconds": 8.685,
+        "sha256": "57ed117337d3a23c5a157ac7a1acf7e9136d357f671fd2dcfc408021b7ac8c46"
+      }
+    },
+    "filtered_proxy_recovery": {
+      "checkpoint": "STUDIO-PROXY-RECOVERY-CHECKPOINT.json",
+      "required": {
+        "tests": 196,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-proxy-recovery-required.xml",
+        "duration_seconds": 18.23,
+        "sha256": "30f4861c4174811e270edc5c53111c1c896325160f1b9cb9307cd54aaf07e7ff"
+      },
+      "actual_proxy": {
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-proxy-recovery-actual.xml",
+        "duration_seconds": 6.384,
+        "sha256": "be55df269c777fccc14d4e44853613ccd4bf696bef93bbd421d8d8f8b161fc29"
       }
     }
   },

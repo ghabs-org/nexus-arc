@@ -35,3 +35,16 @@ for its bounded process before removing output; cancelled audio is not published
 The pin covers profile settings, not local model file contents, installed
 executables or model/API availability. Interrupted/startup cleanup is locally
 verified; real model/API and physical-device checks remain separate acceptance work.
+
+
+Local-worker portability follow-up (26 October): Whisper applies POSIX resource
+limits only where the `resource` module exists. POSIX CPU/Linux address-space
+limits and the parent 130-second wall timeout are unchanged. No request/response,
+profile snapshot, credential scope or cleanup contract changes. Controlled platform
+branches do not certify native Windows inference.
+
+Actual local Piper/Whisper inference now has a separate opt-in acceptance consumer
+(`studio_local_speech_acceptance.py`). It uses explicitly installed models and
+normal Studio jobs; it never substitutes an API provider. Model preparation was
+operator-approved, separate from runtime execution. Physical devices, API-account
+acceptance, native Windows/Linux and VM operation remain separate.

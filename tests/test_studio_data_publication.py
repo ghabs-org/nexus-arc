@@ -12,7 +12,7 @@ from tests.test_studio_dynamic_embeds import upload
 
 
 @pytest.mark.parametrize(
-    "interruption", ["cancelled", "completed", "cancel-requested", "deleted-input"]
+    "interruption", ["cancelled", "completed", "cancel-requested", "deleted-input", "closing"]
 )
 def test_worker_completion_rechecks_run_and_input_before_saving(
     tmp_path, monkeypatch, interruption
@@ -33,6 +33,8 @@ def test_worker_completion_rechecks_run_and_input_before_saving(
         def finish(*args):
             if interruption == "deleted-input":
                 studio.catalog.archive("artifacts", source["id"], {"revision": source["revision"]})
+            elif interruption == "closing":
+                studio.closing = True
             else:
                 studio._update_run(
                     run["id"],

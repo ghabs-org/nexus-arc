@@ -9,6 +9,7 @@ import inspect
 import json
 import os
 import re
+import uuid
 from dataclasses import asdict, is_dataclass
 from urllib.parse import urlparse
 
@@ -388,6 +389,31 @@ class StudioConnections:
         return result
 
     async def execute(
+        self, identity, payload, actor=None, *, approved=False, probe=False, expected_data=None
+    ):
+        from nexus.core.studio_data_tools import current_run_id
+
+        task = asyncio.current_task()
+        key = "connector:" + uuid.uuid4().hex
+        with self.studio.lock:
+            if self.studio.closing:
+                raise RuntimeError("Studio is shutting down")
+            owned = current_run_id.get() not in self.studio.active_tasks and not any(
+                active is task for _, active in self.studio.active_tasks.values()
+            )
+            if owned:
+                self.studio.active_tasks[key] = (asyncio.get_running_loop(), task)
+        try:
+            return await self._execute(
+                identity, payload, actor, approved=approved, probe=probe,
+                expected_data=expected_data,
+            )
+        finally:
+            if owned:
+                with self.studio.lock:
+                    self.studio.active_tasks.pop(key, None)
+
+    async def _execute(
         self, identity, payload, actor=None, *, approved=False, probe=False, expected_data=None
     ):
         record = self.studio.catalog.get("connectors", identity)

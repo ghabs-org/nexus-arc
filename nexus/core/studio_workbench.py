@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
 from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -40,6 +41,7 @@ class StudioWorkbench:
         self.audit_provider = audit_provider
         self.audit_error = None
         self.guards = {}
+        self.container_cleanup_lock = threading.Lock()
         from nexus.core.studio_memory_sources import StudioMemorySources
 
         self.memory_sources = StudioMemorySources(self, memory_sources, redis_factory)
@@ -391,7 +393,9 @@ class StudioWorkbench:
                 "status": run["status"],
                 "provider": run.get("provider", "local"),
             }
-            if run["status"] in {"completed", "failed", "interrupted", "cancelled"} and run.get("created_at"):
+            if run["status"] in {"completed", "failed", "interrupted", "cancelled"} and run.get(
+                "created_at"
+            ):
                 event["duration_seconds"] = max(
                     0,
                     (datetime.now(UTC) - datetime.fromisoformat(run["created_at"])).total_seconds(),
@@ -579,6 +583,30 @@ class StudioWorkbench:
 
     def post(self, parts, payload, actor):
         self.owner(actor)
+        if parts == ["readiness", "cleanup"]:
+            if self.studio.team:
+                if (
+                    not actor
+                    or actor.get("role") != "owner"
+                    or self.studio.team.bindings.get(actor.get("nexus_id")) != "owner"
+                ):
+                    raise PermissionError("Container cleanup requires the owner role")
+                self.studio.team.assert_execution(actor["nexus_id"])
+            if set(payload) - {"requester_nexus_id", "_role"}:
+                raise ValueError("Container cleanup accepts no worker selections or settings")
+            if not self.container_cleanup_lock.acquire(blocking=False):
+                return 409, {
+                    "error": "Container cleanup is already running. Refresh Deployment checks before trying again."
+                }
+            try:
+                if self.studio.closing:
+                    return 503, {
+                        "error": "Studio is shutting down; container cleanup was not started"
+                    }
+                result = self.studio.data_tools.sandbox.recover_cleanup(timeout=8)
+                return 200, {**result, "checked_at": now()}
+            finally:
+                self.container_cleanup_lock.release()
         if parts == ["guide"]:
             return 200, self.onboarding.save_guide_state(payload, actor)
         if len(parts) == 3 and parts[0] == "onboarding":

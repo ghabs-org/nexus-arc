@@ -1,9 +1,13 @@
 import json
+import os
+import subprocess
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 from nexus.core.studio_data_tools import DATA_PROGRAM, IMAGE_PROGRAM
-from nexus.core.studio_sandbox import WRAPPER, StudioSandbox
+from nexus.core.studio_sandbox import WRAPPER, StudioSandbox, _OwnedContainer
 
 IMAGE = "example.test/worker@sha256:" + "a" * 64
 
@@ -62,7 +66,21 @@ def test_selected_context_routes_inspection_and_execution(monkeypatch):
 
     def inspect(command, **kwargs):
         calls.append(command)
-        return SimpleNamespace(returncode=1)
+        if "context" in command and "inspect" in command:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps(
+                    [
+                        {
+                            "Name": "desktop-linux",
+                            "Endpoints": {"docker": {"Host": "unix:///fixture.sock"}},
+                        }
+                    ]
+                ).encode(),
+            )
+        if "export" in command:
+            return SimpleNamespace(returncode=0, stdout=b"context archive")
+        return SimpleNamespace(returncode=int("image" in command))
 
     sandbox = StudioSandbox(
         {"data": {"image": IMAGE, "docker_context": "desktop-linux"}}, run=inspect
@@ -70,7 +88,10 @@ def test_selected_context_routes_inspection_and_execution(monkeypatch):
     assert sandbox.arguments("data", "owned")[:4] == ["docker", "--context", "desktop-linux", "run"]
     with pytest.raises(ValueError, match="not installed"):
         sandbox.execute("print(1)", profile="data")
-    assert calls == [["docker", "--context", "desktop-linux", "image", "inspect", IMAGE]]
+    assert calls[0] == ["docker", "--context", "desktop-linux", "context", "inspect"]
+    image = next(command for command in calls if "image" in command)
+    assert image[:2] == ["docker", "--config"]
+    assert image[3:] == ["--context", "desktop-linux", "image", "inspect", IMAGE]
 
 
 @pytest.mark.parametrize(
@@ -107,3 +128,138 @@ def test_model_mount_rechecks_replaced_symlink(tmp_path):
     model.symlink_to(tmp_path / "other.pt")
     with pytest.raises(ValueError, match="ordinary"):
         sandbox.arguments("vision", "owned")
+
+
+def test_closed_worker_rejects_dispatch_before_any_docker_command(monkeypatch):
+    command = Mock(side_effect=AssertionError("Must not call Docker after close"))
+    sandbox = StudioSandbox({"python": {"image": IMAGE}}, run=command)
+    assert sandbox.close() and sandbox.close()
+    with pytest.raises(RuntimeError, match="shutting down"):
+        sandbox.execute("print(1)")
+    assert not command.called
+
+
+def test_close_during_image_inspection_prevents_late_container_launch(monkeypatch):
+    monkeypatch.setattr("nexus.core.studio_sandbox.shutil.which", lambda _: "/bin/docker")
+    launch = Mock(side_effect=AssertionError("Must not start a late container"))
+    monkeypatch.setattr("nexus.core.studio_sandbox.subprocess.Popen", launch)
+
+    def inspect(command, **kwargs):
+        if "image" in command:
+            sandbox.close(wait=False)
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                [
+                    {
+                        "Name": "default",
+                        "Endpoints": {"docker": {"Host": "unix:///fixture.sock"}},
+                    }
+                ]
+            ).encode(),
+        )
+
+    sandbox = StudioSandbox({"python": {"image": IMAGE}}, run=inspect)
+    with pytest.raises(RuntimeError, match="shutting down"):
+        sandbox.execute("print(1)")
+    assert not launch.called
+
+
+@pytest.mark.parametrize("daemon_available", [False, True])
+def test_cleanup_confirms_absence_on_the_launch_context_without_sweeping_others(daemon_available):
+    calls = []
+    sandbox = StudioSandbox({"python": {"image": IMAGE, "docker_context": "changed"}})
+    process = SimpleNamespace(poll=lambda: None, kill=Mock())
+
+    def command(args, **kwargs):
+        calls.append(args)
+        assert kwargs["timeout"] <= 5
+        if "rm" in args:
+            return SimpleNamespace(returncode=1)
+        return SimpleNamespace(returncode=0 if daemon_available else 1, stdout=b"")
+
+    worker = _OwnedContainer(
+        process,
+        ["docker", "--context", "original"],
+        "nexus-analysis-owned",
+        command,
+        sandbox._report_cleanup,
+    )
+    sandbox._active[worker.name] = worker
+    assert sandbox.close() is daemon_available
+    assert process.kill.call_count == 1 and worker.cancelled.is_set()
+    assert calls == [
+        ["docker", "--context", "original", "rm", "--force", worker.name],
+        [
+            "docker",
+            "--context",
+            "original",
+            "ps",
+            "--all",
+            "--filter",
+            "name=^/nexus-analysis-owned$",
+            "--format",
+            "{{.ID}}",
+        ],
+    ]
+    assert bool(sandbox.cleanup_errors) is not daemon_available
+    sandbox.close()
+    assert process.kill.call_count == 1
+
+
+def test_cleanup_timeout_is_unconfirmed_and_never_replays_work():
+    sandbox = StudioSandbox()
+    process = SimpleNamespace(poll=lambda: None, kill=Mock())
+    command = Mock(side_effect=subprocess.TimeoutExpired("docker", 5))
+    worker = _OwnedContainer(
+        process, ["docker"], "nexus-analysis-owned", command, sandbox._report_cleanup
+    )
+    sandbox._active[worker.name] = worker
+    assert not sandbox.close()
+    assert worker.done.is_set() and sandbox.cleanup_errors == {worker.name}
+    assert command.call_count == 1
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_explicit_default_context_cannot_be_redirected_by_ambient_host(monkeypatch, explicit):
+    monkeypatch.setenv("DOCKER_HOST", "tcp://unselected.invalid:2375")
+    monkeypatch.setenv("DOCKER_TLS_VERIFY", "1")
+    monkeypatch.setattr("nexus.core.studio_sandbox.shutil.which", lambda _: "/bin/docker")
+    seen = []
+
+    def inspect(command, **kwargs):
+        seen.append((command, kwargs["env"]))
+        if "context" in command:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps(
+                    [
+                        {
+                            "Name": "default",
+                            "Endpoints": {
+                                "docker": {
+                                    "Host": kwargs["env"].get(
+                                        "DOCKER_HOST", "unix:///fixture.sock"
+                                    ),
+                                }
+                            },
+                        }
+                    ]
+                ).encode(),
+            )
+        return SimpleNamespace(returncode=1)
+
+    profile = {"image": IMAGE, **({"docker_context": "default"} if explicit else {})}
+    sandbox = StudioSandbox({"python": profile}, run=inspect)
+    with pytest.raises(ValueError, match="not installed"):
+        sandbox.execute("print(1)")
+    assert len(seen) == 2
+    assert seen[1][0][1] == "--host"
+    environment = seen[1][1]
+    if explicit:
+        assert seen[0][0][:3] == ["docker", "--context", "default"]
+        assert "DOCKER_HOST" not in environment and "DOCKER_TLS_VERIFY" not in environment
+    else:
+        assert environment["DOCKER_HOST"] == "tcp://unselected.invalid:2375"
+        assert environment["DOCKER_TLS_VERIFY"] == "1"
+    assert os.environ["DOCKER_HOST"] == "tcp://unselected.invalid:2375"

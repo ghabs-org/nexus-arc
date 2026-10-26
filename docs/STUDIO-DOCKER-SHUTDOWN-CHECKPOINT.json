@@ -1,0 +1,110 @@
+{
+  "format": "nexus-studio-docker-shutdown-checkpoint/v1",
+  "date": "2026-10-26",
+  "scope": "Source-runtime local Docker ownership and shutdown; no installer build or installed-distribution acceptance.",
+  "status": "local-source-verified",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_sandbox.py",
+    "nexus/core/studio_data_tools.py",
+    "nexus/core/studio.py",
+    "tests/test_studio_sandbox.py",
+    "tests/test_studio_data_publication.py",
+    "tests/studio_docker_lifecycle_acceptance.py",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py"
+  ],
+  "documentation": "docs/STUDIO-DOCKER-SHUTDOWN.md",
+  "contract": "postman/contracts/studio-analysis-lifecycle.md",
+  "validation": {
+    "required": {
+      "report": "/private/tmp/nexus-docker-lifecycle-required.xml",
+      "tests": 126,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 34.044
+    },
+    "actual_docker_lifecycle": {
+      "report": "/private/tmp/nexus-docker-lifecycle-actual.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 9.525
+    },
+    "actual_data_compatibility": {
+      "report": "/private/tmp/nexus-docker-data-compatibility.xml",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.335
+    },
+    "actual_source_mcp_compatibility": {
+      "report": "/private/tmp/nexus-docker-mcp-compatibility.xml",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 10.492
+    }
+  },
+  "runtime": {
+    "host": "macOS Apple Silicon",
+    "docker_client": "29.9.2",
+    "docker_server": "29.9.2",
+    "context": "default",
+    "image_pulls": 0,
+    "images": [
+      "sha256:0514bc76712d64f8bb48adcb95b1ab0d88c69fee95d62fe4c18ee948bee9b1e1",
+      "sha256:8f3876c233b68949bb9150ed5dbcb2cb699f57af90145bc33e2b859c8dee0cc5"
+    ]
+  },
+  "before_fix": "Killing the active Docker CLI left its container running; the probe removed only its generated container afterward.",
+  "verified": [
+    "Normal Studio close removes active analysis container and detached SIGTERM-resistant child.",
+    "Abrupt owner death and whole-process-group termination remove the active container.",
+    "Closed dispatch and image-inspection shutdown races reject late starts.",
+    "Late results do not publish artifacts after Studio starts closing.",
+    "Explicit default context overrides ambient host/TLS settings consistently for inspection, launch and cleanup.",
+    "Failed removal is confirmed only by a successful exact-name daemon query; daemon uncertainty remains reported.",
+    "Existing data operations, resource bounds, private artifacts and source MCP cleanup remain compatible."
+  ],
+  "compatibility": "Public execution inputs/results and persisted profiles are unchanged. Internal transport now uses newline-framed JSON and a retained stdin lifetime channel; raw callers of container arguments must use matching transport. Worker images need no rebuild.",
+  "distribution": {
+    "dmg_rebuilt": false,
+    "policy": "Rebuild or create a DMG only after an explicit user request.",
+    "artifacts": [
+      {
+        "filename": "Nexus-Studio-1.0.0-beta-full-20261026-apple-silicon.dmg",
+        "recorded_sha256": "58f1e5004ec19846082f26be0cef021adbc6f362e3507f2dadc8b11217831d12",
+        "present": false,
+        "verification": "not reverified: artifact absent from releases directory"
+      },
+      {
+        "filename": "Nexus-Studio-1.0.0-beta2-full-20261026-apple-silicon.dmg",
+        "recorded_sha256": "0d040bbb5694d6f03f009b36dd9b1f6f3878e6d4055bcb0e917448112772d7d0",
+        "present": false,
+        "verification": "not reverified: artifact absent from releases directory"
+      }
+    ],
+    "checksum_file_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+  },
+  "pending": [
+    "Remote/SSH daemon, outage and delayed create/start recovery drills; a lost late create may leave a stopped container object.",
+    "Implicit Docker context changes after launch are not certified.",
+    "Native Windows and frozen/installed distribution acceptance for this source change.",
+    "MCP host descendants daemonized outside the owned group.",
+    "Signing/notarization, account/model/device/personal-VM validation and historical intermittent PDF diagnosis remain separate."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_sandbox.py": "c41fc29f66a4fabdd98afd6a2ffccfcce0655c10d575fe2b8928ca9ab29a66a6",
+    "nexus/core/studio_data_tools.py": "0645c53f4e5cb891ed94a5d4260f0c5e5492f74393a9c43d726a152207311adc",
+    "nexus/core/studio.py": "446b507bd42369742af5173708df2a6ab21183f506e7ca01458811a890937ea6",
+    "tests/test_studio_sandbox.py": "d96cded0f9cb0864bf5e79bb4012ca3c675cff531e4b781d3450da88b59bc044",
+    "tests/test_studio_data_publication.py": "53adbe6afc884b886111240be6ac228ec95c7ea85c781ab37d081d342b9d094d",
+    "tests/studio_docker_lifecycle_acceptance.py": "32c22d66cb767764e62a46e63fdc0095bf6629586de3dec1335faa671d2416cd",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py": "76a693353789e505a081d29ec545d3db2b6d76d5e8c2182876ee6abb4a861e91"
+  }
+}

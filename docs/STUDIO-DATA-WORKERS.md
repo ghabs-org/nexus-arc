@@ -186,6 +186,28 @@ expected labels. The local acceptance record freezes fixture URLs and digests.
 No account entitlement, production data quality or deployed-VM behavior is inferred
 from these tests.
 
+## Acceptance after lifecycle changes — 26 October 2026
+
+All nine checks in `tests/studio_data_worker_acceptance.py` now pass against the
+current stopped-create/acknowledged-start runtime, lifetime channel and cleanup
+journals. The six-operation example runs the real SQL/JQ/chart/ImageMagick/Python
+tools and verifies six private artifacts, revision/run provenance and exact
+expected result values/dimensions. The earlier Python-only dependency exclusion
+is resolved for this local data-worker gate; no test was skipped or deselected.
+
+The separately built Linux arm64 test image is
+`sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9`.
+It uses the existing recipe with PyYAML 6.0.3, Plotly 6.3.1 and Kaleido 1.1.0.
+The full OS/Python package snapshot, base image, source hashes and exact proof
+are in `STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json`. This image remains installed
+locally; it was not activated in a running workspace or bundled into an app.
+Rebuilding from current OS repositories can produce different bytes, so use an
+explicitly inspected immutable image ID in runtime profiles.
+
+No product-code or profile/schema change was needed. Remote/SSH Docker, actual
+daemon restart/disconnection, installed OS, personal VM, physical device and
+selected vision/speech model acceptance remain separate. No DMG was rebuilt.
+
 ## Migration
 
 The new profile fields are optional and additive. Existing private settings,

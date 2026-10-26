@@ -1,0 +1,55 @@
+{
+  "format": "nexus-studio-friend-dmg-checkpoint/v1",
+  "date": "2026-10-26",
+  "scope": "Shareable full SDK Apple Silicon beta DMG, installed from this exact disk image",
+  "whole_plan_complete": false,
+  "milestone_complete": false,
+  "ready_for_friend_beta": true,
+  "artifact": {
+    "path": "/Users/gabrielebertini/git/ghabs/nexus-arc/releases/Nexus-Studio-1.0.0-beta-full-20261026-apple-silicon.dmg",
+    "sha256": "58f1e5004ec19846082f26be0cef021adbc6f362e3507f2dadc8b11217831d12",
+    "size_bytes": 420606500,
+    "architecture": "arm64",
+    "minimum_macos": "14.0",
+    "version": "1.0.0",
+    "profile": "full",
+    "signing": "ad-hoc; no Developer ID or notarization"
+  },
+  "validation": {
+    "dmg_integrity": "hdiutil verify VALID",
+    "installed_signature": "codesign --verify --deep --strict passes before and after runtime checks",
+    "payload_matches_manifest": true,
+    "backend_tree_sha256": "d83e1ea1dfe2424fd5bd1ddd11e1e3958b96c4abc9b376f22c582465b4bdb125",
+    "macho_minimum_audit": "/private/tmp/nexus-friend-macos-compatibility.json",
+    "installed_backend_acceptance": {
+      "report": "/private/tmp/nexus-friend-installed-runtime.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 57.45
+    },
+    "native_ui": {
+      "native_ui_loaded": true,
+      "first_run_guide_visible": true,
+      "conversation_ui_visible": true,
+      "quick_build_effort_visible": true,
+      "window_close_exit": 0,
+      "backend_stopped": true,
+      "workspace_lock_released": true,
+      "anonymous_api_status": 401,
+      "ui_observer_relaunch_stopped": true
+    }
+  },
+  "build_configuration": "/private/tmp/nexus-friend-build/tauri.friend.conf.json",
+  "build_command": "CI=true npx --yes @tauri-apps/cli@2.12.4 build --config /private/tmp/nexus-friend-build/tauri.friend.conf.json --bundles app,dmg",
+  "included": "Framework, public frontend assets, Python runtime and full selected SDKs. No sender workspace or credential files.",
+  "testing_notes": "/Users/gabrielebertini/git/ghabs/nexus-arc/releases/Nexus-Studio-Beta-Testing.md",
+  "checksum_file": "/Users/gabrielebertini/git/ghabs/nexus-arc/releases/SHA256SUMS.txt",
+  "pending": [
+    "Developer ID signing/notarization and clean downloaded-quarantine acceptance on another physical Mac.",
+    "Friend real provider/account setup; actual model, microphone/playback and external integration behavior.",
+    "Historical intermittent PDF cause remains unproven; full-plan and desktop cross-platform gates remain open."
+  ],
+  "cleanup": "The read-only DMG mount was ejected and both observed test app/backend instances stopped. Existing normal application data was left untouched."
+}

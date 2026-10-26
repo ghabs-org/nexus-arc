@@ -118,11 +118,24 @@ def test_frozen_import_failure_preserves_existing_artifact(tmp_path, monkeypatch
                     {"format": "nexus-sidecar-info/v1", "frozen": True, "frontend_present": True}
                 ).encode(),
             )
-        raise subprocess.CalledProcessError(1, command, output=b"failed frozen import")
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout=json.dumps(
+                {
+                    "format": "nexus-desktop-profile/v1",
+                    "profile": "core",
+                    "passed": False,
+                    "packages": {"pypdf": {"imported": False, "error_type": "ModuleNotFoundError"}},
+                }
+            ).encode(),
+            stderr=b"private build path must not be exposed",
+        )
 
     monkeypatch.setattr(bundle.subprocess, "run", run)
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(ValueError, match="self-check failed: pypdf: ModuleNotFoundError") as error:
         bundle.build_bundle(source, output)
+    assert "private build path" not in str(error.value)
     assert existing.read_bytes() == b"previous release"
 
 
@@ -139,9 +152,9 @@ def test_frozen_workers_reexecute_the_bundled_runtime(monkeypatch, module):
 
 def test_source_commands_keep_module_and_isolated_finance_behavior(monkeypatch):
     monkeypatch.delattr(sys, "frozen", raising=False)
-    assert sidecar.worker_command(
-        "nexus.core.studio_artifact_extract", "2", executable="python"
-    ) == ["python", "-m", "nexus.core.studio_artifact_extract", "2"]
+    pdf = sidecar.worker_command("nexus.core.studio_artifact_extract", "2", executable="python")
+    assert pdf[:2] == ["python", "-I"]
+    assert Path(pdf[2]).name == "studio_artifact_extract.py" and pdf[3:] == ["2"]
     command = sidecar.worker_command(
         "nexus.core.studio_finance_worker", "ABC", "1mo", "history", executable="python"
     )

@@ -82,5 +82,10 @@
   "pending": [
     "The original intermittent preview failure had no captured cause; these diagnostics do not prove it fixed. Any recurrence must be classified before desktop stability acceptance.",
     "Actual installed native app, remaining SDK/integration invocation, Windows/Linux, physical voice/model and personal VM acceptance remain separate."
-  ]
+  ],
+  "startup_isolation_follow_up": {
+    "checkpoint": "STUDIO-PDF-ISOLATION-CHECKPOINT.json",
+    "date": "2026-10-26",
+    "status": "Confirmed provider-import coupling fixed; historical unclassified incident remains open."
+  }
 }

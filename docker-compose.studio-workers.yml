@@ -45,6 +45,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./deploy/studio/docker_proxy.py:/app/docker_proxy.py:ro
+      - ./nexus/core/studio_docker_proxy_policy.py:/app/studio_docker_proxy_policy.py:ro
       - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio-team.json:/etc/nexus-studio/studio-team.json:ro
       - ${NEXUS_STUDIO_CONFIG_DIR:-/etc/nexus}/studio-runtime.json:/etc/nexus-studio/studio-runtime.json:ro
       - ${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:${NEXUS_RUNTIME_DIR:-/var/lib/nexus}/auth:ro

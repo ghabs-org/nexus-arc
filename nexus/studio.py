@@ -18,6 +18,7 @@ from nexus.core.studio_desktop import (
     end_owned_process_group,
 )
 from nexus.core.studio_team import TeamAccessError
+from nexus.core.studio_termination import serve_until_stopped, termination_requested
 
 _ASSETS = {
     "/agent.html": ("index.html", "text/html; charset=utf-8"),
@@ -1004,60 +1005,59 @@ def serve_studio(
                 "Workspace is already open in another Nexus Studio"
                 + (f" (process {holder['pid']}, port {holder['port']})" if "pid" in holder else "")
             )
-    service, server = None, None
-    try:
-        from nexus.core.studio_runtime import load_runtime_configuration
+    with termination_requested() as stop:
+        service, server = None, None
+        try:
+            from nexus.core.studio_runtime import load_runtime_configuration
 
-        options = load_runtime_configuration(runtime_config, root) if runtime_config else {}
-        service = StudioService(
-            root, team_policy=policy, state_dir=state_dir, transport=transport, **options
-        )
-        if worker_only:
-            if not service.sql_state or not service.executor.threads:
-                raise ValueError(
-                    "Worker-only mode requires SQL state and at least one configured worker"
-                )
-            import threading
+            options = load_runtime_configuration(runtime_config, root) if runtime_config else {}
+            service = StudioService(
+                root, team_policy=policy, state_dir=state_dir, transport=transport, **options
+            )
+            if stop.is_set():
+                return
+            if worker_only:
+                if not service.sql_state or not service.executor.threads:
+                    raise ValueError(
+                        "Worker-only mode requires SQL state and at least one configured worker"
+                    )
+                service.operations.start()
+                print(f"Nexus Studio worker: {service.sql_state.namespace}", flush=True)
+                stop.wait()
+                return
+            server = ThreadingHTTPServer(
+                (host, port), make_studio_handler(service, secrets.token_urlsafe(32), launch)
+            )
+            if parent_input is not None:
+                from nexus.core.studio_desktop_parent import watch_parent_input
 
+                watch_parent_input(parent_input, server.shutdown)
             service.operations.start()
-            print(f"Nexus Studio worker: {service.sql_state.namespace}", flush=True)
-            stop = threading.Event()
-            while not stop.wait(1):
-                pass
-            return
-        server = ThreadingHTTPServer(
-            (host, port), make_studio_handler(service, secrets.token_urlsafe(32), launch)
-        )
-        if parent_input is not None:
-            from nexus.core.studio_desktop_parent import watch_parent_input
+            print(
+                f"Nexus Studio: {policy.public_url if policy else f'http://{host}:{server.server_port}'}"
+            )
+            print(f"Workspace: {service.root}")
+            serve_until_stopped(server, stop)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if parent_input is not None:
+                import os
+                import threading
 
-            watch_parent_input(parent_input, server.shutdown)
-        service.operations.start()
-        print(
-            f"Nexus Studio: {policy.public_url if policy else f'http://{host}:{server.server_port}'}"
-        )
-        print(f"Workspace: {service.root}")
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
+                # The shell may already be gone; never let a hung close outlive it.
+                watchdog = threading.Timer(10, os._exit, (1,))
+                watchdog.daemon = True
+                watchdog.start()
+            if server:
+                server.server_close()
+            if service:
+                service.close()
+            elif transport:
+                transport.close()
+            if lock:
+                lock.release()
+        # Only after a normal shutdown: a startup error must reach the shell as its
+        # message and exit status, not as a self-inflicted SIGKILL.
         if parent_input is not None:
-            import os
-            import threading
-
-            # The shell may already be gone; never let a hung close outlive it.
-            watchdog = threading.Timer(10, os._exit, (1,))
-            watchdog.daemon = True
-            watchdog.start()
-        if server:
-            server.server_close()
-        if service:
-            service.close()
-        elif transport:
-            transport.close()
-        if lock:
-            lock.release()
-    # Only after a normal shutdown: a startup error must reach the shell as its
-    # message and exit status, not as a self-inflicted SIGKILL.
-    if parent_input is not None:
-        end_owned_process_group()
+            end_owned_process_group()

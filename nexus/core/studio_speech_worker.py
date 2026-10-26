@@ -5,14 +5,18 @@ import sys
 
 
 def main():
-    import resource
+    try:
+        import resource
+    except ImportError:
+        resource = None
     from pathlib import Path
 
     import whisper
 
-    resource.setrlimit(resource.RLIMIT_CPU, (120, 120))
-    if sys.platform.startswith("linux"):
-        resource.setrlimit(resource.RLIMIT_AS, (4 * 1024**3, 4 * 1024**3))
+    if resource:
+        resource.setrlimit(resource.RLIMIT_CPU, (120, 120))
+        if sys.platform.startswith("linux"):
+            resource.setrlimit(resource.RLIMIT_AS, (4 * 1024**3, 4 * 1024**3))
     model, source = map(Path, sys.argv[1:3])
     if not model.is_file() or not source.is_file():
         raise ValueError("Configure an installed local model and audio input")

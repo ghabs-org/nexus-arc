@@ -219,6 +219,8 @@ class NexusTeamPolicy:
             required = "owner"
         if route.startswith("/api/workbench/onboarding/"):
             required = "owner"
+        if route == "/api/workbench/readiness/cleanup":
+            required = "owner"
         if route == "/api/workbench/campaigns/save":
             required = "builder"
         if route == "/api/workbench/guide":

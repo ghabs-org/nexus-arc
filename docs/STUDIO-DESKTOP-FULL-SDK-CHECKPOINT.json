@@ -1,0 +1,341 @@
+{
+  "format": "nexus-studio-desktop-full-sdk-checkpoint/v1",
+  "date": "2026-10-26",
+  "scope": "Explicit full Python SDK profile, package data and relocated macOS arm64 backend; no full native installer or live-service certification",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "documentation": "docs/STUDIO-DESKTOP-FULL-SDK.md",
+  "implementation": [
+    "nexus/core/studio_desktop_profiles.py",
+    "nexus/core/studio_desktop_bundle.py",
+    "apps/studio-desktop/build_desktop.py",
+    "apps/studio-desktop/package.json",
+    "apps/studio-desktop/requirements/full-macos-arm64.txt",
+    "pyproject.toml",
+    "examples/nexus-bot/src/studio_desktop_bundle.py",
+    "tests/test_studio_desktop_bundle.py",
+    "tests/studio_desktop_bundle_acceptance.py"
+  ],
+  "artifact": {
+    "manifest": "/private/tmp/nexus-full-sidecar/nexus-backend-aarch64-apple-darwin.manifest.json",
+    "executable": "/private/tmp/nexus-full-sidecar/nexus-backend-aarch64-apple-darwin/nexus-sidecar",
+    "target": "aarch64-apple-darwin",
+    "layout": "onedir",
+    "sha256": "1c4f0d15c11e572362894b8cf783b0ceeae93f15dc52db8aeee67e86e0772575",
+    "tree_sha256": "d83e1ea1dfe2424fd5bd1ddd11e1e3958b96c4abc9b376f22c582465b4bdb125",
+    "size_bytes": 878233532,
+    "file_count": 7081
+  },
+  "frozen_dependency_profile": {
+    "format": "nexus-desktop-profile/v1",
+    "profile": "full",
+    "passed": true,
+    "packages": {
+      "openai": {
+        "module": "openai",
+        "version": "3.37.0",
+        "imported": true
+      },
+      "anthropic": {
+        "module": "anthropic",
+        "version": "2.3.0",
+        "imported": true
+      },
+      "mcp": {
+        "module": "mcp.client.streamable_http",
+        "version": "2.3.0",
+        "imported": true
+      },
+      "slack-sdk": {
+        "module": "slack_sdk.web.client",
+        "version": "3.45.0",
+        "imported": true
+      },
+      "sqlalchemy": {
+        "module": "sqlalchemy",
+        "version": "2.1.6",
+        "imported": true
+      },
+      "psycopg2-binary": {
+        "module": "psycopg2",
+        "version": "2.9.13",
+        "imported": true
+      },
+      "pymysql": {
+        "module": "pymysql",
+        "version": "1.2.3",
+        "imported": true
+      },
+      "pymssql": {
+        "module": "pymssql",
+        "version": "2.4.5",
+        "imported": true
+      },
+      "oracledb": {
+        "module": "oracledb",
+        "version": "26.0.1",
+        "imported": true
+      },
+      "jsonschema": {
+        "module": "jsonschema",
+        "version": "4.26.0",
+        "imported": true
+      },
+      "referencing": {
+        "module": "referencing",
+        "version": "0.37.0",
+        "imported": true
+      },
+      "boto3": {
+        "module": "boto3",
+        "version": "1.43.118",
+        "imported": true
+      },
+      "pymongo": {
+        "module": "pymongo",
+        "version": "4.19.0",
+        "imported": true
+      },
+      "pypdf": {
+        "module": "pypdf",
+        "version": "6.21.2",
+        "imported": true
+      },
+      "Pillow": {
+        "module": "PIL.Image",
+        "version": "13.0.0",
+        "imported": true
+      },
+      "httpx": {
+        "module": "httpx",
+        "version": "0.28.1",
+        "imported": true
+      },
+      "cryptography": {
+        "module": "cryptography.hazmat.primitives.ciphers.aead",
+        "version": "50.0.2",
+        "imported": true
+      },
+      "yfinance": {
+        "module": "yfinance",
+        "version": "1.7.0",
+        "imported": true
+      },
+      "google-cloud-storage": {
+        "module": "google.cloud.storage",
+        "version": "3.17.1",
+        "imported": true
+      },
+      "azure-storage-blob": {
+        "module": "azure.storage.blob",
+        "version": "12.31.0",
+        "imported": true
+      },
+      "a2a-sdk": {
+        "module": "a2a.types.a2a_pb2_grpc",
+        "version": "1.1.5",
+        "imported": true
+      },
+      "grpcio": {
+        "module": "grpc",
+        "version": "1.84.1",
+        "imported": true
+      },
+      "googleapis-common-protos": {
+        "module": "google.rpc.error_details_pb2",
+        "version": "1.76.0",
+        "imported": true
+      },
+      "protobuf": {
+        "module": "google.protobuf.json_format",
+        "version": "7.36.2",
+        "imported": true
+      },
+      "python-telegram-bot": {
+        "module": "telegram.ext",
+        "version": "22.8",
+        "imported": true
+      },
+      "discord.py": {
+        "module": "discord",
+        "version": "2.7.1",
+        "imported": true
+      },
+      "redis": {
+        "module": "redis",
+        "version": "8.1.0",
+        "imported": true
+      },
+      "paho-mqtt": {
+        "module": "paho.mqtt.client",
+        "version": "2.1.0",
+        "imported": true
+      },
+      "kafka-python": {
+        "module": "kafka",
+        "version": "3.0.11",
+        "imported": true
+      },
+      "rich": {
+        "module": "rich.console",
+        "version": "14.3.4",
+        "imported": true
+      },
+      "prompt-toolkit": {
+        "module": "prompt_toolkit",
+        "version": "3.0.53",
+        "imported": true
+      },
+      "openai-whisper": {
+        "module": "whisper",
+        "version": "20250625",
+        "imported": true
+      },
+      "torch": {
+        "module": "torch",
+        "version": "2.14.1",
+        "imported": true
+      },
+      "tiktoken": {
+        "module": "tiktoken_ext.openai_public",
+        "version": "0.14.0",
+        "imported": true
+      },
+      "watchdog": {
+        "module": "watchdog.observers",
+        "version": "6.0.0",
+        "imported": true
+      },
+      "slack-bolt": {
+        "module": "slack_bolt",
+        "version": "1.30.0",
+        "imported": true
+      },
+      "python-dotenv": {
+        "module": "dotenv",
+        "version": "1.2.4",
+        "imported": true
+      },
+      "flask": {
+        "module": "flask",
+        "version": "3.1.3",
+        "imported": true
+      },
+      "flask-socketio": {
+        "module": "flask_socketio",
+        "version": "5.7.0",
+        "imported": true
+      },
+      "eventlet": {
+        "module": "eventlet",
+        "version": "0.41.3",
+        "imported": true
+      },
+      "websocket-client": {
+        "module": "websocket",
+        "version": "1.9.2",
+        "imported": true
+      },
+      "apscheduler": {
+        "module": "apscheduler.schedulers.asyncio",
+        "version": "3.11.3",
+        "imported": true
+      },
+      "PyNaCl": {
+        "module": "nacl.secret",
+        "version": "1.6.2",
+        "imported": true
+      },
+      "aiohttp": {
+        "module": "aiohttp",
+        "version": "3.14.5",
+        "imported": true
+      }
+    },
+    "offline_checks": {
+      "speech_data": {
+        "passed": true
+      },
+      "cloud_models": {
+        "passed": true
+      },
+      "grpc_messages": {
+        "passed": true
+      }
+    },
+    "scope": "Offline imports and packaged-data checks only; not account, model or service validation"
+  },
+  "validation": {
+    "affected": {
+      "report": "/private/tmp/nexus-full-sdk-required.xml",
+      "tests": 99,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 24.45
+    },
+    "final_packaging_unit": {
+      "report": "/private/tmp/nexus-full-profile-final-unit.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.001
+    },
+    "relocated_full": {
+      "report": "/private/tmp/nexus-full-sdk-runtime.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 38.435
+    }
+  },
+  "validation_scope": "The final 17 packaging unit checks overlap the 99 affected regressions; do not sum them as distinct tests. The relocated run uses the actual freshly built binary after native-style file alias copying.",
+  "verified": [
+    "All 44 selected SDK modules and their distribution metadata import in the frozen runtime with empty PATH and isolated HOME.",
+    "Whisper mel-filter/tokenizer assets, Bedrock/S3 service descriptions and gRPC serialization pass fixed offline checks without model loading or client/network calls.",
+    "Full bundle is copied with file aliases dereferenced as native resources are copied, relocated into a path with spaces, and its executable renamed.",
+    "Authenticated Studio startup, anonymous API denial, agent YAML save, bundled UI/vendor/favicon, valid/damaged/encrypted PDF previews and parent EOF shutdown pass.",
+    "Core/connected profiles remain; full profile has no automatic reduced-profile fallback or runtime installation.",
+    "Connected and full native build commands pass the generated Tauri bundle resource configuration.",
+    "A development wrapper cannot bypass connected/full dependency gates; the CLI rejects that combination before output creation."
+  ],
+  "fixed_packaging_failures": [
+    "Kafka protocol schema resources and runtime-discovered modules were absent from static collection. Explicit kafka collection fixes the actual frozen failure.",
+    "Eventlet hub and DNS module discovery required explicit eventlet/dns collection; async channel driver modules are also collected.",
+    "Build failures now identify SDK/resource error classes without returning raw stderr or exception values."
+  ],
+  "dependency_snapshot": {
+    "path": "apps/studio-desktop/requirements/full-macos-arm64.txt",
+    "pinned_dependencies": 146,
+    "python": "3.13.16",
+    "interpreter": "uv-managed, non-framework",
+    "scope": "Native versions only, not signed wheel hashes or cross-platform lock"
+  },
+  "build_history": [
+    "Concurrent source edits were safely rejected by input fingerprints; the final build used a private verified source/public-assets snapshot.",
+    "Framework Python was rejected by the directory-link packaging gate; final build uses managed non-framework Python.",
+    "A frozen 42/44 import failure was reproduced in a retained diagnostic runtime. Adding installed public Kafka/Eventlet/DNS files there proved the collection cause; that patched runtime was never staged or used as final acceptance.",
+    "A fresh unpatched build with explicit collection rules passed all 44 imports and all three offline checks."
+  ],
+  "source_snapshot": "/var/folders/97/bdw79d815l76qp44vqt8lz2h0000gn/T/nexus-full-build-source-ihooa5tv",
+  "reviewed_source_sha256": {
+    "nexus/core/studio_desktop_profiles.py": "7c65604a0d713bf579a3e912777e8e5f550fdc16b07a846c67ac9c172dfd6022",
+    "nexus/core/studio_desktop_bundle.py": "8eec37ebefecc127b482faa4e7bca89694f0c4a224b6cace2370dce0160d6547",
+    "apps/studio-desktop/build_desktop.py": "a25d8a730a51efba5c69ca85a1f67c04c3d4efb4b375ef3b6cda6510a8c9356b",
+    "apps/studio-desktop/package.json": "df4a7e5ddd083ba8f14900b9f7a960986da8f67737cbce4627c687c95d077e65",
+    "apps/studio-desktop/requirements/full-macos-arm64.txt": "7af037e31a7ac81d717661584351797d1f3731b921d5d4bf55ed225020383920",
+    "pyproject.toml": "a94c1675512e02b55ee2ea2c7dd22d279a5475be1504d057906963a5583474fb",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "a52b36f1add0ede33eb6311a0287bc2ec564c20fbb048c6477b3c0451743d109",
+    "tests/test_studio_desktop_bundle.py": "02dfb71724265a06eb96fc427822492a38730ca09d23296d56457b0f7eab2951",
+    "tests/studio_desktop_bundle_acceptance.py": "7ec604d4cb4a55f22dc0e9a55a3e3745603140fa7d2ffa51253ad5dce1ba55ed"
+  },
+  "migration": "No persisted records or source worker command formats change. Profile reports gain offline_checks; build failures provide safe class-only SDK diagnostics. No credentials, model weights or workspace records are included.",
+  "pending": [
+    "Full-profile installed native application, active descendant cleanup, signing/notarization, update and Linux/Windows acceptance remain separate.",
+    "Model inference/transcription, FFmpeg/Piper, physical microphone/playback and personal VM checks remain open.",
+    "Live provider/database/cloud/channel calls, credential scopes, billing and adapter/version compatibility require separate actual invocation evidence.",
+    "Historical intermittent PDF preview cause remains unproven; passing this drill does not close that stability history."
+  ]
+}

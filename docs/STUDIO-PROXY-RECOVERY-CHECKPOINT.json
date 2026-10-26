@@ -1,0 +1,111 @@
+{
+  "format": "nexus-studio-proxy-recovery-acceptance/v1",
+  "date": "2026-10-26",
+  "status": "local-runtime-verified",
+  "scope": "Hosted filtering-proxy compatibility with existing analysis cleanup. Actual local Unix-socket proxy and Docker daemon; no personal VM, remote daemon, native app or installer deployment.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "before_fix": {
+    "report": "/private/tmp/nexus-proxy-recovery-before.xml",
+    "sha256": "9ddcb29ee1704bbcb86c80cc115969713e82420a0797ec8324d95525fc861405",
+    "result": "failed",
+    "error": "GET /containers/json is not allowed",
+    "additional_source_evidence": [
+      "The old proxy discarded ownership after every DELETE, including failed removals.",
+      "Authorized names/short IDs were forwarded unchanged, permitting a different container to reuse a tracked name."
+    ]
+  },
+  "implementation": [
+    "New reusable stdlib-only framework policy restricts cleanup listing to one exact tracked analysis name and its full owned ID.",
+    "Authorized container references are canonicalized to the full tracked ID before forwarding. Ambiguous names and short IDs fail closed.",
+    "Failed/lost removals retain ownership for later ID-scoped absence checks. Only upstream 204/404 marks an entry retired; retired tombstones evict before live entries under the existing 512-record limit.",
+    "The standalone deployment launcher consumes framework policy without importing Nexus SDKs. Compose mounts the same module beside the launcher.",
+    "The source example drives ordinary Studio execution/recovery plus fault cases through a disposable private proxy, using a preinstalled immutable image."
+  ],
+  "validation": {
+    "required": {
+      "tests": 196,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-proxy-recovery-required.xml",
+      "duration_seconds": 18.23,
+      "sha256": "30f4861c4174811e270edc5c53111c1c896325160f1b9cb9307cd54aaf07e7ff"
+    },
+    "actual_proxy": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-proxy-recovery-actual.xml",
+      "duration_seconds": 6.384,
+      "sha256": "be55df269c777fccc14d4e44853613ccd4bf696bef93bbd421d8d8f8b161fc29"
+    }
+  },
+  "verified": [
+    "Ordinary analysis execution and stopped-container recovery complete through the actual filtering proxy.",
+    "A running-container DELETE rejected by Docker retains authority; explicit forced removal succeeds and subsequent recovery confirms absence.",
+    "An untracked container reusing a retired name survives proxied forced removal and remains inaccessible to proxied inspect. Original-ID cleanup does not expose it.",
+    "After proxy restart, an existing container remains intact and its Studio cleanup record remains unconfirmed; lost proxy authority never becomes false absence.",
+    "Wildcard, unscoped, multi-name, extra-filter and unknown-ownership listing requests are rejected. Both current array and legacy boolean-set name encodings work.",
+    "Full-ID targeting preserves API version prefixes, attach/start paths and query strings.",
+    "Bounded tombstone eviction retains live owners first; ambiguous names/ID prefixes never choose an arbitrary container.",
+    "A relocated standalone script/policy pair imports with nexus explicitly unavailable, proving no SDK dependency in the deployment proxy.",
+    "The same 196-check gate and four actual proxy drills pass before and after the ownership-class move to framework."
+  ],
+  "runtime": {
+    "backend_host": "macOS Apple Silicon",
+    "docker_server": "29.9.2",
+    "worker_platform": "linux/arm64",
+    "context": "default",
+    "installed_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "images_built_or_pulled": 0,
+    "public_ports_opened": 0,
+    "external_account_calls": 0,
+    "privileged_containers_started": 0,
+    "proxy_socket": "Private mode-0600 Unix socket below a temporary mode-0700 directory; upstream is the selected local Docker socket.",
+    "test_containers_remaining": 0,
+    "temporary_proxy_directories_remaining": 0,
+    "unrelated_running_service_preserved": "llm-cli-proxy-llm-cli-proxy-1"
+  },
+  "migration": {
+    "studio_schema_changed": false,
+    "analysis_journal_format_changed": false,
+    "public_studio_http_payload_changed": false,
+    "proxy_ownership": "Still process-local, bounded, without a persistent trust store. Restart or eviction requires operator review of unknown ownership.",
+    "deployment": "Upgrade both docker_proxy.py and studio_docker_proxy_policy.py. Compose includes the new read-only helper mount; source checkouts load the same framework module directly.",
+    "worker_images_changed": false,
+    "rollback": "Stop proxy-backed work before reverting. Earlier proxy denies cleanup listing, drops failed-delete authority and lacks full-ID canonicalization."
+  },
+  "quality": {
+    "git_diff_check": "passed",
+    "ruff": "New framework/consumer/acceptance files pass normal rules; changed legacy proxy/tests pass with N818 excluded.",
+    "preexisting_lint_exception": "Denied public exception triggers N818 in HEAD too, confirmed from /private/tmp/nexus-proxy-before.py. Its name was preserved for compatibility."
+  },
+  "pending": [
+    "Authenticated durable proxy ownership across proxy restart/eviction remains open. Unknown objects require independent operator review; this gate proves fail-closed behavior rather than automatic adoption.",
+    "Actual personal HTTPS VM installation/TLS/auth/upgrade/restore and remote/SSH Docker/daemon restart remain unverified.",
+    "MCP descendants daemonized outside their SDK group still need stronger supported containment. No process-scanning or unrelated PID killing was added.",
+    "Physical voice devices, selected service accounts and native Windows/Linux/frozen/installed acceptance remain separate.",
+    "Previously recorded mount-source swap race remains a separate deployment constraint; no broader proxy hardening or privilege claims are made."
+  ],
+  "contract": "postman/contracts/studio-docker-proxy.md",
+  "source_sha256": {
+    "nexus/core/studio_docker_proxy_policy.py": "4c3916bc45308ae29c31167c49aa490288096a68b294552298053714b3a073e7",
+    "deploy/studio/docker_proxy.py": "be2decae9affd601d024e523e766b8b3a7b3a97e8dd0465766edaded954585b5",
+    "docker-compose.studio-workers.yml": "196f41425ea4d372076a6545bb690d17680419afbf0a8e6e4eb12d513153b6f1",
+    "tests/test_studio_docker_proxy.py": "05711479f8bbe85f092870ce95c8ef52c4a14be2e87faee6a44474cc57b367d4",
+    "tests/test_studio_docker_proxy_policy.py": "1b0c2cd6c5fb1c14b9714830feaa7a763127de46797bc1782621cd90cba554f6",
+    "tests/studio_proxy_recovery_acceptance.py": "4a0a87f7e9f470ebdc405b489ea96c905edc7c99eb4c55c60287e2f67d8a8b5d",
+    "examples/nexus-bot/src/studio_proxy_recovery.py": "a19c3439f24eddbdf0069d5eb92b2e7e9ac587599fc7acf25288d75510a7d407",
+    "postman/contracts/studio-docker-proxy.md": "fbd06814cf2366d2bca01f163f518efecabb6e126bea524bfbdf29053241463d",
+    "deploy/studio/README.md": "3b5a3a3fb026b78152ceb07f6ed2b9f802f4d03f34dbf2205025c97478a9e5a4"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "dmg_rebuilt": false,
+  "desktop_app_built": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "release_note": "Recorded release manifest is unchanged; absent DMG files were not rebuilt or reverified."
+}

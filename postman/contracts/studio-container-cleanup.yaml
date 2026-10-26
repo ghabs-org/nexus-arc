@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: Nexus Studio owner container cleanup
+  version: 1.0.0
+  description: Existing Nexus authentication, desktop session and same-origin protections apply. Team mode requires a current owner session. Cleanup never starts containers or replays tasks.
+paths:
+  /api/workbench/readiness/cleanup:
+    post:
+      operationId: retryAnalysisContainerCleanup
+      description: Explicit cleanup of saved ownership records with an eight-second server budget and maximum 32 inspected records. Active owners, other hosts, changed routes and mismatched ownership are skipped. No automatic retry.
+      security:
+        - studioToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+            example: {}
+      responses:
+        '200':
+          description: Confirmed recovery report; a positive pending count preserves uncertainty. Readiness GET remains read-only.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checked_at, pending, items]
+                properties:
+                  checked_at: {type: string, format: date-time}
+                  pending: {type: integer, minimum: 0}
+                  items:
+                    type: array
+                    maxItems: 32
+                    items:
+                      type: object
+                      required: [name, status]
+                      properties:
+                        name: {type: string}
+                        status:
+                          type: string
+                          enum: [removed, owner_active, other_host, route_changed, ownership_mismatch, awaiting_creation, invalid_record, unconfirmed]
+              example:
+                checked_at: '2026-10-26T12:00:00+00:00'
+                pending: 1
+                items:
+                  - {name: nexus-analysis-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, status: awaiting_creation}
+        '400': {description: Nonempty user settings or invalid JSON}
+        '401': {description: Nexus or native desktop sign-in required}
+        '403': {description: Wrong owner role, revoked project access, invalid CSRF, host or origin}
+        '409': {description: This server process already has a cleanup request in progress}
+        '503': {description: Studio is shutting down; cleanup was not dispatched}
+components:
+  securitySchemes:
+    studioToken:
+      type: apiKey
+      in: header
+      name: X-Nexus-Studio-Token

@@ -227,7 +227,9 @@ read-only root, `CapDrop=ALL`, `no-new-privileges`, `--rm`, memory/CPU/pids limi
 and the expected network. Bind mounts may come only from per-user homes under
 `${NEXUS_RUNTIME_DIR}/auth`, read-only prompt/attachment scratch dirs in Studio's
 TMPDIR, or configured model files. Any HostConfig field it does not check must be
-empty. Everything else (`ps`, `exec`, pulls, builds, privileged or host-namespace
+empty. Exact cleanup lookups are allowed only for one analysis name already
+tracked by the proxy, with its full ID added to the upstream filter. Everything
+else (unscoped `ps`, `exec`, pulls, builds, privileged or host-namespace
 containers, other images or mounts) gets 403 and a `deny` line in
 `docker logs nexus-studio-docker-proxy-1`.
 
@@ -239,3 +241,30 @@ capabilities, so the swap gives the access of Studio's UID, not root. Close it f
 rootless Docker or root-owned parents for the credential homes. Analysis model
 files must also be mounted into the proxy at their host path, or those creates are
 refused.
+
+Recovery uses the shared stdlib-only framework policy in
+`nexus/core/studio_docker_proxy_policy.py`. Compose mounts that file beside
+`docker_proxy.py`; standalone deployments must update both files together.
+Authorized name/short-ID operations are forwarded using their full tracked ID,
+so a reused container name cannot inherit authority. Removal failures and lost
+replies retain bounded ownership for later ID-scoped absence checks. Retired
+entries are evicted before live entries under the existing 512-record limit.
+
+Ownership remains process-local. If the proxy itself restarts or evicts a record,
+it denies that old ownership and Studio keeps cleanup unconfirmed. Review those
+containers independently; restart does not prove they disappeared. This is
+separate from restarting Studio while the proxy remains alive.
+
+The repeatable [proxy recovery example](../../examples/nexus-bot/src/studio_proxy_recovery.py)
+uses disposable local containers, a private Unix socket and an installed image:
+
+```sh
+PYTHONPATH=. python examples/nexus-bot/src/studio_proxy_recovery.py --image sha256:INSTALLED_IMAGE_ID --context default --mode recovery
+```
+
+Additional modes are `failed-remove`, `alias` and `restart`. The explicit
+`tests/studio_proxy_recovery_acceptance.py` gate requires the same image/context
+environment variables as other Docker acceptance checks. It never pulls an
+image or modifies existing Docker contexts. See
+[the checkpoint](../../docs/STUDIO-PROXY-RECOVERY-CHECKPOINT.json); actual personal
+VM, remote daemon and installed-platform verification remain separate.

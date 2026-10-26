@@ -1,0 +1,154 @@
+{
+  "format": "nexus-studio-local-speech-checkpoint/v1",
+  "date": "2026-10-26",
+  "scope": "Actual local English Piper generation and Whisper transcription through ordinary Studio jobs on macOS Apple Silicon; portable resource-module guard. No device/API-account/VM certification.",
+  "status": "local-model-runtime-verified",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_speech_worker.py",
+    "tests/test_studio_speech_worker.py",
+    "examples/nexus-bot/src/studio_local_speech.py",
+    "tests/studio_local_speech_acceptance.py"
+  ],
+  "documentation": "docs/STUDIO-SPEECH.md",
+  "contract": "postman/contracts/studio-speech.md",
+  "authorization": "User explicitly approved public Whisper/Piper test-model downloads and a temporary Piper runtime. No microphone or API-account use was requested or performed.",
+  "validation": {
+    "required": {
+      "report": "/private/tmp/nexus-local-speech-required.xml",
+      "tests": 59,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 6.683
+    },
+    "actual_models": {
+      "report": "/private/tmp/nexus-local-speech-actual.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.118
+    }
+  },
+  "roundtrip": {
+    "synthesis_completed": true,
+    "transcription_completed": true,
+    "generated_wav_bytes": 127020,
+    "audio_seconds": 2.879,
+    "transcript": "Studio can run local speech without an external account.",
+    "synthesis_seconds": 1.365,
+    "transcription_seconds": 4.319,
+    "temporary_audio_removed": true,
+    "private_audio_artifact": true,
+    "api_client_used": false,
+    "microphone_used": false,
+    "model_downloaded_by_worker": false
+  },
+  "verified": [
+    "Real Piper 1.8.0 with the selected Lessac medium model generated nonempty mono 16-bit WAV audio.",
+    "Real Whisper tiny.en loaded from a local file, ran on CPU and transcribed the synthetic sentence correctly with selected language en.",
+    "Both operations used existing Studio speech job queue/profile snapshots, not a direct library shortcut.",
+    "Generated audio used a private local artifact; all speech temporary files and ownership records were removed after each operation and shutdown.",
+    "A test client factory rejects remote speech-client construction; no remote speech API fallback occurred.",
+    "Unconditional POSIX resource import previously prevented the worker from starting where resource is absent. It is now conditional.",
+    "Controlled Windows/Mac/Linux branches verify optional POSIX behavior, unchanged resource limits, CPU-only inference arguments and no model load when files are missing."
+  ],
+  "models": {
+    "piper_revision": "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd",
+    "files": [
+      {
+        "url": "https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03/tiny.en.pt",
+        "path": "/private/tmp/nexus-local-voice-models/tiny.en.pt",
+        "bytes": 75571315,
+        "sha256": "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03",
+        "expected_sha256": "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03"
+      },
+      {
+        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+        "path": "/private/tmp/nexus-local-voice-models/en_US-lessac-medium.onnx",
+        "bytes": 63201294,
+        "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+        "expected_sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+        "verification_source": "https://huggingface.co/rhasspy/piper-voices/raw/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
+      },
+      {
+        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/MODEL_CARD",
+        "path": "/private/tmp/nexus-local-voice-models/PIPER_MODEL_CARD",
+        "bytes": 351,
+        "sha256": "ce49eb457742208166d399a40cdec2c7fa9db77960930031564ab56f12882645",
+        "expected_sha256": null
+      },
+      {
+        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json",
+        "path": "/private/tmp/nexus-local-voice-models/en_US-lessac-medium.onnx.json",
+        "sha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0",
+        "bytes": 4885,
+        "revision": "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd"
+      }
+    ]
+  },
+  "runtimes": {
+    "host": "macOS Apple Silicon",
+    "whisper_environment": {
+      "python": "3.13.16",
+      "packages": {
+        "openai-whisper": "20250625",
+        "torch": "2.14.1",
+        "tiktoken": "0.14.0"
+      }
+    },
+    "piper_environment": {
+      "python": "3.13.16",
+      "packages": {
+        "nexus-arc": "0.1.1",
+        "onnxruntime": "1.31.0",
+        "packaging": "26.3",
+        "protobuf": "7.36.2",
+        "pathvalidate": "3.3.1",
+        "numpy": "2.5.4",
+        "flatbuffers": "25.12.19",
+        "piper-tts": "1.8.0"
+      }
+    },
+    "ffmpeg": "/opt/homebrew/bin/ffmpeg",
+    "runtime_activation": "Temporary test workspace/profiles only; running Studio settings were not changed."
+  },
+  "licensing_sources": {
+    "piper_runtime": "https://github.com/OHF-Voice/piper1-gpl",
+    "piper_model_card": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/MODEL_CARD",
+    "piper_model_card_text": "# Model card for lessac (medium)\n\n* Language: en_US (English, United States)\n* Speakers: 1\n* Quality: medium\n* Samplerate: 22,050Hz\n\n## Dataset\n\n* URL: https://www.cstr.ed.ac.uk/projects/blizzard/2013/lessac_blizzard2013/\n* License: https://www.cstr.ed.ac.uk/projects/blizzard/2013/lessac_blizzard2013/license.html\n\n## Training\n\nTrained from scratch.\n",
+    "note": "Optional models/runtime retain their own upstream terms. This acceptance does not grant redistribution rights; model bytes were not bundled into an app."
+  },
+  "limits": {
+    "posix_cpu_seconds": 120,
+    "linux_address_space_gib": 4,
+    "transcription_parent_wall_seconds": 130,
+    "synthesis_parent_wall_seconds": 90,
+    "unchanged": true,
+    "windows": "No POSIX resource module; parent wall timeout still applies. Native job-object/process-tree acceptance remains separate."
+  },
+  "migration": "No stored record, profile, API format, provider selection, billing or automatic download behavior changes. Only the internal resource-module import is conditional. Existing POSIX limits are preserved.",
+  "pending": [
+    "Physical microphone permissions, recording, playback/stop/speed and selected device/language/voice checks.",
+    "Real configured speech API account acceptance; previous SDK fixtures remain separate.",
+    "Native Windows/Linux actual model inference and process-tree containment.",
+    "Installed/frozen desktop and personal VM acceptance for local voice; existing DMGs do not contain this source fix.",
+    "The controlled English fixture proves one roundtrip, not arbitrary language/model quality or a blanket network trace of third-party runtimes."
+  ],
+  "distribution": {
+    "dmg_rebuilt": false,
+    "app_installer_built": false,
+    "policy": "Only rebuild DMG on explicit user request.",
+    "checksum_file_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+    "artifact_hashes_reverified": false,
+    "note": "Recorded checksum file retained; previous DMG files are absent from releases."
+  },
+  "source_sha256": {
+    "nexus/core/studio_speech_worker.py": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7",
+    "tests/test_studio_speech_worker.py": "678423d9b7d171c9b3841ce8aff850b7fba3bbf6dfa7abf9b0902142d57028e5",
+    "examples/nexus-bot/src/studio_local_speech.py": "fa9b12f592c5d7163f37f47d60170196b6b9ca01cf64e97a17f8225cebdbe4a2",
+    "tests/studio_local_speech_acceptance.py": "1b245dc82b1bbcc5f2a34ff4ef217615d1cfd6fa486984964b5e992fa91c6d0c"
+  }
+}

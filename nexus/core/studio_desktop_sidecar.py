@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 WORKERS = {
-    "nexus.core.studio_artifact_extract": "module",
+    "nexus.core.studio_artifact_extract": "isolated-file",
     "nexus.core.studio_speech_worker": "module",
     "nexus.core.studio_finance_worker": "isolated-file",
 }

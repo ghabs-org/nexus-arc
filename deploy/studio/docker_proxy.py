@@ -16,6 +16,8 @@ hardening they already request:
   auto-remove, resource limits, the expected network, and bind mounts only from
   the credential, scratch, attachment or model locations each path uses;
 * attach/start/wait/kill/resize/inspect/delete for containers created here.
+* exact analysis-name cleanup lookup, additionally restricted to the tracked
+  full container ID; unknown ownership is denied rather than reported absent.
 
 Everything else gets 403. Allowed images and model files are read from Studio's
 own team and runtime configuration on every request, so the policy follows that
@@ -33,12 +35,21 @@ import asyncio
 import json
 import os
 import re
+import runpy
 import sys
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit
+
+# Compose mounts the framework's stdlib-only policy beside this launcher.
+# Source checkouts load the same file directly, without importing AI SDKs.
+_policy_path = Path(__file__).with_name("studio_docker_proxy_policy.py")
+if not _policy_path.is_file():
+    _policy_path = Path(__file__).resolve().parents[2] / "nexus/core/studio_docker_proxy_policy.py"
+_policy = runpy.run_path(str(_policy_path))
+recovery_listing = _policy["recovery_listing"]
+container_target = _policy["container_target"]
 
 LISTEN = os.environ.get("PROXY_LISTEN", "/var/lib/nexus-studio/docker-proxy/docker.sock")
 UPSTREAM = os.environ.get("PROXY_UPSTREAM", "/var/run/docker.sock")
@@ -223,29 +234,11 @@ def check_create(query: dict[str, list[str]], body: Any, policy: Policy) -> tupl
     return name, sources
 
 
-class Tracker:
-    """Containers created through this proxy, by id and by name."""
+class Tracker(_policy["ProxyContainers"]):
+    """Standalone consumer of the framework's process-local ownership policy."""
 
     def __init__(self) -> None:
-        self._by_id: OrderedDict[str, tuple[str, list[str]]] = OrderedDict()
-
-    def add(self, container_id: str, name: str, sources: list[str]) -> None:
-        self._by_id[container_id] = (name, sources)
-        while len(self._by_id) > MAX_TRACKED:
-            self._by_id.popitem(last=False)
-
-    def resolve(self, ref: str) -> str | None:
-        ref = ref.lstrip("/")
-        for container_id, (name, _) in self._by_id.items():
-            if ref == name or ref == container_id or (len(ref) >= 12 and container_id.startswith(ref)):
-                return container_id
-        return None
-
-    def sources(self, container_id: str) -> list[str]:
-        return self._by_id[container_id][1]
-
-    def remove(self, container_id: str) -> None:
-        self._by_id.pop(container_id, None)
+        super().__init__(max_tracked=MAX_TRACKED)
 
 
 @dataclass
@@ -276,6 +269,11 @@ def decide(request: Request, policy: Policy, tracker: Tracker) -> tuple[str, Any
         except ValueError as exc:
             raise Denied("create body is not JSON") from exc
         return "create", check_create(request.query, body, policy)
+    if path == "/containers/json" and method == "GET":
+        try:
+            return "list", recovery_listing(request.query, tracker.resolve)
+        except ValueError as exc:
+            raise Denied(str(exc)) from None
     match = CONTAINER_ACTION_RE.match(path)
     if match and method in ("POST", "GET"):
         container_id = tracker.resolve(unquote(match.group(1)))
@@ -287,8 +285,8 @@ def decide(request: Request, policy: Policy, tracker: Tracker) -> tuple[str, Any
             for source in tracker.sources(container_id):
                 _require(_no_symlinks(source), f"mount source {source} changed since create")
         if action == "attach":
-            return "upgrade", None
-        return "pass", None
+            return "upgrade", container_id
+        return "pass", container_id
     match = CONTAINER_RE.match(path)
     if match and method == "DELETE":
         container_id = tracker.resolve(unquote(match.group(1)))
@@ -316,10 +314,10 @@ async def read_request(reader: asyncio.StreamReader) -> Request:
     return Request(method, target, path, parse_qs(parts.query, keep_blank_values=True), headers, head, body)
 
 
-def rewrite_head(request: Request, upgrade: bool) -> bytes:
+def rewrite_head(request: Request, upgrade: bool, target: str | None = None) -> bytes:
     """Re-emit the request head; non-upgrade requests are forced to Connection: close."""
     lines = request.head[:-4].decode("latin-1").split("\r\n")
-    kept = [lines[0]]
+    kept = [f"{request.method} {target} HTTP/1.1" if target else lines[0]]
     for line in lines[1:]:
         key = line.partition(":")[0].strip().lower()
         if key in ("connection", "keep-alive", "proxy-connection") and not upgrade:
@@ -367,7 +365,12 @@ class Proxy:
                 return
             try:
                 action, detail = decide(request, load_policy(), self.tracker)
-            except Denied as exc:
+                target = None
+                if action == "list":
+                    target = urlsplit(request.target).path + "?" + urlencode(detail, doseq=True)
+                elif action in {"pass", "upgrade", "delete"} and detail is not None:
+                    target = container_target(request.target, detail)
+            except (Denied, ValueError) as exc:
                 log(f"deny {request.method} {request.path}: {exc}")
                 client_writer.write(deny_response(str(exc)))
                 await client_writer.drain()
@@ -375,7 +378,7 @@ class Proxy:
             log(f"allow {request.method} {request.path}")
             up_reader, up_writer = await asyncio.open_unix_connection(self.upstream)
             try:
-                up_writer.write(rewrite_head(request, action == "upgrade") + request.body)
+                up_writer.write(rewrite_head(request, action == "upgrade", target) + request.body)
                 await up_writer.drain()
                 if action == "upgrade":
                     await asyncio.gather(pipe(client_reader, up_writer), pipe(up_reader, client_writer))
@@ -384,10 +387,18 @@ class Proxy:
                     self._track_create(response, *detail)
                     client_writer.write(response)
                     await client_writer.drain()
+                elif action == "delete":
+                    head = await up_reader.readuntil(b"\r\n\r\n")
+                    status = head.split(b"\r\n", 1)[0].split()[1]
+                    if status in {b"204", b"404"}:
+                        self.tracker.retire(detail)
+                    client_writer.write(head)
+                    await client_writer.drain()
+                    await pipe(up_reader, client_writer)
+                    # Retain bounded ownership tombstones for lost replies and
+                    # ID-scoped absence checks. Evict retired entries first.
                 else:
                     await pipe(up_reader, client_writer)
-                    if action == "delete":
-                        self.tracker.remove(detail)
             finally:
                 up_writer.close()
         except (ConnectionError, OSError) as exc:

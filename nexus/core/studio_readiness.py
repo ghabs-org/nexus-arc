@@ -46,6 +46,14 @@ def deployment_readiness(studio, actor):
         )
     transport = studio.mesh_status()
     check("Event transport", "configured", str(transport.get("transport", "Configured transport")))
+    tracked = studio.data_tools.sandbox.recovery.pending()
+    check(
+        "Analysis container ownership",
+        "not_verified" if tracked else "checked",
+        f"{tracked} active or unresolved worker records. Retry container cleanup below; active owners and other servers are skipped."
+        if tracked
+        else "No active or unresolved local container ownership records.",
+    )
     image = studio.team.runner_image if studio.team else None
     check(
         "Subscription workers",
@@ -75,4 +83,8 @@ def deployment_readiness(studio, actor):
         ),
     ]:
         check(name, "not_verified", detail)
-    return {"checked_at": datetime.now(UTC).isoformat(), "items": items}
+    return {
+        "checked_at": datetime.now(UTC).isoformat(),
+        "items": items,
+        "analysis_cleanup": {"tracked": tracked, "available": not studio.closing},
+    }
