@@ -1,5 +1,27 @@
 # Analysis worker lifetime contract
 
+## Slim Linux host identity
+
+The VM activation gate reproduced different cleanup host hashes in independent
+processes of the same slim image. Python documents that `uuid.getnode()` returns
+a random multicast-marked node when hardware discovery fails
+([Python reference](https://docs.python.org/3.13/library/uuid.html#uuid.getnode)).
+Recovery must not treat that per-process value as a persistent host identity.
+
+Real-MAC hashes retain their original bytes. For random fallback nodes on Linux,
+the framework hashes the validated kernel boot UUID with the controller hostname.
+The kernel value remains fixed within its boot
+([kernel reference](https://docs.kernel.org/admin-guide/sysctl/kernel.html#random)).
+Only the hash enters existing records; no machine identifier or environment value
+is exported. Invalid/unavailable kernel metadata preserves the previous
+conservative behavior. A new boot, changed hostname or old random-node record
+still requires operator review. No authority is adopted, rewritten or restored
+from a workspace backup, and no public input/result schema changes.
+
+`STUDIO-VM-ANALYSIS-CHECKPOINT.json` records real VM profile activation, all six
+data/media tools and stopped-owner SIGKILL recovery. It does not certify
+authenticated HTTP execution, running-worker/proxy interruption or power-loss.
+
 The original lifetime change preserves task input/result schemas, credential
 scopes and stored worker profiles. The later owner cleanup route is specified below. Existing analysis run/graph requests retain their authorization and
 artifact ownership rules. During shutdown, new worker dispatch is rejected and

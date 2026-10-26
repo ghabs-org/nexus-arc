@@ -1,10 +1,16 @@
 """Recovery lookups cannot enumerate or redirect authority to another container."""
 
+import asyncio
 import json
+import signal
 
 import pytest
 
-from nexus.core.studio_docker_proxy_policy import container_target, recovery_listing
+from nexus.core.studio_docker_proxy_policy import (
+    container_target,
+    proxy_termination,
+    recovery_listing,
+)
 
 NAME = "nexus-analysis-" + "a" * 32
 IDENTITY = "b" * 64
@@ -94,3 +100,33 @@ def test_name_and_short_id_requests_forward_the_owned_full_id(target, expected):
 def test_unexpected_container_targets_are_not_forwarded(target):
     with pytest.raises(ValueError):
         container_target(target, IDENTITY)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [False, True])
+async def test_proxy_stop_is_cooperative_and_restores_previous_signal_policy(monkeypatch, failure):
+    loop = asyncio.get_running_loop()
+    callbacks, removed, restored = {}, [], []
+    previous = object()
+    monkeypatch.setattr(signal, "getsignal", lambda _: previous)
+    monkeypatch.setattr(signal, "signal", lambda name, handler: restored.append((name, handler)))
+    monkeypatch.setattr(
+        loop, "add_signal_handler", lambda name, callback: callbacks.update({name: callback})
+    )
+    monkeypatch.setattr(loop, "remove_signal_handler", lambda name: removed.append(name))
+
+    async def serve():
+        async with proxy_termination() as stop:
+            assert not stop.is_set()
+            callbacks[signal.SIGTERM]()
+            callbacks[signal.SIGTERM]()
+            assert stop.is_set()
+            if failure:
+                raise ValueError("startup failed")
+
+    if failure:
+        with pytest.raises(ValueError, match="startup failed"):
+            await serve()
+    else:
+        await serve()
+    assert removed == [signal.SIGTERM] and restored == [(signal.SIGTERM, previous)]

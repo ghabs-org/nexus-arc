@@ -1,0 +1,80 @@
+{
+  "format": "nexus-studio-deployed-worker-acceptance/v1",
+  "date": "2026-10-27",
+  "status": "live-configured-cli-worker-boundary-verified",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "scope": "Real Docker CLI inside the deployed Studio controller through its existing filtered Unix socket and configured pinned subscription-runner image. Static shell code only; no provider CLI, account, credential or workspace mount.",
+  "validation": {
+    "live_gate": {
+      "passed": true,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-vm-worker-check-report.json",
+      "sha256": "179c0a85b9911264a0247c5c31e13ffbbf0768ce582b59218d6f718b84a2ea47",
+      "executed_source_sha256": "1b9e53bb775638200607c7a447fce4534f63649af84e6011ed263aa6235e890e",
+      "result": {
+        "controller_private_store_absent": true,
+        "controller_raw_socket_absent": true,
+        "creates_acknowledged": 2,
+        "credentials_mounted": false,
+        "extra_capability_denied": true,
+        "images_pulled": false,
+        "providers_called": false,
+        "proxy_restart_recovery": "not exercised",
+        "services_restarted": false,
+        "starts": 1,
+        "static_worker_execution": true,
+        "stopped_owned_inspection": true,
+        "tracked_absence_retained": true,
+        "unapproved_mount_denied": true,
+        "unconfigured_image_denied": true,
+        "unknown_inspection_denied": true,
+        "unscoped_listing_denied": true,
+        "unstarted_worker_cleanup": true
+      }
+    },
+    "postcheck": {
+      "report": "/private/tmp/nexus-vm-worker-postcheck.json",
+      "sha256": "80d3fd88cf9a5a1a99a4553e44263247099e220b1f27648189eaba6eff4dabd3",
+      "result": {
+        "format": "nexus-studio-deployed-worker-postcheck/v1",
+        "host_layout_passed": true,
+        "anonymous_https_passed": 15,
+        "signed_in_identity": "pending",
+        "uuid_workers_remaining": 0,
+        "other_services": {
+          "nexus-bridge": "active",
+          "nexus-health": "active",
+          "nexus-processor": "active",
+          "nexus-telegram": "active",
+          "nexus-webhook": "active"
+        },
+        "router_running": true
+      }
+    },
+    "harness_corrections": [
+      "Initial inspection template omitted the closing JSON brace; its acknowledged stopped worker was cleaned up.",
+      "Generic Docker inspect falls back to image inspection after container absence, which is correctly denied by the filtered proxy. The gate now uses explicit docker container inspect.",
+      "Final source formatting preserves the exact executed AST; no product behavior changed."
+    ]
+  },
+  "source_sha256": {
+    "tests/studio_deployed_worker_acceptance.py": "0e29ccb7b8645476435d58a16a6357ad6e6c8f4b52400b46d7d9dc610596da0a"
+  },
+  "compatibility": {
+    "public_routes_changed": false,
+    "state_schema_changed": false,
+    "runtime_configuration_changed": false,
+    "deployment_image_changed": false,
+    "credentials_read_or_exported": false,
+    "services_restarted": false,
+    "desktop_app_built": false,
+    "dmg_rebuilt": false
+  },
+  "remaining": [
+    "At this historical gate, analysis profiles were absent. STUDIO-VM-ANALYSIS-CHECKPOINT.json now records configured data/python/media profiles and live six-tool acceptance. Vision/model activation remains separate.",
+    "No signed-in identity, native provider inference, billing, model quality or account permission acceptance is claimed.",
+    "Stopped-worker cleanup and tracked absence are verified. Proxy restart/SIGKILL with a live ownership receipt, controller death, uncertain create/remove transport and daemon/power-loss retain their separate deployed gates.",
+    "Full-host/auth-store restore, physical devices and installed OS/native delivery remain separate."
+  ]
+}

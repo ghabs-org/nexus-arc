@@ -1,0 +1,17 @@
+# Disposable Linux mount-isolation acceptance; no desktop packaging.
+ARG CHECK_IMAGE=nexus-studio-recovery:acceptance-20261026
+FROM docker:29.8.2-cli@sha256:35cfcf893c20f2931f4909151b5407aaaeab711277de7ce8b8f521f095d54c32 AS docker-cli
+FROM ${CHECK_IMAGE}
+USER 0:0
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY nexus /checks/nexus
+COPY deploy/studio/docker_proxy.py nexus/core/studio_docker_proxy_policy.py nexus/core/studio_docker_proxy_state.py /app/
+COPY examples/nexus-bot/src/studio_proxy_linux.py /checks/examples/nexus-bot/src/studio_proxy_linux.py
+COPY tests/test_studio_docker_proxy_state.py tests/test_studio_docker_proxy_policy.py /checks/tests/
+RUN mkdir -p /var/lib/nexus-studio/docker-proxy /var/lib/nexus-proxy-private \
+    && chown -R 1001:1001 /var/lib/nexus-studio /var/lib/nexus-proxy-private \
+    && chmod 700 /var/lib/nexus-studio /var/lib/nexus-studio/docker-proxy /var/lib/nexus-proxy-private
+ENV PYTHONPATH=/checks HOME=/tmp PYTHONDONTWRITEBYTECODE=1
+WORKDIR /checks
+USER 1001:1001
+ENTRYPOINT ["python"]

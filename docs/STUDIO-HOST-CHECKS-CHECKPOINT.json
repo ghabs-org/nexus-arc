@@ -1,0 +1,135 @@
+{
+  "format": "nexus-studio-host-checks-checkpoint/v1",
+  "date": "2026-10-26",
+  "status": "implemented-local-verified-host-layout-pending",
+  "scope": "A read-only operator preflight for an explicit Studio/proxy pair. Host-filesystem behavior has local fixtures; actual Linux proxy metadata, CLI/example and restart recovery are verified. Personal VM source identity is not certified.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "Added reusable verify_proxy_layout in the framework and nexus studio-host-check CLI, using existing Docker route pinning and explicit context handling.",
+    "The inspection format requests IDs, running/privilege flags and mounts only. A fixed isolated Python probe inside the selected immutable proxy ID reads metadata, not ledger bytes.",
+    "Added a thin example consumer and extended the existing disposable Linux recovery gate to exercise both real CLI and example paths. No new Docker image, app or installer was built."
+  ],
+  "validation": {
+    "required": {
+      "tests": 75,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.869,
+      "report": "/private/tmp/nexus-host-checks-required.xml",
+      "sha256": "5855dd06876521623e62c2a4386fa55a3622cc25e9868c61b3e4e472f53b7d26"
+    },
+    "actual_posix_metadata": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 1.635,
+      "report": "/private/tmp/nexus-host-probe-actual.xml",
+      "sha256": "5f1031837001a23b86720a5f7f4b0d9dfa1e40a6de81e25be7081cea3a3abb11"
+    },
+    "actual_linux_cli_example": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 11.847,
+      "report": "/private/tmp/nexus-host-layout-linux-actual.xml",
+      "sha256": "bde184888cb657e26ac137a5bda4041d6c8d5c24201e451fa4e748d8943ae07e"
+    }
+  },
+  "verified": [
+    "Safe host-source fixture passes; private parent/child/direct/read-only exposure, symlink aliases and hard-linked raw socket exposure fail. Actual device/inode ancestry supplements canonical path resolution.",
+    "Root proxy, stopped/same containers, privileged Studio, non-dedicated/read-only private mounts, wrong ownership/modes, unsafe ledgers and unavailable/socket access are rejected or explicitly unavailable.",
+    "Malformed/oversized/failed/timeout metadata is redacted. Explicit context strips ambient Docker host/TLS routing; exec uses the inspected immutable proxy ID. CLI never prints environment, commands, logs, source paths, exception text or ledger contents.",
+    "Six actual POSIX cases verify directory and ledger symlink/mode/link rules and world-writable socket rejection without opening ledger contents. Temporary Unix sockets require runner permission; the successful explicit run used that permission, not a skip.",
+    "Actual Linux uid/gid1001 proxy metadata passes nine observable checks through both the CLI and thin example. Host-source checks correctly remain unavailable from this Docker Desktop client, so each live preflight exits1 with passed:false.",
+    "Graceful proxy stop exits0; SIGKILL exits137. Both restart cases retain cleanup-only authority and remove the original stopped worker without execution or extra runs.",
+    "Temporary Linux controllers/proxies, workers and named volumes are removed; unrelated Docker services are untouched.",
+    "A negative fixture reproduced a separate private root plus a nested bind replacing ownership.sqlite incorrectly passing the first draft preflight. The final guard rejects every subordinate private-store mount, including this shared-file exposure."
+  ],
+  "actual_layout_result": {
+    "overall_passed": false,
+    "reason": "The Mac client cannot resolve the Linux daemon named-volume host sources. Unavailable identity is deliberately not promoted to successful deployment acceptance.",
+    "passed_checks": [
+      "distinct-running-containers",
+      "studio-unprivileged",
+      "dedicated-private-mount",
+      "private-mount-unshadowed",
+      "upstream-socket-mount",
+      "proxy-nonroot-user",
+      "upstream-socket-access",
+      "private-directory",
+      "private-ledger"
+    ],
+    "unavailable_checks": [
+      "host-source-identity",
+      "private-source-isolation",
+      "raw-socket-isolation"
+    ],
+    "ledger": "present",
+    "cli_exit_code": 1,
+    "example_exit_code": 1,
+    "actual_personal_vm_checked": false
+  },
+  "fixture": {
+    "image_id": "sha256:9993ea392bcae09fce8825f8073332674f9c23992ad0a4a744fd7e10312dbe6a",
+    "worker_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "os": "linux",
+    "architecture": "arm64",
+    "python": "3.13.16",
+    "context": "default",
+    "authority": "Only the trusted proxy mounts the raw daemon socket and private ledger. The host operator has existing Docker inspection/exec authority. Controller has neither raw socket nor private ledger.",
+    "host_source_fixtures": "Real temporary filesystem paths/inodes with selected metadata supplied by a deterministic test double. Not a real VM mount identity certification.",
+    "published_ports": 0,
+    "privileged_containers": 0,
+    "external_account_calls": 0,
+    "images_built": 0,
+    "test_containers_remaining": 0,
+    "test_volumes_remaining": 0
+  },
+  "compatibility": {
+    "workspace_schema_changed": false,
+    "stored_proxy_records_changed": false,
+    "http_routes_changed": false,
+    "default_runtime_behavior_changed": false,
+    "new_operator_cli": "nexus studio-host-check --studio-container NAME --proxy-container NAME --docker-context CONTEXT",
+    "report_format": "nexus-studio-host-check/v1",
+    "upgrade": "Update the source package on the daemon host to gain this optional command. Existing runtime settings and memory-only deployments are unchanged. No activation or automatic repair occurs.",
+    "rollback": "Older versions lack the command but continue reading existing state. No migration or data rollback is needed.",
+    "report_scope": "A successful report is point-in-time mount/stat preflight, not application readiness or full deployment acceptance. An absent ledger is explicitly disclosed and never promoted to live recovery proof."
+  },
+  "pending": [
+    "Run this command on the actual personal VM daemon host with access to canonical host sources. Source resolution cannot prove host co-location itself, and aliases outside the inspected configuration remain administrator-controlled.",
+    "Personal HTTPS VM login/TLS, bind/mapped ownership, restart/upgrade/full restore and Docker daemon/power-loss checks remain separate.",
+    "Escaped MCP descendants, physical voice devices, selected external accounts and native/frozen/installed OS acceptance remain separate."
+  ],
+  "quality": {
+    "ruff": "All six new/updated framework, example and test modules pass without rule exclusions.",
+    "git_diff_check": "passed"
+  },
+  "source_sha256": {
+    "nexus/cli.py": "b2f53583c840663471a60f8942ad08784519e01331bd5d8df2f17cade5c7357e",
+    "nexus/core/studio_host_checks.py": "863f883b79f0d7c83c2c858ed0d6d1cadb01d3cbc699429520b7882056e2a884",
+    "nexus/core/studio_host_checks_cli.py": "6eaed78fb35c4e98049cbc9b582b92026541d95b489c58399a84c61d5dd38f8e",
+    "examples/nexus-bot/src/studio_host_checks.py": "b2ecc08d2d5e381598157202c0ac168c87f2d7f1af0dad744fc54f232eed5046",
+    "tests/test_studio_host_checks.py": "d91a0ec33cf14e46d15a7675e07c3f75cd57d83e524d38b7765e6d72af191d86",
+    "tests/studio_host_probe_acceptance.py": "0073c5b4fda0a7741f3bb30a80ab19968e737069a4e586bb8e478ae19973f8ef",
+    "tests/studio_linux_proxy_acceptance.py": "22998344bf3be739531969bf93befb23f881c5279c04d0a7b2d380dcba1ca3fb",
+    "postman/contracts/studio-host-check.md": "4b6bf82799bfa944c0ae84e58ec27e1f971bb993f6b97f3f9689a0c21beb715d"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "reproduced_before_fix": {
+    "report": "/private/tmp/nexus-host-check-shadow-before.xml",
+    "sha256": "7c16be322e9890f9946a02ccb2a2b90c04c95c340d42e408e9ab0fe2b990bf5f",
+    "observed": "The new preflight initially returned passed:true for a ledger file shadowed by a Studio-visible source.",
+    "expected": "Failed preflight. This was a draft tool false positive, not a discovered live VM configuration.",
+    "final": "The required 75-test gate now covers rejection; both actual CLI/example drills pass with the additional unshadowed-mount check."
+  }
+}

@@ -15,7 +15,8 @@ COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 
 COPY pyproject.toml README.md LICENSE MANIFEST.in /nexus-arc/
 COPY nexus /nexus-arc/nexus
-RUN pip install --no-cache-dir "/nexus-arc[postgres,openai,anthropic,documents,mcp]" "cryptography>=42.0" \
+# MCP 2's httpx2 dependency does not supply the httpx used by delegated OAuth.
+RUN pip install --no-cache-dir "/nexus-arc[postgres,openai,anthropic,documents,mcp,studio-oauth]" "cryptography>=42.0" \
     && rm -rf /nexus-arc
 
 EXPOSE 5003

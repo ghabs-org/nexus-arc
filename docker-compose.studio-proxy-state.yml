@@ -1,0 +1,16 @@
+# Optional durable cleanup authority for the existing filtering proxy.
+# Add after docker-compose.studio.yml and docker-compose.studio-workers.yml.
+# Precreate a service-owned mode-0700 directory OUTSIDE every writable Studio
+# mount, including NEXUS_STUDIO_DATA_DIR and NEXUS_RUNTIME_DIR/auth. This private
+# directory must never be mounted into Studio or an agent/analysis container.
+services:
+  docker-proxy:
+    environment:
+      PROXY_STATE_DIR: /var/lib/nexus-proxy-private
+    volumes:
+      - ./nexus/core/studio_docker_proxy_state.py:/app/studio_docker_proxy_state.py:ro
+      - type: bind
+        source: ${NEXUS_STUDIO_PROXY_STATE_DIR:?set a precreated private directory outside Studio mounts}
+        target: /var/lib/nexus-proxy-private
+        bind:
+          create_host_path: false

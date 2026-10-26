@@ -15,10 +15,13 @@ child = subprocess.Popen(
         sys.executable,
         "-c",
         "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(120)",
-    ]
+    ],
+    start_new_session="--detached" in sys.argv[2:],
 )
 (root / "pids.json").write_text(
-    json.dumps({"server": os.getpid(), "child": child.pid, "group": os.getpgrp()})
+    json.dumps(
+        {"server": os.getpid(), "child": child.pid, "group": os.getpgrp(), "parent": os.getppid()}
+    )
 )
 for line in sys.stdin:
     m = json.loads(line)

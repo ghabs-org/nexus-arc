@@ -295,3 +295,54 @@ def test_standalone_mount_layout_needs_no_installed_nexus_or_ai_sdks(tmp_path):
     ], capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "standalone-ok"
+
+
+@pytest.mark.parametrize("action", ["attach", "start", "wait", "kill", "resize"])
+def test_restored_ownership_never_grants_execution(env, action):
+    class Saved:
+        def load(self):
+            return [{"id": "a" * 64, "name": ANALYSIS_NAME, "sources": [], "retired": False}]
+
+    tracker = proxy.Tracker(journal=Saved())
+    with pytest.raises(proxy.Denied, match="cleanup only"):
+        proxy.decide(request("POST", "/containers/" + "a" * 64 + "/" + action), env["policy"], tracker)
+    assert proxy.decide(request("GET", "/containers/" + "a" * 64 + "/json"), env["policy"], tracker)[0] == "pass"
+    assert proxy.decide(request("DELETE", "/containers/" + "a" * 64), env["policy"], tracker)[0] == "delete"
+
+
+def test_failed_ownership_storage_blocks_new_creates(env):
+    tracker = proxy.Tracker()
+    tracker.storage_failed = True
+    with pytest.raises(proxy.Denied, match="ownership storage"):
+        proxy.decide(request("POST", "/containers/create?name=" + NAME, json.dumps(team_body(env)).encode()), env["policy"], tracker)
+
+
+@pytest.mark.parametrize("action", ["start", "attach", "wait", "kill", "resize"])
+def test_failed_storage_never_starts_uncommitted_ownership(env, action):
+    tracker = proxy.Tracker()
+    tracker.add("a" * 64, ANALYSIS_NAME, [])
+    tracker.storage_failed = True
+    with pytest.raises(proxy.Denied, match="cleanup only"):
+        proxy.decide(request("POST", "/containers/" + "a" * 64 + "/" + action), env["policy"], tracker)
+    assert proxy.decide(request("DELETE", "/containers/" + "a" * 64), env["policy"], tracker)[0] == "delete"
+
+
+def test_persistence_module_is_standalone_and_private_override_is_proxy_only(tmp_path):
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    module = root / "nexus/core/studio_docker_proxy_state.py"
+    directory = (tmp_path / "state").resolve()
+    directory.mkdir(mode=0o700)
+    result = subprocess.run([
+        sys.executable, "-I", "-c",
+        "import runpy,sys; sys.modules['nexus']=None; ns=runpy.run_path(sys.argv[1]); store=ns['ProxyJournal'](sys.argv[2],'daemon','project'); assert store.load()==[]; store.close(); print('private-ok')",
+        str(module), str(directory),
+    ], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    override = yaml.safe_load((root / "docker-compose.studio-proxy-state.yml").read_text())
+    assert set(override["services"]) == {"docker-proxy"}
+    mounts = override["services"]["docker-proxy"]["volumes"]
+    private = next(value for value in mounts if isinstance(value, dict))
+    assert private["target"] == "/var/lib/nexus-proxy-private"
+    assert private["bind"]["create_host_path"] is False

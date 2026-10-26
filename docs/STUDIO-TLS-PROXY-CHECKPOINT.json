@@ -1,0 +1,112 @@
+{
+  "format": "nexus-studio-tls-proxy-acceptance/v1",
+  "date": "2026-10-26",
+  "status": "local-real-mutual-tls-verified",
+  "scope": "Source runtime through real mutually authenticated TLS and SSH gateways on an isolated local Docker Desktop Linux/arm64 network. Not a personal VM, production network listener, direct dockerd TLS configuration or native/frozen app acceptance.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "Existing framework named-context snapshots, credential copying, sandbox lifetime and acknowledged recovery are reused unchanged. No product runtime fix was required.",
+    "The thin example consumer uses a byte-forwarding mutual-TLS gateway to the existing filtered Unix socket and shares the actual execution/disconnect consumer with SSH.",
+    "The host acceptance shares its real-daemon isolation and lifecycle harness between SSH and TLS. No fake HTTP/daemon responses or external account calls."
+  ],
+  "validation": {
+    "required": {
+      "tests": 161,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.3,
+      "report": "/private/tmp/nexus-tls-proxy-required.xml",
+      "sha256": "c5b9960f83ec684c71c131d30e7d46bd1950559edfa0a7f54e7bd0bfc51a1885"
+    },
+    "actual_transports": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 15.67,
+      "report": "/private/tmp/nexus-tls-proxy-actual.xml",
+      "sha256": "cf8858e8d16ec5f09ffe9a3fbcc96f661f8b394ae778324430346a32316aa6ba"
+    }
+  },
+  "verified": [
+    "Real Docker named-context execution retains trusted CA and client credentials in the existing private per-operation context snapshot. A healthy sandbox program completes through the TLS gateway.",
+    "The actual client rejects untrusted server CA and wrong server hostname. The server rejects missing and untrusted client certificates before forwarding HTTP. The harness requires exact PEER_DID_NOT_RETURN_A_CERTIFICATE and CERTIFICATE_VERIFY_FAILED server reasons.",
+    "After an acknowledged running analysis starts, killing the gateway interrupts its real transport. Owner-stdin EOF stops the analysis before reconnection or explicit removal, in both TLS and SSH cases.",
+    "Unreachable cleanup returns unconfirmed with one pending acknowledged receipt. Reconnecting to the same gateway identity and explicitly recovering confirms absence and retires the receipt.",
+    "Per transport, proxy logs show exactly two creates and two starts: one completed and one interrupted analysis. Cleanup creates no run/artifact and never replays generated code.",
+    "Controller and gateway run uid/gid 1001 with read-only roots, no capabilities and bounded resources. The controller receives neither Docker socket nor private ledger; gateway receives only the filtered socket.",
+    "All fixture containers, private/key/data/socket volumes and internal networks are removed. The unrelated llm-cli-proxy service remains running."
+  ],
+  "fixture": {
+    "image_id": "sha256:77d5b8a40ec1aac8ce53e4d83568c5c75666fc9c64216e86a9b3f0fbb9a57d7c",
+    "tag": "nexus-tls-proxy-checks:20261026",
+    "image_size_bytes": 456015248,
+    "base_image_id": "sha256:b20236fc6368938ea4fcd4ee88a293d95d6ee16c859aa28196f2c1f920908649",
+    "worker_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "build_context": "/private/tmp/nexus-tls-proxy-context",
+    "os": "linux",
+    "architecture": "arm64",
+    "kernel": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+    "python": "3.13.16",
+    "openssl": "OpenSSL 3.5.7 9 Jun 2026",
+    "docker_cli": "29.8.2 build 7fc2dff",
+    "docker_server": "29.9.2",
+    "context": "default",
+    "network": "Disposable internal bridge; proxy network none. TLS/SSH ports never published to host.",
+    "tls": "Python/OpenSSL TLS server requires client certificates and TLS 1.2 minimum; Docker Go client verifies CA and server SAN. No verification bypass flags.",
+    "certificates": "Fresh one-day RSA2048 client/server certificates and an untrusted authority. Separate 0700 runtime volumes with 0600 files. CA private keys exist only in initializer tmpfs. No personal credentials are read.",
+    "authority": "Only the trusted filtering proxy receives the real daemon socket and private ownership ledger. That authority remains root-equivalent as documented. Gateways receive only its filtered Unix socket.",
+    "analysis_creations_per_transport": 2,
+    "analysis_starts_per_transport": 2,
+    "worker_pulls": 0,
+    "external_account_calls": 0,
+    "published_ports": 0,
+    "privileged_containers": 0,
+    "test_containers_remaining": 0,
+    "test_volumes_remaining": 0,
+    "test_networks_remaining": 0
+  },
+  "fixture_preparation": "Early probes correctly rejected missing clients but expected a specific Docker diagnostic. TLS 1.3 surfaced EOF/reset instead. The completed harness requires precise server-side SSL rejection reasons; no product failure was inferred from that fixture assertion.",
+  "compatibility": {
+    "workspace_schema_changed": false,
+    "cleanup_record_format_changed": false,
+    "http_payload_changed": false,
+    "runtime_configuration_changed": false,
+    "upgrade": "Acceptance-only additions. Existing deployments need no migration, runtime setting change, application build or DMG rebuild. Build only the explicit test fixture to repeat this gate.",
+    "rollback": "Remove the optional test recipe/consumer/harness extensions; existing execution and records are unchanged.",
+    "historical_evidence": "The original SSH checkpoint retains its historical source/image hashes. This checkpoint verifies the updated shared consumer and both current transport paths.",
+    "no_work_replay": true
+  },
+  "pending": [
+    "Personal HTTPS VM install/TLS/auth, real bind paths and mapped ownership, SSH access, upgrades and full restore.",
+    "Actual Docker daemon restart, host power-loss and network partitions beyond terminating a disposable gateway.",
+    "Production dockerd TLS provisioning, certificate expiry/rotation/revocation and changed SSH aliases/DNS/credentials/host keys.",
+    "Physical devices, selected service accounts, escaped MCP descendants and frozen/installed native Windows/Linux/macOS checks."
+  ],
+  "quality": {
+    "ruff": "All four changed/new Python consumer and test modules pass without exclusions.",
+    "git_diff_check": "passed"
+  },
+  "source_sha256": {
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "nexus/core/studio_docker_route.py": "0845703a75bb6ab73c2c448f693769ca63797438e4d79bc6efed042f65f56868",
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
+    "deploy/studio/recovery-checks/Dockerfile.tls-proxy": "018ef6268aa97a823252a29414eaa2264fa5790d749b7300053969affd6d4161",
+    "examples/nexus-bot/src/studio_proxy_ssh.py": "46e3ff08a7f6a524b4eb298fbc761f71a6a62c29108c9e57876082061779ec56",
+    "examples/nexus-bot/src/studio_proxy_tls.py": "56703fcb6887d49b12e25962a6b196ef6fe91b3be5f40e1da8796f523690f84a",
+    "tests/studio_ssh_proxy_acceptance.py": "c1e04f0540ab686fe274239e90d8d62864ec96c8f02d2abbb47ec3b3522de107",
+    "tests/studio_tls_proxy_acceptance.py": "cdb6c1e99965277b0cfeee52a2866471e6875cec6073b8a4e2d0045430ba31aa"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "protocol_reference": "https://docs.docker.com/engine/security/protect-access/"
+}

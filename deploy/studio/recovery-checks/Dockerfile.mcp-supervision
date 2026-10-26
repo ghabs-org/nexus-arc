@@ -1,0 +1,14 @@
+# Explicit Linux kernel/MCP shutdown proof; not an app or installer build.
+ARG CHECK_IMAGE=nexus-studio-recovery:acceptance-20261026
+FROM ${CHECK_IMAGE}
+USER 0:0
+RUN pip install --no-cache-dir 'mcp==2.3.0'
+COPY nexus /checks/nexus
+COPY tests/studio_linux_mcp_acceptance.py /checks/tests/
+COPY tests/fixtures/studio_mcp_escape.py /checks/tests/fixtures/
+COPY tests/test_studio_mcp_supervision.py /checks/tests/
+COPY tests/test_mcp_bridge.py tests/test_studio_mcp_lifecycle.py tests/test_studio_desktop_bundle.py /checks/tests/
+COPY examples/nexus-bot/src/studio_mcp_lifecycle.py /checks/examples/nexus-bot/src/
+COPY examples/nexus-bot/src/fixtures/mcp_lifecycle_server.py /checks/examples/nexus-bot/src/fixtures/
+USER 65534:65534
+CMD ["tests/studio_linux_mcp_acceptance.py"]

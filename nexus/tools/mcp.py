@@ -26,12 +26,19 @@ def _require_mcp():
     return ClientSession, StdioServerParameters, stdio_client
 
 
+def _stdio_parameters(parameters_type, command, args, env):
+    from nexus.tools.mcp_supervision import supervised_command
+
+    command, args = supervised_command(command, args)
+    return parameters_type(command=command, args=args, env=env)
+
+
 async def list_server_tools(
     command: str, args: list[str] | None = None, env: dict[str, str] | None = None
 ) -> list[dict[str, Any]]:
     """Return [{name, description}] for tools served by an MCP stdio server."""
     session_type, parameters_type, stdio_client = _require_mcp()
-    params = parameters_type(command=command, args=list(args or []), env=env)
+    params = _stdio_parameters(parameters_type, command, args, env)
     async with stdio_client(params) as (read, write):
         async with session_type(read, write) as session:
             await session.initialize()
@@ -55,7 +62,7 @@ async def call_server_tool(
 ) -> str:
     """Call one MCP tool; returns concatenated text content."""
     session_type, parameters_type, stdio_client = _require_mcp()
-    params = parameters_type(command=command, args=list(args or []), env=env)
+    params = _stdio_parameters(parameters_type, command, args, env)
     async with stdio_client(params) as (read, write):
         async with session_type(read, write) as session:
             await session.initialize()

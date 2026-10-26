@@ -36,6 +36,7 @@ import json
 import os
 import re
 import runpy
+import sqlite3
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,6 +59,7 @@ RUNTIME_CONFIG = Path(os.environ.get("STUDIO_RUNTIME_CONFIG", "/etc/nexus-studio
 WORKER_USER = os.environ.get("STUDIO_WORKER_USER", "1001:1001")
 CREDENTIAL_ROOT = os.environ.get("STUDIO_CREDENTIAL_ROOT", "/var/lib/nexus/auth")
 STUDIO_TMP = os.environ.get("STUDIO_TMP", "/var/lib/nexus-studio/home/tmp")
+STATE_DIR = os.environ.get("PROXY_STATE_DIR")
 
 MAX_HEAD = 64 * 1024
 MAX_BODY = 1024 * 1024
@@ -97,6 +99,7 @@ class Policy:
     worker_user: str = WORKER_USER
     credential_root: str = CREDENTIAL_ROOT
     studio_tmp: str = STUDIO_TMP
+    project_key: str | None = None
 
     @property
     def images(self) -> set[str]:
@@ -114,7 +117,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 def load_policy() -> Policy:
     team = _read_json(TEAM_CONFIG)
     runtime = _read_json(RUNTIME_CONFIG)
-    policy = Policy()
+    policy = Policy(project_key=team.get("project_key"))
     if isinstance(team.get("runner_image"), str):
         policy.team_images.add(team["runner_image"])
     workers = runtime.get("analysis_workers")
@@ -237,8 +240,8 @@ def check_create(query: dict[str, list[str]], body: Any, policy: Policy) -> tupl
 class Tracker(_policy["ProxyContainers"]):
     """Standalone consumer of the framework's process-local ownership policy."""
 
-    def __init__(self) -> None:
-        super().__init__(max_tracked=MAX_TRACKED)
+    def __init__(self, journal=None) -> None:
+        super().__init__(max_tracked=MAX_TRACKED, journal=journal)
 
 
 @dataclass
@@ -264,6 +267,7 @@ def decide(request: Request, policy: Policy, tracker: Tracker) -> tuple[str, Any
         _require(unquote(match.group(1)) in policy.images, "image is not configured for Studio workers")
         return "pass", None
     if path == "/containers/create" and method == "POST":
+        _require(not tracker.storage_failed, "proxy ownership storage is unavailable; review pending cleanup")
         try:
             body = json.loads(request.body or b"null")
         except ValueError as exc:
@@ -280,6 +284,8 @@ def decide(request: Request, policy: Policy, tracker: Tracker) -> tuple[str, Any
         _require(container_id is not None, "container was not created through this proxy")
         action = match.group(2)
         _require((action == "json") == (method == "GET"), "method not allowed")
+        _require(not tracker.storage_failed or action == "json", "proxy ownership storage is unavailable; cleanup only")
+        _require(not tracker.cleanup_only(container_id) or action == "json", "recovered ownership permits cleanup only")
         if action == "start":
             # Narrow the swap window: sources must still be the same real paths.
             for source in tracker.sources(container_id):
@@ -356,6 +362,32 @@ class Proxy:
     def __init__(self, upstream: str = UPSTREAM) -> None:
         self.upstream = upstream
         self.tracker = Tracker()
+        self.journal = None
+        self.identify = None
+
+    async def enable_state(self, directory: str, project: str) -> None:
+        path = Path(__file__).with_name("studio_docker_proxy_state.py")
+        if not path.is_file():
+            path = Path(__file__).resolve().parents[2] / "nexus/core/studio_docker_proxy_state.py"
+        helpers = runpy.run_path(str(path))
+        reader, writer = await asyncio.open_unix_connection(self.upstream)
+        try:
+            daemon = await helpers["daemon_identity"](reader, writer)
+        finally:
+            writer.close()
+            await writer.wait_closed()
+        journal = helpers["ProxyJournal"](directory, daemon, project, maximum=MAX_TRACKED)
+        try:
+            tracker = Tracker(journal)
+        except BaseException:
+            journal.close()
+            raise
+        self.journal, self.tracker = journal, tracker
+        self.identify = helpers["daemon_identity"]
+
+    def close(self) -> None:
+        if self.journal:
+            self.journal.close()
 
     async def handle(self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter) -> None:
         try:
@@ -364,7 +396,10 @@ class Proxy:
             except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError):
                 return
             try:
-                action, detail = decide(request, load_policy(), self.tracker)
+                policy = load_policy()
+                if self.journal:
+                    self.journal.require_project(policy.project_key)
+                action, detail = decide(request, policy, self.tracker)
                 target = None
                 if action == "list":
                     target = urlsplit(request.target).path + "?" + urlencode(detail, doseq=True)
@@ -378,6 +413,9 @@ class Proxy:
             log(f"allow {request.method} {request.path}")
             up_reader, up_writer = await asyncio.open_unix_connection(self.upstream)
             try:
+                if self.journal:
+                    daemon = await self.identify(up_reader, up_writer)
+                    self.journal.require_daemon(daemon)
                 up_writer.write(rewrite_head(request, action == "upgrade", target) + request.body)
                 await up_writer.drain()
                 if action == "upgrade":
@@ -401,8 +439,8 @@ class Proxy:
                     await pipe(up_reader, client_writer)
             finally:
                 up_writer.close()
-        except (ConnectionError, OSError) as exc:
-            log(f"connection error: {exc}")
+        except (ConnectionError, OSError, ValueError, IndexError, sqlite3.Error, asyncio.IncompleteReadError) as exc:
+            log(f"connection or ownership error: {type(exc).__name__}; request outcome is unconfirmed")
         finally:
             client_writer.close()
 
@@ -424,18 +462,28 @@ class Proxy:
 
 
 async def main() -> None:
-    listen = Path(LISTEN)
-    listen.parent.mkdir(parents=True, exist_ok=True)
-    if listen.exists() or listen.is_symlink():
-        listen.unlink()
-    old_umask = os.umask(0o177)
-    try:
-        server = await asyncio.start_unix_server(Proxy().handle, path=str(listen), limit=MAX_HEAD)
-    finally:
-        os.umask(old_umask)
-    log(f"nexus docker proxy listening on {listen} -> {UPSTREAM}")
-    async with server:
-        await server.serve_forever()
+    async with _policy["proxy_termination"]() as stop:
+        proxy = Proxy()
+        try:
+            if STATE_DIR:
+                await proxy.enable_state(STATE_DIR, _read_json(TEAM_CONFIG).get("project_key"))
+            if stop.is_set():
+                return
+            # Validate and lock private ownership before replacing a listener path.
+            listen = Path(LISTEN)
+            listen.parent.mkdir(parents=True, exist_ok=True)
+            if listen.exists() or listen.is_symlink():
+                listen.unlink()
+            old_umask = os.umask(0o177)
+            try:
+                server = await asyncio.start_unix_server(proxy.handle, path=str(listen), limit=MAX_HEAD)
+            finally:
+                os.umask(old_umask)
+            log(f"nexus docker proxy listening on {listen} -> {UPSTREAM}")
+            async with server:
+                await stop.wait()
+        finally:
+            proxy.close()
 
 
 if __name__ == "__main__":

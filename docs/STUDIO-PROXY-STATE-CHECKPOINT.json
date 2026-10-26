@@ -1,0 +1,130 @@
+{
+  "format": "nexus-studio-proxy-state-acceptance/v1",
+  "date": "2026-10-26",
+  "status": "local-runtime-verified",
+  "scope": "Optional private proxy ownership persistence: source backend, actual local Docker daemon, graceful/forced proxy restart and cleanup-only recovery. No actual VM/private-container mount or installed app deployment.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "reproduced_before_fix": {
+    "report": "/private/tmp/nexus-proxy-state-before.xml",
+    "sha256": "410d26aa5e1fafec61cdf88f191523b5512c50c9e8584af36d39128079bf91e0",
+    "result": "failed",
+    "cause": "The previous proxy lost ownership after restart; configured restart acceptance could not recover a trusted cleanup-only receipt."
+  },
+  "implementation": [
+    "A separate proxy-private SQLite ledger records full owned IDs, generated names, mount-source references and retirement state. It is deliberately outside application-writable state and supplied only to the proxy.",
+    "Private service ownership/permissions, canonical paths, no file links, daemon/project binding, receipt validation and an exclusive SQLite writer lock establish the storage trust boundary. No account login or identity service was added.",
+    "SQLite EXTRA synchronization and atomic updates commit receipts before create acknowledgments. A write failure preserves memory/last-commit evidence and fences new creation/execution while known-ID cleanup remains possible.",
+    "Every restored ID is cleanup-only. Inspect and deletion are permitted; attach/start/wait/kill/resize remain blocked. No stored task body, command, credential value or executable queue is replayed.",
+    "Each forwarded connection probes daemon identity and reuses that same keep-alive connection for the authorized request. The current project is checked from the same policy snapshot used for authorization.",
+    "The optional Compose override mounts private state only into the proxy, requires a precreated host directory, and adds the stdlib-only state helper. Deployments without the override retain memory-only behavior."
+  ],
+  "validation": {
+    "required": {
+      "tests": 229,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-proxy-state-required.xml",
+      "duration_seconds": 17.07,
+      "sha256": "ea7bf6e4020eed7e821ed0c241c9f872a47d1439d2cff418c0c6055a63102fb6"
+    },
+    "actual_proxy": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-proxy-state-actual.xml",
+      "duration_seconds": 11.427,
+      "sha256": "a50126f18e9501c23928783265170db476036d1034b04c44d110f0713faf4b36"
+    }
+  },
+  "actual_cases": {
+    "memory_only_compatibility": 4,
+    "configured_restart_and_sigkill": 2,
+    "configured_failed_removal_and_name_reuse": 2,
+    "enable_without_legacy_adoption": 1
+  },
+  "verified": [
+    "Actual graceful proxy restart and SIGKILL preserve committed cleanup authority; the old stopped container is never started and is removed only by explicit recovery.",
+    "Configured failed-removal and reused-name drills retain the prior safety boundaries.",
+    "Memory-only restart remains unconfirmed. Enabling a fresh ledger leaves preexisting unrecorded containers untouched and requires manual review.",
+    "Changed daemon/project binding, damaged/future receipts, corrupt database, unsafe modes, symlinks/hard links and concurrent owners are rejected in the required gate.",
+    "Exclusive writer ownership persists through commits and releases when the proxy exits; actual forced-termination restart succeeds.",
+    "Identity framing consumes exactly one bounded length/chunked response, leaving the same stream ready for the next request. Invalid/unbounded/unresponsive probes fail without retry.",
+    "Recovered grants and storage-error grants cannot execute old/uncommitted containers. Ordinary new receipts retain their normal in-process permissions.",
+    "The persistence module runs with Nexus imports disabled; the optional Compose service override grants no mount to Studio.",
+    "All disposable analysis containers and temporary proxy directories are gone; the unrelated llm-cli-proxy service remains running."
+  ],
+  "trust_boundary": {
+    "protects_against": "Application-controlled workspace/restore data cannot manufacture proxy receipts when the dedicated state directory remains outside all writable Studio mounts.",
+    "trusted": "Service owner and host/Docker administrators. Directory isolation and service ownership authenticate this operational inventory; it is not a cryptographic defense against a host administrator.",
+    "directory_mode": "0700",
+    "database_mode": "0600",
+    "inventory_limit": 512,
+    "payload_limit_bytes": 1048576,
+    "format": "nexus-docker-proxy-ownership/v1",
+    "binding": "SHA-256 of daemon identity and the existing Nexus project key."
+  },
+  "migration": {
+    "opt_in": "PROXY_STATE_DIR plus docker-compose.studio-proxy-state.yml; precreate an owned canonical private directory outside every writable Studio/credential mount.",
+    "workspace_schema_changed": false,
+    "analysis_journal_format_changed": false,
+    "public_studio_payload_changed": false,
+    "account_authentication_changed": false,
+    "upgrade": "Stop proxy-backed work and deploy matching launcher/policy/state files. Enabling persistence starts with no adopted legacy grants.",
+    "backup_restore": "Back up private ledger separately with the proxy stopped; preserve permissions and restore only to the same daemon/project.",
+    "rollback": "Stop work and remove optional override while retaining ledger unchanged. Memory-only rollback cannot restore its grants; rollback-era work remains unrecorded on re-enablement.",
+    "uncertain_creates": "A crash before receipt commit, record eviction or lost private state can require independent review. No unknown object is adopted by name or treated as absent."
+  },
+  "runtime": {
+    "backend_host": "macOS Apple Silicon",
+    "sqlite": "3.53.1",
+    "docker_server": "29.9.2",
+    "worker_platform": "linux/arm64",
+    "context": "default",
+    "installed_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "images_built_or_pulled": 0,
+    "public_ports_opened": 0,
+    "external_account_calls": 0,
+    "privileged_containers_started": 0,
+    "user_context_mutations": 0,
+    "test_containers_remaining": 0,
+    "temporary_proxy_directories_remaining": 0
+  },
+  "quality": {
+    "git_diff_check": "passed",
+    "ruff": "Changed files pass with the existing legacy Denied exception naming rule N818 excluded; no new lint exception was introduced."
+  },
+  "pending": [
+    "Actual private mount isolation, ownership mapping and filesystem behavior on the personal Linux VM/container deployment.",
+    "Actual Docker daemon restart, remote/SSH disconnect and power-loss/host storage acceptance. Wrong binding and failed-write fixtures are not certification of these environments.",
+    "Uncommitted, evicted and unrecorded legacy creates remain an explicit manual-review outcome.",
+    "Escaped MCP descendants, physical voice devices, selected live provider accounts and native/frozen/installed OS acceptance remain open.",
+    "The previously documented mount-source swap race is unchanged; host administrators remain trusted."
+  ],
+  "references": [
+    "https://www.sqlite.org/pragma.html#pragma_locking_mode",
+    "postman/contracts/studio-docker-proxy.md"
+  ],
+  "source_sha256": {
+    "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
+    "nexus/core/studio_docker_proxy_policy.py": "d6a165822dc85da2f19dc35317c6870c92ac064d514757cf539a673dd0af9fc1",
+    "deploy/studio/docker_proxy.py": "bd3d2547867d204b85d4fa4e002626054fa17599daf44f2f9303aa077c18b289",
+    "docker-compose.studio-proxy-state.yml": "18518969e00da2a99e90bf3bfd926b766ae7be89932627ebbb041bd544d2a473",
+    "tests/test_studio_docker_proxy_state.py": "11ce6bf9559eb85a4056236622f9ea5ca951f741d39296e52439667dbc742b22",
+    "tests/test_studio_docker_proxy.py": "c29ab098c49b42ef7552fc8e9e69296eb077f02bff4efb1326fa7be8eb1c1f25",
+    "tests/test_studio_docker_proxy_policy.py": "1b0c2cd6c5fb1c14b9714830feaa7a763127de46797bc1782621cd90cba554f6",
+    "tests/studio_proxy_recovery_acceptance.py": "d044ca7086bf86e1dfb517f4f73516e9ec3288a312dff4461b696d6f9da9128a",
+    "examples/nexus-bot/src/studio_proxy_recovery.py": "407fddd500a1a75ab11ee8f4067655a1e8af3c5289aa2a5f489ced9c390f0787",
+    "postman/contracts/studio-docker-proxy.md": "47192e2815e63bc2f2e1f70810d7479cbfac13185913ad1cb94e734456dc3986",
+    "deploy/studio/README.md": "6cea3419c16820b148cdb2b8b7f39c05068dc0e5c563b0a89b2b68f6610837c7"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "release_note": "Recorded checksum manifest retained. Previous absent DMGs were not recreated or reverified."
+}

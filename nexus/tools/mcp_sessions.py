@@ -65,15 +65,16 @@ class MCPSessionPool:
         return await result
 
     async def serve(self, key, command, args, env, queue):
-        from nexus.tools.mcp import _require_mcp
+        from nexus.tools.mcp import _require_mcp, _stdio_parameters
 
         current = None
         error = RuntimeError("MCP session ended. Review the action outcome before retrying")
         try:
             session_type, parameters_type, stdio_client = _require_mcp()
-            async with stdio_client(
-                parameters_type(command=command, args=list(args or []), env=env)
-            ) as (read, write):
+            async with stdio_client(_stdio_parameters(parameters_type, command, args, env)) as (
+                read,
+                write,
+            ):
                 async with session_type(read, write) as session:
                     await asyncio.wait_for(session.initialize(), self.call_seconds)
                     while True:

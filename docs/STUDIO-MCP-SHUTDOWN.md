@@ -45,3 +45,50 @@ covers ordinary descendants in the SDK's owned group. Daemonized descendants tha
 leave it and Docker containers outside host process groups remain separate work.
 
 See `STUDIO-MCP-SHUTDOWN-CHECKPOINT.json` for exact test and Beta 2 image evidence.
+
+## Linux detached descendants
+
+The source runtime now gives each Linux stdio session a separate supervisor when
+procfs and Python pidfds are available. One-shot requests and pooled sessions use
+the same launch policy. The supervisor enables the Linux child-subreaper role
+before starting the server. Orphaned descendants, including a double-forked daemon
+that changed session/process group, are adopted by that dedicated owner.
+
+The supervisor forwards raw stdin with bounded buffering. It observes owner EOF
+even when the child stops reading and the input pipe fills. Server exit, SIGTERM,
+SIGINT or owner EOF start a one-second cleanup pass. The pass reads only its own
+kernel child list, opens stable PID descriptors, checks the parent relationship,
+kills owned children and reaps them as their remaining descendants are adopted.
+It never scans unrelated processes or trusts a persisted PID. An unrelated
+sentinel remains alive in the actual acceptance cases. An exhausted cleanup
+budget reports uncertainty on stderr rather than claiming success.
+
+The mechanism uses the documented Linux
+[subreaper role](https://www.man7.org/linux/man-pages/man2/PR_SET_CHILD_SUBREAPER.2const.html)
+and [PID-descriptor signalling](https://www.man7.org/linux/man-pages/man2/pidfd_send_signal.2.html).
+It is cleanup ownership, not an execution sandbox. Direct SIGKILL of the
+supervisor, hostile executables, privilege/namespace changes and host root require
+a stronger service cgroup/container boundary. Those cases remain outside this
+acceptance. A SIGKILLed Studio owner is covered: its separate supervisor remains
+alive long enough to observe EOF and clean up.
+
+No connector configuration, environment-selection policy, authorization, stored
+record or automatic retry changes. Other platforms retain SDK cleanup. Linux
+without the required kernel/procfs support logs a warning and retains that legacy
+policy. Once supervised startup is selected, initialization failure never retries
+the server without supervision. Source execution uses an isolated stdlib file;
+trusted frozen-worker dispatch and data inclusion are prepared, but no frozen
+Linux app was built or verified and existing DMGs were not rebuilt.
+
+After updating the source package, the example checks Linux detached cleanup:
+
+```sh
+PYTHONPATH=. python examples/nexus-bot/src/studio_mcp_lifecycle.py --detached
+PYTHONPATH=. python examples/nexus-bot/src/studio_mcp_lifecycle.py --detached --persistent
+```
+
+The example refuses that mode before launch on unsupported platforms. Its
+ordinary POSIX process-group mode remains available on macOS. Upgrade by stopping
+active MCP work, updating the package and restarting Studio normally. No state
+migration is needed; rollback returns to SDK group cleanup and its old detached
+child limitation. See `STUDIO-LINUX-MCP-CHECKPOINT.json` for scoped evidence.

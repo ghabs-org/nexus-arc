@@ -1,0 +1,123 @@
+{
+  "format": "nexus-studio-linux-mcp-supervision/v1",
+  "date": "2026-10-26",
+  "status": "linux-source-cleanup-verified",
+  "scope": "Per-session source-runtime Linux child-subreaper/pidfd cleanup after EOF/SIGTERM and Studio owner SIGKILL. macOS ordinary group cleanup remains compatible. No VM, desktop app, installer or DMG changed.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "reproduced_before_fix": {
+    "image_id": "sha256:e8110ade92795e9cd84f943440be919f73ada6900bb82cf008f53f10f63707bd",
+    "check": "tests/studio_linux_mcp_acceptance.py::test_escaped_stdio_descendants[close-False]",
+    "result": "failed",
+    "observed": "daemon survived owner shutdown outside the SDK group",
+    "duration_seconds": 7.35,
+    "proof": "Actual tool execution on the pre-fix image. The test killed only its own remaining fixture process during cleanup; no baseline XML was retained."
+  },
+  "implementation": [
+    "Each supported Linux stdio launch now owns a separate stdlib-only supervisor process. Both one-shot and persistent sessions use the same parameter construction; existing selected environment and permission logic are retained.",
+    "The supervisor becomes a child subreaper, forwards unchanged raw input with bounded buffering and monitors owner HUP even under backpressure. Cleanup reads only its own direct/adopted child view, opens stable pidfds, verifies parentage, kills and reaps within one second.",
+    "Already-closed input is rejected before server launch. Initialization and cleanup errors remain redacted on stderr; no unwrapped server retry is added. Unsupported platforms keep SDK behavior; unavailable Linux kernel support logs the limitation.",
+    "Prepared fixed internal frozen-worker dispatch and raw worker-file inclusion, with portable unit proof only. No frozen Linux binary or app was built. The existing example now supports a guarded --detached mode."
+  ],
+  "validation": {
+    "host_required": {
+      "tests": 46,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 3.699,
+      "report": "/private/tmp/nexus-mcp-supervision-required.xml",
+      "sha256": "74c011c09293bf5d60ce43b3ce0bfdd021dd764131f2f0499444b381409a5a7a"
+    },
+    "linux": {
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.18,
+      "report": "/private/tmp/nexus-mcp-supervision-linux-completion.log",
+      "sha256": "531cabc7ec14c58246242f27e44be64679198fd66935e515754c11ce7560d468",
+      "report_kind": "Captured completion output from the actual Docker exec tool, including four escaped-daemon case receipts and the final pytest count. The initial 32 progress dots were a previous output chunk.",
+      "actual_kernel_cases": 8,
+      "portable_regressions_on_linux": 32
+    },
+    "macos_existing_source_lifecycle": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 10.114,
+      "report": "/private/tmp/nexus-mcp-supervision-macos-actual.xml",
+      "sha256": "467c22534097a0e2c16e85c72f7dc75daccc7bf3aaa861a766ced57f26609d46"
+    }
+  },
+  "verified": [
+    "Real Linux SDK sessions stop a double-forked SIGTERM-resistant daemon that changed process group, on normal Studio close and owner SIGKILL, in both one-shot and persistent modes. The outer test process stays alive, so container exit cannot manufacture cleanup.",
+    "Kernel pidfd exit checks confirm server and escaped daemon stop. An unrelated sentinel remains alive. Exactly one invocation is recorded and no work is replayed. Actual close/kill case settlement is about 0.008-0.012 seconds on this fixture.",
+    "Both thin-example modes stop detached children. Already-closed owner input never launches a server; EOF still stops a server that filled both relay and child stdin buffers.",
+    "Portable guards verify source/frozen argument handling, original selected environment outside argv, explicit unsupported-Linux warning, checked parentage, pidfd signalling, unavailable cleanup and redacted diagnostics.",
+    "Host MCP connection, remote HTTP, SDK bridge, worker dispatch and packaging regressions pass. Existing macOS one-shot/persistent resistant-process-group shutdown passes separately.",
+    "All temporary acceptance containers are removed. No raw Docker socket, host data, published port, credentials or external account is used inside the Linux runtime."
+  ],
+  "fixture": {
+    "image_id": "sha256:f69e4550983e5f7aaead4008e05a54a96ff78169f545ae798b1b9dd0a02de1b9",
+    "tag": "nexus-mcp-supervision-checks:20261026",
+    "image_size_bytes": 391524428,
+    "base_image_id": "sha256:f495c3e080fd74a910e2bcc9baa01b84508519e790ae9edd92e990de88bedc2e",
+    "build_context": "/private/tmp/nexus-linux-mcp-context",
+    "os": "linux",
+    "architecture": "arm64",
+    "kernel": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+    "python": "3.13.16",
+    "mcp_sdk": "2.3.0",
+    "runtime": "uid/gid 65534, network none, read-only root, capabilities dropped, no-new-privileges, pids128/memory768MiB/cpu2 and bounded tmpfs. No host mounts or daemon socket.",
+    "test_tmpfs": "The final trusted test tmpfs explicitly allows exec so packaging unit fixtures can satisfy os.access(X_OK). Initial default-noexec runs correctly failed three packaging assertions; a separate probe confirmed X_OK false despite mode0755. Production analysis filesystem restrictions are unchanged.",
+    "report_retention": "JUnit written into tmpfs vanished when the container stopped; retained actual completion-tool output instead. No missing XML is represented as an existing file.",
+    "published_ports": 0,
+    "host_mounts": 0,
+    "external_account_calls": 0,
+    "privileged_containers": 0,
+    "test_containers_remaining": 0
+  },
+  "compatibility": {
+    "public_api_changed": false,
+    "connector_records_changed": false,
+    "selected_environment_changed": false,
+    "workspace_schema_changed": false,
+    "automatic_retry_added": false,
+    "upgrade": "Stop active MCP calls, update the source package and restart normally. Supported Linux sessions gain supervision automatically; no configuration or data migration. Existing installers do not contain this source change.",
+    "rollback": "Prior versions retain SDK group cleanup and its detached-child limitation. No persisted state needs rollback.",
+    "cost": "One small isolated Python supervisor process per active stdio session. Persistent pooling retains its existing session sharing/limits."
+  },
+  "pending": [
+    "Actual personal VM deployment, host bind/UID checks, authenticated HTTPS, upgrade/full restore, daemon restart and power-loss remain separate.",
+    "Direct SIGKILL of the supervisor, hostile executables, changed privileges/namespaces, oversized fork trees beyond the bounded cleanup budget and host root need a service cgroup/container boundary. This is cleanup ownership, not a security sandbox.",
+    "Detached host processes on macOS/Windows and Linux without kernel/procfs support remain outside the new acceptance. Existing ordinary macOS SDK groups are verified only.",
+    "Frozen Linux execution, installed/native OS releases, other SDK/kernel versions, physical devices and selected external accounts remain separate."
+  ],
+  "quality": {
+    "ruff": "All nine changed/new supervisor, bridge, example and fixture/test modules pass without rule exclusions.",
+    "git_diff_check": "passed"
+  },
+  "source_sha256": {
+    "nexus/core/studio_mcp_supervisor.py": "1a055ad573b413f070a335d65750e773aaa81152212d8ce865419fbb73dfe1dd",
+    "nexus/tools/mcp_supervision.py": "0570de7598b75f1dee9f8128afa6570984143361ecd936601d9bc7b6fa3f43b5",
+    "nexus/tools/mcp.py": "84a77f358efe9051510dbbcffbb899e2dc7e70466d03faaea067cc0ed4fe304f",
+    "nexus/tools/mcp_sessions.py": "c48f32feb501693cc83578fe59cca5b725e6d637c72c7233e59b50cee3c34137",
+    "nexus/core/studio_desktop_sidecar.py": "e583151b55b486958f345c1dba506df98d2bba262d2521df26caccb1835f3f5f",
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
+    "examples/nexus-bot/src/studio_mcp_lifecycle.py": "93849681c061b9f9f91eab077169b1eb5ac42623b573db7103b590113b3b2b2c",
+    "examples/nexus-bot/src/fixtures/mcp_lifecycle_server.py": "4f8b0a011b0151b54f495c5141b254c14dbc1150f2d1a5952dfc82cc0c6e9c63",
+    "tests/test_studio_mcp_supervision.py": "9000d458eabaa17e8cc73e4cd8e55c2774968fd65bbe3a1c87e5c738e958f9eb",
+    "tests/studio_linux_mcp_acceptance.py": "13f50e5b09d5a8b8ed9be1876f4a92824683687d2ff31bc3479679010d5839bd",
+    "tests/fixtures/studio_mcp_escape.py": "d61803fdf5df3decec77f515df5abe846c943d3fd232a15f48a408956954f0c9",
+    "deploy/studio/recovery-checks/Dockerfile.mcp-supervision": "1fd3577ccf0b77b5d76a17f46e37962f0252549c58e57a3504f8af97d04381d5",
+    "postman/contracts/studio-mcp-lifecycle.md": "22851340255af030168b7851cb2352fa19b6cb4ec4e5e85c33182d9650d5fdbb"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

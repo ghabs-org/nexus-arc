@@ -1,6 +1,8 @@
+import hashlib
 import io
 import json
 import subprocess
+import sys
 import threading
 from types import SimpleNamespace
 
@@ -14,6 +16,89 @@ NAME = "nexus-analysis-" + "a" * 32
 IDENTITY = "b" * 64
 IMAGE = "sha256:" + "c" * 64
 DOCKER = ["docker", "--context", "default"]
+
+
+def test_slim_linux_random_uuid_nodes_keep_identity_across_owners(recovery, monkeypatch, tmp_path):
+    from nexus.core import studio_container_recovery as module
+
+    boot = tmp_path / "boot-id"
+    boot.write_text("28d0f917-a05b-44c5-baf8-0b51b647f21e\n")
+    nodes = iter([0x010000000001, 0x010000000002])
+    monkeypatch.setattr(module.uuid, "getnode", lambda: next(nodes))
+    monkeypatch.setattr(module.socket, "gethostname", lambda: "fixture-controller")
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(module, "Path", lambda _: boot, raising=False)
+    studio = SimpleNamespace(
+        state=recovery.directory.parent, _write=recovery.write, _read=recovery.read
+    )
+    first = ContainerRecovery(studio)
+    engine = Engine()
+    lease = register(first, engine)
+    lease.created(IDENTITY)
+    lease.finish(False)
+    second = ContainerRecovery(studio)
+    assert first.host == second.host
+    assert second.recover(engine) == {"items": [{"name": NAME, "status": "removed"}], "pending": 0}
+
+
+def test_real_mac_host_hash_stays_legacy_compatible(monkeypatch):
+    from nexus.core import studio_container_recovery as module
+
+    node = 0x020000000001
+    monkeypatch.setattr(module.uuid, "getnode", lambda: node)
+    monkeypatch.setattr(module.socket, "gethostname", lambda: "fixture-controller")
+    expected = hashlib.sha256(f"fixture-controller:{node}".encode()).hexdigest()
+    assert module.host_fingerprint() == expected
+
+
+@pytest.mark.parametrize("change", ["boot", "hostname"])
+def test_fallback_identity_does_not_adopt_changed_boot_or_controller(
+    recovery, monkeypatch, tmp_path, change
+):
+    from nexus.core import studio_container_recovery as module
+
+    boot = tmp_path / "boot-id"
+    boot.write_text("28d0f917-a05b-44c5-baf8-0b51b647f21e\n")
+    monkeypatch.setattr(module.uuid, "getnode", lambda: 0x010000000001)
+    monkeypatch.setattr(module.socket, "gethostname", lambda: "fixture-controller")
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(module, "Path", lambda _: boot, raising=False)
+    studio = SimpleNamespace(
+        state=recovery.directory.parent, _write=recovery.write, _read=recovery.read
+    )
+    first = ContainerRecovery(studio)
+    engine = Engine()
+    lease = register(first, engine)
+    lease.created(IDENTITY)
+    lease.finish(False)
+    if change == "boot":
+        boot.write_text("39a1f028-b16c-45d6-8c09-1c62c758032f\n")
+    else:
+        monkeypatch.setattr(module.socket, "gethostname", lambda: "different-controller")
+    calls = len(engine.calls)
+    assert ContainerRecovery(studio).recover(engine) == {
+        "items": [{"name": NAME, "status": "other_host"}],
+        "pending": 1,
+    }
+    assert len(engine.calls) == calls
+
+
+@pytest.mark.parametrize("content", [None, "invalid", "x" * 1000])
+def test_unavailable_kernel_identity_keeps_fail_closed_legacy_hash(monkeypatch, tmp_path, content):
+    from nexus.core import studio_container_recovery as module
+
+    boot = tmp_path / "boot-id"
+    if content is not None:
+        boot.write_text(content)
+    node = 0x010000000001
+    monkeypatch.setattr(module.uuid, "getnode", lambda: node)
+    monkeypatch.setattr(module.socket, "gethostname", lambda: "fixture-controller")
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(module, "Path", lambda _: boot, raising=False)
+    assert (
+        module.host_fingerprint()
+        == hashlib.sha256(f"fixture-controller:{node}".encode()).hexdigest()
+    )
 
 
 class Engine:

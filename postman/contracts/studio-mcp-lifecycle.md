@@ -25,3 +25,21 @@ a released workspace lock. No external accounts, public endpoints or credentials
 are involved; this is a real stdio process fixture, not an HTTP service stand-in.
 Docker/container cleanup and daemonized descendants outside the SDK process
 group remain separate gates.
+
+## Linux stdio supervision
+
+On Linux with procfs and Python pidfd support, each stdio launch receives a
+dedicated isolated supervisor. It becomes a child subreaper, forwards raw input
+without changing MCP frames, and reaps only its own direct/adopted children.
+Closing the client input or sending SIGTERM starts bounded cleanup. PID file
+descriptors and a checked parent relationship prevent signalling reused or
+unrelated PIDs. One-shot and persistent sessions share this launch policy.
+
+No API inputs, selected grants, secrets, record formats or retry policies change.
+Server environments retain SDK filtering and the explicitly selected values.
+Diagnostics stay on stderr and contain no server command, arguments or credentials.
+Unsupported platforms retain SDK process-group cleanup; unavailable Linux kernel
+support emits a warning. Initialization failure never retries the server without
+supervision. A hard-killed supervisor cannot reap escaped children; use a service
+cgroup/container for that stronger boundary. This is cleanup ownership, not a
+security sandbox for hostile executables or protection against host root.

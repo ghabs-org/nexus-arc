@@ -1,0 +1,133 @@
+{
+  "format": "nexus-studio-linux-proxy-acceptance/v1",
+  "date": "2026-10-26",
+  "status": "local-linux-runtime-verified",
+  "scope": "Source proxy/runtime termination and actual local Linux named-volume isolation. Docker Desktop Linux/arm64, not the personal HTTPS VM or an installed native application.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "reproduced_before_fix": {
+    "report": "/private/tmp/nexus-linux-proxy-stop-before.xml",
+    "sha256": "4e2468993a709b5e3472b612ca801dafb8c6d6a509d139f04c0a032977cdfd9d",
+    "result": "failed",
+    "observed_exit_code": 137,
+    "expected_exit_code": 0,
+    "cause": "Linux PID 1 had no SIGTERM handler. Docker stop waited five seconds then used SIGKILL. The first mount-only probe did not distinguish this from clean termination."
+  },
+  "implementation": [
+    "Shared stdlib-only proxy termination context registers SIGTERM on the asyncio loop, requests cooperative stop and restores the previous signal policy.",
+    "The standalone proxy owns that context across initialization, listener lifetime and ledger close. A startup stop returns before replacing the listener.",
+    "Added a thin Linux framework consumer, explicit non-default Docker acceptance and a source-only test image recipe; existing daemon/project binding and cleanup-only grants are reused unchanged."
+  ],
+  "validation": {
+    "required": {
+      "tests": 231,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-linux-proxy-required.xml",
+      "duration_seconds": 18.451,
+      "sha256": "57cd155c6706a308b7b396a3dd3db8b6468fe4d6602db8ae08839547b2fe3a3f"
+    },
+    "linux_mount_drills": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-linux-private-proxy-actual.xml",
+      "duration_seconds": 8.448,
+      "sha256": "b360738984310243a2e3b068b185f5fbe5906fbe6411953f14ae306210ba74dd"
+    },
+    "host_compatibility": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-linux-proxy-host-compat.xml",
+      "duration_seconds": 12.062,
+      "sha256": "8c96e40014d379ba4445589c6687919ed9b8303515308979269e0ada7f01f94d"
+    },
+    "native_linux_policy": {
+      "tests": 54,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.31,
+      "report": "/private/tmp/nexus-linux-private-proxy-unit.log",
+      "sha256": "ee0f6fc90b93569a882cc3f475aa30200af02b37081fac9b54dd19a1de680af5"
+    }
+  },
+  "verified": [
+    "Proxy and controller actually run as uid/gid 1001 in separate Linux containers. Only the trusted proxy mounts the private ledger and real Docker socket.",
+    "The controller has a writable root. Its fake ownership file at the same absolute path stays in its own filesystem and does not corrupt or replace proxy authority.",
+    "The controller cannot see the original private ledger or real socket, and its attempt to mount the known private volume through the filtered Docker API is rejected.",
+    "Both ordinary stop/start and SIGKILL/start retain committed cleanup-only receipts. The old stopped worker never starts and explicit recovery removes it.",
+    "Ordinary stop exits 0 with cooperative listener/ledger close; explicit SIGKILL exits 137. Neither result is inferred merely from eventual container removal.",
+    "Native Linux persistence/policy checks cover modes, unsafe paths, daemon/project changes, corrupt receipts, writer locking, wire bounds, failed writes and signal restoration.",
+    "The 231 affected regressions and all nine host-side actual proxy cases pass after the fix, preserving legacy memory-only and no-adoption behavior.",
+    "Every temporary controller/proxy container and named volume is removed. The unrelated llm-cli-proxy service remains running."
+  ],
+  "fixture": {
+    "image_id": "sha256:9993ea392bcae09fce8825f8073332674f9c23992ad0a4a744fd7e10312dbe6a",
+    "tag": "nexus-private-proxy-checks:20261026",
+    "image_size_bytes": 408642901,
+    "os": "linux",
+    "architecture": "arm64",
+    "base_image_id": "sha256:f495c3e080fd74a910e2bcc9baa01b84508519e790ae9edd92e990de88bedc2e",
+    "docker_cli_source": "docker:29.8.2-cli@sha256:35cfcf893c20f2931f4909151b5407aaaeab711277de7ce8b8f521f095d54c32",
+    "docker_cli": "29.8.2 build 7fc2dff",
+    "docker_server": "29.9.2",
+    "python": "3.13.16",
+    "sqlite": "3.46.1",
+    "kernel": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+    "context": "default",
+    "socket_group": 0,
+    "worker_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "build_context": "/private/tmp/nexus-linux-private-proxy-context",
+    "build_inputs": "Current framework source, proxy/helper files, two unit-test modules and the thin consumer. The repository-pinned official Docker CLI was downloaded during explicit fixture preparation.",
+    "runtime": "Network none, no capabilities, no-new-privileges and bounded resources. Proxy root is read-only; controller root is writable. Shared socket and Studio data are separate from private proxy storage.",
+    "real_daemon_socket": "Mounted read-only only in the trusted proxy, whose Docker authority is root-equivalent as in the existing deployment. It is never mounted into the controller.",
+    "worker_pulls": 0,
+    "external_account_calls": 0,
+    "published_ports": 0,
+    "privileged_containers": 0,
+    "test_containers_remaining": 0,
+    "test_volumes_remaining": 0
+  },
+  "migration": {
+    "workspace_schema_changed": false,
+    "proxy_receipt_format_changed": false,
+    "http_payload_changed": false,
+    "upgrade": "Update the standalone launcher and matching framework policy, then restart the selected deployment. Private state/helper configuration remains as documented.",
+    "rollback": "Stop proxy-backed work before reverting; the old PID 1 behavior can require Docker forced termination. Existing receipts remain compatible.",
+    "no_work_replay": true
+  },
+  "pending": [
+    "Personal HTTPS VM deployment: real host bind paths, mapped UID/GID, Docker socket group, TLS/auth, upgrades and full restore.",
+    "Actual host power-loss, Docker daemon restart and remote/SSH disruption. Named-volume and process-kill proof does not certify those events.",
+    "Physical devices, selected provider accounts, escaped MCP descendants and native/frozen/installed OS acceptance remain separate.",
+    "Uncommitted/evicted/unrecorded ownership still requires review; no name-based adoption was added. Host administrators and the proxy remain trusted."
+  ],
+  "quality": {
+    "git_diff_check": "passed",
+    "ruff": "Changed runtime/consumer/tests pass with the already documented legacy N818 exception-name rule excluded."
+  },
+  "source_sha256": {
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
+    "deploy/studio/recovery-checks/Dockerfile.private-proxy": "db198dc0a5c510270d24651f70ef631748bc13c264570f4b323ae1d281470ffc",
+    "examples/nexus-bot/src/studio_proxy_linux.py": "d04cf0159a94a3b82c4f24f6f87bf20ecbf2ec002bf7ca8aea99ef4dd020876a",
+    "tests/studio_linux_proxy_acceptance.py": "e86cc4fdfff7adc63f32ec6aa737c873a745b4d401cbf16ebc89112da0985f4d",
+    "tests/test_studio_docker_proxy_policy.py": "739a4d45bf80248126e25f79a34870ac9e184a5eaf54583cfb24d1aabba7f2e9",
+    "tests/test_studio_docker_proxy_state.py": "11ce6bf9559eb85a4056236622f9ea5ca951f741d39296e52439667dbc742b22"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "release_note": "A disposable acceptance image was built; no desktop app or installer was rebuilt. Existing manifest is unchanged; absent DMGs were not recreated or reverified."
+}

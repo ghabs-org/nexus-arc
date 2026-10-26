@@ -15,11 +15,16 @@ from nexus.core.studio import StudioService
 from nexus.core.studio_desktop import is_process_alive
 
 
-def exercise(persistent=False):
+def exercise(persistent=False, detached=False):
     if os.name != "posix":
         raise RuntimeError(
             "Process-group acceptance requires a POSIX host; Windows cleanup remains separate"
         )
+    if detached:
+        from nexus.tools.mcp_supervision import available
+
+        if not available():
+            raise RuntimeError("Detached-child acceptance requires Linux procfs and pidfds")
     fixture = Path(__file__).with_name("fixtures") / "mcp_lifecycle_server.py"
     with tempfile.TemporaryDirectory(prefix="nexus-mcp-shutdown-") as directory:
         root = Path(directory)
@@ -32,7 +37,7 @@ def exercise(persistent=False):
                 "data": {
                     "type": "mcp",
                     "command": sys.executable,
-                    "args": [str(fixture), str(root)],
+                    "args": [str(fixture), str(root), *(["--detached"] if detached else [])],
                     "persistent": persistent,
                     "enabled": True,
                     "actions": ["discover", "call"],
@@ -63,7 +68,7 @@ def exercise(persistent=False):
                 time.sleep(0.05)
             assert (root / "called").exists(), errors
             pids = json.loads((root / "pids.json").read_text())
-            assert pids["server"] == pids["group"]
+            assert pids["group"] in {pids["server"], pids["parent"]}
             started = time.monotonic()
             studio.close()
             closed = True
@@ -74,6 +79,7 @@ def exercise(persistent=False):
             assert (root / "calls.log").read_text().splitlines() == ["wait"]
             return {
                 "persistent": persistent,
+                "detached": detached,
                 "server_stopped": True,
                 "child_stopped": True,
                 "caller_settled": True,
@@ -85,7 +91,7 @@ def exercise(persistent=False):
             if caller.is_alive():
                 state["loop"].call_soon_threadsafe(state["task"].cancel)
                 caller.join(12)
-            if pids and pids["server"] == pids["group"]:
+            if pids and pids["group"] in {pids["server"], pids["parent"]}:
                 try:
                     os.killpg(pids["group"], signal.SIGKILL)
                 except ProcessLookupError:
@@ -97,4 +103,8 @@ def exercise(persistent=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--persistent", action="store_true")
-    print(json.dumps(exercise(parser.parse_args().persistent), indent=2))
+    parser.add_argument(
+        "--detached", action="store_true", help="Verify Linux detached-child cleanup"
+    )
+    args = parser.parse_args()
+    print(json.dumps(exercise(args.persistent, args.detached), indent=2))

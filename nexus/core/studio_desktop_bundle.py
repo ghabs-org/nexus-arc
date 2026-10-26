@@ -20,12 +20,14 @@ import multiprocessing
 import sys
 
 multiprocessing.freeze_support()
-if sys.argv[1:3] == ["--nexus-worker", "nexus.core.studio_artifact_extract"]:
+if sys.argv[1:3] in (["--nexus-worker", "nexus.core.studio_artifact_extract"],
+                       ["--nexus-worker", "nexus.core.studio_mcp_supervisor"]):
     import runpy
     from pathlib import Path
 
-    worker = Path(__file__).resolve().parent / "nexus" / "core" / "studio_artifact_extract.py"
-    sys.argv = ["nexus.core.studio_artifact_extract", *sys.argv[3:]]
+    module = sys.argv[2]
+    worker = Path(__file__).resolve().parent / "nexus" / "core" / (module.rsplit(".", 1)[1] + ".py")
+    sys.argv = [module, *sys.argv[3:]]
     runpy.run_path(str(worker), run_name="__main__")
 else:
     from nexus.core.studio_desktop_sidecar import main
@@ -145,6 +147,10 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
             str(static) + os.pathsep + "nexus/studio_static",
             "--add-data",
             str(repo_root / "nexus" / "core" / "studio_artifact_extract.py")
+            + os.pathsep
+            + "nexus/core",
+            "--add-data",
+            str(repo_root / "nexus" / "core" / "studio_mcp_supervisor.py")
             + os.pathsep
             + "nexus/core",
             "--copy-metadata",

@@ -176,6 +176,12 @@ remain explicit account setup actions, never a side effect of saving a profile.
 
 ## Verify the deployed origin
 
+The production server image includes `studio-oauth` explicitly. MCP SDK 2 uses
+`httpx2`; that package does not provide the separate `httpx` imported by delegated
+OAuth. A reachable Studio page or installed MCP SDK alone therefore cannot prove
+OAuth transport prerequisites. Enabling a real provider still requires explicit
+account setup and consent.
+
 Open **Workspace tools → Deployment checks** as an owner to inspect configuration.
 Then set `NEXUS_STUDIO_CHECK_SESSION` to an existing test user's Nexus session in
 your shell and run:
@@ -215,6 +221,12 @@ the catalog and do not inherit Studio credentials.
 
 ## Docker access through the filtering proxy
 
+After enabling the opt-in private ownership store, use `nexus studio-host-check`
+on the daemon host to inspect the selected Studio/proxy mount layout and private
+store permissions without reading secrets or changing services. The command
+requires explicit container/context names and reports inaccessible host sources
+as unavailable. See [the host preflight procedure](PERSONAL-VM.md#check-durable-proxy-storage-on-the-host).
+
 `docker-compose.studio-workers.yml` never mounts the Docker socket into Studio.
 Its `docker-proxy` service holds the socket and serves a filtered one at
 `/var/lib/nexus-studio/docker-proxy/docker.sock` (mode 0600, Studio's UID), which
@@ -250,10 +262,11 @@ so a reused container name cannot inherit authority. Removal failures and lost
 replies retain bounded ownership for later ID-scoped absence checks. Retired
 entries are evicted before live entries under the existing 512-record limit.
 
-Ownership remains process-local. If the proxy itself restarts or evicts a record,
-it denies that old ownership and Studio keeps cleanup unconfirmed. Review those
-containers independently; restart does not prove they disappeared. This is
-separate from restarting Studio while the proxy remains alive.
+Ownership remains process-local unless the private ledger below is configured.
+Without it, a proxy restart or record eviction denies old ownership and Studio
+keeps cleanup unconfirmed. Review those containers independently; restart does not
+prove they disappeared. This is separate from restarting Studio while the proxy
+remains alive.
 
 The repeatable [proxy recovery example](../../examples/nexus-bot/src/studio_proxy_recovery.py)
 uses disposable local containers, a private Unix socket and an installed image:
@@ -268,3 +281,141 @@ environment variables as other Docker acceptance checks. It never pulls an
 image or modifies existing Docker contexts. See
 [the checkpoint](../../docs/STUDIO-PROXY-RECOVERY-CHECKPOINT.json); actual personal
 VM, remote daemon and installed-platform verification remain separate.
+
+### Private ownership across proxy restarts
+
+The optional `docker-compose.studio-proxy-state.yml` retains trusted cleanup
+receipts across proxy restart, including forced termination. It reuses the
+existing Nexus `project_key`, binds receipts to the Docker daemon identity and
+restores only lookup/inspect/delete authority. It cannot start old work.
+
+Precreate a canonical, service-owned mode-0700 directory such as
+`/var/lib/nexus-studio-proxy`. Keep it **outside every writable Studio mount**,
+including `NEXUS_STUDIO_DATA_DIR` and `NEXUS_RUNTIME_DIR/auth`. Never mount this
+directory into Studio, an agent container or an analysis worker. The proxy's
+private mount and service ownership protect these receipts; host administrators
+remain trusted. This is operational authority, not ordinary workspace content.
+
+After preparing that directory with the same mapped service UID/GID:
+
+```sh
+export NEXUS_STUDIO_PROXY_STATE_DIR=/var/lib/nexus-studio-proxy
+docker compose --env-file compose.env \
+  -f docker-compose.studio.yml -f docker-compose.studio-workers.yml \
+  -f docker-compose.studio-proxy-state.yml up -d
+```
+
+The override refuses to create a missing host directory. It mounts the private
+directory only into the proxy and adds the stdlib-only
+`studio_docker_proxy_state.py` helper. Existing deployments without this override
+retain their memory-only behavior. Update matching launcher/policy/state files
+together; no image dependency or workspace schema migration is needed.
+
+SQLite commits receipts before returning create acknowledgments and retains one
+exclusive writer lock. The file uses mode 0600; permissions, links, receipt format,
+daemon and project mismatches fail closed before the proxy replaces its listener.
+The proxy also verifies identity on the same upstream connection used for each
+forwarded request. Corrupt storage is never treated as a successful empty list.
+
+A restored receipt permits lookup, inspection and deletion, with current project
+scope checked again. Start/attach and other execution actions stay blocked. Failed
+storage blocks new creates/starts while preserving known-ID cleanup. Already
+unconfirmed creates without a committed receipt, evicted records and containers
+created before enabling persistence still require independent review; there is
+no adoption by name and no automatic task retry.
+
+Back up this directory separately with its private permissions while the proxy is
+stopped. Restore only to the same daemon/project; a mismatch refuses startup.
+For rollback, stop proxy-backed work and remove the optional override, retaining
+the ledger unchanged. Memory-only rollback cannot recover those receipts; work
+created during rollback is not adopted when persistence is enabled again.
+Do not delete or reset the ledger to bypass a binding error.
+
+Repeatable local proof uses the existing installed test image:
+
+```sh
+PYTHONPATH=. python examples/nexus-bot/src/studio_proxy_recovery.py --image sha256:INSTALLED_IMAGE_ID --context default --mode crash --durable
+```
+
+The explicit acceptance suite also checks the memory-only compatibility path and
+enabling a fresh ledger without adopting older containers. See
+[the persistence checkpoint](../../docs/STUDIO-PROXY-STATE-CHECKPOINT.json).
+Actual VM mount isolation, daemon restart, remote/SSH and native OS deployment
+retain separate acceptance gates.
+
+Local Linux container isolation and normal/forced proxy termination now have
+separate evidence in [the Linux checkpoint](../../docs/STUDIO-LINUX-PROXY-CHECKPOINT.json).
+The normal-stop drill reproduced ignored SIGTERM at Linux PID 1; the shared
+framework now handles it cooperatively, closes ownership normally and exits 0.
+Update the launcher and policy together before restarting the chosen deployment.
+This source fix was not deployed to your VM or built into an installer.
+# Hosted data/media analysis profiles
+
+The existing analysis worker image supports Python, CSV/JSON-to-SQLite, read-only
+SQL, JQ, Plotly chart export and ImageMagick. Install a reviewed immutable image
+on the selected daemon before enabling these profiles. A missing image is an
+execution error; Studio never pulls it or switches to host execution.
+
+Merge this fragment into the private runtime file; preserve existing state,
+workspace-folder, speech and other settings. Replace each image placeholder with
+the same installed immutable ID or reviewed image digest:
+
+```json
+{
+  "analysis_workers": {
+    "data": {
+      "image": "sha256:INSTALLED_IMAGE_ID",
+      "timeout": 60,
+      "memory_mb": 768,
+      "pids_limit": 256,
+      "open_files": 256
+    },
+    "python": {
+      "image": "sha256:INSTALLED_IMAGE_ID",
+      "timeout": 60,
+      "memory_mb": 768,
+      "pids_limit": 256,
+      "open_files": 256
+    },
+    "media": {
+      "image": "sha256:INSTALLED_IMAGE_ID",
+      "timeout": 60,
+      "memory_mb": 768,
+      "pids_limit": 256,
+      "open_files": 256
+    }
+  }
+}
+```
+
+Hosted profiles inherit the controller's filtered `DOCKER_HOST`. Do not select
+the `default` Docker context inside these profiles: explicit context selection
+overrides that host and can point at an unavailable raw socket. Local desktop
+profiles may explicitly select their intended installed context.
+
+Workers retain the framework's networkless, non-root, read-only sandbox with
+bounded temporary storage and explicitly selected artifact inputs. These limits
+do not grant host mounts or credentials. The three profiles enable six built-in
+data/media actions; object detection still requires a separately selected vision
+image and installed model. API image-generation and speech profiles are separate.
+
+Stop the selected Studio writers, verify a private backup and stage the runtime
+change with existing validators before activation. Preserve mode 0600. If the
+runtime file is bind-mounted individually, atomic replacement leaves existing
+mounts attached to the old inode: recreate its consumers, or stop both consumers
+and preserve the inode during a synchronized write with an exact rollback copy.
+Do not restart unrelated Nexus services or overwrite live SQL during rollback.
+
+The live VM gate and compatibility limits are recorded in
+[the analysis checkpoint](../../docs/STUDIO-VM-ANALYSIS-CHECKPOINT.json).
+The thin `examples/nexus-bot/src/studio_recovery_identity.py` consumer checks host
+identity across independent installed Python processes without exposing its value:
+
+```sh
+docker exec -i <studio-container> python - < examples/nexus-bot/src/studio_recovery_identity.py
+```
+
+On slim Linux images, the validated boot-ID fallback is stable within a host
+boot. Changed boot/hostname and legacy random-node receipts require explicit
+review. This does not certify host reboot/power-loss recovery or authenticated
+tool execution. No installer build is needed to configure hosted workers.

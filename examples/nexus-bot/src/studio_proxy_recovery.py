@@ -21,9 +21,9 @@ from nexus.core.studio_container_recovery import LABEL, launch_environment
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def exercise(image, context, mode="recovery"):
-    if mode not in {"recovery", "failed-remove", "alias", "restart"}:
-        raise ValueError("Choose recovery, failed-remove, alias or restart")
+def exercise(image, context, mode="recovery", *, durable=False):
+    if mode not in {"recovery", "failed-remove", "alias", "restart", "crash", "enable"}:
+        raise ValueError("Choose recovery, failed-remove, alias, restart, crash or enable")
     direct_environment = launch_environment(context)
     direct = ["docker", "--context", context]
     inspected = subprocess.run(
@@ -51,6 +51,15 @@ def exercise(image, context, mode="recovery"):
             "STUDIO_RUNTIME_CONFIG": str(runtime),
             "STUDIO_TEAM_CONFIG": str(directory / "no-team.json"),
         }
+        if durable or mode == "enable":
+            private = (directory / "proxy-private").resolve()
+            private.mkdir(mode=0o700)
+            team = directory / "proxy-team.json"
+            team.write_text(json.dumps({"project_key": "proxy-acceptance"}))
+            team.chmod(0o600)
+            proxy_environment["STUDIO_TEAM_CONFIG"] = str(team)
+            if durable:
+                proxy_environment["PROXY_STATE_DIR"] = str(private)
         docker = ["docker", "--host", "unix://" + str(socket)]
         identities, clients = [], []
         log = directory / "proxy.log"
@@ -168,13 +177,27 @@ def exercise(image, context, mode="recovery"):
                             forced = run([*docker, "rm", "--force", identity], env=environment)
                             assert forced.returncode == 0, forced.stderr.decode()
                             client.wait(10)
-                    elif mode == "restart":
-                        proxy.terminate()
+                    elif mode in {"restart", "crash", "enable"}:
+                        if mode == "crash":
+                            proxy.kill()
+                        else:
+                            proxy.terminate()
                         proxy.wait(5)
                         socket.unlink(missing_ok=True)
+                        if mode == "enable":
+                            proxy_environment["PROXY_STATE_DIR"] = str(private)
                         proxy = start_proxy()
+                        if durable:
+                            refused = run([*docker, "start", identity], env=environment)
+                            assert refused.returncode != 0 and b"cleanup only" in refused.stderr
+                            state = run(
+                                [*direct, "inspect", "--format", "{{.State.Status}}", identity],
+                                env=direct_environment,
+                            )
+                            assert state.stdout.strip() == b"created"
                     report = sandbox.recover_cleanup()
-                    if mode == "restart":
+                    needs_review = mode in {"restart", "crash", "enable"} and not durable
+                    if needs_review:
                         assert report == {
                             "items": [{"name": name, "status": "unconfirmed"}],
                             "pending": 1,
@@ -193,7 +216,7 @@ def exercise(image, context, mode="recovery"):
                         "mode": mode,
                         "normal_execution": True,
                         "ownership_preserved": True,
-                        "restart_requires_review": mode == "restart",
+                        "restart_requires_review": needs_review,
                         "replayed_work": False,
                         "images_pulled": False,
                         "external_accounts_used": False,
@@ -216,7 +239,12 @@ if __name__ == "__main__":
     parser.add_argument("--image", required=True)
     parser.add_argument("--context", required=True)
     parser.add_argument(
-        "--mode", choices=["recovery", "failed-remove", "alias", "restart"], default="recovery"
+        "--mode",
+        choices=["recovery", "failed-remove", "alias", "restart", "crash", "enable"],
+        default="recovery",
+    )
+    parser.add_argument(
+        "--durable", action="store_true", help="Use a disposable private ownership ledger"
     )
     args = parser.parse_args()
-    print(json.dumps(exercise(args.image, args.context, args.mode), indent=2))
+    print(json.dumps(exercise(args.image, args.context, args.mode, durable=args.durable), indent=2))

@@ -1,0 +1,112 @@
+{
+  "format": "nexus-studio-ssh-proxy-acceptance/v1",
+  "date": "2026-10-26",
+  "status": "local-real-ssh-transport-verified",
+  "scope": "Source runtime through a real OpenSSH gateway on an isolated local Docker Desktop Linux/arm64 network. Not personal VM or native/frozen installation acceptance.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "Reused existing framework named-context snapshots, pinned sandbox execution, owner-stdin lifetime handling and acknowledged cleanup journals unchanged. No framework fix was required by this acceptance.",
+    "Added a thin example consumer, explicit non-default real-service acceptance and a disposable OpenSSH fixture recipe. No fake Docker/SSH service substitutes are used."
+  ],
+  "validation": {
+    "required": {
+      "tests": 161,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.312,
+      "report": "/private/tmp/nexus-ssh-proxy-required.xml",
+      "sha256": "3a3373090fb5c2fd6bc7868940eee780615c5a8c95105a365d531e1a55c1e4f1"
+    },
+    "actual_ssh": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 9.222,
+      "report": "/private/tmp/nexus-ssh-proxy-actual.xml",
+      "sha256": "abfea47ed4f1a83581fc47b57d84bcdc099d98a0bc3cba81062feb03e2e36c7c"
+    }
+  },
+  "verified": [
+    "Healthy generated analysis runs through a named ssh:// Docker context and its private per-operation context snapshot. The ordinary Studio runtime is the consumer.",
+    "Controller uid/gid 1001 has neither raw nor filtered Docker socket nor the proxy-private ledger. Gateway uid/gid 1001 mounts only the filtered socket and its separate synthetic server identity.",
+    "Key-only SSH requires a pinned known host, forces Docker system dial-stdio, and disables password/interactive login, PTY, shell selection and forwarding. No operator SSH files or credentials are mounted.",
+    "Killing the gateway severs the active real SSH connection after acknowledged container creation/start. The analysis stops through owner-stdin EOF before reconnect or explicit removal.",
+    "The failed invocation returns an error. Unreachable explicit cleanup reports unconfirmed with one pending receipt. Reconnect to the same endpoint and host key lets explicit cleanup confirm absence and retire that receipt.",
+    "Trusted proxy logs show exactly two creates and two starts: one completed analysis and one interrupted analysis. No work replay, extra Studio run or artifact is created.",
+    "Every test container, key/data/socket/private volume and internal network was removed. The unrelated llm-cli-proxy service remains running."
+  ],
+  "fixture": {
+    "image_id": "sha256:b20236fc6368938ea4fcd4ee88a293d95d6ee16c859aa28196f2c1f920908649",
+    "tag": "nexus-ssh-proxy-checks:20261026",
+    "image_size_bytes": 455959804,
+    "base_image_id": "sha256:9993ea392bcae09fce8825f8073332674f9c23992ad0a4a744fd7e10312dbe6a",
+    "worker_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "build_context": "/private/tmp/nexus-ssh-proxy-context",
+    "os": "linux",
+    "architecture": "arm64",
+    "kernel": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+    "python": "3.13.16",
+    "docker_cli": "29.8.2 build 7fc2dff",
+    "docker_server": "29.9.2",
+    "openssh_banner": "OpenSSH_10.0p2 Debian-7+deb13u4, OpenSSL 3.5.7 9 Jun 2026",
+    "openssh_debian_packages": {
+      "openssh-client": "1:10.0p1-7+deb13u4",
+      "openssh-server": "1:10.0p1-7+deb13u4"
+    },
+    "context": "default",
+    "network": "Disposable internal bridge for SSH client/gateway; proxy network none. No host ports published.",
+    "runtime": "Non-root uid/gid 1001, read-only roots, no capabilities, no-new-privileges, bounded PIDs/memory/CPU and temporary files. Worker uses existing networkless hardened profile.",
+    "authority": "Only the trusted filtering proxy mounts the raw daemon socket and private ledger. Its daemon authority remains root-equivalent, as documented for the existing deployment. SSH never reaches the raw socket.",
+    "test_keys": "Fresh client/server Ed25519 keys in separate 0700 volumes, 0600 files, deleted with volumes. Build-generated host keys are removed from the fixture layer. No personal SSH agent/configuration/keys.",
+    "analysis_creations": 2,
+    "analysis_starts": 2,
+    "worker_stopped_before_reconnect": true,
+    "worker_pulls": 0,
+    "published_ports": 0,
+    "privileged_containers": 0,
+    "external_account_calls": 0,
+    "test_containers_remaining": 0,
+    "test_volumes_remaining": 0,
+    "test_networks_remaining": 0
+  },
+  "fixture_preparation": "First probe exposed an sshd argv[0] fixture error before authentication or analysis. Corrected the fixture to use the absolute executable path. It was not a product runtime failure.",
+  "compatibility": {
+    "workspace_schema_changed": false,
+    "cleanup_record_format_changed": false,
+    "http_payload_changed": false,
+    "runtime_configuration_changed": false,
+    "upgrade": "Acceptance-only additions. Existing deployments need no data migration or runtime change. Rebuild only the explicit test image to repeat this gate.",
+    "rollback": "Remove the optional fixture/consumer/checkpoint additions. Existing state and execution behavior are unchanged.",
+    "no_work_replay": true
+  },
+  "pending": [
+    "Real personal HTTPS VM remote/SSH access, actual bind paths and UID/GID/socket ownership, TLS/auth, install/upgrade/full restore.",
+    "Actual Docker daemon restart, host power-loss and network partitions beyond gateway termination.",
+    "Changed SSH aliases, DNS, host keys, credentials and long-lived multiplexing are outside this fixed-endpoint fixture. No endpoint identity beyond existing routing metadata is newly claimed.",
+    "Physical voice devices, selected provider accounts, escaped MCP descendants, frozen/installed builds and native Windows/Linux checks remain separate."
+  ],
+  "quality": {
+    "ruff": "New consumer and test pass without rule exclusions.",
+    "git_diff_check": "passed"
+  },
+  "source_sha256": {
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "nexus/core/studio_docker_route.py": "0845703a75bb6ab73c2c448f693769ca63797438e4d79bc6efed042f65f56868",
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
+    "deploy/studio/recovery-checks/Dockerfile.ssh-proxy": "82e06bfb664684b15e493192af8fabec7ed3a6c869f13c470e0e9d6ddc928a5a",
+    "examples/nexus-bot/src/studio_proxy_ssh.py": "f81cf97dca50242f902be7daedc994f8311f26f89088a33e8b396e57459e9242",
+    "tests/studio_ssh_proxy_acceptance.py": "25fb9292e1046e6bae2234ac320c26158382eb41c2cf0f9a1091e262eae5a135"
+  },
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

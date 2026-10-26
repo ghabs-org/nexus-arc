@@ -1,0 +1,179 @@
+{
+  "format": "nexus-studio-vm-discovery/v1",
+  "date": "2026-10-26",
+  "status": "studio-only-upgrade-live-verified",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "scope": "User-approved Studio-only upgrade on the selected personal VM. Private namespace backup, verification and inactive restore, deployed source identity, cooperative service restart, rollback, actual host isolation and anonymous HTTPS checks are verified. Account/device/full-host gates remain separate.",
+  "live": {
+    "ssh": "User-supplied target; existing SSH identity checked through Tailscale. No credential material retrieved.",
+    "source_revision": "790fbe36c75cc877226171cd10166f29493f2660",
+    "studio_user": "1001:1001",
+    "raw_socket_gid": 988,
+    "state_backend": "sql",
+    "state_schema_version": 1,
+    "candidate_state_schema_version": 1,
+    "private_proxy_storage": "Dedicated service-owned mode-0700 directory outside every Studio mount; mode-0600 ownership ledger present.",
+    "recent_source_modules": "Reviewed server base plus the narrowly derived recovery-host fix deployed. All 653 installed package files match the expected base/patch manifest.",
+    "oauth_http_client": "httpx 0.28.1 present in the running upgraded image.",
+    "anonymous_https": {
+      "passed": 15,
+      "failed": 0,
+      "identity": "pending existing signed-in session; no token/cookie was retrieved",
+      "scope": "Valid certificate/hostname, shell, browser isolation, hosted auth status, login route, six anonymous private-route denials, manifest/icons/scripts."
+    },
+    "host_layout": {
+      "passed": true,
+      "checks_passed": 12,
+      "ledger": "present",
+      "raw_socket_isolation": "passed on actual daemon host",
+      "private_store": "Dedicated mount, canonical host source isolation, UID, permissions and socket access passed after restart.",
+      "scope": "Host metadata/layout only; no live worker ownership-recovery workload was run."
+    },
+    "temporary_worker_containers_at_discovery": 0,
+    "existing_nexus_services": "Five existing Nexus system services remain active and the router container remains running. VM source checkout is unchanged.",
+    "report": "/private/tmp/nexus-vm-analysis-postcheck.json",
+    "report_sha256": "a3ab4dd0566dc5a238fa736169480c697a441ed780abe6663bd6c6593f09d263",
+    "analysis_workers_configured": true,
+    "analysis_profiles": [
+      "data",
+      "python",
+      "media"
+    ],
+    "historical_deployment_report": "/private/tmp/nexus-vm-final-report.json"
+  },
+  "fixes": [
+    "Host-source checks are now independent: a missing private mount no longer hides an otherwise verified raw-socket result. Missing private metadata is classified specifically instead of a generic inspection failure.",
+    "Production Dockerfile now explicitly installs the existing studio-oauth capability, supplying the direct httpx import. No OAuth request/account authorization behavior changes."
+  ],
+  "validation": {
+    "required": {
+      "tests": 77,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.734,
+      "report": "/private/tmp/nexus-vm-preflight-required.xml",
+      "sha256": "eaddb7dba95370cbe372ae82fd958e8a96e8aed02828a13505570d30846a7db2"
+    },
+    "reproduced_host_report": {
+      "report": "/private/tmp/nexus-vm-preflight-before.xml",
+      "sha256": "58b65ab4c5ef294167e9aa7aa628e1d4bb91218ca321c2f84f0e9997be164c65",
+      "result": "Two expected negative checks failed before fix: missing private/socket targets both suppressed the independent isolation result."
+    },
+    "candidate_oauth": {
+      "before": "Actual uncorrected server candidate raised ModuleNotFoundError: No module named httpx before URL validation. The live server has the same missing package.",
+      "after": "Actual corrected image initializes httpx0.28.1 and rejects an invalid URL normally, with zero network/account calls."
+    },
+    "candidate_recovery": {
+      "report": "/private/tmp/nexus-vm-candidate-acceptance.log",
+      "sha256": "8bcd608d3e3a13692710914ef2d02d3d2b0f09b9df99950e2c30e7919e1b0dbc",
+      "drills": 2,
+      "server_launches": 8,
+      "backends": [
+        "files",
+        "SQLite SQL"
+      ],
+      "passed": [
+        "graceful stop",
+        "SIGKILL restart",
+        "single writer",
+        "verified backup",
+        "inactive restore",
+        "artifact revisions",
+        "pinned citations",
+        "retained approval",
+        "zero extra runs"
+      ],
+      "external_account_calls": 0
+    }
+  },
+  "candidate": {
+    "image": "nexus-studio:vm-recovery-5e4d5128286c",
+    "image_id": "sha256:14a2805d35a3414ce03d6c7f5fc2c5fa9fe4176b66d76b3c3a872bb39a3b0966",
+    "os": "linux",
+    "architecture": "arm64",
+    "source_sha256": "5e4d5128286ce104506922696b43d03f7c483c2feabde01edb3246d05a23ea4a",
+    "source_files": 658,
+    "image_bytes": 509094936,
+    "archive_bytes": 108624957,
+    "archive_sha256": "074646665016baa1c34d882c56c56ea17f58e9fe1ec7ffa6b8eb17cb974e6a52",
+    "private_artifact": "/private/tmp/nexus-vm-upgrade-release",
+    "private_maintenance_plan": "/private/tmp/nexus-vm-upgrade-release/UPGRADE.md",
+    "compose_validation": "passed locally without resolving service secret env files; only Studio/proxy services present",
+    "changes": "Recent recovery fixes plus OAuth dependency packaging. The source checkout and existing Nexus services are excluded from the proposed update.",
+    "rollback_image_id": "sha256:1848028bdf9a4de995e82c48558f33930ebe6b59d8082aa534bc612a34b90f70"
+  },
+  "compatibility": {
+    "state_schema_changed": false,
+    "auth_or_account_configuration_changed": false,
+    "http_inputs_changed": false,
+    "default_legacy_memory_proxy_removed": false,
+    "maintenance": "Approved update applied only to Studio and its Docker proxy. Two private namespace backups and inactive review restores passed. Automatic rollback restored the original image/routes before corrected reapply. Cooperative SIGTERM exited zero and both updated services restarted successfully. Live SQL was never overwritten; other Nexus services and source checkout were unchanged."
+  },
+  "pending": [
+    "Existing signed-in session, selected live accounts and physical devices remain unverified. Anonymous HTTPS checks do not establish signed-in identity acceptance.",
+    "Full-host/auth-store and object-store restore, daemon/power-loss and remaining deployed interruption cases remain separate. Data/python/media profiles and six tools are now configured/live-verified. Stopped-owner SIGKILL cleanup passes without replay; signed-in execution remains unverified.",
+    "Native/frozen desktop delivery, installed OS checks and stronger detached-process containment retain their own open gates. No DMG rebuild."
+  ],
+  "source_sha256": {
+    "Dockerfile.studio": "266e7d520e827edb6b121f4f344d2bd846aa6e27dd8d296a7e2279158e4aa719",
+    "nexus/core/studio_host_checks.py": "4a56d688751cf6f2dc8871aad9f7b0767f83f162fd8898be3f6048df1d870140",
+    "tests/test_studio_host_checks.py": "2c5e27f042010f835c18846750c66de76b26d0a9c4d8c0069781a9cf8599d400"
+  },
+  "vm_files_changed": true,
+  "vm_services_restarted": true,
+  "credentials_read_or_exported": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "deployment": {
+    "authorization": "Apply Studio-only upgrade",
+    "status": "deployed-verified",
+    "deployed_image_id": "sha256:14a2805d35a3414ce03d6c7f5fc2c5fa9fe4176b66d76b3c3a872bb39a3b0966",
+    "source_files_checked": 653,
+    "source_files_missing": 0,
+    "source_files_changed": 0,
+    "private_backup_verified": true,
+    "inactive_review_restore": true,
+    "refreshed_backup_after_rollback": true,
+    "live_sql_overwritten": false,
+    "state_schema_changed": false,
+    "cooperative_sigterm_exit_code": 0,
+    "updated_studio_restarted": true,
+    "updated_proxy_restarted": true,
+    "rollback": {
+      "exercised": true,
+      "restored_original_image": true,
+      "restored_original_routes_verified": true,
+      "cause": "Maintenance script first selected a nonexistent health route. Automatic rollback succeeded; corrected hosted /api/auth/status readiness passed on the approved reapply.",
+      "proxy_dependency_note": "Rollback source required its matching policy helper, absent from the original container mounts. The complete rollback package passed isolated import and real startup; no claim of recovering the original in-memory code is made."
+    },
+    "other_nexus_services_changed": false,
+    "docker_daemon_restarted": false,
+    "external_account_tests": 0,
+    "signed_in_identity": "pending; no account session was retrieved",
+    "report_sha256": "f3b5e0f268e4a7ade5656ad5b37fb4917be517f9af077be8b45d158383f4d640",
+    "worker_boundary": {
+      "checkpoint": "STUDIO-DEPLOYED-WORKER-CHECKPOINT.json",
+      "status": "live-verified",
+      "configured_runner_image": true,
+      "checks_passed": 11,
+      "stopped_inspection_and_cleanup": true,
+      "static_worker_invocation": true,
+      "credentials_mounted": false,
+      "providers_called": false,
+      "leftover_probe_workers": 0,
+      "proxy_restart_with_live_receipt": "not exercised"
+    },
+    "analysis_workers": {
+      "checkpoint": "STUDIO-VM-ANALYSIS-CHECKPOINT.json",
+      "profiles_configured": 3,
+      "actions_live_verified": 6,
+      "stopped_owner_sigkill_recovery": true,
+      "current_server_image_id": "sha256:a786869f8718f9c98f45d59ba42f205f1db717f2f007246febf12e4696d72fce",
+      "analysis_image_id": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
+      "current_source_files_verified": 653
+    }
+  }
+}

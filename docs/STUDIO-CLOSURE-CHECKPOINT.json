@@ -45,7 +45,14 @@
     "User-approved real local Piper/Whisper model acceptance now passes through normal Studio jobs on this Mac: a synthetic sentence is generated, transcribed correctly, stored privately and temporary audio/ownership removed without a speech API client or microphone. Fixed unconditional POSIX resource import blocking Windows worker startup; platform branches retain POSIX limits and parent wall timeout. All 59 regressions plus real-model acceptance pass without skips. No running-workspace activation or DMG rebuild; devices/API accounts/native other OS/VM remain separate. See STUDIO-LOCAL-SPEECH-CHECKPOINT.json.",
     "Cooperative SIGTERM now reaches existing controller/worker cleanup, including repeated stops and startup-stop races. Real file/SQLite CLI restart, SIGKILL recovery, exclusive ownership, inactive restore, artifact revisions and pinned citations pass locally. The same 92 scoped checks pass on macOS and isolated Linux/arm64 with zero skips. No VM or installer changed; actual HTTPS VM, external accounts, devices and native OS gates remain open. See STUDIO-SERVER-RECOVERY-CHECKPOINT.json.",
     "Docker execution and explicit recovery now pin one connection across daemon commands, closing the local context-change race after preflight. Default hosts are explicit; named contexts use private Docker snapshots retaining TLS/SSH settings and daemon headers without registry logins. V1 journal hashes remain compatible. All 225 affected regressions, 10 actual lifecycle/route/transport-copy checks and nine full-worker checks pass with zero skips. Remote sessions/daemon restart, installed OS and VM remain open; no installer rebuilt. See STUDIO-DOCKER-ROUTE-CHECKPOINT.json.",
-    "Hosted filtering-proxy recovery now allows only exact tracked analysis lookup with full-ID scoping, canonicalizes name/short-ID operations and retains bounded failed-removal/tombstone authority. Shared policy lives in the framework and the standalone launcher remains SDK-free; Compose mounts both files. All 196 affected regressions and four actual proxy/daemon drills pass without skips, including failed removal, name reuse and fail-closed proxy restart. Durable ownership across proxy restart, remote/VM/MCP containment and installed OS gates remain open; no installer rebuilt. See STUDIO-PROXY-RECOVERY-CHECKPOINT.json."
+    "Hosted filtering-proxy recovery now allows only exact tracked analysis lookup with full-ID scoping, canonicalizes name/short-ID operations and retains bounded failed-removal/tombstone authority. Shared policy lives in the framework and the standalone launcher remains SDK-free; Compose mounts both files. All 196 affected regressions and four actual proxy/daemon drills pass without skips, including failed removal, name reuse and fail-closed proxy restart. Durable ownership across proxy restart, remote/VM/MCP containment and installed OS gates remain open; no installer rebuilt. See STUDIO-PROXY-RECOVERY-CHECKPOINT.json.",
+    "Optional proxy-private daemon/project-bound SQLite receipts now retain cleanup-only authority across proxy restart and SIGKILL. Private mounts/permissions, exclusive writer locking, commit-before-ack, same-connection identity checks and project/storage fences preserve authority without starting old work. Legacy memory-only behavior and no-adoption enablement remain compatible. All 229 regressions and nine actual local proxy/Docker drills pass without skips. VM mount isolation, daemon/remote restart, power-loss and installed OS checks remain separate; no installer rebuilt. See STUDIO-PROXY-STATE-CHECKPOINT.json.",
+    "Actual same-UID Linux proxy/controller named-volume isolation now passes, including ignored same-path forgery and denied private-volume injection. The probe also reproduced PID 1 ignoring SIGTERM; cooperative framework shutdown now yields clean exit 0, with SIGKILL 137 recovery separately verified. All 231 regressions, 54 native Linux checks and 11 actual Docker drills pass without skips. Personal VM binds, remote/daemon/power-loss and native installation remain open; no app/DMG rebuilt. See STUDIO-LINUX-PROXY-CHECKPOINT.json.",
+    "Real key-only local Linux SSH now exercises existing named Docker-context snapshots and filtering-proxy execution. Gateway termination stops active analysis through owner-stdin loss, preserves an unconfirmed cleanup receipt while unreachable, and resolves it on reconnect without another create/start. All 161 focused regressions and one real SSH transport drill pass without skips. No product runtime, user workspace, VM or installer changed. See STUDIO-SSH-PROXY-CHECKPOINT.json; real VM, daemon restart and installed OS gates remain open.",
+    "Real local mutual TLS now verifies existing Docker context snapshots with trusted CA/client credentials through the filtering proxy. Missing/untrusted clients, an untrusted server and wrong hostname are rejected. Active TLS/SSH connection loss stops analysis before reconnect; explicit cleanup preserves uncertainty then retires the receipt without replay. All 161 focused regressions and two real transport gates pass without skips. No product runtime, user workspace, VM or installer changed. See STUDIO-TLS-PROXY-CHECKPOINT.json; actual VM, certificate lifecycle, daemon restart and installed OS gates remain open.",
+    "A reusable read-only host preflight and nexus studio-host-check CLI now inspect an explicit Studio/proxy pair through existing pinned routing. Mount/source alias isolation, nested private-mount rejection and real proxy UID/storage/socket stat checks produce redacted passed/failed/unavailable reports without fetching environment/logs or reading ledger bytes. All 75 focused regressions, six actual POSIX cases and two Linux CLI/example recovery drills pass without skips. Docker Desktop source identity correctly remains unavailable, not deployment-certified. See STUDIO-HOST-CHECKS-CHECKPOINT.json; no VM, user workspace, image or installer changed.",
+    "Supported Linux MCP stdio sessions now use a dedicated isolated child subreaper with pidfd signalling and checked parentage. The reproduced double-fork escape closes on normal shutdown and Studio owner SIGKILL, in both session modes; blocked stdin and late startup are covered, unrelated processes survive and no calls replay. All 46 host regressions, 40 Linux checks and two macOS source compatibility cases pass without skips. Frozen dispatch is prepared but unbuilt; direct supervisor SIGKILL, other OS containment and actual VM remain open. See STUDIO-LINUX-MCP-CHECKPOINT.json. No app/DMG rebuilt.",
+    "User-authorized read-only live VM discovery now verifies 15 anonymous HTTPS/security/asset checks and real raw-socket isolation. It found an older deployed image, no durable proxy storage and missing delegated-OAuth httpx. Fixed independent host-report classification and explicitly added studio-oauth to the production image. All 77 regressions and two actual candidate file/SQLite recovery drills pass. A private immutable arm64 server upgrade/rollback package is ready; live maintenance is awaiting the user decision. No VM change or DMG rebuild. See STUDIO-VM-DISCOVERY-CHECKPOINT.json."
   ],
   "validation": {
     "studio_regressions": {
@@ -498,6 +505,254 @@
         "duration_seconds": 6.384,
         "sha256": "be55df269c777fccc14d4e44853613ccd4bf696bef93bbd421d8d8f8b161fc29"
       }
+    },
+    "private_proxy_state": {
+      "checkpoint": "STUDIO-PROXY-STATE-CHECKPOINT.json",
+      "required": {
+        "tests": 229,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-proxy-state-required.xml",
+        "duration_seconds": 17.07,
+        "sha256": "ea7bf6e4020eed7e821ed0c241c9f872a47d1439d2cff418c0c6055a63102fb6"
+      },
+      "actual_proxy": {
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-proxy-state-actual.xml",
+        "duration_seconds": 11.427,
+        "sha256": "a50126f18e9501c23928783265170db476036d1034b04c44d110f0713faf4b36"
+      }
+    },
+    "linux_proxy_isolation": {
+      "checkpoint": "STUDIO-LINUX-PROXY-CHECKPOINT.json",
+      "required": {
+        "tests": 231,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-linux-proxy-required.xml",
+        "duration_seconds": 18.451,
+        "sha256": "57cd155c6706a308b7b396a3dd3db8b6468fe4d6602db8ae08839547b2fe3a3f"
+      },
+      "linux_mount_drills": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-linux-private-proxy-actual.xml",
+        "duration_seconds": 8.448,
+        "sha256": "b360738984310243a2e3b068b185f5fbe5906fbe6411953f14ae306210ba74dd"
+      },
+      "host_compatibility": {
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "report": "/private/tmp/nexus-linux-proxy-host-compat.xml",
+        "duration_seconds": 12.062,
+        "sha256": "8c96e40014d379ba4445589c6687919ed9b8303515308979269e0ada7f01f94d"
+      },
+      "native_linux_policy": {
+        "tests": 54,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 0.31,
+        "report": "/private/tmp/nexus-linux-private-proxy-unit.log",
+        "sha256": "ee0f6fc90b93569a882cc3f475aa30200af02b37081fac9b54dd19a1de680af5"
+      }
+    },
+    "real_local_ssh_transport": {
+      "checkpoint": "STUDIO-SSH-PROXY-CHECKPOINT.json",
+      "required": {
+        "tests": 161,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 2.312,
+        "report": "/private/tmp/nexus-ssh-proxy-required.xml",
+        "sha256": "3a3373090fb5c2fd6bc7868940eee780615c5a8c95105a365d531e1a55c1e4f1"
+      },
+      "actual_ssh": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 9.222,
+        "report": "/private/tmp/nexus-ssh-proxy-actual.xml",
+        "sha256": "abfea47ed4f1a83581fc47b57d84bcdc099d98a0bc3cba81062feb03e2e36c7c"
+      },
+      "scope": "Actual local Linux OpenSSH authentication/disconnect/reconnect only. No fake services, VM change, application/DMG rebuild or whole-plan promotion."
+    },
+    "real_local_mutual_tls": {
+      "checkpoint": "STUDIO-TLS-PROXY-CHECKPOINT.json",
+      "required": {
+        "tests": 161,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 2.3,
+        "report": "/private/tmp/nexus-tls-proxy-required.xml",
+        "sha256": "c5b9960f83ec684c71c131d30e7d46bd1950559edfa0a7f54e7bd0bfc51a1885"
+      },
+      "actual_transports": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 15.67,
+        "report": "/private/tmp/nexus-tls-proxy-actual.xml",
+        "sha256": "cf8858e8d16ec5f09ffe9a3fbcc96f661f8b394ae778324430346a32316aa6ba"
+      },
+      "scope": "Actual local Linux mutual TLS and shared SSH authentication/loss/reconnect. No whole-plan promotion, application build or DMG rebuild."
+    },
+    "host_proxy_layout_preflight": {
+      "checkpoint": "STUDIO-HOST-CHECKS-CHECKPOINT.json",
+      "required": {
+        "tests": 75,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 2.869,
+        "report": "/private/tmp/nexus-host-checks-required.xml",
+        "sha256": "5855dd06876521623e62c2a4386fa55a3622cc25e9868c61b3e4e472f53b7d26"
+      },
+      "actual_posix_metadata": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 1.635,
+        "report": "/private/tmp/nexus-host-probe-actual.xml",
+        "sha256": "5f1031837001a23b86720a5f7f4b0d9dfa1e40a6de81e25be7081cea3a3abb11"
+      },
+      "actual_linux_cli_example": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 11.847,
+        "report": "/private/tmp/nexus-host-layout-linux-actual.xml",
+        "sha256": "bde184888cb657e26ac137a5bda4041d6c8d5c24201e451fa4e748d8943ae07e"
+      },
+      "scope": "Scoped command behavior and actual Linux metadata/CLI/example. Live reports intentionally fail overall because daemon host source paths are unavailable from this Mac. Personal VM mount identity and full deployment remain pending."
+    },
+    "linux_mcp_adopted_descendants": {
+      "checkpoint": "STUDIO-LINUX-MCP-CHECKPOINT.json",
+      "host_required": {
+        "tests": 46,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 3.699,
+        "report": "/private/tmp/nexus-mcp-supervision-required.xml",
+        "sha256": "74c011c09293bf5d60ce43b3ce0bfdd021dd764131f2f0499444b381409a5a7a"
+      },
+      "linux": {
+        "tests": 40,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 4.18,
+        "report": "/private/tmp/nexus-mcp-supervision-linux-completion.log",
+        "sha256": "531cabc7ec14c58246242f27e44be64679198fd66935e515754c11ce7560d468",
+        "report_kind": "Captured completion output from the actual Docker exec tool, including four escaped-daemon case receipts and the final pytest count. The initial 32 progress dots were a previous output chunk.",
+        "actual_kernel_cases": 8,
+        "portable_regressions_on_linux": 32
+      },
+      "macos_existing_source_lifecycle": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 10.114,
+        "report": "/private/tmp/nexus-mcp-supervision-macos-actual.xml",
+        "sha256": "467c22534097a0e2c16e85c72f7dc75daccc7bf3aaa861a766ced57f26609d46"
+      },
+      "scope": "Source Linux EOF/SIGTERM/owner-death cleanup. Not direct supervisor hard-kill containment, a sandbox, VM certification or frozen/installed release proof."
+    },
+    "live_vm_discovery": {
+      "checkpoint": "STUDIO-VM-DISCOVERY-CHECKPOINT.json",
+      "anonymous_https_passed": 15,
+      "identity": "pending",
+      "required": {
+        "tests": 77,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": 2.734,
+        "report": "/private/tmp/nexus-vm-preflight-required.xml",
+        "sha256": "eaddb7dba95370cbe372ae82fd958e8a96e8aed02828a13505570d30846a7db2"
+      },
+      "candidate_recovery": {
+        "report": "/private/tmp/nexus-vm-candidate-acceptance.log",
+        "sha256": "8bcd608d3e3a13692710914ef2d02d3d2b0f09b9df99950e2c30e7919e1b0dbc",
+        "drills": 2,
+        "server_launches": 8,
+        "backends": [
+          "files",
+          "SQLite SQL"
+        ],
+        "passed": [
+          "graceful stop",
+          "SIGKILL restart",
+          "single writer",
+          "verified backup",
+          "inactive restore",
+          "artifact revisions",
+          "pinned citations",
+          "retained approval",
+          "zero extra runs"
+        ],
+        "external_account_calls": 0
+      },
+      "scope": "User-approved Studio-only upgrade on the selected personal VM. Private namespace backup, verification and inactive restore, deployed source identity, cooperative service restart, rollback, actual host isolation and anonymous HTTPS checks are verified. Account/device/full-host gates remain separate.",
+      "deployment_status": "deployed-verified",
+      "host_checks_passed": 12,
+      "deployed_source_files_verified": 653,
+      "private_backup_verified": true,
+      "inactive_review_restore": true,
+      "cooperative_restart_verified": true,
+      "rollback_exercised": true,
+      "other_nexus_services_unchanged": true,
+      "final_report_sha256": "f3b5e0f268e4a7ade5656ad5b37fb4917be517f9af077be8b45d158383f4d640",
+      "configured_worker_boundary": {
+        "checkpoint": "STUDIO-DEPLOYED-WORKER-CHECKPOINT.json",
+        "passed": true,
+        "checks_passed": 11,
+        "providers_called": false,
+        "analysis_profile_configured": false,
+        "deployed_restart_recovery": "pending"
+      },
+      "analysis_workers": {
+        "checkpoint": "STUDIO-VM-ANALYSIS-CHECKPOINT.json",
+        "configured_actions": 6,
+        "required": {
+          "tests": 162,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "duration_seconds": 2.804,
+          "report": "/private/tmp/nexus-vm-analysis-host-required.xml",
+          "sha256": "27a738edae1645b216bd97641dcc459334c9f0a468803123c2219a410212a689"
+        },
+        "real_local_workers": {
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "duration_seconds": 8.734,
+          "report": "/private/tmp/nexus-vm-analysis-host-real.xml",
+          "sha256": "0f33c07ff45bf334723600e1a7de1c274cc266d9b5cb1c4fa65fbef3d07a19a2"
+        },
+        "stopped_owner_sigkill_recovery": "live-verified",
+        "signed_in_execution": "pending",
+        "remaining_restart_power_loss": "pending"
+      }
     }
   },
   "inventory": {
@@ -596,12 +851,14 @@
     "Desktop startup/session/ownership integration, bundled Python, native features, updates and clean per-OS installers remain unimplemented or unverified. Keep milestone 9 last."
   ],
   "validation_pending": [
-    "Personal HTTPS VM endpoint is unavailable: install/TLS/auth/upgrade/full restore drill not run.",
+    "Personal HTTPS VM Studio-only upgrade, namespace backup/inactive restore, cooperative restart, rollback, 12 host-layout and 15 anonymous HTTPS checks now pass. Signed-in identity, full-host/auth-store restoration, deployed worker recovery and daemon/power-loss remain pending.",
     "Physical phone/tablet microphone, touch, accessibility and playback checks not run.",
     "Real local voice models and selected external account/service quality, permissions and billing checks not certified.",
     "Live database-family, remote object-store and desktop platform installation checks remain separate from injected contract fixtures.",
     "Object backup: actual GCS/Azure SDK runtime checks and selected live cloud-account permissions, retention/history and restore drills remain separate from local store contracts and the S3 HTTP simulation.",
-    "Connected desktop bundle: one repeated relocated acceptance run lost PDF extraction metadata; later full and direct worker runs pass. Cause remains unproven; retain this stability gap (STUDIO-DESKTOP-PROFILES-CHECKPOINT.json)."
+    "Connected desktop bundle: one repeated relocated acceptance run lost PDF extraction metadata; later full and direct worker runs pass. Cause remains unproven; retain this stability gap (STUDIO-DESKTOP-PROFILES-CHECKPOINT.json).",
+    "Local real SSH gateway loss/reconnect is now source-verified. Selected personal VM SSH is verified. Daemon restart/power-loss, changed SSH/DNS/host-key identity and frozen/installed transport remain pending; see STUDIO-SSH-PROXY-CHECKPOINT.json.",
+    "Local mutual-TLS authentication/rejection and TLS/SSH disconnect recovery now have source evidence. Selected personal VM HTTPS shell/certificate checks pass. Mutual-TLS proxy provisioning, certificate expiry/rotation/revocation, daemon restart/power-loss and frozen/installed transport remain pending; see STUDIO-TLS-PROXY-CHECKPOINT.json."
   ],
   "migration": "No bulk state rewrite. Existing templates and text/structured task contracts stay readable. Optional native context_path parameters extend template v1. Pending stdio MCP activation plans require fresh setup review; completed transition receipts retain replay behavior.",
   "source_sha256": {

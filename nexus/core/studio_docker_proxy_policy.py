@@ -5,9 +5,12 @@ proxy. Missing ownership must remain unconfirmed, never appear as empty success.
 The module is standard-library-only for standalone deployment.
 """
 
+import asyncio
 import json
 import re
+import signal
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 IDENTITY = re.compile(r"[a-f0-9]{64}\Z")
@@ -18,21 +21,69 @@ CONTAINER_PATH = re.compile(
 )
 
 
+@asynccontextmanager
+async def proxy_termination():
+    """Handle SIGTERM explicitly, including when the proxy is Linux PID 1."""
+    loop = asyncio.get_running_loop()
+    stop = asyncio.Event()
+    previous = signal.getsignal(signal.SIGTERM)
+    loop.add_signal_handler(signal.SIGTERM, stop.set)
+    try:
+        yield stop
+    finally:
+        loop.remove_signal_handler(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, previous)
+
+
 class ProxyContainers:
     """Containers created through this proxy, by id and by name."""
 
-    def __init__(self, max_tracked=512) -> None:
+    def __init__(self, max_tracked=512, journal=None) -> None:
         self.max_tracked = max_tracked
+        self.journal = journal
+        self.storage_failed = False
         self._by_id: OrderedDict[str, tuple[str, list[str]]] = OrderedDict()
         self._retired: set[str] = set()
+        self._recovered: set[str] = set()
+        for item in journal.load() if journal else []:
+            self._by_id[item["id"]] = (item["name"], item["sources"])
+            self._recovered.add(item["id"])
+            if item["retired"]:
+                self._retired.add(item["id"])
+
+    def _checkpoint(self):
+        if self.journal:
+            try:
+                self.journal.save(
+                    [
+                        {
+                            "id": identity,
+                            "name": name,
+                            "sources": sources,
+                            "retired": identity in self._retired,
+                        }
+                        for identity, (name, sources) in self._by_id.items()
+                    ]
+                )
+            except Exception:
+                self.storage_failed = True
+                raise
+            self.storage_failed = False
+
+    def cleanup_only(self, container_id):
+        return container_id in self._recovered
 
     def add(self, container_id: str, name: str, sources: list[str]) -> None:
         self._by_id[container_id] = (name, sources)
+        self._recovered.discard(container_id)
         while len(self._by_id) > self.max_tracked:
             oldest = next(
                 (key for key in self._by_id if key in self._retired), next(iter(self._by_id))
             )
-            self.remove(oldest)
+            self._by_id.pop(oldest)
+            self._retired.discard(oldest)
+            self._recovered.discard(oldest)
+        self._checkpoint()
 
     def resolve(self, ref: str) -> str | None:
         ref = ref.lstrip("/")
@@ -54,10 +105,13 @@ class ProxyContainers:
     def remove(self, container_id: str) -> None:
         self._by_id.pop(container_id, None)
         self._retired.discard(container_id)
+        self._recovered.discard(container_id)
+        self._checkpoint()
 
     def retire(self, container_id: str) -> None:
         if container_id in self._by_id:
             self._retired.add(container_id)
+            self._checkpoint()
 
 
 def recovery_listing(query, resolve):

@@ -6,8 +6,10 @@ import os
 import re
 import socket
 import subprocess
+import sys
 import time
 import uuid
+from pathlib import Path
 
 from nexus.core.studio_desktop import WorkspaceLock
 from nexus.core.studio_docker_route import inspect_route, pin_route
@@ -37,6 +39,30 @@ def route_fingerprint(command, environment, run, *, timeout=2):
     return inspect_route(command, environment, run, timeout=timeout)[1]
 
 
+def host_fingerprint():
+    """Keep host ownership stable when a slim Linux image cannot discover a MAC.
+
+    Real MAC-based hashes retain their existing format. Python marks random
+    fallback nodes with the multicast bit; those are not persistent host IDs.
+    A validated kernel boot UUID supplies a stable, host-specific fallback for
+    process/container restarts within that boot. A changed boot or hostname
+    still requires review; old random-node grants are never adopted.
+    """
+    node = uuid.getnode()
+    if node & (1 << 40) and sys.platform.startswith("linux"):
+        try:
+            with Path("/proc/sys/kernel/random/boot_id").open() as stream:
+                boot = stream.read(64).strip()
+            identity = uuid.UUID(boot)
+            if identity.int and str(identity) == boot:
+                node = "linux-boot:" + boot
+        except (OSError, ValueError):
+            # Retain legacy fail-closed behavior on unsupported kernels instead
+            # of weakening the host check to hostname alone.
+            pass
+    return hashlib.sha256(f"{socket.gethostname()}:{node}".encode()).hexdigest()
+
+
 class ContainerRecovery:
     def __init__(self, studio):
         # Process/daemon ownership is host-local, even when workspace records use SQL.
@@ -45,7 +71,7 @@ class ContainerRecovery:
         self.write, self.read = studio._write, studio._read
         # Shared state volumes must not let another worker host retire this
         # host's cleanup records merely because its own Docker daemon is empty.
-        self.host = hashlib.sha256(f"{socket.gethostname()}:{uuid.getnode()}".encode()).hexdigest()
+        self.host = host_fingerprint()
 
     def register(self, name, command, environment, run, *, route_sha256=None):
         if not NAME.fullmatch(name):

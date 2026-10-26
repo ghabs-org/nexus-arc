@@ -103,3 +103,42 @@ It uses disposable loopback processes without host mounts or provider accounts.
 The source fix needs a normal package upgrade and service restart on your chosen
 host; this local drill does not deploy or certify that VM. See the
 [scoped checkpoint](../../docs/STUDIO-SERVER-RECOVERY-CHECKPOINT.json).
+
+## Check durable proxy storage on the host
+
+For deployments using `docker-compose.studio-proxy-state.yml`, update the source
+package and run this on the Docker daemon host with access to the selected
+containers and their host mount paths. Replace names if your Compose project
+uses different ones:
+
+```sh
+nexus studio-host-check \
+  --studio-container nexus-studio-studio-1 \
+  --proxy-container nexus-studio-docker-proxy-1 \
+  --docker-context default
+```
+
+The command pins that Docker route, inspects only mount/state metadata and runs
+a fixed read-only Python stat probe inside the explicitly selected proxy. It
+never fetches environment/command/log data, reads ledger contents, creates
+resources, fixes permissions or restarts services. Its JSON report omits names,
+host paths and credentials, and hashes container identities. Exit 0 means every
+scoped check passed; exit 1 means a failed or unavailable check; invalid arguments
+use exit 2. `ledger: absent` describes an empty configured store, not successful
+ownership recovery. Existing memory-only deployments do not need this command or
+a migration; this check is for the opt-in durable layout.
+
+Checks reject root proxy execution, unsafe directory/ledger modes, symlinks,
+hard-linked ledger files, inaccessible/world-writable upstream sockets, shared
+private storage and raw socket exposure. Nested mounts beneath private storage
+fail too, since they could replace the ledger. Read-only Studio exposure still fails.
+Canonical host paths plus device/inode ancestry detect source aliases and
+hard-linked socket exposure. Host administrators remain trusted. Run on the
+chosen daemon host: a remote client or Docker Desktop may not see its source
+paths. Unresolvable source identity is explicitly `unavailable`, never inferred
+from path strings. The check cannot prove host co-location automatically.
+
+This is a point-in-time mount/permission preflight. It does not certify TLS/login,
+network policy, running jobs, restart/upgrade/restore, certificate lifecycle or
+resistance to later mount changes. See
+[the host-check checkpoint](../../docs/STUDIO-HOST-CHECKS-CHECKPOINT.json).

@@ -164,17 +164,106 @@ name reuse and restart uncertainty pass. The standalone launcher remains
 stdlib-only; Compose mounts its shared policy. See
 `STUDIO-PROXY-RECOVERY-CHECKPOINT.json`. No user workspace, VM or installer changed.
 
+Private proxy-state follow-up (26 October): optional proxy-only SQLite receipts
+now retain cleanup authority across restart/SIGKILL. Service-owned private storage,
+exclusive writer locking and daemon/project binding protect the receipt set.
+Restored grants allow only lookup/inspect/delete; the same upstream connection
+verifies identity before forwarding each request. Storage errors fence creation
+and execution. Legacy memory-only behavior and no-adoption enablement remain
+compatible. Source regressions and actual local Docker drills are recorded in
+`STUDIO-PROXY-STATE-CHECKPOINT.json`. No running workspace or installer changed.
+
+Linux private-mount follow-up (26 October): framework/proxy recovery now
+has actual Linux/arm64 mount-isolation evidence. Same-UID proxy and controller
+containers have separate private authority; a writable controller's same-path
+forgery does not alter proxy receipts, and a private-volume injection is denied.
+Graceful and forced proxy restart retain cleanup-only access. The probe exposed ignored SIGTERM at Linux PID 1; cooperative shutdown now
+closes the listener and ledger normally. All 54 native Linux storage/policy
+checks, 231 affected regressions and 11 actual Docker drills pass without skips.
+See `STUDIO-LINUX-PROXY-CHECKPOINT.json`. This uses local Docker named volumes;
+no personal VM change, app build or DMG rebuild was performed.
+
+SSH transport follow-up (26 October): a real local Linux/arm64 key-only SSH
+gateway now exercises existing named-context snapshots through the filtering
+proxy. The controller has neither Docker socket; the gateway receives only the
+filtered socket. A forced disconnect stops the acknowledged running analysis
+before reconnect, preserves pending cleanup while unreachable, and resolves it
+after reconnect without another create/start. One actual transport drill and
+161 focused regressions pass without skips. Disposable keys, volumes, containers
+and the internal network are removed. See `STUDIO-SSH-PROXY-CHECKPOINT.json`.
+Framework behavior and persisted formats are unchanged; no app or DMG rebuilt.
+
+Docker TLS follow-up (26 October): the same isolated harness now verifies real
+mutual TLS through the filtering proxy. A named Docker context retains trusted CA
+and client credentials through the existing private snapshot. Missing/untrusted
+clients and an untrusted server/wrong hostname are rejected. Active connection
+loss stops the worker before reconnect; pending cleanup resolves without replay.
+SSH and TLS pass the shared real-service gate, with 161 focused regressions and
+zero skips. See `STUDIO-TLS-PROXY-CHECKPOINT.json`. No framework runtime change,
+personal VM mutation or app/DMG rebuild was needed.
+
+Host preflight follow-up (26 October): `nexus studio-host-check` now checks an
+explicit Studio/proxy pair through the pinned Docker route. It reads selected
+mount/state metadata and a fixed in-proxy stat probe, never environment, command
+arguments, logs, ledger contents or service mutations. Reports redact paths/names
+and distinguish failed from unavailable. Host canonical paths and inode ancestry
+check aliases, parent/child exposure and hard-linked sockets; actual proxy UID,
+socket access and private-store ownership/modes are checked separately. All 75
+focused regressions, six real POSIX metadata cases and two Linux CLI/example
+drills pass without skips. Docker Desktop correctly leaves host-source checks
+unavailable. See `STUDIO-HOST-CHECKS-CHECKPOINT.json` and the personal-VM guide.
+Run it on the actual daemon host to close that preflight; no VM or installer
+changed. A successful preflight is not full deployment acceptance.
+
+Linux MCP follow-up (26 October): real acceptance reproduced a double-forked
+daemon surviving SDK group cleanup. Each supported Linux stdio session now has
+an isolated child-subreaper owner with pidfd signalling and checked parentage.
+It reaps only direct/adopted children after EOF/termination, including blocked
+stdin. Normal close and owner SIGKILL stop escaped daemons in both session modes;
+unrelated processes survive and calls are not replayed. All 46 host regressions,
+40 Linux checks and two macOS source compatibility cases pass without skips.
+The thin example supports `--detached`. Trusted frozen-worker dispatch/data
+collection is prepared, but no app/DMG was built. See
+`STUDIO-LINUX-MCP-CHECKPOINT.json`. Unsupported Linux logs its legacy SDK-only
+policy; direct supervisor SIGKILL and stronger hostile-code containment stay open.
+
+Personal VM discovery follow-up (26 October): the user supplied an SSH target and
+completed its Tailscale identity check. Read-only live checks now verify the
+public HTTPS shell, login routing, six anonymous private-route denials, cacheable
+public assets and browser isolation. All 15 anonymous checks pass. A signed-in
+account/session check remains pending. At discovery, the deployed image lacked recent recovery
+modules and the optional private proxy store was not configured. The approved
+follow-up below now records the deployed candidate and verified private store.
+
+The live inspection also exposed a host-check reporting defect: a missing optional
+store suppressed otherwise verifiable raw-socket isolation. Source checks are now
+independent and missing store metadata is classified precisely. Seventy-seven
+regressions pass without skips. The server image lacked the separate HTTP client
+needed by delegated OAuth; `Dockerfile.studio` now explicitly installs the existing
+`studio-oauth` extra. A versioned Linux/arm64 candidate passes OAuth initialization
+without network and two actual file/SQLite server recovery/backup/restore drills.
+The prepared artifact was subsequently approved and deployed. Namespace backup,
+inactive restore, automatic rollback, corrected reapply and cooperative service
+restart now pass. No DMG/app was built. See `STUDIO-VM-DISCOVERY-CHECKPOINT.json`
+and the deployment acceptance section below.
+
 Remaining acceptance:
 
-- Durable authenticated ownership across filtering-proxy restart remains open.
-  Unknown/evicted ownership now fails closed and requires operator review; it
-  never produces false absence or silently adopts a container by name.
-- Remote/SSH Docker connections, actual daemon restart/disconnection and
-  frozen/installed acceptance. Local context reconfiguration, unreachable
-  transport and delayed-create recovery now have source proof. Changes outside
-  Docker context selection (for example SSH aliases or DNS) retain their own scope.
-- MCP host descendants daemonized outside the SDK-owned group. Ordinary CLI/MCP
-  descendants have scoped macOS proof.
+- Actual personal-VM private mount, UID/GID and socket isolation now pass.
+  Deployed worker recovery, power-loss and daemon restart remain separate.
+  Durable storage is outside every Studio mount. Uncommitted/evicted/legacy
+  ownership still requires review; no name-based adoption is permitted.
+- The selected personal VM SSH connection is verified. Actual daemon
+  restart/disconnection and frozen/installed acceptance remain open. Local real SSH loss/reconnect, context
+  reconfiguration, unreachable transport and delayed-create recovery now have
+  source proof. Actual local mutual-TLS verification and certificate rejection
+  now pass too. Changes outside Docker context selection (for example SSH aliases,
+  DNS or host credentials), certificate rotation/revocation and deployment TLS
+  provisioning retain their own scope.
+- Detached MCP host descendants on macOS/Windows, unsupported Linux kernels and
+  direct supervisor SIGKILL remain separate. Supported Linux source now covers
+  normal close and Studio owner death through the dedicated subreaper. A service
+  cgroup/container is still required for a stronger containment boundary.
 - The same lock, close and crash drills on Windows (msvcrt lock, job objects)
   and Linux, and in installed builds.
 
@@ -322,3 +411,85 @@ checks with zero unexplained skips; report optional live prerequisites separatel
 The inventory's 135 accepted flags are recorded claims. They do not substitute
 for the separate desktop release gate or actual live/device/VM evidence. Keep
 whole-plan completion false until every required gate has matching proof.
+
+## Personal VM deployment acceptance — 26 October 2026
+
+The user-approved Studio-only upgrade is deployed and verified. The running
+Linux/arm64 image matches the reviewed immutable candidate; all 653 installed
+Nexus package files match their manifest hashes. The direct OAuth HTTP client is
+present. Dedicated private proxy storage and its ownership ledger now pass all
+12 host-layout checks, including actual host-source and raw-socket isolation.
+All 15 anonymous HTTPS checks pass after a cooperative SIGTERM/zero-exit and
+restart of both updated services. Five existing Nexus system services and the
+router remain running; their source checkout and configuration are unchanged.
+
+Private Studio namespace backups, verification and separate inactive restores
+passed before each application attempt. An incorrect maintenance health-route
+selection triggered automatic rollback, which restored the original image and
+working routes. The corrected hosted readiness check passed on reapply. Live SQL
+was never overwritten. The rollback proxy package includes the matching policy
+helper needed for its captured source to start.
+
+See [deployment evidence](STUDIO-VM-DISCOVERY-CHECKPOINT.json). Signed-in identity,
+selected accounts, physical devices, deployed worker-recovery workloads,
+full-host/auth-store restore and daemon/power-loss remain separate open checks.
+Desktop delivery retains its existing gates. No DMG was rebuilt.
+
+## Deployed worker boundary acceptance — 27 October 2026
+
+The configured subscription-runner image now passes a real acceptance gate from
+inside the deployed Studio controller through its existing filtered Docker
+socket. Eleven boundary checks verify controller socket/private-store isolation,
+denial of unscoped listings and unknown inspection, rejection of extra
+capabilities, unapproved mounts and unconfigured images, owned stopped-worker
+inspection, static worker execution, unstarted cleanup and retained absence
+receipts. The successful gate acknowledges two disposable creates and starts one
+static shell command. It mounts no credentials or workspace and invokes no
+provider. No image download, service restart or configuration change is needed.
+
+Postchecks find zero UUID workers, all five existing Nexus services active, the
+router running, host-layout acceptance intact and all 15 anonymous HTTPS checks
+passing. See [worker evidence](STUDIO-DEPLOYED-WORKER-CHECKPOINT.json) and the
+explicit opt-in `tests/studio_deployed_worker_acceptance.py` gate. Required normal
+regression discovery does not include this prerequisite-dependent live test.
+
+This does not close deployed interruption/restart recovery or signed-in/provider
+acceptance. At that checkpoint the VM had no `analysis_workers` profile. The subsequent
+activation below closes that configuration gap for data, Python and media. Preserve that distinction in readiness
+and future activation reviews. Physical devices, full-host/auth restore and
+native installed-platform gates remain open. No DMG was rebuilt.
+
+## VM analysis activation and cleanup identity fix — 27 October 2026
+
+The personal VM now has the existing `data`, `python` and `media` profiles enabled
+against an installed immutable worker image. CSV/JSON-to-SQLite, read-only SQL,
+JQ, chart generation, Python execution and ImageMagick all pass through the live
+controller's actual filtered proxy. The existing six-operation example creates
+six private artifacts in a disposable workspace. Charts are 1200×800 PNGs;
+ImageMagick produces the expected 2×2 image. Worker UID/GID, network denial,
+read-only root, absent host mounts, process/open-file limits and unsafe-output
+rejection pass. No provider/account call or production SQL test data is used.
+
+Owner-death acceptance found a real defect in the slim server: Python's hardware
+node discovery fell back to a process-local random value, changing recovery's
+host hash between owners. The framework now preserves real-MAC hashes and uses
+a validated Linux kernel boot UUID plus hostname only for random-node fallback.
+Different boots/hostnames and old random-node records still require review;
+no ownership grant is adopted. The record format and stored schemas are unchanged.
+
+All 162 focused regressions and nine real local worker tests pass without skips.
+An isolated VM candidate and the actual patched live controller both pass a
+stopped-owner SIGKILL and explicit cleanup with zero create/start replay. Two
+independent live processes also agree on host identity. All 653 installed source
+files match the expected package, all 12 layout checks and 15 anonymous HTTPS
+checks pass, and no UUID workers or production cleanup records remain. Other
+five Nexus services and the router remain active. Fresh backups and inactive
+restores passed before profile activation and before the server fix; live SQL
+was never overwritten.
+
+See [VM analysis evidence](STUDIO-VM-ANALYSIS-CHECKPOINT.json). Next operational
+gates are signed-in tool use, live running-worker/uncertain-create recovery,
+proxy/daemon interruption and full-host/auth-store restore. Kernel boot fallback
+explicitly requires review after host reboot or changed controller hostname.
+Vision/model setup, physical devices and native OS delivery remain separate.
+No DMG was rebuilt, and frozen feature acceptance counts are unchanged.
