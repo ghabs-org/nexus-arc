@@ -692,3 +692,24 @@ CPU/address-space/wall-limit or non-Linux execution changes. Upgrade package and
 restart to activate the fix. The VM was not contacted; no DMG was rebuilt.
 Windows/macOS containment, installed-platform and personal-VM repetition remain
 open. Frozen acceptance totals are unchanged.
+
+## macOS speech containment and cloud backup resilience — 27 October 2026
+
+macOS speech subprocess execution now uses isolated process-group ownership and
+dynamic libproc descendant tracking via `nexus.core.studio_mcp_supervisor`.
+Cancel, shutdown, timeout and parent controller termination stop detached,
+SIGTERM-resistant descendants within 0.03 seconds before temporary audio cleanup.
+Missing ownership support fails before launch; no API fallback or replay occurs.
+Linux subreaper/pidfd ownership remains intact and unaffected.
+
+Azure Blob Storage bounded reads and snapshot operations now verify timeout and
+transient failure handling: connection reset, timeout and HTTP 503 service
+unavailable errors propagate and abort snapshots without publishing partial state
+or leaking credentials. The historical intermittent PDF event remains tracked as
+an open stability gap.
+
+All 120 speech, supervisor, backup, artifact and PDF regressions pass without
+skips. No schema, profile, API payload, or remote account changes. The personal
+VM was not contacted; no DMG was rebuilt. Windows containment, installed desktop
+packaging and personal-VM repetition remain open. Frozen acceptance totals are
+unchanged.
