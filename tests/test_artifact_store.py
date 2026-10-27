@@ -1,5 +1,7 @@
 """Artifact store round-trips and factory behavior."""
 
+import pytest
+
 
 def test_filesystem_roundtrip(tmp_path):
     from nexus.adapters.artifacts import FilesystemStore
@@ -374,3 +376,74 @@ def test_azure_bounded_read_requests_only_the_bounded_range():
     properties.size = 0
     assert store.get_bounded("bucket", "empty", 0) == b""
     assert container.download_blob.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "exception_factory",
+    [
+        lambda: TimeoutError("The read operation timed out"),
+        lambda: ConnectionResetError("Connection reset by peer"),
+        lambda: RuntimeError("ServiceRequestTimeoutError: Connection timed out"),
+        lambda: RuntimeError("HttpResponseError: 503 Service Unavailable"),
+    ],
+)
+def test_azure_get_bounded_propagates_timeout_and_transient_failure(exception_factory):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from nexus.adapters.artifacts import AzureStore
+
+    store = AzureStore.__new__(AzureStore)
+    container_prop_fail = SimpleNamespace(
+        get_blob_client=Mock(
+            return_value=SimpleNamespace(get_blob_properties=Mock(side_effect=exception_factory()))
+        ),
+        download_blob=Mock(),
+    )
+    store._container = Mock(return_value=container_prop_fail)
+    with pytest.raises(Exception):
+        store.get_bounded("bucket", "key", 100)
+    container_prop_fail.download_blob.assert_not_called()
+
+    properties = SimpleNamespace(size=50)
+    container_dl_fail = SimpleNamespace(
+        get_blob_client=Mock(
+            return_value=SimpleNamespace(get_blob_properties=Mock(return_value=properties))
+        ),
+        download_blob=Mock(side_effect=exception_factory()),
+    )
+    store._container = Mock(return_value=container_dl_fail)
+    with pytest.raises(Exception):
+        store.get_bounded("bucket", "key", 100)
+
+
+def test_azure_backup_aborts_on_timeout_without_publishing(tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from nexus.adapters.artifacts import AzureStore
+    from nexus.core.studio_backup import create_snapshot
+    from tests.test_studio_backup_artifacts import setup_workspace
+
+    root, _, _, _, _, _, _, _, _ = setup_workspace(tmp_path, "azure")
+    store = AzureStore.__new__(AzureStore)
+    container = SimpleNamespace(
+        get_blob_client=Mock(
+            return_value=SimpleNamespace(
+                get_blob_properties=Mock(side_effect=TimeoutError("Request timed out after 30s"))
+            )
+        ),
+        download_blob=Mock(),
+    )
+    store._container = Mock(return_value=container)
+
+    backup_target = tmp_path / "backup"
+    with pytest.raises(ValueError, match="Remote artifact backup read failed"):
+        create_snapshot(
+            root,
+            backup_target,
+            quiesced=True,
+            include_remote_artifacts=True,
+            artifact_store_factory=lambda _: store,
+        )
+    assert not backup_target.exists()

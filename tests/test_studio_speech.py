@@ -89,3 +89,18 @@ def test_missing_local_model_never_downloads_or_falls_back_to_paid_api(tmp_path)
             )
     finally:
         service.close()
+
+
+def test_speech_subprocess_lifecycle_stops_detached_descendants():
+    import runpy
+    from pathlib import Path
+
+    fixture = Path(__file__).resolve().parents[1] / "examples/nexus-bot/src/studio_speech_lifecycle.py"
+    module = runpy.run_path(str(fixture))
+    report = module["exercise"]()
+    assert set(report) == {"cancel", "shutdown", "timeout", "owner_death", "finite_input"}
+    assert all(
+        report[case]["detached_child_removed"]
+        for case in ("cancel", "shutdown", "timeout", "owner_death")
+    )
+    assert report["finite_input"]["bytes_and_errors_preserved"]

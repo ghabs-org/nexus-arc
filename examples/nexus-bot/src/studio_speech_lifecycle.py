@@ -35,9 +35,15 @@ WORKER = (
 
 
 def alive(pid):
+    if sys.platform == "linux":
+        try:
+            return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+        except FileNotFoundError:
+            return False
     try:
-        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
-    except FileNotFoundError:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
         return False
 
 
@@ -84,7 +90,7 @@ def owner(directory):
 
 
 def exercise():
-    assert sys.platform == "linux", "This consumer requires actual Linux process ownership"
+    assert sys.platform in {"linux", "darwin"}, "This consumer requires actual POSIX process ownership"
     results = {}
     with tempfile.TemporaryDirectory(prefix="nexus-speech-lifetime-") as temporary:
         root = Path(temporary)

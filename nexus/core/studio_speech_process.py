@@ -1,4 +1,4 @@
-"""Linux speech subprocess ownership using the existing isolated subreaper."""
+"""Isolated Linux and macOS speech subprocess ownership."""
 
 import asyncio
 import base64

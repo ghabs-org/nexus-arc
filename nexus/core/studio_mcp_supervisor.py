@@ -16,28 +16,96 @@ from pathlib import Path
 
 
 def _configure():
-    if (
-        sys.platform != "linux"
-        or not hasattr(os, "pidfd_open")
-        or not hasattr(signal, "pidfd_send_signal")
-    ):
-        raise OSError("Linux supervision unavailable")
-    libc = ctypes.CDLL(None, use_errno=True)
-    libc.prctl.argtypes = [
-        ctypes.c_int,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-    ]
-    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
-        raise OSError("Linux subreaper unavailable")
-    descriptor = os.pidfd_open(os.getpid())
-    try:
-        signal.pidfd_send_signal(descriptor, 0)
-    finally:
-        os.close(descriptor)
-    return Path(f"/proc/self/task/{os.getpid()}/children")
+    if sys.platform == "linux":
+        if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):
+            raise OSError("Linux supervision unavailable")
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl.argtypes = [
+            ctypes.c_int,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+        ]
+        if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+            raise OSError("Linux subreaper unavailable")
+        descriptor = os.pidfd_open(os.getpid())
+        try:
+            signal.pidfd_send_signal(descriptor, 0)
+        finally:
+            os.close(descriptor)
+        return Path(f"/proc/self/task/{os.getpid()}/children")
+    if sys.platform == "darwin":
+        if os.name != "posix":
+            raise OSError("Darwin supervision unavailable")
+        try:
+            libproc = ctypes.CDLL("/usr/lib/libproc.dylib")
+            fn = libproc.proc_listchildpids
+            fn.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+            fn.restype = ctypes.c_int
+            buf = (ctypes.c_int * 1)()
+            fn(os.getpid(), buf, ctypes.sizeof(buf))
+            return fn
+        except Exception:
+            raise OSError("Darwin supervision unavailable")
+    raise OSError("Supervision unavailable on this platform")
+
+
+def _darwin_descendants(pid, fn):
+    pids = [pid]
+    idx = 0
+    buf = (ctypes.c_int * 1024)()
+    while idx < len(pids):
+        curr = pids[idx]
+        n = fn(curr, buf, ctypes.sizeof(buf))
+        if n > 0:
+            for i in range(n):
+                cp = buf[i]
+                if cp not in pids and cp > 0:
+                    pids.append(cp)
+        idx += 1
+    return pids
+
+
+def _cleanup_darwin(process, known, fn, *, seconds=1.0):
+    if fn and process and getattr(process, "pid", None):
+        try:
+            known.update(_darwin_descendants(process.pid, fn))
+        except Exception:
+            pass
+    if process and getattr(process, "pid", None):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    for pid in list(known):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            while os.waitpid(-1, os.WNOHANG)[0]:
+                pass
+        except ChildProcessError:
+            pass
+        alive = []
+        for pid in list(known):
+            try:
+                os.kill(pid, 0)
+                alive.append(pid)
+            except OSError:
+                pass
+        if not alive and (process is None or process.poll() is not None):
+            return True
+        for pid in alive:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        time.sleep(0.005)
+    return False
 
 
 def _cleanup(children_path, *, seconds=1.0):
@@ -76,6 +144,8 @@ def _cleanup(children_path, *, seconds=1.0):
 
 def supervise(command):
     children_path = _configure()
+    if not isinstance(children_path, Path):
+        raise OSError("Linux supervision unavailable")
     # Fail before starting the server if the required own-child view is hidden.
     with children_path.open("rb") as stream:
         stream.read(1)
@@ -156,8 +226,12 @@ def main():
         # Launch errors may contain private paths or server arguments.
         print(
             "Linux speech supervision could not initialize or launch the worker."
-            if speech
-            else "Linux MCP supervision could not initialize or launch the server.",
+            if speech and sys.platform == "linux"
+            else (
+                "Local speech supervision could not initialize or launch the worker."
+                if speech
+                else "Linux MCP supervision could not initialize or launch the server."
+            ),
             file=sys.stderr,
         )
         result = 125
@@ -169,9 +243,10 @@ def supervise_speech(command):
     import base64
     import json
 
-    children_path = _configure()
-    with children_path.open("rb") as stream:
-        stream.read(1)
+    context = _configure()
+    if isinstance(context, Path):
+        with context.open("rb") as stream:
+            stream.read(1)
     stopping = False
 
     def stop(*_):
@@ -192,7 +267,15 @@ def supervise_speech(command):
     if content is not None and not isinstance(content, str):
         raise ValueError("Invalid local speech frame")
     pending = bytearray(base64.b64decode(content, validate=True) if content is not None else b"")
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, bufsize=0, close_fds=True)
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        bufsize=0,
+        close_fds=True,
+        start_new_session=True if os.name == "posix" else False,
+    )
+    proc_fn = context if not isinstance(context, Path) else None
+    known_descendants = set([process.pid])
     result = 0
     try:
         poller = select.poll()
@@ -204,6 +287,11 @@ def supervise_speech(command):
         else:
             process.stdin.close()
         while not stopping and process.poll() is None:
+            if proc_fn:
+                try:
+                    known_descendants.update(_darwin_descendants(process.pid, proc_fn))
+                except Exception:
+                    pass
             for descriptor, event in poller.poll(50):
                 if descriptor == 0:
                     if event & (select.POLLHUP | select.POLLERR | select.POLLNVAL | select.POLLIN):
@@ -225,7 +313,10 @@ def supervise_speech(command):
     except BrokenPipeError:
         result = 1
     finally:
-        confirmed = _cleanup(children_path)
+        if isinstance(context, Path):
+            confirmed = _cleanup(context)
+        else:
+            confirmed = _cleanup_darwin(process, known_descendants, proc_fn)
         process.stdin.close()
         if not confirmed:
             print(
