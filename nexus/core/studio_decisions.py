@@ -26,7 +26,7 @@ def validate_binding(binding):
     if (
         not isinstance(binding, dict)
         or set(binding) != {"backend", "model"}
-        or binding["backend"] not in ("opencode", "openrouter", "openai")
+        or binding["backend"] not in ("opencode", "openrouter", "openai", "typesafe")
         or not isinstance(binding["model"], str)
         or not MODEL.fullmatch(binding["model"])
     ):
@@ -295,6 +295,8 @@ class StudioTypedDecisions:
             image_urls = prepare(self.studio, images or [], config, payload, actor, run_id=run_id)
             if config["backend"] == "openai":
                 from nexus.adapters.decisions.openai import ask_strict as ask_native
+            elif config["backend"] == "typesafe":
+                from nexus.adapters.decisions.typesafe import ask_strict as ask_native
             else:
                 ask_native = ask_strict
             client = self.jobs.decision_client or ask_native

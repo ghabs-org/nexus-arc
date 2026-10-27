@@ -140,7 +140,14 @@ def main():
         action="store_true",
         help="Use native OpenAI Decisions shapes against --http only",
     )
+    parser.add_argument(
+        "--typesafe",
+        action="store_true",
+        help="Use direct TypeSafe System One provider binding",
+    )
     args = parser.parse_args()
+    if args.native and args.typesafe:
+        parser.error("Select at most one of --native or --typesafe")
     calls = []
     client = fixture_client(args.case, calls)
     if args.native and not args.http:
@@ -157,19 +164,23 @@ def main():
             parser.error("Use an explicit loopback-only HTTP fixture URL")
         if args.native:
             from nexus.adapters.decisions.openai import ask_strict as native_decision
+        elif args.typesafe:
+            from nexus.adapters.decisions.typesafe import ask_strict as native_decision
         else:
             native_decision = ask_strict
         client = partial(
             native_decision,
             endpoint=args.http,
             api_key="synthetic-fixture-key",
-            model="gpt-6-luna" if args.native else args.case,
+            model="gpt-6-luna" if args.native else ("jev-1.13" if args.typesafe else args.case),
         )
+    backend = "openai" if args.native else ("typesafe" if args.typesafe else "openrouter")
+    model = "gpt-6-luna" if args.native else ("jev-1.13" if args.typesafe else args.case)
     bindings = {
         "decisions": {
             "triage": {
-                "backend": "openai" if args.native else "openrouter",
-                "model": "gpt-6-luna" if args.native else args.case,
+                "backend": backend,
+                "model": model,
             }
         },
         "tools": {"count_words": "text:wordcount"},

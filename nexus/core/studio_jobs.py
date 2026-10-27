@@ -99,8 +99,8 @@ class StudioJobs:
                 raise ValueError("Confidence threshold must be between 0 and 1")
             if payload.get("default") not in options:
                 raise ValueError("Choose a default from the listed options")
-            if payload.get("backend") not in {"openrouter", "opencode", "openai"}:
-                raise ValueError("Choose OpenRouter, OpenCode or OpenAI for typed decisions")
+            if payload.get("backend") not in {"openrouter", "opencode", "openai", "typesafe"}:
+                raise ValueError("Choose OpenRouter, OpenCode, OpenAI or TypeSafe for typed decisions")
             if payload.get("model") and (
                 not isinstance(payload["model"], str) or len(payload["model"]) > 200
             ):
@@ -332,6 +332,7 @@ class StudioJobs:
                     "openrouter": "OPENROUTER_API_KEY",
                     "opencode": "OPENCODE_API_KEY",
                     "openai": "OPENAI_API_KEY",
+                    "typesafe": "TYPESAFE_API_KEY",
                 }[backend]
             )
             if not key and backend == "opencode":
@@ -363,6 +364,14 @@ class StudioJobs:
 
             return {"api_key": key, "model": model or NATIVE_MODEL, "endpoint": NATIVE_URL}
 
+        if backend == "typesafe":
+            from nexus.adapters.decisions.typesafe import (
+                DEFAULT_MODEL as TYPESAFE_MODEL,
+                SYSTEMONE_URL as TYPESAFE_URL,
+            )
+
+            return {"api_key": key, "model": model or TYPESAFE_MODEL, "endpoint": TYPESAFE_URL}
+
         return {
             "api_key": key,
             "model": model or (DEFAULT_MODEL if backend == "openrouter" else DEFAULT_FREE_MODEL),
@@ -375,7 +384,13 @@ class StudioJobs:
 
         actor = self.workbench.actor(payload)
         kwargs = self.decision_credentials(payload) if not self.decision_client else {}
-        client = self.decision_client or ask
+        if payload.get("backend") == "typesafe":
+            from nexus.adapters.decisions.typesafe import ask as typesafe_ask
+
+            default_client = typesafe_ask
+        else:
+            default_client = ask
+        client = self.decision_client or default_client
         self.studio._update_run(run_id, provider="decision-" + payload["backend"])
         questions = {"route": choice_question(payload["instructions"], payload["options"])}
         answers = await asyncio.to_thread(client, payload["task"], questions, **kwargs)

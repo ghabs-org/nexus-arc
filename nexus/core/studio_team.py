@@ -107,7 +107,7 @@ class NexusTeamPolicy:
                 identity not in self.bindings
                 or not isinstance(config, dict)
                 or set(config) - {"backend", "key_env", "model"}
-                or config.get("backend") not in {"openrouter", "opencode", "openai"}
+                or config.get("backend") not in {"openrouter", "opencode", "openai", "typesafe"}
                 or (
                     "model" in config
                     and (

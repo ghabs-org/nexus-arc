@@ -1,0 +1,39 @@
+{
+  "format": "nexus-studio-typesafe-decisions/v1",
+  "date": "2026-10-27",
+  "status": "fixture-verified-with-local-provider-tests",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Direct TypeSafe System One decision-provider adapter outside frozen baseline. Validated bindings, dedicated credentials, bounded transport, typed questions and catalog integration.",
+  "implementation": {
+    "adapter": "nexus/adapters/decisions/typesafe.py",
+    "endpoint": "https://api.typesafe.ai/v1/systemone",
+    "default_model": "jev-1.13",
+    "credentials_env": "TYPESAFE_API_KEY",
+    "features": [
+      "Direct TypeSafe System One API client with bounded 64 KiB request size and 1 MiB response cap",
+      "Explicit credential isolation: never borrows OpenRouter, OpenCode or OpenAI keys",
+      "Automatic retry with exponential backoff on transient errors (rate_limited, unreachable) up to 3 attempts",
+      "Fail-fast behavior on unauthorized and configuration errors with zero retries",
+      "Full choice, boolean (noul) and ordered score question/answer parsing through shared typed runtime",
+      "Clean rejection of image URLs (TypeSafe System One is text/state only)",
+      "Studio decision workflow execution, routing, confidence thresholds and error escalation",
+      "Catalog decisionmodels resource preset support and NexusTeamPolicy decision_keys mapping",
+      "UI support in workbench decisions and decisionmodels catalog settings"
+    ]
+  },
+  "validation": {
+    "tests": 10,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "test_file": "tests/test_studio_typesafe_decisions.py",
+    "regression_tests": 114,
+    "node_tests": 181,
+    "audit_consistency": true
+  },
+  "frozen_baseline_counts_changed": false,
+  "dmg_rebuilt": false,
+  "vm_contacted": false
+}

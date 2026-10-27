@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 
 DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
 SYSTEMONE_URL = "https://opencode.ai/zen/v1/systemone"
+TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_MODEL = "typesafe/jev-1.13"
 DEFAULT_FREE_MODEL = "jev-1.13-free"
+DEFAULT_TYPESAFE_MODEL = "jev-1.13"
 
 
 def resolve_backend(
@@ -48,12 +50,23 @@ def resolve_backend(
     if endpoint and api_key and model:
         return endpoint, api_key, model
     backend = (os.getenv("JEV_BACKEND") or "").strip().lower()
+    typesafe_key = (api_key if backend == "typesafe" else None) or os.getenv(
+        "TYPESAFE_API_KEY", ""
+    ).strip()
     openrouter_key = (api_key if backend == "openrouter" else None) or os.getenv(
         "OPENROUTER_API_KEY", ""
     ).strip()
     opencode_key = (api_key if backend == "opencode" else None) or os.getenv(
         "OPENCODE_API_KEY", ""
     ).strip()
+    if backend == "typesafe":
+        if not typesafe_key:
+            return None
+        return (
+            TYPESAFE_URL,
+            typesafe_key,
+            (model or os.getenv("JEV_MODEL") or DEFAULT_TYPESAFE_MODEL).strip(),
+        )
     if backend == "openrouter" or (not backend and openrouter_key and not opencode_key):
         if not openrouter_key:
             return None

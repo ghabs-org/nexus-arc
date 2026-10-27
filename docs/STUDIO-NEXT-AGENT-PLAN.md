@@ -394,12 +394,22 @@ Keep milestone 9 last, after earlier implementation and operational gates.
 
 ## 5. Optional follow-on feature already in the roadmap
 
-After required delivery gates, consider the direct TypeSafe decision provider.
-The roadmap records this as new optional interoperability, outside the frozen
-baseline. Inspect current decision adapters first. Reuse typed schemas,
-credentials, validation and error/recovery handling; verify the provider's current
-contract before adding a native adapter. Support explicit API selection/billing
-and no automatic fallback. Do not change frozen parity scope or acceptance counts.
+Done on 27 October 2026: direct TypeSafe decision provider is now implemented
+and verified. The native adapter (`nexus/adapters/decisions/typesafe.py`) connects
+directly to TypeSafe's System One API (`https://api.typesafe.ai/v1/systemone`)
+using explicit `TYPESAFE_API_KEY` credentials. It reuses the shared typed schemas
+for choice, boolean (`noul`) and ordered score questions. It strictly enforces
+credential isolation without borrowing keys, retries transient failures up to three
+times with exponential backoff, fails immediately on unauthorized/configuration
+errors, and rejects image URLs.
+
+Studio bindings, workbench decision runs, catalog presets (`decisionmodels`) and
+`NexusTeamPolicy.decision_keys` support `typesafe` with default model `jev-1.13`.
+The example consumer (`examples/nexus-bot/src/studio_interop_decisions.py`) supports
+`--typesafe`. All 10 focused provider tests in `tests/test_studio_typesafe_decisions.py`,
+114 decision/workflow regressions, and 181 Node tests pass without skips.
+See `STUDIO-TYPESAFE-DECISION-CHECKPOINT.json`. No DMG was rebuilt and frozen
+baseline acceptance counts are unchanged.
 
 ## Delivery rules
 
