@@ -48,3 +48,25 @@ Actual local Piper/Whisper inference now has a separate opt-in acceptance consum
 normal Studio jobs; it never substitutes an API provider. Model preparation was
 operator-approved, separate from runtime execution. Physical devices, API-account
 acceptance, native Windows/Linux and VM operation remain separate.
+
+Linux model-runtime follow-up (27 October): `studio_linux_speech_acceptance.py`
+now executes the existing local speech consumer with real Piper/Whisper models
+inside a network-disabled Linux/arm64 container. Normal Studio jobs generate and
+transcribe private audio and remove temporary files. Three model hashes and the
+current worker source hash are checked. No HTTP speech provider is simulated or
+substituted, and no API payload/profile/authentication contract changes.
+The controlled tiny-English result recognizes core words but mishears the initial
+name; runtime success is not general transcription quality. Physical device,
+Windows/installed-platform, process-tree cancellation and personal-VM checks
+remain separate. See `docs/STUDIO-LINUX-SPEECH-CHECKPOINT.json`.
+
+Linux cancellation follow-up (27 October): local speech commands now use the
+existing isolated subreaper via a private bounded input frame plus owner-lifetime
+pipe. Cancellation, shutdown, wall timeout and owner death stop owned detached
+descendants before temporary audio cleanup. No global process scan, automatic
+retry or provider fallback is introduced. Unavailable ownership primitives fail
+before launching a local command. Finite input/output and command errors retain
+their existing public behavior; profiles, HTTP routes and queue formats do not
+change. macOS/Windows retain their prior local-process path. Real Linux child
+cases and Piper/Whisper model jobs pass separately; no installed/VM/DMG claim is
+made. See `docs/STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json`.

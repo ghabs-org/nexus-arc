@@ -157,9 +157,11 @@ records bounds, compatibility and the independent S3 HTTP simulation.
 Unrecovered configuration releases must be recovered before backup.
 Physical PostgreSQL backup remains a separate infrastructure responsibility.
 Logical restore now has real local PostgreSQL 17.11 source/target acceptance;
-this does not certify a cloud bucket, personal VM or account-store disaster recovery. GCS/Azure
-SDK runtimes and real cloud-account permission/retention behavior remain separate
-validation prerequisites; their adapter call contracts are checked locally.
+this does not certify a cloud bucket, personal VM or account-store disaster recovery.
+Actual GCS/Azure SDK backup reads now pass against local HTTP simulations, including
+bounded ranges, offline restore and failed-publication checks. See
+[SDK evidence](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json). Real cloud-account
+authentication, permissions, retention/history and restore drills remain separate.
 
 Version 1 upgrades add metadata only. An immutable upgrade intent precedes
 history and marker writes; restart finishes the same intent after interruption.

@@ -1,0 +1,151 @@
+{
+  "format": "nexus-studio-linux-speech/v1",
+  "date": "2026-10-27",
+  "status": "real-linux-container-model-runtime-verified",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Real local Linux/arm64 Piper synthesis and CPU Whisper transcription through ordinary Studio jobs in a disposable Docker container on this Mac. Not a physical Linux/Windows/desktop/device/VM certification.",
+  "implementation": "Added reproducible opt-in Linux fixture recipe and host acceptance. Existing framework worker, speech jobs and local speech example pass unchanged; their inspected image hashes match current source.",
+  "validation": {
+    "real_models": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 12.005,
+      "report": "/private/tmp/nexus-linux-speech-actual.xml",
+      "sha256": "9ec5dd5ddc53bf9d193750cd943ed4ddf5f7a13f55803ecdb0b73bcb1b7c4869",
+      "result": {
+        "api_client_used": false,
+        "audio_seconds": 3.1,
+        "generated_wav_bytes": 136748,
+        "microphone_used": false,
+        "model_downloaded_by_worker": false,
+        "packages": {
+          "onnxruntime": "1.31.1",
+          "openai-whisper": "20250625",
+          "piper-tts": "1.8.0",
+          "torch": "2.14.1+cpu"
+        },
+        "platform": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+        "private_audio_artifact": true,
+        "synthesis_completed": true,
+        "synthesis_seconds": 2.829,
+        "temporary_audio_removed": true,
+        "transcript": "Judio can run local speech without an external account.",
+        "transcription_completed": true,
+        "transcription_seconds": 4.231,
+        "worker_sha256": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7"
+      },
+      "scope_resources_removed": true
+    },
+    "speech_regressions": {
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.029,
+      "report": "/private/tmp/nexus-linux-speech-required.xml",
+      "sha256": "767105ec406cd04db2e26bbfa519a81b6146bd20b801cda730e349533b74ed4d"
+    }
+  },
+  "runtime": {
+    "packages": {
+      "openai-whisper": "20250625",
+      "torch": "2.14.1+cpu",
+      "piper-tts": "1.8.0",
+      "onnxruntime": "1.31.1",
+      "numpy": "2.5.4",
+      "numba": "0.68.0",
+      "llvmlite": "0.50.0",
+      "tiktoken": "0.14.0"
+    },
+    "ffmpeg": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "sources": {
+      "/checks/nexus/core/studio_speech.py": "e394f107f9bd8db3303f57822c4e81efb999c1d5d58e505668341d3aea9d6f79",
+      "/checks/nexus/core/studio_speech_worker.py": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7",
+      "/checks/studio_local_speech.py": "fa9b12f592c5d7163f37f47d60170196b6b9ca01cf64e97a17f8225cebdbe4a2"
+    }
+  },
+  "runtime_report_sha256": "9738b8b277128396190aa24bafb349f2aad10638b54c3b34763a135767e2bc7b",
+  "fixture": {
+    "image_id": "sha256:715a7dc48166e6750f3fedf51c9d2ac78b3ec52b74edb8f0de218bcfbd08e817",
+    "image_bytes": 2684755982,
+    "base_sdk_image_id": "sha256:a786869f8718f9c98f45d59ba42f205f1db717f2f007246febf12e4696d72fce",
+    "base_sdk_local_tag": "nexus-studio:recovery-host-60ba858a914b",
+    "models_bundled": false,
+    "models_downloaded": 0,
+    "preparation": "Explicit ffmpeg, CPU-only torch 2.14.1+cpu, Whisper 20250625 and Piper 1.8.0 installation in a test image. Reused three previously user-approved public local model files after rechecking hashes.",
+    "network_at_inference": "none",
+    "mounts": "Only three selected model files, read-only. No Docker socket, workspace, credentials or microphone device.",
+    "user": "65534:65534",
+    "root_filesystem": "read-only",
+    "constraints": {
+      "container_memory_gib": 2,
+      "cpus": 2,
+      "pids": 128,
+      "temporary_filesystem_mib": 512,
+      "capabilities": "none",
+      "no_new_privileges": true
+    },
+    "thread_settings": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "unchanged_worker_limits": {
+      "cpu_seconds": 120,
+      "linux_address_space_gib": 4,
+      "transcription_parent_wall_seconds": 130,
+      "synthesis_parent_wall_seconds": 90
+    },
+    "container_removed": true,
+    "temporary_audio_removed": true,
+    "retained": "Cached test image and original model files remain for explicit retesting. They are not application/DMG payloads."
+  },
+  "models": [
+    {
+      "url": "https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03/tiny.en.pt",
+      "sha256": "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03",
+      "bytes": 75571315
+    },
+    {
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+      "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+      "bytes": 63201294
+    },
+    {
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json",
+      "sha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0",
+      "bytes": 4885
+    }
+  ],
+  "quality_limit": "Tiny English Whisper recognizes the essential local/speech/account words but transcribes Studio as Judio. This result does not establish exact transcription, arbitrary languages/models or general speech quality.",
+  "authorization": "Reuse the earlier explicit user approval to prepare temporary Piper/Whisper runtimes and public test models. No microphone, real speech API account, VM or new DMG was requested or used.",
+  "migration": "No product runtime, stored record/profile, API payload, credential scope, automatic fallback/download or resource-limit change. Missing optional prerequisites fail the explicit gate rather than creating required-suite skips.",
+  "pending": [
+    "Actual Windows inference and physical Linux/installed-desktop voice operation.",
+    "Actual process-tree interruption/cancellation and target OS containment beyond this completed-job roundtrip.",
+    "Physical microphone/recording/playback permissions, touch controls, language/voice choices and quality.",
+    "Selected real speech API accounts, more models/languages and personal VM voice deployment."
+  ],
+  "source_sha256": {
+    "deploy/studio/recovery-checks/Dockerfile.local-speech": "384c90e3608b316515f8f5c2f223acf35130713d2ded92f4c90e9c27f1dbc0a6",
+    "tests/studio_linux_speech_acceptance.py": "482a9bec2a737d9acc702fb275c3bf31142dddee360791a86a9818f6eecc4c0d",
+    "nexus/core/studio_speech.py": "e394f107f9bd8db3303f57822c4e81efb999c1d5d58e505668341d3aea9d6f79",
+    "nexus/core/studio_speech_worker.py": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7",
+    "examples/nexus-bot/src/studio_local_speech.py": "fa9b12f592c5d7163f37f47d60170196b6b9ca01cf64e97a17f8225cebdbe4a2",
+    "docs/STUDIO-SPEECH.md": "e0fe610bb97cf2c068c4f8012c8e235d2ea7b61646e8a22b7af4f543184cc4d2",
+    "postman/contracts/studio-speech.md": "92082eb30f59d64125bcc1f194f1fca399ee913d838f9a5a5a33e4a12a7a1522"
+  },
+  "vm_contacted": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "linux_lifetime_followup": {
+    "checkpoint": "STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json",
+    "scope": "Actual Linux detached-child cancellation/shutdown/timeout/owner-death fix. Earlier model runtime reports/source hashes remain historical; non-Linux and installed-platform/device/VM work remains separate."
+  }
+}

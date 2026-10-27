@@ -12,6 +12,33 @@ from nexus.core import studio_mcp_supervisor as supervisor
 from nexus.tools import mcp_supervision
 
 
+def test_speech_supervisor_refuses_hidden_child_view_before_launch(tmp_path, monkeypatch):
+    monkeypatch.setattr(supervisor, "_configure", lambda: tmp_path / "unavailable")
+    monkeypatch.setattr(
+        supervisor.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("Worker must not start"),
+    )
+    with pytest.raises(OSError):
+        supervisor.supervise_speech(["never-launch"])
+
+
+@pytest.mark.parametrize("frame", [b'{"input": 123}\n', b'{"input":"not base64!"}\n'])
+def test_speech_supervisor_rejects_invalid_input_before_launch(tmp_path, monkeypatch, frame):
+    children = tmp_path / "children"
+    children.touch()
+    monkeypatch.setattr(supervisor, "_configure", lambda: children)
+    monkeypatch.setattr(supervisor.signal, "signal", lambda *_: None)
+    monkeypatch.setattr(supervisor.sys, "stdin", SimpleNamespace(buffer=io.BytesIO(frame)))
+    monkeypatch.setattr(
+        supervisor.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("Worker must not start"),
+    )
+    with pytest.raises(ValueError):
+        supervisor.supervise_speech(["never-launch"])
+
+
 def test_source_supervision_keeps_literal_arguments_and_no_shell(monkeypatch):
     monkeypatch.setattr(mcp_supervision, "available", lambda: True)
     args = ["literal; command", "$(not-executed)"]

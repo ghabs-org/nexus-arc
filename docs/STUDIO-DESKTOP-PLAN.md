@@ -2,13 +2,12 @@
 
 Status: incomplete prototype; last delivery. Supporting helpers have scoped unit
 coverage, but native backend startup, portable bundling and clean installation
-on macOS, Linux and Windows remain open per
-[STUDIO-M9-DESKTOP-CHECKPOINT.json](STUDIO-M9-DESKTOP-CHECKPOINT.json).
+on macOS, Linux and Windows remain open.
 Requested: 21 October 2026.
 Placement: reusable framework distribution and desktop launcher.
 
 This is milestone 9, a user-approved addition to the
-[current implementation plan](STUDIO-IMPLEMENTATION-PLAN.md). It preserves
+current implementation plan. It preserves
 the frozen eight-milestone reference inventory and its acceptance counts. Desktop
 completion is a separate delivery gate covering macOS, Linux and Windows.
 

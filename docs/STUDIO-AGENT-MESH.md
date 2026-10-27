@@ -1,6 +1,6 @@
 # Native Agent Mesh Architecture
 
-Nexus provides a native, broker-free **Agent Mesh** fabric ([agent_mesh.py](file:///Users/gabrielebertini/git/ghabs/nexus-arc/nexus/core/agent_mesh.py)) for decoupled multi-agent choreography. It implements event-driven multi-agent architectural patterns without any external broker infrastructure, proprietary protocols, or third-party client dependencies.
+Nexus provides a native, broker-free **Agent Mesh** fabric ([agent_mesh.py](../nexus/core/agent_mesh.py)) for decoupled multi-agent choreography. It implements event-driven multi-agent architectural patterns without any external broker infrastructure, proprietary protocols, or third-party client dependencies.
 
 ---
 
@@ -9,7 +9,7 @@ Nexus provides a native, broker-free **Agent Mesh** fabric ([agent_mesh.py](file
 | Pattern | Central Orchestration | Native Nexus Agent Mesh |
 |---|---|---|
 | **Coupling** | Direct synchronous RPCs, hardwired agent IDs | Decoupled event pub/sub over hierarchical topics |
-| **Discovery** | Central controller maintains static mapping | Dynamic presence announcements and TTL heartbeats ([PeerRegistry](file:///Users/gabrielebertini/git/ghabs/nexus-arc/nexus/agents/peer_registry.py)) |
+| **Discovery** | Central controller maintains static mapping | Dynamic presence announcements and TTL heartbeats ([PeerRegistry](../nexus/agents/peer_registry.py)) |
 | **Routing** | Caller specifies exact destination worker | Dynamic capability routing by advertised skill (`route_capability`) |
 | **Correlation** | Synchronous blocking HTTP/socket calls | Asynchronous request-reply with correlation IDs and reply topics |
 | **Broker Infrastructure** | Proprietary broker clusters required | 100% native Python (`asyncio`), zero broker dependencies |
@@ -39,7 +39,7 @@ The mesh organizes communications into a dot-delimited hierarchy matching MQTT a
 
 ## 3. Standard Message Envelope
 
-All traffic on the mesh travels in a standardized [AgentMeshEnvelope](file:///Users/gabrielebertini/git/ghabs/nexus-arc/nexus/core/agent_mesh.py):
+All traffic on the mesh travels in a standardized [AgentMeshEnvelope](../nexus/core/agent_mesh.py):
 
 ```python
 @dataclass
@@ -95,5 +95,5 @@ await mesh.reply(request_env, payload={"status": "completed", "report": report_t
 
 ## 5. Verification
 
-- Test suite: [test_agent_mesh.py](file:///Users/gabrielebertini/git/ghabs/nexus-arc/tests/test_agent_mesh.py) (11 tests passed).
-- Consumer example: [studio_agent_mesh.py](file:///Users/gabrielebertini/git/ghabs/nexus-arc/examples/nexus-bot/src/studio_agent_mesh.py).
+- Test suite: [test_agent_mesh.py](../tests/test_agent_mesh.py) (11 tests passed).
+- Consumer example: [studio_agent_mesh.py](../examples/nexus-bot/src/studio_agent_mesh.py).

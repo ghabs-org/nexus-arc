@@ -1,0 +1,162 @@
+{
+  "format": "nexus-studio-speech-lifecycle/v1",
+  "date": "2026-10-27",
+  "status": "fixed-source-and-real-linux-verified",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Linux local speech cancellation, shutdown, timeout and owner death; scoped real Docker/Linux child-process tests plus real model compatibility. No VM, cloud account, device or app installer.",
+  "reproduced_before_fix": {
+    "cancellation_wait_seconds": 0.888,
+    "detached_child_alive_after_cancel": true,
+    "setup": "Controlled Linux child ignores SIGTERM, starts a new session and outlives its immediate parent; command timeout was 1 second, not the normal 90/130 seconds. Exact test-owned child killed afterward."
+  },
+  "cause": "The previous local_process shielded subprocess.run and waited for its wall timeout. subprocess.run timeout kills only its immediate child; detached descendants survived.",
+  "implementation": [
+    "Linux speech uses an isolated per-command owner via the existing stdlib-only MCP supervisor file. Shared subreaper/pidfd helpers retain current-child identity guards; existing MCP mode remains unchanged.",
+    "A bounded private input frame provides finite bytes and closes only worker input. A separate open stdin channel carries lifetime; EOF/cancel/timeout/signal stops owned direct/adopted descendants.",
+    "Input/output draining preserves the lifetime channel. Cancellation racing with launch is retained until the supervisor is owned and cleaned. No retry or API fallback is added.",
+    "Hidden own-child views, malformed frames and missing required Linux primitives fail before the speech command launches. Other platforms retain the old execution path.",
+    "Thin example and offline Linux fixture cover ordinary Studio speech jobs, detached SIGTERM-resistant children and owner SIGKILL. Real Piper/Whisper compatibility is checked independently."
+  ],
+  "validation": {
+    "required": {
+      "tests": 72,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 6.945,
+      "report": "/private/tmp/nexus-speech-lifecycle-required.xml",
+      "sha256": "0e50fae33c78e32bd9cda460bd7234a9b18e9c52a36ecdbe400daad930d5d93a",
+      "cases": []
+    },
+    "actual_lifetimes": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 6.831,
+      "report": "/private/tmp/nexus-speech-lifecycle-actual.xml",
+      "sha256": "355504b17c2e701d6cb84607d794ffcec7958ea0c2709bcdb0ee83f7cb5a1cab",
+      "cases": [
+        {
+          "cancel": {
+            "detached_child_removed": true,
+            "elapsed_seconds": 0.027
+          },
+          "finite_input": {
+            "bytes_and_errors_preserved": true
+          },
+          "owner_death": {
+            "detached_child_removed": true
+          },
+          "shutdown": {
+            "detached_child_removed": true,
+            "elapsed_seconds": 0.019
+          },
+          "timeout": {
+            "detached_child_removed": true,
+            "failure_retained": true
+          }
+        }
+      ]
+    },
+    "real_models": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 9.674,
+      "report": "/private/tmp/nexus-speech-lifecycle-models.xml",
+      "sha256": "1e400f9b3e9b62e9c44ab45d51e276b6b981969f29330508914fe53d92210a23",
+      "cases": [
+        {
+          "api_client_used": false,
+          "audio_seconds": 3.193,
+          "generated_wav_bytes": 140844,
+          "microphone_used": false,
+          "model_downloaded_by_worker": false,
+          "packages": {
+            "onnxruntime": "1.31.1",
+            "openai-whisper": "20250625",
+            "piper-tts": "1.8.0",
+            "torch": "2.14.1+cpu"
+          },
+          "platform": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+          "private_audio_artifact": true,
+          "synthesis_completed": true,
+          "synthesis_seconds": 2.184,
+          "temporary_audio_removed": true,
+          "transcript": "Judioc and Run Local Speech Without An External Account.",
+          "transcription_completed": true,
+          "transcription_seconds": 3.466,
+          "worker_sha256": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7"
+        }
+      ]
+    }
+  },
+  "fixture": {
+    "image_id": "sha256:298dc55ef6b5f49365e585e147c96c0f77a4b5b6ba5af4ec23cd8445eef96c0a",
+    "base_image_id": "sha256:715a7dc48166e6750f3fedf51c9d2ac78b3ec52b74edb8f0de218bcfbd08e817",
+    "architecture": "linux/arm64",
+    "network": "none",
+    "user": "65534:65534",
+    "root_filesystem": "read-only",
+    "lifetime_case_limits": {
+      "memory_mib": 512,
+      "pids": 128,
+      "cpus": 2,
+      "tmpfs_mib": 64
+    },
+    "lifetime_case_mounts": "No host mounts, credentials, model or microphone. Temporary executable storage is enabled only for the controlled synthetic Piper script.",
+    "model_case_mounts": "Original three verified public model files, read-only; original noexec temporary mount protections and inference limits retained.",
+    "new_dependency_downloads": 0,
+    "new_model_downloads": 0,
+    "api_calls": 0,
+    "container_cleanup": "Exact named containers removed by both host gates and independently verified absent. Cached test images remain available.",
+    "image_source_sha256": {
+      "/checks/nexus/core/studio_speech.py": "f861821cb1bf171f66c6319257d3f7f05255454bdd422eee9d9cc69700b2af56",
+      "/checks/nexus/core/studio_speech_process.py": "4928d0af33a6f5967c747ecd3178a28e5ea13549c8a4687dc13b41dec22d7ebc",
+      "/checks/nexus/core/studio_mcp_supervisor.py": "30efe7ac7a7ec4d47094ddfdbb679b54911e2e6183ea5bde0bedbdd0c13276e2",
+      "/checks/studio_speech_lifecycle.py": "9a3ab4baf04a9ac267dbd4e648b6c2d046942f356054731f163b5f523f335a8e"
+    },
+    "source_manifest_sha256": "130d786d358bbab86d13d7e6715ad96d6682fdc43e5ee055da6b75dd14b37a58"
+  },
+  "development_corrections": [
+    "Initial integration used asyncio communicate(), which closed the owner pipe prematurely. Independent stream draining fixes this; final real-model and finite-input checks pass.",
+    "The controlled executable initially could not run in noexec temporary storage. Only the synthetic lifetime fixture now explicitly enables temporary execution; real inference protections stay unchanged."
+  ],
+  "compatibility": {
+    "profile_schema_changed": false,
+    "api_payload_changed": false,
+    "state_schema_changed": false,
+    "cpu_memory_wall_limits_changed": false,
+    "non_linux_execution_changed": false,
+    "automatic_retry_added": false,
+    "source_upgrade": "Upgrade package and restart Studio. Queued profiles, audio references and normal job receipts remain readable. No bulk migration or workspace rewrite.",
+    "frozen_worker": "Reuse the existing trusted supervisor entrypoint and collected worker data. No new worker selector or installer build; installed/frozen Linux proof remains separate."
+  },
+  "pending": [
+    "Actual macOS/Windows speech process-tree containment; those paths are deliberately unchanged.",
+    "Personal VM and installed/frozen Linux/Desktop acceptance for this source fix.",
+    "Physical recording/playback/permissions, selected speech API accounts and broader language/model quality.",
+    "Kernel/containment failures beyond available Linux own-child/proc/pidfd/subreaper primitives; no complete hostile-code sandbox claim."
+  ],
+  "migration": "No stored data, credentials, jobs, authentication, billing or provider changes. New ownership IPC is private and ephemeral; no command is automatically retried.",
+  "source_sha256": {
+    "nexus/core/studio_speech.py": "f861821cb1bf171f66c6319257d3f7f05255454bdd422eee9d9cc69700b2af56",
+    "nexus/core/studio_speech_process.py": "4928d0af33a6f5967c747ecd3178a28e5ea13549c8a4687dc13b41dec22d7ebc",
+    "nexus/core/studio_mcp_supervisor.py": "30efe7ac7a7ec4d47094ddfdbb679b54911e2e6183ea5bde0bedbdd0c13276e2",
+    "examples/nexus-bot/src/studio_speech_lifecycle.py": "9a3ab4baf04a9ac267dbd4e648b6c2d046942f356054731f163b5f523f335a8e",
+    "tests/test_studio_mcp_supervision.py": "aaf550ceba4b3b2b18428fa7e508e541aa9065751830bd3114f3561634df9fe2",
+    "tests/studio_linux_speech_lifecycle_acceptance.py": "0cd9ca6f3718cd66be895347ab7b1793bbbf0eea193ab783af8b534ebd95eeeb",
+    "deploy/studio/recovery-checks/Dockerfile.speech-lifecycle": "7ea8fa4db32939e6d6ff92ad33357e9c689f64485cc278db8a32900f21702aff",
+    "docs/STUDIO-SPEECH.md": "d11e007140abfa0d5f709b81ac9f5f145100b8ec22e17584e13e31f04240d93a",
+    "postman/contracts/studio-speech.md": "ce11f0038244dd346e178483c78773ff11f9e0fa48e0bb0e3de9a36d6516b945"
+  },
+  "vm_contacted": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

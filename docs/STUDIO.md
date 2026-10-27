@@ -21,7 +21,7 @@ process per state directory. SQL mode supports multiple controllers/workers.
 | --- | --- |
 | Codex | Official `codex` CLI and its local sign-in |
 | Claude Code | Official `claude` CLI and its local sign-in |
-| Copilot, Codex CLI, OpenCode | Their installed official/local CLI configuration |
+| GitHub Copilot, Google Antigravity, OpenCode | Their installed official CLI and its local sign-in |
 | OpenAI API | `OPENAI_API_KEY`, `nexus-arc[openai]` |
 | Anthropic API | `ANTHROPIC_API_KEY`, `nexus-arc[anthropic]` |
 
@@ -50,7 +50,7 @@ user and isolates supported coding CLIs in reviewed containers.
 
 Quick Build offers use-case, problem, role and process starters, conversation
 refinement, saved draft history, resource attachments, review, save and test.
-Generation supports Codex, Claude Code, OpenAI API and Anthropic API. Generation
+Generation supports Codex, Claude Code, Google Antigravity, OpenAI API and Anthropic API. Generation
 runs separately from execution, with coding tools disabled/restricted by the
 builder adapter; normal desktop workflow execution uses the project workspace.
 

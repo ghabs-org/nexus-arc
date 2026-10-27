@@ -1,0 +1,9 @@
+version: 1
+name: Read-only Azure Blob artifact backup contract
+slug: studio-azure-backup
+protocol: http
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

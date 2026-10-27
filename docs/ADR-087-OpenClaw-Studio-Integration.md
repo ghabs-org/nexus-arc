@@ -73,4 +73,4 @@ The [wire contract](../postman/contracts/studio-openclaw.md) defines exact opera
 arguments. Local tests cover the plugin runtime harness, actual Studio HTTP/jobs,
 restart recovery, scoped artifacts and approval/input continuation. Configured
 gateway channels and personal HTTPS VM verification remain separate pending
-checks in the [checkpoint](STUDIO-M12-OPENCLAW-CHECKPOINT.json).
+checks.

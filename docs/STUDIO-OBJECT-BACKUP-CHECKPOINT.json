@@ -64,8 +64,8 @@
     "existing_test_naming_findings": "Pre-existing N803 names mirror boto3 keyword names in old fake-client methods; no new naming findings."
   },
   "validation_pending": [
-    "Actual GCS/Azure SDK runtime acceptance and selected live S3/GCS/Azure permissions, retention/history and restore checks.",
-    "Real PostgreSQL state/restore, personal HTTPS VM and existing authentication/account-store disaster recovery.",
+    "Selected live S3/GCS/Azure authentication, permissions, retention/history and account restore checks. Actual GCS/Azure SDK local HTTP acceptance is covered by the follow-up checkpoint.",
+    "Personal HTTPS VM and existing authentication/account-store disaster recovery. Real local PostgreSQL logical restore is separately recorded in STUDIO-POSTGRES-RESTORE-CHECKPOINT.json.",
     "Remaining frozen catalog, cross-cutting and desktop delivery gates; no blanket acceptance promotion."
   ],
   "source_sha256": {
@@ -85,5 +85,9 @@
   },
   "real_storage_accounts_used": false,
   "user_studio_restarted": false,
-  "desktop_stays_last": true
+  "desktop_stays_last": true,
+  "cloud_sdk_followup": {
+    "checkpoint": "STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json",
+    "scope": "Actual GCS/Azure SDK local HTTP backup, bounded reads and offline restore; prior injected/S3 evidence and source hashes remain historical."
+  }
 }

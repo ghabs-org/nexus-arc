@@ -133,3 +133,26 @@ as Linux PID 1 and required Docker's forced kill. Cooperative framework handling
 now requests normal loop shutdown, closes the listener/ownership connection and
 restores the prior signal policy. Normal stop exits 0; explicit SIGKILL exits 137
 and retains committed recovery. No HTTP format or persisted receipt changes.
+
+## Local mutual-TLS certificate lifecycle acceptance
+
+`tests/studio_tls_lifecycle_acceptance.py` uses actual Docker CLI `version`
+requests through the existing TLS gateway and filtering proxy to the real local
+engine. It tests expired client/server rejection, same-CA server-leaf renewal,
+overlapping CA trust, withdrawal of an old client authority and rejection by a
+client still trusting only the old server authority. Every proxied request is
+read-only. Host-side fixture creation/restart/removal is separate test orchestration.
+
+Server-side SSL rejection reasons complement client diagnostics, because client
+certificate failures can surface as EOF/reset in TLS 1.3. The fixture generates
+fresh private authorities in initializer tmpfs; only leaf keys and public CA
+certificates reach the isolated runtime volumes. TLS verification stays enabled.
+No real user credentials, external services, HTTP stand-ins or VM are involved.
+
+The selected gateway restarts when files change. CA trust withdrawal does not
+prove per-leaf revocation or termination of established sessions. Automated
+renewal/hot reload, CRL/OCSP, selected production TLS provisioning and personal-VM
+repetition remain separate. No endpoint payload, ownership record or product
+authentication behavior changes. See
+[evidence](../../docs/STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) and
+[the repeatable recipe](../../deploy/studio/recovery-checks/README.md#mutual-tls-certificate-lifecycle).

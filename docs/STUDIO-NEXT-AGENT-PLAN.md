@@ -4,10 +4,76 @@
 only after an explicit user request. Routine implementation must leave existing
 DMGs and their recorded checksums unchanged.
 
-Updated 26 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
+Updated 27 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
 current implementation plan first. Inspect the working tree before edits and
 preserve work from other agents. This handoff identifies remaining delivery
 capabilities; do not rebuild features already present.
+
+## Current handoff — authoritative status
+
+The full plan is not complete. The frozen inventory records 135 locally accepted
+flags, including milestones 5 and 6; these are not a deployment/desktop readiness
+percentage. Milestones 10–12 also have scoped local delivery. Preserve their
+implementations and verify the remaining target environments rather than rebuilding
+them. Older dated notes below are history, not additional missing implementations.
+
+### Recently completed
+
+| Slice | Current evidence | Remaining boundary |
+| --- | --- | --- |
+| Local Docker restart/lost replies | [2 real-engine checks](STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json) | Personal VM repetition; daemon/power-loss |
+| PostgreSQL logical restore | [47 native/regression checks](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json) | Actual VM/account-store recovery and deployment-specific physical database recovery |
+| GCS/Azure storage SDKs | [44 SDK/regression checks](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json) | Real cloud IAM/retention/history; remaining timeout/retry scenarios |
+| TLS certificate lifecycle | [49 real-engine/regression checks](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) | Production provisioning, automatic renewal, per-leaf revocation and established sessions |
+| Linux speech and detached-child fix | [74 focused/real checks](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json) | Non-Linux containment, installed applications, devices and VM |
+| Direct TypeSafe decisions | [Provider and integration evidence](STUDIO-TYPESAFE-DECISION-CHECKPOINT.json) | Selected real account acceptance |
+
+Counts overlap and must not be summed into a full-suite total. The Linux speech
+fix changes source behavior: cancellation, shutdown, timeout and owner death stop
+owned detached children. Its real Piper/Whisper roundtrip also passes. The tiny
+model's name-recognition error remains documented. This fix is not deployed to
+the VM or included in the existing DMG.
+
+Native macOS authentication, workspace locking, bundled Python and full-SDK
+tester installation already have proof. The macOS arm64 beta is ad-hoc signed,
+not notarized; latest source fixes are not packaged. Final desktop release and
+Linux/Windows installed-platform acceptance remain open. See
+[tester evidence](STUDIO-DESKTOP-FRIEND-DMG-CHECKPOINT.json).
+
+### Remaining work, in delivery order
+
+1. **Local work while VM access is deferred.** Reproduce and close macOS speech
+   child containment without weakening the Linux fix; finish Azure timeout/retry
+   failure cases with actual SDKs; investigate the retained historical PDF stability
+   gap. Exit: matching source/real-process or SDK evidence, focused regressions and
+   explicit remaining platform limits. Do not rebuild a DMG.
+2. **Selected accounts and physical devices.** Check configured integration
+   permissions/authentication, API voice/embedding quality and billing paths;
+   verify real phone/tablet microphone, playback, touch and accessibility. Exit:
+   account/device results identify exactly what ran; unavailable prerequisites stay
+   pending. Local HTTP/SDK fixtures and emulated widths are already available.
+3. **Deferred personal VM operations.** When the user can interact again, prepare
+   a reviewed candidate containing later source fixes, retain backup/inactive
+   restore/rollback, then verify signed-in execution, controlled worker/proxy
+   interruption and actual account-store/full-host restoration. Existing selected
+   VM upgrade/worker evidence remains valid for its recorded version, not later
+   code. Do not contact or modify the VM while the deferral remains active.
+4. **Final evidence reconciliation.** Retain explicit exclusions and compatibility
+   fixtures, check source/release/report hashes and update scoped acceptance.
+   Production-specific certificate renewal/revocation and physical SQL/daemon
+   recovery require their own chosen deployment procedures; fixture success does
+   not certify them. Do not turn optional new-provider or broader-source semantics
+   into silent additions to the frozen target.
+5. **Milestone 9 last.** Finish installed Linux/Windows authentication, ownership,
+   lifecycle and workspace flows; clean downloaded testing on another Mac;
+   Developer ID/notarization, Windows signing and verified updates. Reuse the
+   implemented shell/server/UI and packaging. Create a new DMG only on explicit
+   request, then test that exact new artifact. Existing beta proof is not proof
+   for a later source revision.
+
+Completion requires both frozen scoped evidence and the remaining required
+delivery gates. The desktop completion flags are reopened to match the explicit
+pending release checks; no frozen feature acceptance flag is promoted or removed.
 
 ## What is already present
 
@@ -15,7 +81,8 @@ capabilities; do not rebuild features already present.
   mark. Passive local speech readiness reports missing model/runtime dependencies
   before recording without downloading models or introducing API fallback.
   A later user-approved local Piper/Whisper roundtrip is now verified; physical
-  devices, API accounts, native Windows/Linux and personal VM checks remain open.
+  devices, API accounts, installed Windows/Linux and personal VM checks remain open.
+  Linux-container inference and child ownership have the later evidence above.
 
 - Extended Slack gateway code now includes outbound artifacts, rich replies,
   feedback/cancellation, workflow threads and Socket Mode. Its checkpoint reports
@@ -551,3 +618,77 @@ The example accepts explicit disposable source/target URLs and retains SQLite
 as its default. VM/account-store recovery, physical PostgreSQL recovery, cluster
 failover, power-loss and cloud-account checks remain open. The VM was not
 contacted; no DMG was rebuilt and no frozen acceptance count changes.
+
+## Actual GCS/Azure SDK backup acceptance — 27 October 2026
+
+The earlier missing-SDK gap is closed for local source execution. Actual Google
+Cloud Storage and Azure Blob Storage clients now read through independent local
+Postman HTTP fixtures. Each captures two revisions, restores private bytes and
+pinned document citations offline, preserves source metadata, bounds reads and
+rejects missing, denied, corrupt or oversized objects without publishing a
+snapshot. Empty objects avoid media reads; deliberately overlong responses fail.
+GCS generation preconditions and 412/503 failures are additionally checked.
+
+Two explicit SDK checks and 42 existing artifact-store/backup regressions pass,
+with zero skips. No product runtime, authentication or schema changes were needed.
+The reusable fixture and command are recorded in
+[simulation context](../postman/simulations/studio-cloud-backup.context.md) and
+[checkpoint](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json). Local emulator/synthetic
+credentials do not prove cloud IAM, account permissions, retention/history or
+Azure transient retry timing. Those checks remain open. The VM was not contacted,
+no DMG was rebuilt and frozen acceptance counts remain unchanged.
+
+## Local TLS certificate lifecycle — 27 October 2026
+
+The existing real Docker client, filtered proxy and TLS gateway now pass an
+explicit certificate lifecycle gate. Expired client/server certificates are
+rejected. A same-CA server-leaf renewal works. Overlapping trust accepts old/new
+clients; withdrawing the old CA rejects its client while the new client works.
+A client retaining only the old server authority rejects the rotated server.
+Actual gateway SSL reasons and Docker diagnostics establish the rejection paths.
+
+One real-engine lifecycle check and 48 route/policy regressions pass without
+skips. Fixture identities stay on a disposable internal network; only the
+trusted proxy has the raw socket. All four volumes, containers and the network
+are removed. No product runtime change, worker execution, provider request,
+VM connection or DMG rebuild was needed. See
+[evidence](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) and the existing recovery runbook.
+Gateway restarts load changed certificates; automatic renewal/hot reload,
+per-leaf revocation/CRL/OCSP, established-session invalidation and selected
+production/VM TLS provisioning remain open. Frozen acceptance counts are unchanged.
+
+## Real Linux local voice — 27 October 2026
+
+The real Piper/Whisper job roundtrip now passes on Linux/arm64 in a disposable,
+network-disabled container. It reuses the previously approved model files and
+their verified hashes; no models are bundled or fetched during inference.
+CPU-only PyTorch/Whisper and Piper generate a 3.1-second WAV and transcribe the
+core sentence. The tiny model mishears the initial name as “Judio”; retain that
+quality limit rather than claiming exact or general transcription accuracy.
+
+One actual model-runtime gate plus 39 speech/readiness/pinning/cleanup regressions
+pass, with zero skips. Private audio and temporary-file cleanup pass; the test
+container is removed. Product runtime and existing Linux limits pass unchanged.
+See [evidence](STUDIO-LINUX-SPEECH-CHECKPOINT.json) and the recovery-check recipe.
+No VM connection, remote speech account, microphone or DMG rebuild was used.
+Windows inference, physical Linux/installed-desktop operation, actual process-tree
+interruption, device permissions and VM deployment remain separate. Frozen
+acceptance counts are unchanged.
+
+## Linux speech cancellation and ownership — 27 October 2026
+
+Real local reproduction found a speech child-lifetime bug: cancellation waited
+for its subprocess timeout and a detached resistant child survived. Linux speech
+now reuses the existing isolated subreaper/pidfd cleanup with finite input and a
+separate ownership pipe. Cancel, shutdown, timeout and controller death stop the
+owned tree before temporary cleanup; no late audio artifact is published.
+Missing ownership support fails before launch; no API fallback or replay occurs.
+
+The framework fix, thin example and offline Linux fixture pass 72 focused
+speech/MCP/worker-routing regressions plus actual Linux lifetime and real-model
+gates, with zero skips. Finite input/output and errors remain compatible. See
+[evidence](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json). No schema, profile, API payload,
+CPU/address-space/wall-limit or non-Linux execution changes. Upgrade package and
+restart to activate the fix. The VM was not contacted; no DMG was rebuilt.
+Windows/macOS containment, installed-platform and personal-VM repetition remain
+open. Frozen acceptance totals are unchanged.

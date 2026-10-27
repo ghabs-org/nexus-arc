@@ -2,6 +2,7 @@
 
 The process owns one MCP child tree. It does not scan other processes or share
 subreaper state with the application, its worker threads or other MCP sessions.
+The private speech mode reuses this ownership for commands with finite input.
 """
 
 import ctypes
@@ -141,18 +142,97 @@ def supervise(command):
 
 def main():
     command = sys.argv[1:]
+    speech = command[:1] == ["--speech"]
+    if speech:
+        command = command[1:]
     if command[:1] == ["--"]:
         command = command[1:]
     if not command or not command[0]:
         print("Specify an MCP server command.", file=sys.stderr)
         raise SystemExit(2)
     try:
-        result = supervise(command)
+        result = supervise_speech(command) if speech else supervise(command)
     except (OSError, ValueError):
         # Launch errors may contain private paths or server arguments.
-        print("Linux MCP supervision could not initialize or launch the server.", file=sys.stderr)
+        print(
+            "Linux speech supervision could not initialize or launch the worker."
+            if speech
+            else "Linux MCP supervision could not initialize or launch the server.",
+            file=sys.stderr,
+        )
         result = 125
     raise SystemExit(result)
+
+
+def supervise_speech(command):
+    """Deliver finite speech input while keeping stdin as a separate owner lease."""
+    import base64
+    import json
+
+    children_path = _configure()
+    with children_path.open("rb") as stream:
+        stream.read(1)
+    stopping = False
+
+    def stop(*_):
+        nonlocal stopping
+        stopping = True
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    header = sys.stdin.buffer.readline(1048577)
+    if not header or stopping:
+        return 0
+    if len(header) > 1048576 or not header.endswith(b"\n"):
+        raise ValueError("Invalid local speech frame")
+    payload = json.loads(header)
+    if not isinstance(payload, dict) or set(payload) != {"input"}:
+        raise ValueError("Invalid local speech frame")
+    content = payload["input"]
+    if content is not None and not isinstance(content, str):
+        raise ValueError("Invalid local speech frame")
+    pending = bytearray(base64.b64decode(content, validate=True) if content is not None else b"")
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, bufsize=0, close_fds=True)
+    result = 0
+    try:
+        poller = select.poll()
+        poller.register(0, select.POLLIN)
+        target = process.stdin.fileno()
+        if pending:
+            os.set_blocking(target, False)
+            poller.register(target, select.POLLOUT)
+        else:
+            process.stdin.close()
+        while not stopping and process.poll() is None:
+            for descriptor, event in poller.poll(50):
+                if descriptor == 0:
+                    if event & (select.POLLHUP | select.POLLERR | select.POLLNVAL | select.POLLIN):
+                        stopping = True
+                        break
+                elif event & select.POLLOUT:
+                    try:
+                        sent = os.write(target, pending)
+                    except BlockingIOError:
+                        continue
+                    del pending[:sent]
+                    if not pending:
+                        poller.unregister(target)
+                        process.stdin.close()
+                elif event & (select.POLLHUP | select.POLLERR | select.POLLNVAL):
+                    stopping = True
+                    break
+        result = process.poll() or 0
+    except BrokenPipeError:
+        result = 1
+    finally:
+        confirmed = _cleanup(children_path)
+        process.stdin.close()
+        if not confirmed:
+            print(
+                "Local speech descendant cleanup remains unconfirmed.", file=sys.stderr, flush=True
+            )
+            result = 125
+    return result if result >= 0 else 1
 
 
 if __name__ == "__main__":

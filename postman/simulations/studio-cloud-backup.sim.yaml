@@ -1,0 +1,7 @@
+simulation: studio-cloud-backup
+routing: path
+mocks:
+  - routeKey: gcs
+    path: ../mocks/studio-gcs-backup/config.yaml
+  - routeKey: azure
+    path: ../mocks/studio-azure-backup/config.yaml

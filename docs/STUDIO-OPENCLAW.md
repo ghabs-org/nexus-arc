@@ -201,8 +201,7 @@ requests and a refused connection, and verifies that redirects and mutations are
 not retried. It reports `transport: node`; it does not certify Postman simulation
 support. There is no automatic fallback from a failed Postman run.
 
-See the [wire contract](../postman/contracts/studio-openclaw.md) and
-[acceptance checkpoint](STUDIO-M12-OPENCLAW-CHECKPOINT.json). Live Telegram/Discord
+See the [wire contract](../postman/contracts/studio-openclaw.md). Live Telegram/Discord
 gateway and personal HTTPS VM drills remain separate pending checks.
 
 ### Rollback

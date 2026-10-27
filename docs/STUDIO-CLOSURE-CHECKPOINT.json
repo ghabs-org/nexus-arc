@@ -865,7 +865,7 @@
     "Physical phone/tablet microphone, touch, accessibility and playback checks not run.",
     "Real local voice models and selected external account/service quality, permissions and billing checks not certified.",
     "Live database-family, remote object-store and desktop platform installation checks remain separate from injected contract fixtures.",
-    "Object backup: actual GCS/Azure SDK runtime checks and selected live cloud-account permissions, retention/history and restore drills remain separate from local store contracts and the S3 HTTP simulation.",
+    "Object backup: actual GCS/Azure SDK reads now pass local HTTP simulations (STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json). Selected live cloud-account authentication, permissions, retention/history and restore drills remain pending.",
     "Connected desktop bundle: one repeated relocated acceptance run lost PDF extraction metadata; later full and direct worker runs pass. Cause remains unproven; retain this stability gap (STUDIO-DESKTOP-PROFILES-CHECKPOINT.json).",
     "Local real SSH gateway loss/reconnect is now source-verified. Selected personal VM SSH is verified. Daemon restart/power-loss, changed SSH/DNS/host-key identity and frozen/installed transport remain pending; see STUDIO-SSH-PROXY-CHECKPOINT.json.",
     "Local mutual-TLS authentication/rejection and TLS/SSH disconnect recovery now have source evidence. Selected personal VM HTTPS shell/certificate checks pass. Mutual-TLS proxy provisioning, certificate expiry/rotation/revocation, daemon restart/power-loss and frozen/installed transport remain pending; see STUDIO-TLS-PROXY-CHECKPOINT.json."
@@ -944,7 +944,18 @@
       "skipped": 0,
       "report": "/private/tmp/nexus-object-backup-required-final.xml"
     },
-    "whole_plan_complete": false
+    "whole_plan_complete": false,
+    "cloud_sdk": {
+      "checkpoint": "STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json",
+      "sdk_tests": 2,
+      "existing_regressions": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "scope": "Real SDKs against local HTTP simulations only; live cloud IAM/account checks remain pending.",
+      "vm_changed": false,
+      "dmg_rebuilt": false
+    }
   },
   "status_reconciliation": {
     "date": "2026-10-24",
@@ -964,5 +975,39 @@
   "slack_file_followup": "docs/STUDIO-SLACK-FILES-CHECKPOINT.json",
   "native_startup_followup": "docs/STUDIO-DESKTOP-STARTUP-CHECKPOINT.json",
   "brand_voice_followup": "docs/STUDIO-BRAND-VOICE-CHECKPOINT.json",
-  "native_parent_followup": "docs/STUDIO-DESKTOP-PARENT-CHECKPOINT.json"
+  "native_parent_followup": "docs/STUDIO-DESKTOP-PARENT-CHECKPOINT.json",
+  "tls_certificate_lifecycle_followup": {
+    "checkpoint": "STUDIO-TLS-LIFECYCLE-CHECKPOINT.json",
+    "real_lifecycle_checks": 1,
+    "route_policy_regressions": 48,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "scope": "Real local Docker TLS gateway only; CA withdrawal is not per-leaf revocation. Production/VM provisioning remains pending.",
+    "vm_changed": false,
+    "dmg_rebuilt": false
+  },
+  "linux_local_voice_followup": {
+    "checkpoint": "STUDIO-LINUX-SPEECH-CHECKPOINT.json",
+    "real_model_checks": 1,
+    "speech_regressions": 39,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "scope": "Actual Linux/arm64 container inference only; tiny-model name recognition error retained. VM/device/installed-OS/account and process-tree interruption remain separate.",
+    "vm_changed": false,
+    "dmg_rebuilt": false
+  },
+  "linux_speech_lifetime_followup": {
+    "checkpoint": "STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json",
+    "required": 72,
+    "real_lifetime_gate": 1,
+    "real_model_gate": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "scope": "Linux source fix and real local container proof only; non-Linux/VM/installed-platform acceptance remains separate.",
+    "vm_changed": false,
+    "dmg_rebuilt": false
+  }
 }

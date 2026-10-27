@@ -179,3 +179,49 @@ process-tree containment remain separate acceptance.
 The browser recording/playback controls, selected language/voice on real devices,
 API-account use, personal VM and installed desktop builds still need their own
 checks. No DMG or app installer was rebuilt for this change.
+
+## Real Linux container voice acceptance — 27 October 2026
+
+The same existing models now run through ordinary Studio synthesis/transcription
+jobs on Linux/arm64 in a disposable container. The real Piper voice generates a
+3.1-second WAV; CPU Whisper recognizes the core sentence, although the tiny model
+transcribes the leading name as “Judio” rather than “Studio”. This proves the
+runtime path and cleanup, not exact transcription or general speech quality.
+
+The inference container has no network, a read-only root, no capabilities, uid/gid
+65534 and read-only mounts of three model files whose hashes match the earlier
+Mac acceptance. Only temporary storage is writable. Existing 120-second CPU,
+4 GiB Linux virtual-address and parent wall-time limits are unchanged. The test
+refuses construction of a remote speech client, checks private audio/temporary
+cleanup and removes its container afterward. No model is bundled or downloaded
+at inference time. The fixture image remains available for explicit retesting.
+
+See [the repeatable Linux recipe](../deploy/studio/recovery-checks/README.md#real-linux-local-speech)
+and [evidence](STUDIO-LINUX-SPEECH-CHECKPOINT.json). Linux container execution does
+not certify Windows inference, an installed desktop app, a physical Linux host,
+process-tree cancellation, microphone/playback permissions or the personal VM.
+
+## Linux speech process ownership — 27 October 2026
+
+Local Linux speech now stops its owned process tree when a job is cancelled,
+Studio shuts down, the wall timeout expires or the owning process disappears.
+Previously cancellation waited for `subprocess.run` to finish, and timeout killed
+only its immediate child. A real Linux reproduction left a detached,
+SIGTERM-resistant descendant alive after cancellation.
+
+The fixed path reuses the existing isolated Linux subreaper and pidfd cleanup.
+A bounded private frame supplies finite speech input; a separate open stdin
+channel carries owner lifetime. Cleanup signals only this supervisor's current
+direct/adopted descendants, without global process scans or application-wide
+subreaper state. Missing Linux ownership support fails before speech launches;
+it never triggers an API fallback. Other platforms keep their existing path.
+
+Real Linux cancellation, shutdown, timeout and owner-death cases stop detached
+children. Finite input, stdout/stderr and command errors retain their behavior;
+real Piper/Whisper still complete through normal Studio jobs. Cancelled jobs
+publish no audio artifact and temporary audio is removed after process cleanup.
+Profiles, request/result formats, CPU/address-space/wall limits and stored data
+are unchanged. Upgrade source/package and restart Studio to pick up the fix.
+Existing DMGs were not rebuilt; Windows/macOS process containment and installed
+app/VM acceptance remain separate. See
+[evidence](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json).

@@ -1,0 +1,93 @@
+{
+  "format": "nexus-studio-tls-lifecycle/v1",
+  "date": "2026-10-27",
+  "status": "verified-with-real-local-docker-client-proxy-and-engine",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Local Linux/arm64 certificate lifecycle through the existing mutual-TLS gateway and filtered Docker proxy. Actual Docker version calls; no HTTP stand-in, user credentials, generated workloads or personal VM.",
+  "implementation": "New explicit host gate and temporary certificate fixture reuse existing example proxy/gateway consumers. Installed proxy/gateway source matches current repository hashes. Product runtime passes unchanged.",
+  "validation": {
+    "real_certificate_lifecycle": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 29.971,
+      "report": "/private/tmp/nexus-tls-lifecycle.xml",
+      "sha256": "21c03c9b830d6d38ca8a8ac361d155e63051d42797d1979f1bc9e06f472e14ec",
+      "result": {
+        "ca_private_keys_not_in_runtime_volumes": true,
+        "docker_mutations": 0,
+        "expired_client_rejected": true,
+        "expired_server_rejected": true,
+        "new_ca_client_works": true,
+        "overlap_accepts_old_and_new_clients": true,
+        "raw_socket_only_in_proxy": true,
+        "same_ca_leaf_renewal": true,
+        "server_version": "29.9.2",
+        "stale_server_ca_rejected": true,
+        "withdrawn_client_ca_rejected": true
+      },
+      "scope_resources_removed": true
+    },
+    "route_and_policy_regressions": {
+      "tests": 48,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 1.791,
+      "report": "/private/tmp/nexus-tls-lifecycle-required.xml",
+      "sha256": "2458785cccd205bff84ad12303600e0b27cec55d7c14c690fbffdee21a8f7a6e"
+    }
+  },
+  "verified": [
+    "An initial valid client/server pair completes an actual Docker version call through the filtered proxy.",
+    "An expired client fails and the gateway reports certificate has expired; an expired server fails with the Docker client expiry diagnostic.",
+    "A newly issued server leaf under the same CA works after a controlled gateway restart.",
+    "During CA rotation, overlapping old/new trust accepts both old and new clients against the new server identity.",
+    "After old-CA withdrawal, the new client still works, the old client fails and the gateway reports an untrusted issuer. A client retaining only old server trust rejects the new server with unknown authority.",
+    "Gateway/controller lack the raw socket, ownership ledger and initializer CA private keys; runtime certificate files are private. No proxied Docker mutation occurs.",
+    "All exact test containers, four selected named volumes and internal network are removed and independently confirmed absent."
+  ],
+  "fixture": {
+    "image_id": "sha256:77d5b8a40ec1aac8ce53e4d83568c5c75666fc9c64216e86a9b3f0fbb9a57d7c",
+    "allowlisted_but_never_executed_worker_image": "sha256:e03ac21aa83450e9b50ba7dbfbca09f8ef58fc2fbbd577747f58ac68184fd740",
+    "python": "3.13.16",
+    "openssl": "OpenSSL 3.5.7 9 Jun 2026",
+    "docker_server": "29.9.2",
+    "architecture": "linux/arm64",
+    "network": "Disposable internal network; no published host ports. Trusted filtering proxy network none.",
+    "credentials": "New RSA2048 old/new test authorities; explicit expired/valid leaf dates. CA private keys only in initializer tmpfs. Separate client/server leaf-key volumes, mode 0600 files and 0700 directories.",
+    "socket": "Only trusted proxy mounts actual daemon socket. Gateway receives only filtered Unix socket; controller only client keys.",
+    "limits": "Non-root uid/gid 1001, read-only roots, dropped capabilities, no-new-privileges, memory 512 MiB, 128 processes and 2 CPUs. Proxy alone joins local socket group 0.",
+    "rotation": "Stop disposable gateway, change selected files through a volume-scoped helper, restart gateway. No hot reload or already-established session test.",
+    "docker_mutation_scope": "The zero-mutation result covers requests proxied over TLS. Host orchestration creates/stops/removes fixture containers and resources as explicitly scoped.",
+    "images_downloaded": 0,
+    "images_built": 0,
+    "analysis_workers_created": 0,
+    "external_account_calls": 0
+  },
+  "migration": "Acceptance-only additions. No product runtime, TLS settings, API payloads, stored schemas, credentials or existing Docker contexts change.",
+  "pending": [
+    "Per-leaf revocation, CRL/OCSP and established-session invalidation; withdrawing a CA is not proof of these behaviors.",
+    "Automated certificate issuance/renewal, hot reload and selected production dockerd/proxy TLS provisioning.",
+    "Personal VM repetition, daemon/power-loss, real account/device and installed desktop acceptance remain separate."
+  ],
+  "source_sha256": {
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
+    "examples/nexus-bot/src/studio_proxy_tls.py": "56703fcb6887d49b12e25962a6b196ef6fe91b3be5f40e1da8796f523690f84a",
+    "examples/nexus-bot/src/studio_proxy_linux.py": "d04cf0159a94a3b82c4f24f6f87bf20ecbf2ec002bf7ca8aea99ef4dd020876a",
+    "tests/studio_tls_lifecycle_acceptance.py": "8d7dcb499ff4aa9e042e85a33cda39be8fd5c157b31c2c3175266d1f8fa2f9a5",
+    "tests/fixtures/studio_tls_lifecycle.py": "7b07a56204ec459114a47d0d0906d1cfff6f01f7fc5dfac6e2e7e09dbb2d1bdc",
+    "postman/contracts/studio-docker-proxy.md": "4ab989db7f22c595cbd52766ddbcaecbe04b685fd6d7bac91f3117df8d7546d8"
+  },
+  "vm_contacted": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "primary_protocol_reference": "https://docs.docker.com/engine/security/protect-access/"
+}

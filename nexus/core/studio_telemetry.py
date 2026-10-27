@@ -6,6 +6,7 @@ import hashlib
 import math
 from datetime import UTC, datetime
 
+from nexus import __version__
 from nexus.core.studio_execution import _label
 
 
@@ -258,7 +259,7 @@ class StudioTelemetry:
                     "resource": {
                         "attributes": [
                             {"key": "service.name", "value": {"stringValue": "nexus-studio"}},
-                            {"key": "service.version", "value": {"stringValue": "2.409.2"}},
+                            {"key": "service.version", "value": {"stringValue": __version__}},
                         ]
                     },
                     "scopeSpans": [

@@ -359,3 +359,119 @@ skips. Existing SQLite behavior remains covered by `tests/test_studio_sql_restor
 and `examples/nexus-bot/src/studio_recovery.py --sql`. There is no persisted-format
 upgrade. This is logical SQL recovery proof, not physical PostgreSQL backup/PITR,
 cross-host failover, host power-loss or a personal-VM/account-store restore.
+
+## Mutual-TLS certificate lifecycle
+
+The explicit `tests/studio_tls_lifecycle_acceptance.py` gate reuses an already
+installed immutable TLS fixture image, the existing example filtering proxy and
+TLS gateway. It needs no image build/download and does not rebuild an app or DMG.
+Use the image identities recorded in
+[the checkpoint](../../../docs/STUDIO-TLS-LIFECYCLE-CHECKPOINT.json):
+
+```sh
+NEXUS_ACCEPTANCE_TLS_IMAGE=sha256:YOUR_INSTALLED_TLS_FIXTURE_ID \
+NEXUS_ACCEPTANCE_WORKER_IMAGE=sha256:YOUR_INSTALLED_WORKER_ID \
+NEXUS_ACCEPTANCE_DOCKER_CONTEXT=default PYTHONPATH=. \
+python -m pytest -o addopts='' tests/studio_tls_lifecycle_acceptance.py -q \
+  --junitxml=/tmp/nexus-tls-lifecycle.xml
+```
+
+The worker image is only referenced by the proxy's existing allowlist. No
+analysis worker is created or started. The host harness creates disposable
+fixture containers, four named volumes and an internal network without published
+ports. Only the trusted proxy receives the real Docker socket and private ledger.
+The gateway receives its server-key volume and filtered socket; the controller
+receives only client keys. Runtime roots are read-only with dropped capabilities,
+non-root uid/gid 1001 and bounded resources. OpenSSL creates fresh ephemeral
+authorities and leaves their private keys only in initializer tmpfs. Runtime
+files use mode 0600 and directories mode 0700. No personal keys or VM are used.
+
+Actual Docker `version` requests prove valid initial certificates work; expired
+client and server certificates fail; a renewed server leaf under the same CA
+works; overlapping trust accepts clients from both authorities; withdrawing the
+old CA rejects its client while the new client still works. A client trusting
+only the old server CA rejects the rotated server. Client diagnostics and actual
+server-side SSL reasons establish rejection. All resources are removed and
+verified absent afterward, including on failure.
+
+The disposable gateway stops and restarts to load changed files. This is not
+automatic renewal, hot reload, per-leaf revocation/CRL/OCSP, session invalidation
+or production dockerd provisioning. Those deployment checks remain separate.
+No product runtime, stored format or authentication settings change.
+
+## Real Linux local speech
+
+`Dockerfile.local-speech` overlays current framework code and the existing local
+voice example onto an explicitly installed SDK image. Build preparation downloads
+ffmpeg, CPU-only PyTorch, Whisper and Piper dependencies. It never copies model
+weights into the image and does not build an application installer. Model/runtime
+licenses remain independent; no redistribution rights are inferred.
+
+```sh
+docker build --pull=false \
+  -f deploy/studio/recovery-checks/Dockerfile.local-speech \
+  --build-arg CHECK_IMAGE=YOUR_INSTALLED_SDK_IMAGE_TAG \
+  -t nexus-local-speech:acceptance .
+export NEXUS_ACCEPTANCE_LINUX_SPEECH_IMAGE="$(docker image inspect nexus-local-speech:acceptance --format '{{.Id}}')"
+export NEXUS_ACCEPTANCE_DOCKER_CONTEXT=default
+export NEXUS_ACCEPTANCE_LOCAL_SPEECH_MODELS=/path/to/verified-local-models
+PYTHONPATH=. python -m pytest -o addopts='' tests/studio_linux_speech_acceptance.py -q \
+  --junitxml=/tmp/nexus-linux-speech-actual.xml
+```
+
+The model directory must contain the exact `tiny.en.pt`, Lessac medium ONNX and
+matching JSON files listed in `tests/studio_linux_speech_acceptance.py`. Missing
+or changed prerequisites fail explicitly, never skip or trigger model download.
+The host Python needs the repository and pytest; inference runs in the selected
+Linux image. The recorded image is Linux/arm64 and about 2.5 GiB, separate from
+any Studio application/DMG payload. See
+[the checkpoint](../../../docs/STUDIO-LINUX-SPEECH-CHECKPOINT.json) for immutable
+image identity, dependencies, model hashes and source/report checksums.
+
+Execution uses `--pull never`, network none, read-only root, uid/gid 65534,
+dropped capabilities, no-new-privileges, 2 GiB container memory, two CPUs, 128
+processes and a 512 MiB temporary filesystem. Only the three verified model files
+are mounted, read-only. No Docker socket, account credentials, host workspace or
+microphone device reaches inference. One real Piper-to-Whisper Studio job
+roundtrip checks nonempty audio, core transcript words, private artifacts and
+temporary cleanup. The exact named container is removed and confirmed absent
+even on failure. Models and the cached fixture image remain for later retesting.
+
+The tiny English model can misrecognize names; this is runtime acceptance, not
+general quality certification. Windows/installed-OS/VM, device permissions and
+actual process-tree interruption require their own gates. No product runtime or
+stored-format change is required for this successful Linux check.
+
+## Linux speech cancellation and detached children
+
+`Dockerfile.speech-lifecycle` is an offline current-source overlay onto an already
+installed check image. No dependency/model download or app/DMG build is needed.
+It reuses the new framework speech owner and existing isolated Linux subreaper.
+
+```sh
+docker build --network none --pull=false \
+  -f deploy/studio/recovery-checks/Dockerfile.speech-lifecycle \
+  --build-arg CHECK_IMAGE=nexus-local-speech:acceptance \
+  -t nexus-speech-lifecycle:acceptance .
+export NEXUS_ACCEPTANCE_SPEECH_LIFECYCLE_IMAGE="$(docker image inspect nexus-speech-lifecycle:acceptance --format '{{.Id}}')"
+export NEXUS_ACCEPTANCE_DOCKER_CONTEXT=default
+PYTHONPATH=. python -m pytest -o addopts='' \
+  tests/studio_linux_speech_lifecycle_acceptance.py -q
+```
+
+The thin example queues ordinary speech jobs using a controlled local executable
+that detaches a SIGTERM-resistant child. It checks cancellation, shutdown,
+timeout and SIGKILL of the controller, plus finite input/stdout/stderr and command
+failure preservation. No model, microphone or speech API is needed for this
+process-lifetime gate. The separate real-model gate can use this same image to
+confirm Piper/Whisper compatibility with the original read-only model mounts.
+
+The lifecycle container has no network or host mounts, a read-only root, uid/gid
+65534, no capabilities, bounded resources and only temporary storage. This
+fixture explicitly permits execution in its temporary filesystem solely for the
+known synthetic executable; real inference keeps the previous mount protections.
+The exact container is removed even on failure. Linux pidfd, own-child proc
+visibility and subreaper support are required; missing prerequisites fail rather
+than skip. No product configuration/schema migration is needed. Upgrade the
+package and restart to use the fix; source, installed app and VM acceptance stay
+separate. See [evidence](../../../docs/STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json).

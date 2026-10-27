@@ -19,7 +19,7 @@ requested agent composition using `nexus/agents/` primitives and returns the res
 
 ```
 POST http://127.0.0.1:8091/api/v1/agents/run
-Authorization: Bearer <NEXUS_BRIDGE_TOKEN>
+Authorization: Bearer <NEXUS_COMMAND_BRIDGE_AUTH_TOKEN>
 Content-Type: application/json
 
 {

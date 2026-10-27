@@ -108,5 +108,9 @@
   "desktop_app_built": false,
   "dmg_rebuilt": false,
   "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
-  "protocol_reference": "https://docs.docker.com/engine/security/protect-access/"
+  "protocol_reference": "https://docs.docker.com/engine/security/protect-access/",
+  "certificate_lifecycle_followup": {
+    "checkpoint": "STUDIO-TLS-LIFECYCLE-CHECKPOINT.json",
+    "scope": "Actual local certificate expiry, same-CA renewal and overlapping/withdrawn CA trust. Historical TLS/disconnection evidence is unchanged; per-leaf revocation and production provisioning remain separate."
+  }
 }

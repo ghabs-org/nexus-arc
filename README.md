@@ -94,9 +94,10 @@ Nexus ARC is where Jarvis gets safe, reusable access to authenticated systems.
 nexus studio --dir ./my-workspace
 ```
 
-Open `http://127.0.0.1:5003` for conversations, saved agents, sequential workflows,
-tools, and activity history. Select Codex or Claude Code to use the installed
-official CLI and its local account configuration, or choose an API provider.
+Open `http://127.0.0.1:5003` for Quick Build, conversations, saved agents, workflow
+graphs, connections, tools, and activity history. Select Codex, Claude Code, GitHub
+Copilot, Google Antigravity or OpenCode to use the installed official CLI and its
+local account configuration, or choose the OpenAI or Anthropic API.
 Provider usage limits and billing configuration still apply.
 See the [Studio guide](docs/STUDIO.md) for setup and execution boundaries.
 
@@ -144,29 +145,35 @@ result = await engine.start_workflow(workflow.id)
 ### Define a Workflow (YAML)
 
 ```yaml
-name: "Feature Development"
-version: "1.0"
+apiVersion: "nexus-arc/v1"
+kind: "Workflow"
+metadata:
+  name: "Feature Development"
+  version: "1.0.0"
+timeout_seconds: 1800
 
 steps:
-  - name: triage
+  - id: triage
     agent_type: triage
-    prompt: "Analyze this feature request and determine complexity"
-    timeout: 300
+    prompt_template: "Analyze this feature request and determine complexity"
     retry: 3
-    
-  - name: design
+
+  - id: design
     agent_type: designer
-    prompt: "Create technical design for this feature"
+    prompt_template: "Create technical design for this feature"
     condition: "triage.complexity == 'high'"
-    timeout: 600
     retry: 2
-    
-  - name: implement
-    agent: developer
-    prompt: "Implement the feature according to spec"
-    timeout: 1800
-    retry: 3
+
+  - id: implement
+    agent_type: developer
+    prompt_template: "Implement the feature according to spec"
+    retry_policy:
+      max_retries: 3
+      backoff: exponential
 ```
+
+`timeout_seconds` applies per agent step for the whole workflow. See
+[examples/workflows](examples/workflows/) for routes, tools, inputs and outputs.
 
 ---
 
@@ -215,22 +222,19 @@ Swap any component via configuration:
 **Storage Backends**:
 
 - `FileStorage` - JSON files (great for dev)
-- `PostgreSQLStorage` - Production database
-- `RedisStorage` - Fast, ephemeral workflows
-- `S3Storage` - Serverless deployments
+- `PostgreSQLStorageBackend` - Production database (`nexus-arc[postgres]`)
 
 **Git Platforms**:
 
-- `GitHubPlatform` - Issues, PRs, comments
-- `GitLabPlatform` - Issues, MRs, notes
-- `BitbucketPlatform` - Issues, PRs
+- `GitHubPlatform` - Issues, PRs, comments (API or `gh` CLI)
+- `GitLabPlatform` / `GitLabCLIPlatform` - Issues, MRs, notes
 
 **Notification Channels**:
 
-- `TelegramNotifier` - Push notifications to chats
-- `SlackNotifier` - Thread-based updates
-- `EmailNotifier` - Digest & alerts
-- `WebhookNotifier` - Custom integrations
+- `TelegramNotificationPlugin` - Push notifications to chats
+- `SlackNotificationChannel` - Thread-based updates
+- `DiscordNotificationChannel` - Channel updates
+- `OpenClawNotificationChannel` - OpenClaw operator bridge
 
 **Interactive Clients**:
 
@@ -247,21 +251,9 @@ Swap any component via configuration:
 
 ### 📊 Monitoring & Metrics
 
-Built-in observability:
-
-```python
-from nexus.monitoring import PrometheusExporter
-
-# Export metrics
-exporter = PrometheusExporter(port=9090)
-engine.add_observer(exporter)
-
-# Track:
-# - Workflow success/failure rates
-# - Step execution time
-# - AI provider latency & costs
-# - Retry & timeout counts
-```
+Nexus Studio exposes Prometheus metrics at `/api/metrics` and OpenTelemetry (OTLP
+JSON) traces for runs, tool calls and token usage, scoped to the requesting user.
+See [Studio telemetry](docs/STUDIO-TELEMETRY.md).
 
 ---
 
@@ -400,10 +392,11 @@ steps:
 
 See [examples/](./examples) directory:
 
-- **basic_workflow.py** - Simple 3-step workflow
-- **github_ci.py** - Automated code review on PRs
-- **support_router.py** - Support ticket classification & routing
-- **doc_generator.py** - Auto-generate docs from code
+- **workflows/** - Development, enterprise and social-publishing workflow definitions
+- **agents/** - Agent definitions (triage, developer, reviewer, deployer and more)
+- **nexus-bot/** - Full Telegram/Discord bot runtime and Studio example consumers
+- **interactive_bot.py**, **discord_interactive_bot.py** - Minimal interactive chat bots
+- **n8n/** - n8n integration
 
 ---
 
@@ -438,11 +431,6 @@ GITHUB_TOKEN=ghp_your_token
 NEXUS_STORAGE_BACKEND=postgres
 NEXUS_STORAGE_DSN=postgresql://user:pass@localhost/nexus
 NEXUS_STORAGE_DIR=./data
-
-# Optional
-NEXUS_LOG_LEVEL=INFO
-NEXUS_HEALTH_CHECK_PORT=8080
-NEXUS_METRICS_PORT=9090
 ```
 
 ---
@@ -482,16 +470,15 @@ mypy nexus/     # Type check
 ### v0.1 (Current)
 
 - [x] Core workflow engine
-- [x] File, Postgres, Redis storage
+- [x] File and PostgreSQL storage
 - [x] GitHub, GitLab git platforms
-- [x] Copilot CLI, Codex CLI, OpenAI providers
-- [x] Telegram, Slack notifiers
+- [x] Codex, Claude Code, Copilot, Antigravity, OpenCode, OpenAI and Anthropic providers
+- [x] Telegram, Slack, Discord notifiers
+- [x] Nexus Studio web workspace with workflow versioning and rollback
 
 ### v0.2 (Next)
 
 - [ ] GraphQL API for workflow management
-- [ ] Web dashboard for monitoring
-- [ ] Workflow versioning & rollback
 - [ ] Distributed execution (Celery/RQ)
 - [ ] Workflow marketplace
 

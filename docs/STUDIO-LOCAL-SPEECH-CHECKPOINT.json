@@ -150,5 +150,13 @@
     "tests/test_studio_speech_worker.py": "678423d9b7d171c9b3841ce8aff850b7fba3bbf6dfa7abf9b0902142d57028e5",
     "examples/nexus-bot/src/studio_local_speech.py": "fa9b12f592c5d7163f37f47d60170196b6b9ca01cf64e97a17f8225cebdbe4a2",
     "tests/studio_local_speech_acceptance.py": "1b245dc82b1bbcc5f2a34ff4ef217615d1cfd6fa486984964b5e992fa91c6d0c"
+  },
+  "linux_container_followup": {
+    "checkpoint": "STUDIO-LINUX-SPEECH-CHECKPOINT.json",
+    "scope": "Actual Linux/arm64 container inference using the same three verified model files. Earlier macOS source/results remain historical; Windows, installed-OS, process-tree cancellation and devices remain separate."
+  },
+  "linux_lifetime_followup": {
+    "checkpoint": "STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json",
+    "scope": "Actual Linux detached-child cancellation/shutdown/timeout/owner-death fix. Earlier model runtime reports/source hashes remain historical; non-Linux and installed-platform/device/VM work remains separate."
   }
 }

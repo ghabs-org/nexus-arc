@@ -30,6 +30,10 @@ def profile_digest(snapshot):
 
 async def local_process(*args, **kwargs):
     """Keep temporary files until the bounded child process has actually stopped."""
+    if sys.platform == "linux":
+        from nexus.core.studio_speech_process import run
+
+        return await run(*args, **kwargs)
     worker = asyncio.create_task(asyncio.to_thread(subprocess.run, *args, **kwargs))
     cancelled = False
     while not worker.done():

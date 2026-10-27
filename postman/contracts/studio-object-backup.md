@@ -60,6 +60,38 @@ Primary reference contracts:
 - [GCS Blob download](https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob)
 - [Azure ContainerClient download_blob](https://learn.microsoft.com/en-us/python/api/azure-storage-blob/azure.storage.blob.containerclient?view=azure-python)
 
+## Independent GCS and Azure SDK simulation
+
+`postman/simulations/studio-cloud-backup.sim.yaml` serves separate read-only
+GCS and Azure HTTP contracts. `tests/studio_cloud_backup_acceptance.py` constructs
+the actual `GCSStore`/`AzureStore` and their installed vendor SDKs; no HTTP client
+is replaced. The GCS SDK uses its documented emulator endpoint and anonymous
+credentials. Azure signs requests using a synthetic fixture-only account key and
+an explicit loopback BlobEndpoint. The mocks do not certify real authentication.
+
+Both paths capture two current/historical revisions, restore their private bytes
+and pinned document citation offline, preserve source metadata and publish no
+snapshot on missing, denied, corrupt or oversized objects. Empty objects require
+only metadata, oversized objects are rejected before media reads, and deliberately
+overlong media responses exercise the final byte guard. Requests contain bounded
+ranges; GCS media also requires the observed generation precondition. GCS 412
+generation change and 503 failure are exercised without retry. Azure transient
+retry timing, cloud permissions, retention and version history remain separate.
+No object writes, deletes or bucket listings are supported; unknown calls return
+501. Fixture observation routes expose only synthetic request metadata.
+The current GCS SDK additionally reads bucket metadata for its observability
+cache. This read follows [Buckets.get](https://docs.cloud.google.com/storage/docs/json_api/v1/buckets/get);
+it is distinct from bucket/object listing. Actual cloud IAM and optional SDK
+observability behavior remain live-account concerns.
+
+The service shapes follow [GCS Objects.get](https://docs.cloud.google.com/storage/docs/json_api/v1/objects/get),
+[Azure Get Blob](https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob)
+and [Get Blob Properties](https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob-properties).
+Owner-mock discovery was unavailable because the Postman CLI was signed out;
+these repository-owned fixtures derive from the primary contracts above.
+See [execution context](../simulations/studio-cloud-backup.context.md) and
+[SDK evidence](../../docs/STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json).
+
 Orbit discovery found GCS object download resource
 `urn:orbit:endpoint:v1:aNKmVs6jdw8vzAaWATGSHoj2gYnDZFn5:google:retrieves-an-object-or-i`.
 Its integration brief confirms revision/precondition support but omits range
