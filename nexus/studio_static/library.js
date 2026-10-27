@@ -1,7 +1,10 @@
 "use strict";
 const library = {kind:"prompts",items:[],editing:null};
+const allLibraryKinds=["prompts","skills","artifacts","toolsets","connectors","entrypoints","schedules","evaluations","datasets","evaluators","experiments","externalagents","models","decisionmodels"];
 const operationKinds=["externalagents","evaluations","datasets","evaluators","experiments","schedules","connectors","entrypoints","models","decisionmodels"];
 const libraryNames={experiments:"experiment",evaluators:"evaluator",datasets:"dataset",externalagents:"external agent",models:"model profile",decisionmodels:"decision model",evaluations:"evaluation suite",schedules:"schedule",connectors:"connection",entrypoints:"entrypoint",prompts:"prompt",skills:"skill",artifacts:"artifact",toolsets:"toolset"};
+function resolveLibraryKind(){const hash=location.hash.slice(1);if(!hash)return "prompts";const [base,sub]=hash.split("/");if(base==="library")return sub&&allLibraryKinds.includes(sub)?sub:"prompts";if(allLibraryKinds.includes(base))return base;return "prompts";}
+function libraryKindHash(kind){const sidebarKinds={connectors:"connectors",entrypoints:"entrypoints",schedules:"schedules",evaluations:"evaluations",experiments:"experiments",prompts:"library"};return sidebarKinds[kind]||`library/${kind}`;}
 const libraryDescriptions={experiments:"Save repeatable comparisons against a pinned evaluation suite revision. Each variant must meet its pass threshold. Review planned case counts before explicitly running; repetitions can invoke workflow tools and account usage.",evaluators:"Save reusable AI grading instructions with an explicit provider and threshold. Optional choice labels map to fixed scores. Apply to draft cases; judging uses your selected account only when you run an evaluation.",datasets:"Save reusable evaluation cases and reference passages. Import CSV, YAML or JSON, then copy reviewed cases into an evaluation suite. Datasets are shared with this workspace; saving never runs an evaluation.",externalagents:"Connect an external A2A agent, inspect its capabilities and run tasks through your own account. A2A 1.0 and 0.3 JSON-RPC are supported. Connections stay disabled until you enable them.",models:"Save provider/model combinations, then select them in chat or Quick Build. Profiles use existing adapters and local provider configuration.",decisionmodels:"Save decision models with backend, model and timeout for typed decisions in workflows and workbench.",evaluations:"Run saved test cases against an agent or workflow. Experiment Lab compares up to four provider/model variants using phrase/structured checks and optional provider-backed rubric judges.",schedules:"Run an agent or workflow once, at a fixed interval or on a calendar. Enabled schedules run only while this Studio server is open.",connectors:"Browse built-in ARC integrations or manage saved workspace connections. HTTP GET and SQLite can be configured directly in Studio.",entrypoints:"Connect verified messaging events or authenticated webhooks to an agent or workflow. Map channel users and configure verification before enabling.",prompts:"Save reusable instructions. Insert them with /prompt-id in conversations or Quick Build.",skills:"Reusable instruction sets. Add their IDs when creating an agent to include them in every task.",artifacts:"Upload text, images and PDFs; preview files and retain immutable versions. OpenAI API supports image/PDF inputs; other providers receive extracted PDF text. Select files explicitly before sending them.",toolsets:"Group existing registered tools for explicit use. Saving a toolset does not install or execute code."};
 async function refreshLibrary(){
   try{
@@ -149,7 +152,15 @@ $("library-archived").addEventListener("change",renderLibrary);
 document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;
   try{
-    if(button.dataset.libraryKind){library.kind=button.dataset.libraryKind;await refreshLibrary();}
+    if(button.dataset.libraryKind){
+      const targetHash=libraryKindHash(button.dataset.libraryKind);
+      if(location.hash===`#${targetHash}`||(button.dataset.libraryKind==="prompts"&&location.hash==="#library")){
+        library.kind=button.dataset.libraryKind;
+        await refreshLibrary();
+      }else{
+        location.hash=targetHash;
+      }
+    }
     if(button.dataset.libraryEdit)await openLibraryEditor(button.dataset.libraryEdit);
     if(button.dataset.libraryArchive){const item=library.items.find(item=>item.id===button.dataset.libraryArchive);await api(`/api/catalog/${library.kind}/${encodeURIComponent(item.id)}/archive`,{revision:item.revision,archived:!item.archived});await refreshLibrary();}
     if(button.dataset.libraryHistory&&library.kind==="prompts")await showPromptHistory(button.dataset.libraryHistory);
@@ -157,8 +168,8 @@ document.addEventListener("click",async event=>{
     if(button.dataset.toolsetOpen){const item=await api(`/api/catalog/toolsets/${encodeURIComponent(button.dataset.toolsetOpen)}`);showDetail(item.name,item.data.tools.map(tool=>`<div class="flow-step"><span>${escapeHtml(tool)}</span><button class="secondary" data-tool="${escapeHtml(tool)}">Run tool</button></div>`).join(""));}
   }catch(error){$("library-error").textContent=error.message;}
 });
-window.addEventListener("hashchange",()=>{if(view()==="library"){const alias=location.hash.slice(1);if(operationKinds.includes(alias))library.kind=alias;else library.kind="prompts";refreshLibrary();}});
-async function initializeLibrary(){const alias=location.hash.slice(1);if(operationKinds.includes(alias))library.kind=alias;await refreshLibrary();}
+window.addEventListener("hashchange",()=>{if(view()==="library"){library.kind=resolveLibraryKind();refreshLibrary();}});
+async function initializeLibrary(){library.kind=resolveLibraryKind();await refreshLibrary();}
 if(state.ready)initializeLibrary();else window.addEventListener("studio-ready",initializeLibrary,{once:true});
 
 document.addEventListener("click",async event=>{const button=event.target.closest("[data-artifact-preview]");if(!button)return;try{const item=library.items.find(item=>item.id===button.dataset.artifactPreview);const preview=await api(`/api/catalog/artifacts/${encodeURIComponent(item.id)}/preview`);showDetail(item.name,'');$("detail-content").replaceChildren(previewContent(preview));}catch(error){notify(error.message);}});
