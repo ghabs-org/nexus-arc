@@ -265,3 +265,97 @@ configuration or services fail the explicit gate rather than produce a skip.
 Signed-in identity, actual provider inference, analysis-profile readiness and
 proxy/daemon restart recovery remain separate checks. See
 `docs/STUDIO-DEPLOYED-WORKER-CHECKPOINT.json` for the selected VM evidence.
+## Controlled restart and reply-loss gate
+
+The explicit `tests/studio_controlled_restart_acceptance.py` gate runs the actual
+Studio runtime and filtered proxy in isolated Linux containers. It covers a
+running worker/controller exit, restarted cleanup-only grants, and real create
+and delete responses lost after daemon success. The fault layer disconnects a
+private Unix transport; it does not invent HTTP results or run a substitute
+daemon. It never receives the raw daemon socket.
+
+Prepare the fixture using an already installed SDK-complete Studio image with
+the Docker CLI and current recovery implementation. Replace the placeholders
+before running from the repository root:
+
+```sh
+docker --context YOUR_CONTEXT image inspect YOUR_INSTALLED_STUDIO_TAG
+docker --context YOUR_CONTEXT build --pull=false --network=none \
+  --build-arg CHECK_IMAGE=YOUR_INSTALLED_STUDIO_TAG \
+  -f deploy/studio/recovery-checks/Dockerfile.controlled-restart \
+  -t nexus-recovery-check:local .
+docker --context YOUR_CONTEXT image inspect --format '{{.Id}}' nexus-recovery-check:local
+```
+
+Use that immutable fixture ID and a separately installed pinned full analysis
+worker ID. The recorded Docker Desktop fixture uses raw-socket group 0; deployment
+socket groups remain a separate host check. Neither test downloads an image,
+mounts account credentials, changes the Docker daemon or uses the personal VM:
+
+```sh
+NEXUS_ACCEPTANCE_RESTART_IMAGE=sha256:FIXTURE_IMAGE_ID \
+NEXUS_ACCEPTANCE_WORKER_IMAGE=sha256:ANALYSIS_IMAGE_ID \
+NEXUS_ACCEPTANCE_DOCKER_CONTEXT=YOUR_CONTEXT PYTHONPATH=. \
+python -m pytest -o addopts='' tests/studio_controlled_restart_acceptance.py -q
+```
+
+Both scopes remove only their exact validation-labeled IDs and selected volumes,
+then verify absence. Missing prerequisites fail this opt-in gate instead of
+creating unexplained skips in normal regression discovery. The shared
+`studio_deployed_restart_acceptance.py` prepare/verify consumer is ready for a
+separately authorized host restart, but a local pass is not live-VM acceptance.
+See `docs/STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json` for exact results, image
+identities, source hashes and the still-open deployment/device/account gates.
+
+## Native PostgreSQL logical restore
+
+`Dockerfile.postgres-restore` overlays current framework source onto an explicitly
+installed SDK-complete check image containing SQLAlchemy and psycopg2. It builds
+offline without installing dependencies and does not build Studio installers.
+Select your installed SDK image; the recorded run used the immutable image IDs
+in [the checkpoint](../../../docs/STUDIO-POSTGRES-RESTORE-CHECKPOINT.json).
+
+The PostgreSQL fixture is the official Linux/arm64 PostgreSQL 17.11 image below.
+Download it explicitly before running the test; execution uses `--pull never`.
+An equivalent image for another architecture needs a separately recorded gate;
+the selected PostgreSQL image must declare only `/var/lib/postgresql/data`.
+
+```sh
+docker pull docker.io/library/postgres@sha256:a717692f944862397bd102c6abee9b3f7927adbf7ee5f3a93e50b65aea0c5396
+docker build --network none --pull=false \
+  -f deploy/studio/recovery-checks/Dockerfile.postgres-restore \
+  --build-arg CHECK_IMAGE=YOUR_INSTALLED_SDK_IMAGE \
+  -t nexus-postgres-restore:local .
+export NEXUS_ACCEPTANCE_POSTGRES_IMAGE=sha256:a717692f944862397bd102c6abee9b3f7927adbf7ee5f3a93e50b65aea0c5396
+export NEXUS_ACCEPTANCE_POSTGRES_APP_IMAGE="$(docker image inspect nexus-postgres-restore:local --format '{{.Id}}')"
+export NEXUS_ACCEPTANCE_DOCKER_CONTEXT=default
+PYTHONPATH=. python -m pytest -o addopts='' \
+  tests/studio_postgres_restore_acceptance.py -q \
+  --junitxml=/tmp/nexus-native-postgres-restore.xml
+```
+
+The host Python environment needs pytest, SQLAlchemy and the repository package.
+Two real database clusters use separate new volumes, a private internal network
+and no published ports. Trust authentication is confined to synthetic fixture
+databases on that disposable network; it is not a deployment configuration.
+Each server runs as `postgres`, with a read-only root, no capabilities, bounded
+memory/process/CPU and private writable data/socket/tmp storage. The current-code
+consumer runs as uid/gid 1001 with a read-only root and its own validation volume.
+No host directories, credentials, Docker socket or personal database URLs are
+mounted into these containers. Temporary setup helpers can change ownership
+only within the selected empty test volumes.
+
+The gate checks separate source/target restore, document search and original
+artifact revision, inactive external resources, no job replay, source/unrelated
+namespace preservation and occupied-target rejection. Actual child processes
+exit before and after SQL commit; explicit recovery verifies rollback or retained
+committed state without replay. A real refused connection checks the exact
+redacted CLI error. The target database then restarts and retained records and
+receipts are checked again. All labeled containers, three volumes and the network
+are removed and verified absent, including on failure.
+
+Missing prerequisites fail this opt-in gate instead of adding required-suite
+skips. Existing SQLite behavior remains covered by `tests/test_studio_sql_restore.py`
+and `examples/nexus-bot/src/studio_recovery.py --sql`. There is no persisted-format
+upgrade. This is logical SQL recovery proof, not physical PostgreSQL backup/PITR,
+cross-host failover, host power-loss or a personal-VM/account-store restore.

@@ -1,0 +1,8 @@
+# Explicit offline controller/proxy fixture. Supply an installed Studio image.
+ARG CHECK_IMAGE
+FROM ${CHECK_IMAGE}
+USER 0:0
+COPY deploy/studio/docker_proxy.py nexus/core/studio_docker_proxy_policy.py nexus/core/studio_docker_proxy_state.py /checks/
+RUN mkdir -p /var/lib/nexus-proxy-private /var/lib/nexus-studio/docker-proxy /validation/tmp /etc/nexus-studio \
+    && chown -R 1001:1001 /var/lib/nexus-proxy-private /var/lib/nexus-studio /validation /etc/nexus-studio \
+    && chmod 0700 /var/lib/nexus-proxy-private /var/lib/nexus-studio/docker-proxy /validation /validation/tmp /etc/nexus-studio

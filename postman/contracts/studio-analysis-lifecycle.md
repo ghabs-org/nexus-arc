@@ -1,5 +1,29 @@
 # Analysis worker lifetime contract
 
+## Actual local restart and lost acknowledgments
+
+`STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json` records two explicit real-engine
+cases. A running worker with a detached child stops on controller exit; after
+controller/proxy restart, recovered grants reject start and retire the exact
+stopped/running ownership records without resubmitting their code.
+
+The reply-loss fixture forwards a create to the filtered proxy, receives the
+actual daemon's successful HTTP 201 and disconnects the client before replying.
+It then interrupts access so cleanup uncertainty remains visible. Explicit
+recovery resolves the owned ID; the fixture receives the actual DELETE 204 and
+again drops that acknowledgment. The record remains pending. Restored access
+allows an authoritative scoped absence check to retire it without forwarding
+another deletion. This gate observes two client DELETE requests, one disconnected
+while offline, but exactly one create and one delete reach the actual daemon.
+No generated program is started and no extra run/artifact is published.
+
+The gateway binds only a private mode-0600 Unix socket, bounds requests/responses
+and connection duration, and never fabricates daemon results or receives the raw
+socket. This is a Docker infrastructure/attach/lifetime fixture, not an HTTP
+stand-in that could certify a container mutation. It adds no production listener
+or route. Actual VM repetition, authenticated tool access, daemon/power-loss and
+native delivery remain separate; no product API/schema behavior changed.
+
 ## Slim Linux host identity
 
 The VM activation gate reproduced different cleanup host hashes in independent

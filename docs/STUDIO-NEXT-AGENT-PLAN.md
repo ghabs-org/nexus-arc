@@ -493,3 +493,51 @@ proxy/daemon interruption and full-host/auth-store restore. Kernel boot fallback
 explicitly requires review after host reboot or changed controller hostname.
 Vision/model setup, physical devices and native OS delivery remain separate.
 No DMG was rebuilt, and frozen feature acceptance counts are unchanged.
+
+## Local restart and lost-reply acceptance — 27 October 2026
+
+The personal VM restart gate is deferred at the user's request. Work continued
+locally with the actual installed Studio runtime, filtered proxy, private
+ownership storage and Docker engine. Two opt-in checks pass without skips. An
+actual running worker and its detached child stop on controller exit; restarted
+proxy grants reject start and allow cleanup of both running/stopped records.
+
+The second check disconnects the client only after the real daemon commits a
+create or deletion. Unacknowledged creation stays uncertain, the program never
+starts, and a lost deletion reply leaves cleanup pending. Authoritative absence
+settles the final record without another forwarded mutation. One create and one
+delete reach the daemon; two client DELETE requests reach the fault layer, with
+one disconnected while offline. Both cases leave zero extra runs/artifacts,
+unresolved records or validation-scope containers/volumes.
+
+A reproducible offline fixture recipe and shared consumers now retain this
+proof. Existing product recovery passes these cases; no runtime/API/schema change
+was needed. See [local transport evidence](STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json).
+The VM was not contacted or modified in this local task. Actual VM restart,
+daemon/power-loss, authenticated/device/account and native release gates remain
+open. No DMG was rebuilt and no frozen acceptance count changes.
+
+## Native PostgreSQL logical restore — 27 October 2026
+
+The earlier PostgreSQL-to-PostgreSQL gap now has a reproducible local gate. Two
+real PostgreSQL 17.11 clusters run on a disposable internal Docker network with
+no published ports or host-directory mounts. Current framework recovery code
+and the existing example restore synthetic records into an empty target.
+
+The check retains document search/revisions, conversations and artifact bytes;
+disables restored schedules/connectors, revokes shares, marks external effects
+uncertain and imports no executable jobs. Occupied record/job namespaces are
+rejected without changes. Real child-process exits before and after commit
+recover inactive; committed imports are not replayed. A real refused driver
+connection returns the exact redacted CLI error. Restarting the target database
+preserves records and completed receipts. Source and unrelated namespaces stay
+unchanged. All scoped containers, volumes and the network are removed.
+
+The separate gate passes alongside 46 existing SQL restore/driver regressions,
+with zero skips. See [evidence](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json) and
+[the operator contract](../postman/contracts/studio-sql-restore.md). Existing
+product recovery passed; no schema, authentication or runtime change was needed.
+The example accepts explicit disposable source/target URLs and retains SQLite
+as its default. VM/account-store recovery, physical PostgreSQL recovery, cluster
+failover, power-loss and cloud-account checks remain open. The VM was not
+contacted; no DMG was rebuilt and no frozen acceptance count changes.

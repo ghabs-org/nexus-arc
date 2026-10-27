@@ -1,0 +1,114 @@
+{
+  "format": "nexus-studio-postgres-restore/v1",
+  "date": "2026-10-27",
+  "status": "fixture-verified-with-real-local-postgresql",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Current framework logical SQL restore against two real disposable local Linux/arm64 PostgreSQL clusters. Synthetic data only; no personal VM, account store or cloud service.",
+  "implementation": "Explicit opt-in infrastructure gate and consumer. Existing framework recovery passes unchanged. Existing recovery example accepts paired disposable database URLs while retaining SQLite defaults.",
+  "validation": {
+    "native_postgresql": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 11.432,
+      "report": "/private/tmp/nexus-native-postgres-restore.xml",
+      "sha256": "420a5d3d4ff7f0934cf1f4b32aabba6601ec7ff9c94bfb3371b702008422d79d",
+      "result": {
+        "after_database_restart": {
+          "database_restart_retains_committed_records": true,
+          "no_job_rows": true,
+          "repeat_recovery_imports_nothing": true
+        },
+        "documents_search_artifact_revision_retained": true,
+        "driver_failure_redacted": true,
+        "existing_example_passed": true,
+        "inactive_external_resources": true,
+        "native_source_target_restore": true,
+        "occupied_targets_rejected": [
+          "records",
+          "jobs"
+        ],
+        "process_crashes": {
+          "after-commit": {
+            "no_job_replay": true,
+            "process_exit": 73,
+            "recovered_inactive": true
+          },
+          "before-commit": {
+            "no_job_replay": true,
+            "process_exit": 73,
+            "recovered_inactive": true
+          }
+        },
+        "provider_calls": 0,
+        "queued_jobs_not_replayed": true,
+        "server_version": "17.11",
+        "source_and_other_namespace_unchanged": true
+      },
+      "scope_resources_removed": true
+    },
+    "sql_regressions": {
+      "tests": 46,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 22.139,
+      "report": "/private/tmp/nexus-native-postgres-required.xml",
+      "sha256": "64481f2f6f40d509b4d19f3d85284c460f59e7939f9e7294764554f50f7c8c48"
+    }
+  },
+  "examples": {
+    "sqlite_default": "passed",
+    "separate_native_postgresql_source_target": "passed"
+  },
+  "fixture": {
+    "postgresql_version": "17.11",
+    "postgresql_linux_arm64_manifest": "sha256:a717692f944862397bd102c6abee9b3f7927adbf7ee5f3a93e50b65aea0c5396",
+    "application_image_id": "sha256:def97bf09be09532c79d50a7770dae01269014bada7d3c2199c78ac82b60788b",
+    "base_sdk_image_id": "sha256:a786869f8718f9c98f45d59ba42f205f1db717f2f007246febf12e4696d72fce",
+    "sqlalchemy_version": "2.1.6",
+    "psycopg2_binary_version": "2.9.13",
+    "network": "New internal network; no published host ports or external network access.",
+    "mounts": "Three new named volumes only. No host directories, operator credentials or Docker socket in database/app containers.",
+    "database_authentication": "Synthetic trust-authenticated databases confined to the disposable internal network. Not a production configuration.",
+    "isolation": "Non-root read-only database/application containers, dropped capabilities, no-new-privileges and bounded memory/CPU/processes. Setup helpers receive only selected empty volumes.",
+    "cleanup": "Exact validation-scope container IDs/names, three volumes and network removed; absence independently asserted.",
+    "images_downloaded": 1,
+    "provider_calls": 0,
+    "driver_failure": "Actual refused PostgreSQL connection returns exit 1 with the exact redacted CLI error; synthetic password marker and URL absent.",
+    "database_restart": "Only the disposable target PostgreSQL container was restarted. Source cluster, existing Docker services and daemon were not restarted."
+  },
+  "fixture_preparation": [
+    "Retain the official PostgreSQL default socket directory for initialization and give it a bounded writable tmpfs; do not override the socket path used by the official entrypoint helper.",
+    "Synthetic catalog records include required archived/revision/name fields before restored Studio startup.",
+    "Install repository-declared PyMySQL 1.2.3 only in the temporary host test environment to run existing MySQL/MariaDB driver-policy fixtures."
+  ],
+  "required_warning": "One existing SQLAlchemy deprecation warning comes from the memory-URI rejection fixture; connection behavior was unchanged.",
+  "migration": "No runtime, authentication, schema or persisted-format change. No real database was migrated. Existing file/SQLite defaults and snapshots remain usable.",
+  "pending": [
+    "Personal HTTPS VM and actual account-store restore drill; the user cannot currently interact with the VM.",
+    "Physical PostgreSQL backup/PITR, cross-host replication/failover and host power-loss recovery.",
+    "Selected live cloud-account permissions, retention/history and restore drills.",
+    "Installed desktop/platform, signed-in identity and physical-device validation remain separate."
+  ],
+  "source_sha256": {
+    "deploy/studio/recovery-checks/Dockerfile.postgres-restore": "813f483694d9a25c78bdd853c1aec3c7ebbe5d566aa9bd8ca58e3e9d90636540",
+    "tests/studio_postgres_restore_acceptance.py": "6d08ac9c4205da66ec038644227a66e13c4334b1d3b7e4a3c9ae258653e4d8d8",
+    "tests/studio_postgres_restore_consumer.py": "ac347b02ceb782459ca40a0d2b2d7d87cc5a33f7c7020f82827257d518624144",
+    "examples/nexus-bot/src/studio_recovery.py": "ffe29cbba869b8797e586277d8ede529d065811fc103445578598a81432a8d1d",
+    "nexus/core/studio_sql_restore.py": "6c806af57abc4afdd0123fda83c45fed4125192ff0061aef3a936ded5a6448de",
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
+    "nexus/core/studio_state.py": "1d384e9249d5f832735cb09e7aa53319e6d377bf0df40768ad1c0e8c8e028112",
+    "postman/contracts/studio-sql-restore.md": "7bd503160b0d9e87c4ca83dd162d538c845565bf6303deb9afd03fbf004915aa",
+    "docs/STUDIO-RECOVERY.md": "aab760a855522275765e68d16706d069d230256ec317d8a3afc2c94211937707"
+  },
+  "vm_contacted": false,
+  "vm_changed": false,
+  "real_account_requests_performed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

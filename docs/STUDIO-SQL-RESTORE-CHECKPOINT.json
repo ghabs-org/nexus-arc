@@ -56,7 +56,7 @@
   },
   "migration": "Optional snapshot sql_records/sql_records_sha256 plus private versioned intents and receipts; state schema version stays 1. No production records, credentials or database were migrated. Original snapshots remain the rollback copy.",
   "validation_pending": [
-    "Live PostgreSQL-to-PostgreSQL restore, driver/database failure and personal HTTPS VM drill.",
+    "Personal HTTPS VM/account-store drill, physical PostgreSQL recovery, cross-host failover and host power-loss. Real local PostgreSQL-to-PostgreSQL logical restore and driver connection failure are covered by the native follow-up.",
     "Live cloud-bucket and actual account-store recovery."
   ],
   "required_warning": "One SQLAlchemy deprecation warning comes from constructing a mode=memory URI solely to verify that ephemeral restore targets are rejected; production connection behavior was not changed.",
@@ -78,5 +78,9 @@
   "nuclia_attachment_followup": {
     "checkpoint": "STUDIO-NUCLIA-ATTACHMENTS-CHECKPOINT.json",
     "scope": "The earlier public-source lookup blocker is resolved. Canonical conversation attachment operations now have local acceptance; vendor historical/evaluation equivalence remains separate."
+  },
+  "native_postgresql_followup": {
+    "checkpoint": "STUDIO-POSTGRES-RESTORE-CHECKPOINT.json",
+    "scope": "Real local PostgreSQL 17.11 source/target restore, crash recovery, occupied-target rejection, redacted driver failure and target database restart. Earlier SQLite evidence and source hashes remain historical."
   }
 }

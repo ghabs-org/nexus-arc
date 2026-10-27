@@ -42,14 +42,18 @@ def run_example():
         )
 
 
-def run_sql_example():
+def run_sql_example(*, source_url=None, target_url=None):
+    """Consume SQL recovery with SQLite defaults or explicitly disposable databases."""
     from nexus.core.studio_sql_restore import recover_sql_restore
     from nexus.core.studio_state import StudioSQLState
 
     with tempfile.TemporaryDirectory(prefix="nexus-sql-recovery-example-") as temporary:
         directory = Path(temporary)
         root, state = directory / "project", directory / "private"
-        url = f"sqlite:///{directory}/records.sqlite"
+        if (source_url is None) != (target_url is None):
+            raise ValueError("Select both disposable source and target database URLs")
+        url = source_url or f"sqlite:///{directory}/records.sqlite"
+        restored_url = target_url or url
         studio = StudioService(
             root, state_dir=state, state_options={"url": url, "namespace": "original", "workers": 1}
         )
@@ -62,7 +66,7 @@ def run_sql_example():
             )
         finally:
             studio.close()
-        original, target = StudioSQLState(url, "original"), StudioSQLState(url, "restored")
+        original, target = StudioSQLState(url, "original"), StudioSQLState(restored_url, "restored")
         try:
             # Represent work that was queued when the original host stopped.
             original.put("runs", "pending", {"id": "pending", "status": "queued"})
@@ -82,7 +86,7 @@ def run_sql_example():
             copy = StudioService(
                 restored["root"],
                 state_dir=restored["state_dir"],
-                state_options={"url": url, "namespace": "restored", "workers": 1},
+                state_options={"url": restored_url, "namespace": "restored", "workers": 1},
             )
             try:
                 assert (

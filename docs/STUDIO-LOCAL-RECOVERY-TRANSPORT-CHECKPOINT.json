@@ -1,0 +1,116 @@
+{
+  "format": "nexus-studio-local-recovery-transport/v1",
+  "date": "2026-10-27",
+  "status": "fixture-verified-with-real-local-engine",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Real local Linux/arm64 Docker containers on this Mac. Reuse the installed server/recovery implementation and exact filtered proxy policy. No personal VM connection or modification in this task.",
+  "implementation": "Reusable two-phase restart consumer, bounded Unix reply-loss gateway, actual installed-runtime consumer and opt-in host acceptance. Existing product recovery behavior passes; no product runtime, authentication or schema change was required.",
+  "validation": {
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_seconds": 11.197,
+    "report": "/private/tmp/nexus-local-recovery-transport.xml",
+    "sha256": "12b6b7508b843dd0d60d846db434dba9442f47ff6cec2e9d9f6538f3d2f2f6b3",
+    "cases": {
+      "restart": {
+        "name": "test_worker_recovery_over_real_filtered_transport[restart]",
+        "result": {
+          "extra_artifacts": 0,
+          "extra_runs": 0,
+          "recovery_replayed_create_or_start": false,
+          "restored_start_denied": true,
+          "running_and_stopped_records_removed": true,
+          "stopped_work_never_started": true,
+          "unresolved_cleanup": 0
+        },
+        "scope_resources_removed": true
+      },
+      "reply-loss": {
+        "name": "test_worker_recovery_over_real_filtered_transport[reply-loss]",
+        "result": {
+          "cleanup_did_not_repeat_delete": true,
+          "create_forwarded": 1,
+          "create_requests": 1,
+          "create_uncertainty_retained": true,
+          "delete_forwarded": 1,
+          "delete_requests": 2,
+          "delete_uncertainty_retained": true,
+          "extra_artifacts": 0,
+          "extra_runs": 0,
+          "final_absence_confirmed": true,
+          "generated_program_started": false,
+          "lost_create_replies": 1,
+          "lost_delete_replies": 1,
+          "offline_connections": 10,
+          "start_requests": 0,
+          "unexpected_errors": [],
+          "unresolved_cleanup": 0
+        },
+        "scope_resources_removed": true
+      }
+    }
+  },
+  "verified": [
+    "An actual running analysis worker with a ready detached SIGTERM-resistant child stops when the controller exits.",
+    "The selected controller and private-ledger proxy stop cooperatively and restart using the same disposable volumes.",
+    "Restored ownership rejects start, keeps stopped work unstarted and permits exact-ID cleanup of both saved records. No create/start is issued by recovery.",
+    "For create reply loss, the real daemon commits HTTP 201 before the fixture disconnects the caller. Creation remains uncertain and the generated program is never started.",
+    "For delete reply loss, explicit recovery resolves the owned immutable ID, the real daemon commits HTTP 204 and its reply is lost. The pending record remains until authoritative absence.",
+    "Exactly one create and one delete are forwarded. Two client DELETE requests reach the fault layer; one is disconnected while offline. Final recovery resolves absence without forwarding another deletion.",
+    "Both test cases retain zero extra runs/artifacts, no unresolved cleanup and no remaining scope-labeled containers or volumes."
+  ],
+  "fixture": {
+    "controller_proxy_image_id": "sha256:a1c48874948361949fe9c558a128d2235ca39b20ddaa601df290b3dcc343ac3f",
+    "base_server_image_id": "sha256:a786869f8718f9c98f45d59ba42f205f1db717f2f007246febf12e4696d72fce",
+    "analysis_worker_image_id": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
+    "os": "linux",
+    "architecture": "arm64",
+    "controller_proxy_image_bytes": 509247150,
+    "uid_gid": "1001:1001",
+    "raw_socket_group": "0 for this Docker Desktop fixture; selected VM GID is a separate deployment setting",
+    "network": "none for controller, proxy and workers; Unix sockets only",
+    "raw_socket": "Trusted disposable proxy only; never mounted in controller or generated worker",
+    "private_authority": "Dedicated proxy-only volume, outside controller data/config volumes",
+    "reply_loss_bounds": {
+      "request_and_response_bytes": 1048576,
+      "connection_deadline_seconds": 15,
+      "socket_mode": "0600",
+      "parent_directory": "private temporary directory"
+    },
+    "images_pulled": 0,
+    "provider_calls": 0,
+    "credentials_mounted": false,
+    "docker_daemon_restarted": false,
+    "resource_cleanup": "Exact validation-scope IDs and four selected named volumes, independently verified absent."
+  },
+  "fixture_corrections": [
+    "The first temporary fixture image gave its configuration directory mode 0600 through COPY; the committed recipe creates a traversable private directory and writes mode-0600 files through a separate setup container.",
+    "Running-worker readiness now reads the actual acknowledged cleanup journal. Creation uses Popen, not the run-command hook."
+  ],
+  "migration": "No product schema, API payload, authentication, scheduling or stored configuration changes. The new files are explicit acceptance fixtures; normal required test discovery excludes their prerequisite-dependent names.",
+  "pending": [
+    "Repeat the prepared controlled restart and lost-reply cases on the selected personal VM when the user can interact with it. Local fixture success is not VM acceptance.",
+    "Daemon restart/power-loss, changed boot/hostname, signed-in identity and selected account/device/native installed-platform gates remain separate."
+  ],
+  "source_sha256": {
+    "deploy/studio/recovery-checks/Dockerfile.controlled-restart": "72d177670afd88dd6cc10b07f09e41d72c29c1286ddde58a6a75801a449efca1",
+    "tests/studio_controlled_restart_acceptance.py": "397cba74cc0e777ce75454a46e8258c67fc1bb877a57c6cee0b213f53eaa8862",
+    "tests/studio_deployed_restart_acceptance.py": "63776564cea5188ad784c3857e732c206daa9f2d5d7eaca9df773d4b4a1fbc8f",
+    "tests/studio_deployed_reply_loss_acceptance.py": "451dc6ccb417004c14bd2114e80777511f1e104e441518a09453539bce2e90a6",
+    "tests/fixtures/studio_docker_reply_loss.py": "8e63197e5926407f70346b11756509dfd5d9d737926b173ab7c71fb0828f330f",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8"
+  },
+  "vm_check_deferred": "User requested another local task because they cannot currently interact with the VM. The attempted SSH connection for the prepared restart check had timed out before reaching the host.",
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

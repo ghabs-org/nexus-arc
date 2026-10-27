@@ -154,10 +154,10 @@ rejects their remote references. Prior local-only snapshots remain readable.
 disposable local object fixtures. The [operator and SDK contract](../postman/contracts/studio-object-backup.md)
 records bounds, compatibility and the independent S3 HTTP simulation.
 
-Unrecovered configuration releases must be recovered before backup. Physical
-PostgreSQL restore remains a separate, existing local infrastructure check.
-Local logical SQL acceptance and SDK fixtures do not certify a live PostgreSQL
-server, cloud bucket, personal VM or account-store disaster recovery. GCS/Azure
+Unrecovered configuration releases must be recovered before backup.
+Physical PostgreSQL backup remains a separate infrastructure responsibility.
+Logical restore now has real local PostgreSQL 17.11 source/target acceptance;
+this does not certify a cloud bucket, personal VM or account-store disaster recovery. GCS/Azure
 SDK runtimes and real cloud-account permission/retention behavior remain separate
 validation prerequisites; their adapter call contracts are checked locally.
 
@@ -177,6 +177,14 @@ WAL inclusion, byte-exact database attachments and inactive remote profiles.
 imports, real process exits before/after commit, receipt recovery without replay,
 retained document search, paused workflow approval without repeating completed
 steps, stale-record removal, changed-state rejection and credential-free CLI errors.
-The logical SQL path has local SQLite acceptance. A real PostgreSQL restore and
-personal-VM drill remain separate validation tasks; no HTTP API is added here.
+The logical SQL path has local SQLite and real local PostgreSQL acceptance.
+The PostgreSQL gate uses separate disposable clusters and verifies inactive
+restore, source/other-namespace preservation, occupied-target rejection, actual
+process exits before/after commit, a redacted driver connection failure and
+target database restart. Recovery never imports executable job rows or repeats a
+committed import. Both clusters, the private network and all test volumes are
+removed afterward. See [native SQL evidence](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json)
+and [the reproducible gate](../deploy/studio/recovery-checks/README.md#native-postgresql-logical-restore).
+Personal-VM/account-store recovery, physical database recovery, cluster failover
+and host power-loss remain separate validation tasks; no HTTP API is added here.
 These checks establish the supported recovery foundation, not complete external parity.

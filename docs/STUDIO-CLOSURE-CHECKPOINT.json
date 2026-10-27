@@ -753,6 +753,16 @@
         "signed_in_execution": "pending",
         "remaining_restart_power_loss": "pending"
       }
+    },
+    "local_recovery_transport": {
+      "checkpoint": "STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "scope": "Local real Linux/Docker fixture only; personal VM follow-up deferred by user.",
+      "vm_changed": false,
+      "dmg_rebuilt": false
     }
   },
   "inventory": {
@@ -911,6 +921,17 @@
       "skipped": 0,
       "report": "/private/tmp/nexus-local-tls-followup.xml",
       "status": "passed"
+    },
+    "native_postgresql": {
+      "checkpoint": "STUDIO-POSTGRES-RESTORE-CHECKPOINT.json",
+      "native_tests": 1,
+      "sql_regressions": 46,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "scope": "Real disposable local PostgreSQL only; VM/account-store and physical disaster recovery remain separate.",
+      "vm_changed": false,
+      "dmg_rebuilt": false
     }
   },
   "follow_up_object_backup": {
