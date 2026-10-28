@@ -182,7 +182,7 @@ function filterResourceCards(containerId, inputId, itemName="items"){
   const items=container.querySelectorAll(".resource-card, .library-row, .activity-row");
   let matchCount=0;
   items.forEach(el=>{
-    const text=el.textContent.toLowerCase();
+    const text=(el.textContent+" "+(el.dataset?.search||"")).toLowerCase();
     const match=!q||text.includes(q);
     el.hidden=!match;
     if(match)matchCount++;
@@ -734,7 +734,7 @@ function renderRuns(){
     chat:"Direct conversations with agents will appear here.",
     tool:"Standalone tool executions will appear here."
   };
-  $("activity-content").innerHTML=runs.length?runs.map(r=>`<article class="activity-row"><div class="activity-copy"><h2>${escapeHtml(r.task)}</h2><p>${escapeHtml(r.kind)} · ${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}</p></div>${badge(r.status,r.status)}<button class="secondary" data-run="${escapeHtml(r.id)}">Details</button></article>`).join(""):empty("No matching activity",emptyMessages[filter]||"No items found for this filter.");
+  $("activity-content").innerHTML=runs.length?runs.map(r=>`<article class="activity-row" data-search="${escapeHtml(r.workflow_definition_id||"")}"><div class="activity-copy"><h2>${escapeHtml(r.task)}</h2><p>${escapeHtml(r.kind)} · ${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}</p></div>${badge(r.status,r.status)}<button class="secondary" data-run="${escapeHtml(r.id)}">Details</button></article>`).join(""):empty("No matching activity",emptyMessages[filter]||"No items found for this filter.");
   if($("activity-search-input")?.value)filterResourceCards("activity-content","activity-search-input","activity");
 }
 async function refreshDefinitions(){const [agents,workflows]=await Promise.all([api("/api/agents"),api("/api/workflows")]);state.agents=agents.items;state.workflows=workflows.items;renderAgents();renderWorkflows();}
@@ -1054,7 +1054,7 @@ document.addEventListener("click",async event=>{
       const wfId=button.dataset.workflowHistory;
       const item=(state.workflows||[]).find(w=>w.id===wfId);
       const name=item?.document?.metadata?.name||wfId;
-      const wfRuns=(state.runs||[]).filter(r=>r.kind==="workflow"&&(r.workflow_id===wfId||r.workflow_snapshot?.id===wfId));
+      const wfRuns=(state.runs||[]).filter(r=>r.kind==="workflow"&&(r.workflow_definition_id===wfId||r.workflow_id===wfId||r.workflow_snapshot?.id===wfId));
       const content=wfRuns.length?`
         <div class="card-actions" style="margin-bottom:14px">
           <button data-run-workflow="${escapeHtml(wfId)}">Run workflow</button>

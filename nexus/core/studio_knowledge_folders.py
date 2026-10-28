@@ -306,20 +306,25 @@ class StudioKnowledgeFolders:
         try:
             for folder in project.get("folders", []):
                 prefix = folder["path"]
-                listing = files.walk(
-                    folder["root"],
-                    prefix,
-                    actor,
-                    skip=lambda relative, name, directory, folder=folder, prefix=prefix: (
-                        not selected(
-                            folder,
-                            relative[len(prefix) + 1 :] if prefix else relative,
-                            name,
-                            directory,
-                        )
-                    ),
-                    max_files=max(MAX_SYNC_FILES - len(seen), 0),
-                )
+                try:
+                    listing = files.walk(
+                        folder["root"],
+                        prefix,
+                        actor,
+                        skip=lambda relative, name, directory, folder=folder, prefix=prefix: (
+                            not selected(
+                                folder,
+                                relative[len(prefix) + 1 :] if prefix else relative,
+                                name,
+                                directory,
+                            )
+                        ),
+                        max_files=max(MAX_SYNC_FILES - len(seen), 0),
+                    )
+                except ValueError as exc:
+                    # Not complete, so its earlier copies stay searchable until it returns.
+                    skip(f"Linked folder unavailable: {exc}", f"{folder['root']}:/{prefix}")
+                    continue
                 summary["truncated"] |= listing["truncated"]
                 finished = not listing["truncated"]
                 for item in listing["files"]:

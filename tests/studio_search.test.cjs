@@ -582,3 +582,25 @@ test("updateRunDetail renders the Fix in conversation action", () => {
   assert.match(latestStudioSource, /Fix in conversation/);
   assert.doesNotMatch(latestStudioSource, /data-rerun-workflow/);
 });
+
+test("activity search matches a workflow id kept off-screen and hides rows", () => {
+  const filterFnSource = studioSource.slice(
+    studioSource.indexOf("function filterResourceCards("),
+    studioSource.indexOf("let activeSearchIndex")
+  );
+  const mine = { hidden: false, textContent: "Evaluate the project workflow", dataset: { search: "qb-d2a60662-founder-playbook" } };
+  const other = { hidden: false, textContent: "Propose useful skills workflow", dataset: { search: "qb-785cd38f-project_skill_discovery" } };
+  const container = { querySelectorAll: (sel) => (sel.includes("activity-row") ? [mine, other] : []), querySelector: () => null, appendChild() {} };
+  const context = vm.createContext({ String, $: (id) => (id === "activity-content" ? container : { value: "qb-d2a60662-founder-playbook" }), document: { createElement: () => ({}) } });
+  vm.runInContext(filterFnSource, context);
+  context.filterResourceCards("activity-content", "activity-search-input", "activity");
+  assert.equal(mine.hidden, false);
+  assert.equal(other.hidden, true);
+  assert.match(studioSource, /data-search="\$\{escapeHtml\(r\.workflow_definition_id/);
+  assert.match(fs.readFileSync("nexus/studio_static/studio.css", "utf8"), /\[hidden\]\{display:none!important\}/);
+});
+
+test("sidebar keeps recent conversations visible when the nav overflows", () => {
+  const css = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
+  assert.match(css, /\.sidebar \.recents\{min-height:min\(180px,25dvh\)/);
+});

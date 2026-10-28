@@ -139,6 +139,20 @@ def test_symlinked_folders_are_not_followed(linked, tmp_path):
         )
 
 
+def test_unavailable_folder_is_skipped_and_others_still_sync(linked):
+    service, project, source = linked
+    service.knowledge.folders.link(project["id"], {"root": "source", "path": "docs"}, None)
+    service.knowledge.folders.link(project["id"], {"root": "source", "path": "other"}, None)
+    assert sync(service, project["id"])["added"] == 3
+    (source / "other").rmdir()  # e.g. a deployment that no longer mounts the folder
+    (source / "docs" / "new.md").write_text("Fresh amber page")
+    summary = sync(service, project["id"])
+    assert summary["added"] == 1 and summary["removed"] == 0
+    assert summary["skipped"][0]["path"] == "source:/other"
+    assert summary["skipped"][0]["reason"].startswith("Linked folder unavailable")
+    assert found(service, project["id"], "blue cluster") == {"docs/guide.md"}
+
+
 def test_truncated_sync_never_removes_unseen_files(linked, monkeypatch):
     service, project, _ = linked
     service.knowledge.folders.link(project["id"], {"root": "source", "path": "docs"}, None)
