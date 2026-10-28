@@ -496,5 +496,15 @@
     "host_checks": 12,
     "vm_and_external_anonymous_https_checks_each": 15,
     "readiness_probe_corrected_without_second_restart": true
+  },
+  "account_logical_restore_2026_10_28": {
+    "checkpoint": "STUDIO-ACCOUNT-RESTORE-CHECKPOINT.json",
+    "status": "live-verified-logical-restore-only",
+    "restored_tables": 15,
+    "invalid_indexes": 0,
+    "private_no_tcp_cluster_stopped": true,
+    "production_services_stopped": false,
+    "master_key_read": false,
+    "full_host_restore_complete": false
   }
 }

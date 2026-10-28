@@ -261,6 +261,24 @@ No provider, credential, production task, configuration, source deployment or DM
 changed. Full-host/account-store restoration, authenticated execution/headers,
 daemon/power-loss, device/account and final desktop gates remain separate.
 
+### Actual account database restore — 28 October 2026
+
+The actual Nexus account database now has same-VM PostgreSQL 18.6 logical
+snapshot/restore proof. A native MVCC-consistent custom archive restored into a
+new private cluster with no TCP listener. All 15 account tables restored, no
+invalid indexes remained, and a second export proved all restored tables readable.
+The isolated cluster was then stopped. Its archive stays on the VM in a
+mode-0700 directory with mode-0600 permissions. Only aggregate evidence returned
+locally. Studio, proxy, router and five Nexus services stayed running; hosted
+auth status returned 200. No live application used the restored database.
+
+This is **account database restoration only**. It does not establish coordinated
+Studio/account/filesystem consistency, credential-home restoration, master-key
+escrow, restored login or usable decrypted provider credentials. No master key
+was read, no credential decrypted and no archive exported off-host. Full-host
+recovery remains open. See [account restore evidence](STUDIO-ACCOUNT-RESTORE-CHECKPOINT.json).
+No product source, configuration, image, installer or DMG changed.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech
