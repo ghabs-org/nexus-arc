@@ -22,6 +22,10 @@ on:
       - 'tests/studio_local_speech_acceptance.py'
       - 'tests/fixtures/studio_voice_models.py'
       - 'tests/test_studio_voice_model_preparation.py'
+      - 'examples/nexus-bot/src/studio_real_speech_interruption.py'
+      - 'tests/fixtures/studio_voice_interrupt_worker.py'
+      - 'tests/studio_windows_real_speech_interruption_acceptance.py'
+      - 'tests/test_studio_voice_interruption_hooks.py'
       - 'pyproject.toml'
 
 permissions:
@@ -113,6 +117,7 @@ jobs:
         run: >-
           python -m pytest -o addopts=''
           tests/studio_local_speech_acceptance.py
+          tests/studio_windows_real_speech_interruption_acceptance.py
           --junitxml=acceptance-results/real-models.xml -q
       - name: Retain test evidence without redistributing models
         if: ${{ always() }}
