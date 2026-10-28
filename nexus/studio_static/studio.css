@@ -868,3 +868,5 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
 .message-body td,.message-body th,.rich-preview td,.rich-preview th,.table-container td,.table-container th{border:1px solid var(--border,#ddd);padding:10px 14px;text-align:left;overflow-wrap:normal!important;word-break:normal!important;white-space:normal}
 .message-body th,.rich-preview th,.table-container th{background:var(--surface-muted,#f3f3ef);font-weight:600;color:var(--ink,#182e35);white-space:nowrap}
 .table-container tr:nth-child(even) td{background:rgba(0,0,0,.015)}
+.run-retry-actions fieldset{display:grid;gap:6px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:10px 0}
+.workspace-proposal{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:12px;background:var(--canvas)}.workspace-proposal h3{font-size:14px;margin:0 0 6px;overflow-wrap:anywhere}.workspace-proposal pre{max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}

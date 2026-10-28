@@ -62,11 +62,15 @@ def test_studio_assistant_local_help_and_metadata(service_env):
 def test_studio_assistant_spec_and_inventory(service_env):
     spec = service_env.assistant.spec()
     assert "purpose" in spec
-    assert len(spec["tool_ids"]) == 1
-    assert spec["tool_ids"][0].endswith(":studio_help")
+    assert [tid.rsplit(":", 1)[1] for tid in spec["tool_ids"]] == [
+        "studio_help",
+        "workspace_list",
+        "workspace_read",
+        "workspace_write",
+    ]
 
     inventory = service_env.assistant.inventory()
-    assert len(inventory["items"]) == 3
+    assert len(inventory["items"]) == 4
     tool_ids = [item["id"] for item in inventory["items"]]
     assert any(tid.endswith(":studio_help") for tid in tool_ids)
     assert any(tid.endswith(":workspace_list") for tid in tool_ids)
@@ -489,3 +493,75 @@ def test_listing_auto_creates_missing_writable_root(tmp_path):
         assert (root / "files").is_dir()
     finally:
         service.close()
+
+
+def test_assistant_file_tools_read_and_return_errors(service_env):
+    import asyncio
+
+    from nexus.tools import tool_registry
+
+    (service_env.root / "files").mkdir(exist_ok=True)
+    (service_env.root / "files" / "plan.md").write_text("Launch in November")
+    names = {tid.rsplit(":", 1)[1]: tid for tid in service_env.assistant.spec()["tool_ids"]}
+    listed = asyncio.run(tool_registry.call(names["workspace_list"], root="files"))
+    assert [item["name"] for item in listed.output["items"]] == ["plan.md"]
+    read = asyncio.run(tool_registry.call(names["workspace_read"], root="files", path="plan.md"))
+    assert "Launch in November" in json.dumps(read.output)
+    missing = asyncio.run(tool_registry.call(names["workspace_read"], root="files", path="nope.md"))
+    assert missing.ok and "error" in missing.output
+
+
+def test_workspace_write_is_a_proposal_until_applied(service_env):
+    import asyncio
+
+    from nexus.tools import tool_registry
+
+    proposals = service_env.workspace_proposals
+    files = service_env.root / "files"
+    files.mkdir(exist_ok=True)
+    names = {tid.rsplit(":", 1)[1]: tid for tid in service_env.assistant.spec()["tool_ids"]}
+    created = asyncio.run(
+        tool_registry.call(names["workspace_write"], path="notes/plan.md", content="v1")
+    ).output
+    assert "error" in created  # subfolder does not exist yet
+    created = asyncio.run(
+        tool_registry.call(names["workspace_write"], path="plan.md", content="v1")
+    ).output
+    assert created["status"] == "pending" and not (files / "plan.md").exists()
+    applied = proposals.decide(created["proposal_id"], "apply")
+    assert applied["status"] == "applied" and (files / "plan.md").read_text() == "v1"
+    with pytest.raises(ValueError, match="already applied"):
+        proposals.decide(created["proposal_id"], "apply")
+
+    # Replacing needs the current revision; a stale proposal is refused at apply time.
+    blind = asyncio.run(
+        tool_registry.call(names["workspace_write"], path="plan.md", content="x")
+    ).output
+    assert "base_revision" in blind["error"]
+    revision = service_env.workspace_files.preview("files", "plan.md")["revision"]
+    update = proposals.propose("files", "plan.md", "v2", revision)
+    stale = proposals.propose("files", "plan.md", "v3", revision)
+    proposals.decide(update["proposal_id"], "apply")
+    assert (files / "plan.md").read_text() == "v2"
+    with pytest.raises(ValueError, match="changed since the proposal"):
+        proposals.decide(stale["proposal_id"], "apply")
+    assert (files / "plan.md").read_text() == "v2"
+    assert not [p for p in files.iterdir() if p.name.endswith(".tmp")]
+
+    rejected = proposals.propose("files", "other.md", "no")
+    assert proposals.decide(rejected["proposal_id"], "reject")["status"] == "rejected"
+    assert not (files / "other.md").exists()
+    with pytest.raises(PermissionError):
+        proposals.decide(
+            proposals.propose("files", "x.md", "y")["proposal_id"], "apply", {"nexus_id": "other"}
+        )
+    with pytest.raises(PermissionError):
+        proposals.propose("agents", "a.yaml", "id: a")
+
+
+def test_proposals_list_by_run_and_owner(service_env):
+    proposals = service_env.workspace_proposals
+    proposals.propose("files", "a.md", "a", run_id="r1")
+    proposals.propose("files", "b.md", "b", run_id="r2")
+    assert [item["path"] for item in proposals.list("r1")["items"]] == ["a.md"]
+    assert proposals.list("r1", {"nexus_id": "someone"})["items"] == []

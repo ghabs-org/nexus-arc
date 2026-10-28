@@ -200,6 +200,9 @@ class StudioService:
         from nexus.core.studio_run_retry import StudioRunRetry
 
         self.retry = StudioRunRetry(self)
+        from nexus.core.studio_step_rerun import StudioStepRerun
+
+        self.step_rerun = StudioStepRerun(self)
         from nexus.core.studio_telemetry import StudioTelemetry
 
         self.telemetry = StudioTelemetry(self)
@@ -254,6 +257,9 @@ class StudioService:
         from nexus.core.studio_workspace_files import StudioWorkspaceFiles
 
         self.workspace_files = StudioWorkspaceFiles(self, **(workspace_file_options or {}))
+        from nexus.core.studio_workspace_proposals import StudioWorkspaceProposals
+
+        self.workspace_proposals = StudioWorkspaceProposals(self)
         self.assistant = StudioAssistant(self)
         self.recipes = StudioRecipes(self)
         from nexus.core.studio_mcp_server import StudioMCPServer
@@ -818,7 +824,7 @@ class StudioService:
     def _delta(self, identity: str, text: str) -> None:
         self.conversations.delta(identity, text)
 
-    def start_run(self, payload: dict, *, callback_origin=None) -> dict:
+    def start_run(self, payload: dict, *, callback_origin=None, step_rerun=None) -> dict:
         """Queue an explicitly selected agent/chat/workflow/tool; no implicit provider fallback."""
         payload = dict(payload)
         if "session_title" in payload:
@@ -842,6 +848,10 @@ class StudioService:
         payload.pop("_workflow_limits", None)
         payload.pop("_callback_origin", None)
         payload.pop("_speech_profile_snapshot", None)
+        # Seeded step outputs skip execution and approval gates, so only the server sets them.
+        payload.pop("_step_rerun", None)
+        if step_rerun:
+            payload["_step_rerun"] = step_rerun
         if type(payload.get("external_callbacks", False)) is not bool:
             raise ValueError("Callback updates must be true or false")
         if payload.get("external_callbacks"):

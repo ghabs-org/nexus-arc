@@ -5,10 +5,20 @@ Implemented in commit `325e4a6`; follow-up verification: 22 October 2026.
 Open **Help → Studio assistant** to ask where definitions are saved, how knowledge
 projects work, or how to access VM files. **Find local answer** uses built-in help
 and current agent/workflow names without a model call. **Ask AI** explicitly starts
-a normal Studio conversation with the selected provider and a read-only help tool.
-The provider's existing account, permissions and billing apply. The assistant
-cannot run shell commands or modify/activate resources. It does not automatically
-read or send folder contents.
+a normal Studio conversation with the selected provider and three read-only tools:
+help, `workspace_list` and `workspace_read`. The file tools use the same roots, filters
+and builder permission as the Workspace files page; a path or permission error goes back
+to the model instead of ending the chat. File contents the assistant reads are sent to
+the selected provider, so pick a local provider for private files. The provider's
+existing account, permissions and billing apply. The assistant cannot run shell
+commands, delete files or modify/activate resources.
+
+The assistant's `workspace_write` tool only *proposes* a change. The chat shows each
+proposal with the current file, the proposed text, and **Apply** / **Reject**; nothing
+is written until the person who asked clicks Apply. Proposals are text up to 1 MiB in
+writable roots, into folders that already exist. Replacing a file needs the revision
+the assistant read, and Apply is refused if the file changed since then. Agent and
+workflow folders stay read-only; use their editors.
 
 Open **Workspace files** to browse these server-side roots:
 

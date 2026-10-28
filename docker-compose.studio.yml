@@ -16,6 +16,8 @@ name: nexus-studio
 #   - ${NEXUS_STUDIO_DATA_DIR}/{project,private,home} (0700).
 #   - NEXUS_PROJECT_CONFIG_DIR: directory holding PROJECT_CONFIG_PATH, mounted
 #     read-only at the same path.
+#   - Extra Workspace files roots from studio-runtime.json are container paths:
+#     add docker-compose.studio-files.yml to mount one read-only at the same path.
 services:
   studio:
     build:

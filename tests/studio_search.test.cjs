@@ -604,3 +604,21 @@ test("sidebar keeps recent conversations visible when the nav overflows", () => 
   const css = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
   assert.match(css, /\.sidebar \.recents\{min-height:min\(180px,25dvh\)/);
 });
+
+test("Task details offers step re-run with extra input and two modes", () => {
+  const features = fs.readFileSync("nexus/studio_static/features.js", "utf8");
+  assert.match(features, /async function renderStepRerunActions\(/);
+  assert.match(features, /rerun-step`,\{step_id:/);
+  assert.match(features, /name="mode" value="continue"/);
+  assert.match(features, /name="mode" value="only"/);
+  assert.match(features, /renderStepRerunActions\(root,run\);/);
+});
+
+test("assistant chat shows workspace proposals with Apply and Reject", () => {
+  const access = fs.readFileSync("nexus/studio_static/workspace-access.js", "utf8");
+  assert.match(access, /async function renderWorkspaceProposals\(node,runId\)/);
+  assert.match(access, /\["apply","Apply"\],\["reject","Reject"\]/);
+  assert.match(access, /Nothing is written until you apply it/);
+  assert.match(studioSource, /isStudioAssistant&&typeof renderWorkspaceProposals==="function"\)renderWorkspaceProposals\(reply,finished\.id\)/);
+  assert.match(studioSource, /session\.studio_assistant&&m\.role==="assistant"&&m\.run_id/);
+});

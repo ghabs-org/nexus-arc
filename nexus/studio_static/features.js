@@ -422,6 +422,36 @@ async function renderRunRetryActions(root,run){
     section.append(error);
   }catch(failure){if(section.isConnected){error.textContent=failure.message;section.append(error);}}
 }
+async function renderStepRerunActions(root,run){
+  const existing=$('run-rerun-controls');
+  if(run.kind!=="workflow"||["running","queued","waiting"].includes(run.status)){existing?.remove();return;}
+  if(existing&&existing.dataset.runId===run.id)return;
+  existing?.remove();
+  const section=document.createElement('details');section.id='run-rerun-controls';section.className='run-retry-actions';section.dataset.runId=run.id;root.after(section);
+  section.innerHTML='<summary>Re-run a step</summary>';
+  try{
+    const plan=await featureApi(`runs/${encodeURIComponent(run.id)}/rerun-step`);
+    if(!section.isConnected||state.detailRunId!==run.id)return;
+    if(!plan.can_rerun){const note=document.createElement('p');note.textContent=plan.blocked_reason||'No steps to re-run.';section.append(note);return;}
+    const form=document.createElement('form');
+    form.innerHTML=`<p>Starts a new run. Earlier steps reuse this run's saved outputs; this run stays unchanged. Agents use their current instructions.</p>
+<label>Step<select name="step_id">${plan.steps.map(step=>`<option value="${escapeHtml(step.id)}">${escapeHtml(step.name)} (${escapeHtml(step.status)})</option>`).join("")}</select></label>
+<label>Extra input for this step (optional)<textarea name="note" maxlength="4000" placeholder="For example: run the cash model with the calculation tool instead of estimating."></textarea></label>
+<fieldset><legend>After this step</legend><label class="check-label"><input type="radio" name="mode" value="continue" checked><span>Run the later steps again</span></label><label class="check-label"><input type="radio" name="mode" value="only"><span>Keep the later steps' saved outputs</span></label></fieldset>
+${plan.requires_effect_review?'<label class="check-label"><input type="checkbox" name="confirm_effects"><span>This run recorded external actions. Repeating these steps is safe.</span></label>':''}
+<p class="form-error" role="alert"></p><button type="submit">Re-run step</button>`;
+    form.onsubmit=async event=>{
+      event.preventDefault();const data=new FormData(form),button=form.querySelector('button[type=submit]');
+      button.disabled=true;form.querySelector('.form-error').textContent='';
+      try{
+        const queued=await featureApi(`runs/${encodeURIComponent(run.id)}/rerun-step`,{step_id:data.get('step_id'),note:data.get('note')||'',mode:data.get('mode'),...(plan.requires_effect_review?{confirm_effects:data.get('confirm_effects')==='on'}:{})});
+        showRun(queued);await refreshRuns();
+        pollRun(queued.id,updateRunDetail).catch(failure=>updateRunDetail(failure.run||{id:queued.id,status:'failed',error:failure.message})).finally(()=>refreshRuns().catch(()=>{}));
+      }catch(failure){form.querySelector('.form-error').textContent=failure.message;button.disabled=false;}
+    };
+    section.append(form);
+  }catch(failure){if(section.isConnected){const error=document.createElement('p');error.className='form-error';error.textContent=failure.message;section.append(error);}}
+}
 const basicRunDetail=updateRunDetail;
 updateRunDetail=function(run){
   basicRunDetail(run);if(state.detailRunId!==run.id||!$("run-output"))return;
@@ -432,6 +462,7 @@ updateRunDetail=function(run){
   const request=featureApi(`runs/${encodeURIComponent(run.id)}/execution`).then(data=>{if(state.detailRunId!==run.id||root!==$("run-execution"))return;const signature=JSON.stringify([data.timeline,data.states,run.status,run.cancel_requested,run.awaiting_input,run.evaluation_checkpoint]);if(root.dataset.signature===signature)return;root.dataset.signature=signature;
     const focused=document.activeElement?.getAttribute("aria-label");renderExecutionReplay(root,data,run);if(focused)Array.from(root.querySelectorAll("[aria-label]")).find(element=>element.getAttribute("aria-label")===focused)?.focus();
     renderRunRetryActions(root,run);
+    renderStepRerunActions(root,run);
     if(["running","queued","waiting"].includes(run.status)||(run.status==="interrupted"&&run.cancellation_cleanup)){const stop=document.createElement("button");stop.className="secondary";stop.dataset.executionAction="true";const pendingCleanup=run.cancellation_cleanup&&run.status==="waiting",interruptedCleanup=run.cancellation_cleanup&&run.status==="interrupted";stop.textContent=pendingCleanup?"Skip this cleanup step":interruptedCleanup?"Continue cleanup":run.cancel_requested?"Stop requested":"Stop task";stop.disabled=!!run.cancel_requested&&!pendingCleanup&&!interruptedCleanup;stop.onclick=async()=>{try{await featureApi(`runs/${run.id}/cancel`,{});stop.textContent="Stop requested";stop.disabled=true;pollRun(run.id,updateRunDetail).catch(error=>notify(error.message));}catch(error){notify(error.message);}};root.append(stop);}
     for(const requested of run.awaiting_input||[]){const form=document.createElement("form");form.dataset.executionAction="true";form.innerHTML=`<label>${escapeHtml(requested.name)}<textarea name="answer" required></textarea></label><button type="submit">Provide input</button><p>Input fields requiring structured data accept JSON.</p>`;form.onsubmit=async event=>{event.preventDefault();try{const raw=new FormData(form).get("answer");let value=raw;if(requested.schema?.type&&requested.schema.type!=="string")value=JSON.parse(raw);await featureApi(`runs/${run.id}/input`,{values:{[requested.id]:value},evaluation_checkpoint:run.evaluation_checkpoint||undefined});pollRun(run.id,updateRunDetail).catch(error=>notify(error.message));}catch(error){notify(error.message);}};root.append(form);}
   }).catch(error=>{if(state.detailRunId===run.id&&root===$("run-execution")&&!root.dataset.signature)root.textContent=error.message;}).finally(()=>executionRequests.delete(run.id));executionRequests.set(run.id,request);

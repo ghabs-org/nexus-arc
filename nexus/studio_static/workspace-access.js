@@ -112,6 +112,32 @@ $("studio-help-ai").addEventListener("click",async()=>{
     }
   }catch(error){$("studio-help-error").textContent=error.message;}finally{button.disabled=false;}
 });
+async function renderWorkspaceProposals(node,runId){
+  let data;try{data=await featureApi(`workspace-proposals?run_id=${encodeURIComponent(runId)}`);}catch{return;}
+  node.querySelector(".workspace-proposals")?.remove();
+  if(!data.items.length)return;
+  const list=document.createElement("div");list.className="workspace-proposals";
+  for(const item of data.items){
+    const card=document.createElement("section");card.className="workspace-proposal";
+    const replaces=item.base_revision?"Replaces the current file":"New file";
+    const before=item.base_revision?`<details><summary>Current file${item.before_truncated?" (first 16 KB)":""}</summary><pre>${escapeHtml(item.before??"Binary or unreadable content")}</pre></details>`:"";
+    card.innerHTML=`<h3>Proposed change · <code>${escapeHtml(item.root)}:/${escapeHtml(item.path)}</code></h3><p>${replaces}. Nothing is written until you apply it.</p>${before}<details open><summary>Proposed content</summary><pre>${escapeHtml(item.content)}</pre></details><p class="form-error" role="alert"></p>`;
+    const actions=document.createElement("div");actions.className="card-actions";
+    if(item.status==="pending"){
+      for(const [action,label] of [["apply","Apply"],["reject","Reject"]]){
+        const button=document.createElement("button");button.type="button";button.textContent=label;if(action==="reject")button.className="secondary";
+        button.onclick=async()=>{
+          actions.querySelectorAll("button").forEach(b=>b.disabled=true);
+          try{await featureApi(`workspace-proposals/${encodeURIComponent(item.id)}/${action}`,{});await renderWorkspaceProposals(node,runId);}
+          catch(error){card.querySelector(".form-error").textContent=error.message;actions.querySelectorAll("button").forEach(b=>b.disabled=false);}
+        };
+        actions.append(button);
+      }
+    }else actions.innerHTML=badge(item.status,item.status==="applied"?"Applied":"Rejected");
+    card.append(actions);list.append(card);
+  }
+  node.append(list);
+}
 async function refreshWorkspaceAccess(){
   if(!state.ready)return;
   if(view()==="files")await refreshServerFiles();

@@ -634,6 +634,7 @@ async function openSession(sessionId){
   (session.messages||[]).forEach(m=>{
     const node=addMessage(m.role,m.content,providerName(m.provider||""),m.run_id,m.citations||[],m.structured_content||[],m.retrieval_notice);
     if(m.status==="failed")node.classList.add("error");
+    if(session.studio_assistant&&m.role==="assistant"&&m.run_id&&typeof renderWorkspaceProposals==="function")renderWorkspaceProposals(node,m.run_id);
   });
   if($("chat-agent"))$("chat-agent").value=session.studio_assistant?"studio-assistant":(session.agent_id||"");
   if($("chat-provider"))$("chat-provider").value=session.provider||"codex";
@@ -734,7 +735,7 @@ function renderRuns(){
     chat:"Direct conversations with agents will appear here.",
     tool:"Standalone tool executions will appear here."
   };
-  $("activity-content").innerHTML=runs.length?runs.map(r=>`<article class="activity-row" data-search="${escapeHtml(r.workflow_definition_id||"")}"><div class="activity-copy"><h2>${escapeHtml(r.task)}</h2><p>${escapeHtml(r.kind)} · ${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}</p></div>${badge(r.status,r.status)}<button class="secondary" data-run="${escapeHtml(r.id)}">Details</button></article>`).join(""):empty("No matching activity",emptyMessages[filter]||"No items found for this filter.");
+  $("activity-content").innerHTML=runs.length?runs.map(r=>`<article class="activity-row" data-search="${escapeHtml(r.workflow_definition_id||"")}"><div class="activity-copy"><h2>${escapeHtml(r.task)}</h2><p>${escapeHtml(r.kind)} · ${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}${r.rerun_of?" · re-run of "+escapeHtml(r.rerun_of.step_name):""}</p></div>${badge(r.status,r.status)}<button class="secondary" data-run="${escapeHtml(r.id)}">Details</button></article>`).join(""):empty("No matching activity",emptyMessages[filter]||"No items found for this filter.");
   if($("activity-search-input")?.value)filterResourceCards("activity-content","activity-search-input","activity");
 }
 async function refreshDefinitions(){const [agents,workflows]=await Promise.all([api("/api/agents"),api("/api/workflows")]);state.agents=agents.items;state.workflows=workflows.items;renderAgents();renderWorkflows();}
@@ -801,6 +802,7 @@ async function sendMessage(event){
   try{
     const queued=await api("/api/runs",payload);state.sessionId=queued.session_id;
     const finished=await pollRun(queued.id,run=>{renderRunMessage(reply,run);reply.dataset.runId=run.id;reply.querySelector(".message-provider").textContent=providerName(run.provider);$("messages").scrollTop=$("messages").scrollHeight;});
+    if(isStudioAssistant&&typeof renderWorkspaceProposals==="function")renderWorkspaceProposals(reply,finished.id);
     if(finished.status==="completed")window.dispatchEvent(new CustomEvent("studio-response-completed",{detail:{text:finished.output}}));
     await refreshSessions();
   }catch(error){reply.classList.add("error");if(!body.textContent||body.textContent==="Working…")body.textContent=error.message;else{const note=document.createElement("p");note.className="form-error";note.setAttribute("role","alert");note.textContent=error.message;reply.append(note);}}

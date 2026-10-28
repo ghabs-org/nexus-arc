@@ -1,0 +1,11 @@
+# Optional: expose one more host folder in Studio's Workspace files (for example a
+# "source" root in studio-runtime.json). Studio reads runtime roots inside the
+# container, so the folder is mounted read-only at the same path:
+#   NEXUS_WORKSPACE_FILES_DIR=/home/ubuntu/git docker compose \
+#     -f docker-compose.studio.yml -f docker-compose.studio-workers.yml \
+#     -f docker-compose.studio-files.yml up -d studio
+# Keep the runtime root "writable": false; it must match this path exactly.
+services:
+  studio:
+    volumes:
+      - ${NEXUS_WORKSPACE_FILES_DIR:?set NEXUS_WORKSPACE_FILES_DIR}:${NEXUS_WORKSPACE_FILES_DIR}:ro

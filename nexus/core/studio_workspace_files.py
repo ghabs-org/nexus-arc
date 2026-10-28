@@ -162,7 +162,10 @@ class StudioWorkspaceFiles:
         parts = components(path)
         items, truncated = [], False
         try:
-            with self.directory(root, path, create=root.get("writable", False) and not path) as fd, os.scandir(fd) as entries:
+            with (
+                self.directory(root, path, create=root.get("writable", False) and not path) as fd,
+                os.scandir(fd) as entries,
+            ):
                 for index, entry in enumerate(entries):
                     if index >= 1000:
                         truncated = True
@@ -326,6 +329,45 @@ class StudioWorkspaceFiles:
             "path": "/".join([*components(path), names[0]]),
             "revision": hashlib.sha256(content).hexdigest(),
             "size": len(content),
+        }
+
+    def write(self, identity, path, content, base_revision=None, actor=None):
+        """Create a file, or replace it only while it still has base_revision."""
+        root = self.root(identity, actor, write=True)
+        parts = components(path)
+        if not parts:
+            raise ValueError("Choose a file path")
+        if len(content) > ARTIFACT_LIMIT:
+            raise ValueError("Write at most 16 MiB")
+        if base_revision is not None and self.read(identity, path, actor)[1] != base_revision:
+            raise ValueError("File changed since the proposal; ask for a new one")
+        with self.directory(root, "/".join(parts[:-1]), create=not parts[:-1]) as fd:
+            # Hidden temporary names are never listed; replace swaps the entry, not a symlink target.
+            target = parts[-1] if base_revision is None else f".{parts[-1]}.{uuid.uuid4().hex}.tmp"
+            try:
+                output = os.open(
+                    target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd
+                )
+            except FileExistsError:
+                raise ValueError("File already exists; read it and propose a replacement") from None
+            try:
+                with os.fdopen(output, "wb") as file:
+                    file.write(content)
+                    file.flush()
+                    os.fsync(file.fileno())
+                if base_revision is not None:
+                    # ponytail: revision check and swap are not atomic; a concurrent edit in that window is lost.
+                    os.replace(target, parts[-1], src_dir_fd=fd, dst_dir_fd=fd)
+            except BaseException:
+                try:
+                    os.unlink(target, dir_fd=fd)
+                except FileNotFoundError:
+                    pass
+                raise
+        return {
+            "root": identity,
+            "path": "/".join(parts),
+            "revision": hashlib.sha256(content).hexdigest(),
         }
 
     def folder(self, data, actor=None):

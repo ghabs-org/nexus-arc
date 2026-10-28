@@ -104,6 +104,8 @@ class StudioLegacyWorkflows:
                     if key in payload
                 },
             }
+            if payload.get("_step_rerun"):
+                workflow = await self.seed(engine, workflow, payload["_step_rerun"])
         self.snapshot(state, workflow)
         self.studio._update_run(
             run_id, workflow_id=workflow.id, workflow_definition_id=state["workflow_id"]
@@ -114,6 +116,13 @@ class StudioLegacyWorkflows:
             step = workflow.get_step(workflow.current_step)
             if step is None or step.status not in {StepStatus.RUNNING, StepStatus.PENDING}:
                 raise ValueError("YAML workflow has no runnable current step")
+            reused = self.reused_output(payload, step)
+            if reused is not None:
+                workflow = await engine.complete_step(
+                    workflow.id, step.step_num, {"result": reused}
+                )
+                self.snapshot(state, workflow)
+                continue
             needs_approval = step.require_human_approval or any(
                 gate.required and gate.gate_type != ApprovalGateType.PR_MERGE
                 for gate in step.approval_gates
@@ -154,6 +163,40 @@ class StudioLegacyWorkflows:
                 "YAML workflow stopped before completion or reached its execution limit"
             )
         return self.output(workflow)
+
+    def source_outputs(self, rerun):
+        return self.studio._read(self.studio._path("yaml-runs", rerun["source_run_id"]))["outputs"]
+
+    async def seed(self, engine, workflow, rerun):
+        """Complete the steps before the chosen one with the source run's saved outputs."""
+        if [step.name for step in workflow.steps] != rerun["names"]:
+            raise ValueError("Workflow steps changed since the source run; start a new run instead")
+        outputs = self.source_outputs(rerun)
+        while (
+            workflow.state == WorkflowState.RUNNING and workflow.current_step != rerun["step_num"]
+        ):
+            step = workflow.get_step(workflow.current_step)
+            key = f"step-{step.step_num}" if step else ""
+            if step is None or step.step_num > rerun["step_num"] or key not in outputs:
+                break
+            workflow = await engine.complete_step(
+                workflow.id, step.step_num, {"result": outputs[key]}
+            )
+        if workflow.state != WorkflowState.RUNNING or workflow.current_step != rerun["step_num"]:
+            raise ValueError(
+                "Saved outputs no longer lead to the chosen step; start a new run instead"
+            )
+        return workflow
+
+    def reused_output(self, payload, step):
+        """In only-this-step mode, later steps keep the source run's outputs."""
+        rerun = payload.get("_step_rerun")
+        if not rerun or rerun["mode"] != "only" or step.step_num <= rerun["step_num"]:
+            return None
+        output = self.source_outputs(rerun).get(f"step-{step.step_num}")
+        if output is None:
+            raise ValueError(f"No saved output to reuse for step {step.name}")
+        return output
 
     @staticmethod
     def validate_parallel(workflow, document):
@@ -201,6 +244,9 @@ class StudioLegacyWorkflows:
             task = step.get_approval_constraints() + "\n\n" + task
         if prior:
             task += "\nPrevious steps:\n" + self.output(workflow)
+        rerun = payload.get("_step_rerun")
+        if rerun and rerun.get("note") and step.step_num == rerun["step_num"]:
+            task += "\n\nAdditional input for this re-run:\n" + rerun["note"]
         request = {
             key: payload[key]
             for key in [
