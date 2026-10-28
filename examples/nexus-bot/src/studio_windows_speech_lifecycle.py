@@ -201,7 +201,13 @@ async def exercise(root):
     result = await local_process(
         command, input=payload, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10
     )
-    assert result.stdout == payload and result.stderr == b"diagnostic" and result.returncode == 7
+    assert result.stdout == payload and result.stderr == b"diagnostic" and result.returncode == 7, {
+        "returncode": result.returncode,
+        "stdout_bytes": len(result.stdout or b""),
+        "expected_bytes": len(payload),
+        "stdout_head": repr((result.stdout or b"")[:64]),
+        "stderr": repr((result.stderr or b"")[-2000:]),
+    }
     try:
         await local_process(
             command,
