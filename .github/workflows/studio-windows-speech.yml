@@ -18,6 +18,10 @@ on:
       - 'tests/test_studio_speech_service_lifecycle.py'
       - 'tests/studio_windows_speech_acceptance.py'
       - 'tests/test_studio_windows_acceptance_runner.py'
+      - 'examples/nexus-bot/src/studio_local_speech.py'
+      - 'tests/studio_local_speech_acceptance.py'
+      - 'tests/fixtures/studio_voice_models.py'
+      - 'tests/test_studio_voice_model_preparation.py'
       - 'pyproject.toml'
 
 permissions:
@@ -64,6 +68,52 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: studio-windows-speech-py${{ matrix.python }}
+          path: acceptance-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  real-models:
+    name: Windows x64 / real Piper and Whisper
+    needs: native-speech
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: '.'
+      PYTHONUTF8: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      NEXUS_ACCEPTANCE_WHISPER_MODEL: '${{ runner.temp }}/nexus-voice-models/tiny.en.pt'
+      NEXUS_ACCEPTANCE_PIPER_MODEL: '${{ runner.temp }}/nexus-voice-models/en_US-lessac-medium.onnx'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install CPU speech runtimes in the disposable runner
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.14.1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install --editable . pytest pytest-asyncio "openai-whisper==20250625" "piper-tts==1.8.0"
+      - name: Require installed FFmpeg
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw "FFmpeg is required on the Windows runner" }
+          ffmpeg -version
+      - name: Prepare approved model snapshots with exact hash verification
+        run: python tests/fixtures/studio_voice_models.py --directory "${{ runner.temp }}/nexus-voice-models"
+      - name: Exercise actual local speech through Studio jobs
+        run: >-
+          python -m pytest -o addopts=''
+          tests/studio_local_speech_acceptance.py
+          --junitxml=acceptance-results/real-models.xml -q
+      - name: Retain test evidence without redistributing models
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-windows-real-models
           path: acceptance-results/
           if-no-files-found: warn
           retention-days: 14
