@@ -117,6 +117,41 @@ merge, VM deployment or installer build was performed. The remaining work below
 requires selected accounts, physical devices or the deferred deployment target;
 installed desktop milestone 9 remains last.
 
+### GitHub selected-account live reads — 28 October 2026
+
+The existing authenticated GitHub account now passes the native Studio REST
+connector's read path against `ghabs-org/nexus-arc`: account/repository identity,
+issue and PR lists and detail lookup. All six remote calls were GET requests.
+An unselected comment action was rejected locally before transport; no remote
+mutation or message occurred. The temporary workspace retained only a credential
+reference and was checked for absence of token bytes.
+
+The separate unauthenticated Postman public contract passed four assertions;
+31 related regression tests passed with zero skips. See
+[scoped evidence](STUDIO-GITHUB-LIVE-READS-CHECKPOINT.json) and
+[repeatable consumer](STUDIO-GITHUB-LIVE-READS.md).
+This does not establish GitHub write/webhook behavior, shared-team isolation,
+private repository access or personal-VM credentials. Other account acceptance
+remains open; no real connector/workspace, VM or installer was modified.
+
+### Current readiness and next target — 28 October 2026
+
+The completion consistency audit reports 135 scoped local flags accepted, zero
+inconsistencies and `plan_complete: false`. The desktop checkpoint remains open.
+Windows source/model evidence and the selected GitHub live-read evidence retain
+their narrower scope; they do not establish installed-app, device or VM readiness.
+See the [readiness snapshot](STUDIO-DELIVERY-READINESS-CHECKPOINT.json).
+
+No other common integration credential reference is exposed in the current Mac
+process environment. This is a presence check, not proof that no other account
+exists. Do not search credential files or invent additional local tests as a
+substitute for the remaining live gates. The user has been asked which target is
+available: VM access again, a real phone/tablet, or another configured integration
+account. Keep dependent work pending until that answer provides scope. VM work
+remains deferred, desktop milestone 9 remains last, and a new DMG requires an
+explicit request. Do not repeat already accepted native CI without a change or
+unresolved failure that warrants it.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech
@@ -128,8 +163,8 @@ installed desktop milestone 9 remains last.
    hashes are reconciled. Do not rebuild a DMG unless explicitly requested.
 2. **Selected accounts and physical devices.** Windows source ownership now has
    real runner evidence, including real-model completion and interruption on
-   Python 3.11. Installed desktop and physical-device checks remain separate. Check configured integration
-   permissions/authentication, API voice/embedding quality and billing paths;
+   Python 3.11. Installed desktop and physical-device checks remain separate. GitHub public-repository reads now have selected-account live proof;
+   check other configured integration permissions/authentication, API voice/embedding quality and billing paths;
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
    account/device results identify exactly what ran; unavailable prerequisites stay
    pending. Local HTTP/SDK fixtures and emulated widths are already available.
