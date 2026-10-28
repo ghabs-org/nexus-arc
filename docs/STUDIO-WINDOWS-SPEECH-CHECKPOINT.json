@@ -25,7 +25,7 @@
   },
   "native_consumer": "examples/nexus-bot/src/studio_windows_speech_lifecycle.py",
   "pending": [
-    "Actual Whisper/Piper model runtime and shutdown checks on Windows.",
+    "Interruption/cancellation while actual Windows Whisper/Piper models run; real-model completion now has separate passing evidence.",
     "Installed Windows desktop authentication, ownership, workspace flows and signing remain milestone 9, last.",
     "Physical-device, personal VM and later deployment acceptance remain separate."
   ],
@@ -257,5 +257,12 @@
     "diagnosis": "Input/output bytes were correct. Normal Python interpreter finalization aborted because the daemon owner watcher retained the buffered stdin lock.",
     "fix": "After supervise() confirms cleanup and closes handles, flush output and terminate only the isolated owner with os._exit. Preserve signed 32-bit Windows exit status bits. Main Studio lifecycle is unchanged.",
     "boundary": "Actual source Job Objects, detached descendants, cancellation, timeout, owner death, finite input/nonzero status and synthetic Studio service flows passed on both Python versions. No real speech models, installed apps, VM or account/device proof; no merge or release."
+  },
+  "real_model_followup": {
+    "date": "2026-10-28",
+    "status": "real-model-roundtrip-verified",
+    "checkpoint": "docs/STUDIO-WINDOWS-VOICE-CHECKPOINT.json",
+    "run_url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40748628074",
+    "boundary": "Windows Server 2022 x64/Python 3.11 real synthesis and transcription; actual-model interruption remains separate."
   }
 }

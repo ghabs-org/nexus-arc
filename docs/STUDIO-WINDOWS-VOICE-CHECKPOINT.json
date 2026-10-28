@@ -1,0 +1,102 @@
+{
+  "format": "nexus-windows-local-voice-checkpoint/v1",
+  "date": "2026-10-28",
+  "status": "real-windows-cpu-speech-roundtrip-verified",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "authorization": "Previously approved public Whisper/Piper test models and temporary local speech runtime preparation. Only an ephemeral Windows CI runner was modified.",
+  "platform": "Windows Server 2022 x64",
+  "revision": "f73b876ee66c3dcb0bf68d033c05659b152ddf68",
+  "branch": "codex/windows-speech-20261028",
+  "run_id": 40748628074,
+  "url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40748628074",
+  "actual_models": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "duration_seconds": 11.253,
+    "junit_sha256": "aa1d8a63e9b2085cefd1d34bad13c7ba87dcd7536311a19aee0a99651d497661"
+  },
+  "native_result": {
+    "models_sha256": {
+      "NEXUS_ACCEPTANCE_PIPER_MODEL": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+      "NEXUS_ACCEPTANCE_WHISPER_MODEL": "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03"
+    },
+    "packages": {
+      "onnxruntime": "1.31.1",
+      "openai-whisper": "20250625",
+      "piper-tts": "1.8.0",
+      "torch": "2.14.1+cpu"
+    },
+    "platform": "win32",
+    "python": "3.11.9",
+    "roundtrip": {
+      "api_client_used": false,
+      "audio_seconds": 2.891,
+      "generated_wav_bytes": 127532,
+      "microphone_used": false,
+      "model_downloaded_by_worker": false,
+      "private_audio_artifact": true,
+      "synthesis_completed": true,
+      "synthesis_seconds": 5.859,
+      "temporary_audio_removed": true,
+      "transcript": "Studio can run local speech without an external account.",
+      "transcription_completed": true,
+      "transcription_seconds": 4.172
+    },
+    "source_sha256": {
+      "examples/nexus-bot/src/studio_local_speech.py": "26a2e9e1f50f1dbcf843ac565876dc8fd2f8c12a9b50fa0bde5e3a056d99775b",
+      "nexus/core/studio.py": "3688483d4f6842db09514a29e111d60abb465f0a750922c6adba95a89e16949f",
+      "nexus/core/studio_speech.py": "955cfd082b8e6e55f803f867734169858670ac072a98fe85afd403293bcac384",
+      "nexus/core/studio_speech_process.py": "e2c6a1c918b5af22379f9785026b844ae84a946988cc47666232b294c05d042f",
+      "nexus/core/studio_speech_windows.py": "92c8db364b051070eb24c8c3988033763f4df51ea8f33b3741b255c46e464ce2",
+      "nexus/core/studio_speech_worker.py": "8da78a632ed4bf368193c21d1e4e51ed6c93fa2c42558ab89d3148c9b3abd767",
+      "tests/studio_local_speech_acceptance.py": "034a8fa0aa881b8071b0f9a7b4eafc66f8f1e8c9509778db2e6e0481f164548e"
+    }
+  },
+  "ffmpeg": "9.0.2-essentials_build-www.gyan.dev",
+  "source_git_blob_sha256": {
+    "examples/nexus-bot/src/studio_local_speech.py": "fa9b12f592c5d7163f37f47d60170196b6b9ca01cf64e97a17f8225cebdbe4a2",
+    "nexus/core/studio.py": "2fbafdc769f58b2b05b04283d57fd7d408fdbd9f637f363d20b2566656df1fa3",
+    "nexus/core/studio_speech.py": "3ab8adbca3551749635cf152c7e507123c7ae78bd0ab2d2897be14aba1fae1c5",
+    "nexus/core/studio_speech_process.py": "5e0fa30ddc0651ebe01b3bf4898db65823e11533a291c83a86e30d25a8d4c351",
+    "nexus/core/studio_speech_windows.py": "68463fe4cdaff00b4efdaa1a48885373fa2b551d855d1def096ba3a6406c5a70",
+    "nexus/core/studio_speech_worker.py": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7",
+    "tests/studio_local_speech_acceptance.py": "75f23a9cfa307692b8051ae583f0481eed7dab80ce0fd53b8f8bb69dc4565e53"
+  },
+  "source_verification": "Every raw Windows source hash matches the tested commit after exact LF-to-CRLF checkout conversion. Mac source bytes match the commit blobs.",
+  "preparation": {
+    "model_manifest": "tests/fixtures/studio_voice_models.py",
+    "models_downloaded_only_by_test_preparation": true,
+    "approved_model_hashes_verified": true,
+    "model_card_retained_in_runner": true,
+    "models_or_audio_uploaded_as_ci_artifacts": false,
+    "runtimes_installed_only_in_disposable_runner": true,
+    "ffmpeg_explicitly_prepared": true
+  },
+  "local_checks": {
+    "tests": 46,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "junit_sha256": "7089511bc2bcc364d74a2e643ebf374706647fef32780dac50c88887cc07bde2"
+  },
+  "native_lifecycle": "Both Python 3.11 and 3.13 lifecycle jobs passed again in this same run; earlier full reports remain in STUDIO-WINDOWS-SPEECH-CHECKPOINT.json.",
+  "setup_failures": [
+    {
+      "run_id": 40747531026,
+      "reason": "Workflow job environment incorrectly used runner context; moved paths into step environment."
+    },
+    {
+      "run_id": 40747767013,
+      "reason": "Disposable runner lacked FFmpeg. Prepared explicitly before any real-model execution."
+    }
+  ],
+  "migration": "Acceptance-only additions. No product runtime, speech API, persisted state, account configuration or application packaging changed.",
+  "pending": [
+    "Interruption/cancellation while actual Windows speech models run; synthetic process and Studio interruption already have independent native proof.",
+    "Native installed Windows desktop/authentication/workspace/signing/update acceptance remains milestone 9, last.",
+    "Physical microphone/playback, broader speech/language quality, API accounts and personal VM remain separate."
+  ]
+}

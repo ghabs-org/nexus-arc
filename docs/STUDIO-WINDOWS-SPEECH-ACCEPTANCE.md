@@ -66,3 +66,26 @@ Windows desktop installation, authentication, workspace flows, real Whisper/Pipe
 models, shutdown with those real models, signing or updates.
 Those remain separate checks; desktop milestone 9 stays last. No account/device/VM
 acceptance record is promoted automatically from this gate.
+
+## Real-model Windows roundtrip
+
+The same workflow now has a dependent real-model job on Windows Server 2022 x64
+with Python 3.11. It installs pinned CPU Torch, Whisper and Piper runtimes and
+explicitly prepares FFmpeg in that disposable runner. Test preparation downloads
+only the previously approved fixed model snapshots and checks exact file sizes
+and SHA-256 hashes, including Piper configuration and its model card. Altered or
+oversized downloads fail rather than reaching a model worker.
+
+The existing `studio_local_speech.py` consumer then queues ordinary Studio
+synthesis and transcription jobs. The resulting JUnit report retains model and
+source hashes, package versions, the synthetic transcript, audio size and cleanup
+assertions. Only reports are uploaded; neither model files nor generated audio
+are distributed. Product workers continue to use configured local files and
+never invoke the preparation helper.
+
+[The passing run](https://github.com/ghabs-org/nexus-arc/actions/runs/40748628074)
+verified real generation/transcription without microphone or speech API access.
+[Durable evidence](STUDIO-WINDOWS-VOICE-CHECKPOINT.json) retains exact versions and
+results. This completes source real-model roundtrip acceptance on that runner;
+actual-model interruption, physical-device behavior and installed applications
+remain separate checks.

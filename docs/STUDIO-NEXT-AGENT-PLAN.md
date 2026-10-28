@@ -25,7 +25,7 @@ them. Older dated notes below are history, not additional missing implementation
 | PostgreSQL logical restore | [47 native/regression checks](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json) | Actual VM/account-store recovery and deployment-specific physical database recovery |
 | GCS/Azure storage SDKs & timeout/retry | [44 SDK/regression checks + timeout/503](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json) | Real cloud IAM/retention/history and live account restore |
 | TLS certificate lifecycle | [49 real-engine/regression checks](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) | Production provisioning, automatic renewal, per-leaf revocation and established sessions |
-| Speech child containment | [Linux/macOS evidence](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json), [native Windows acceptance](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json) | Actual Windows speech models, installed applications, physical devices and VM |
+| Speech child containment | [Linux/macOS evidence](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json), [native Windows acceptance](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json) | Real-model interruption, installed applications, physical devices and VM |
 | PDF contention reproduction & isolation | [18 PDF failure/concurrency checks + load proof](STUDIO-PDF-PREVIEW-CHECKPOINT.json) | Rebuild installed native app/DMG only when explicitly requested |
 | Direct TypeSafe decisions | [Provider and integration evidence](STUDIO-TYPESAFE-DECISION-CHECKPOINT.json) | Selected real account acceptance |
 
@@ -60,9 +60,28 @@ LF-to-CRLF checkout conversion; both original reports are retained in the
 [checkpoint](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json).
 
 Changes are published only on `codex/windows-speech-20261028`; no merge, VM
-upgrade or installer build occurred. Actual Windows Whisper/Piper models,
-installed desktop flows, signing and updates remain separate acceptance gates.
+upgrade or installer build occurred. Real Windows model completion now has the later evidence below; interruption
+with those actual models, installed desktop flows, signing and updates remain
+separate acceptance gates.
 See [repeatable instructions](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md).
+
+### Real Windows speech models — 28 October 2026
+
+Real Piper 1.8.0 and Whisper 20250625 now pass an ordinary Studio job roundtrip
+on Windows Server 2022 x64/Python 3.11.9, with Torch 2.14.1+cpu, ONNX Runtime
+1.31.1 and FFmpeg 9.0.2. Hash-verified approved public models produced a private
+127,532-byte, 2.891-second WAV. Whisper transcribed the synthetic sentence
+correctly. Temporary audio and ownership records were removed. No microphone or
+speech API was used; model preparation occurred explicitly before the worker.
+
+The real-model test passed without skips; 46 focused local checks also passed.
+Both native lifecycle matrix jobs passed again in
+[the same CI run](https://github.com/ghabs-org/nexus-arc/actions/runs/40748628074).
+[Retained model evidence](STUDIO-WINDOWS-VOICE-CHECKPOINT.json) records versions,
+model/source hashes and the exact tested commit. Models and audio are not CI
+artifacts. No product runtime or packaging changed in this acceptance slice.
+Actual-model interruption, installed desktop, physical-device/API-account and VM
+acceptance remain separate. Milestone 9 stays last; no DMG was rebuilt.
 
 ### Remaining work, in delivery order
 
@@ -74,8 +93,8 @@ See [repeatable instructions](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md).
    gates (`STUDIO-M9-DESKTOP-CHECKPOINT.json`), and local checkpoint `source_sha256`
    hashes are reconciled. Do not rebuild a DMG unless explicitly requested.
 2. **Selected accounts and physical devices.** Windows source ownership now has
-   real runner evidence; actual speech models and installed desktop checks remain
-   separate. Check configured integration
+   real runner evidence, including real-model completion on Python 3.11. Actual-model
+   interruption and installed desktop checks remain separate. Check configured integration
    permissions/authentication, API voice/embedding quality and billing paths;
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
    account/device results identify exactly what ran; unavailable prerequisites stay

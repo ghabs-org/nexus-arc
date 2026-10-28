@@ -59,8 +59,12 @@ Saved speech artifacts are separate resources and remain available normally.
 Local synthesis output starts with private file permissions. Cancellation waits
 for the existing bounded child process before unlinking its files, preventing a
 late write from recreating abandoned audio. Local process limits remain 90 seconds
-for synthesis and 130 seconds for transcription; cancellation may wait for the
-child to exit or reach that limit. It does not publish cancelled output.
+for synthesis and 130 seconds for transcription. Linux, macOS and Windows use
+isolated process owners to stop their controlled child trees on cancellation
+or shutdown. Cleanup must finish before temporary files are removed; an
+unconfirmed cleanup is reported. Cancelled output is not published. Native
+Windows source ownership and real-model completion have separate recorded
+acceptance; interruption with actual Windows speech models remains pending.
 
 The cleanup example needs SQLite support but no account, HTTP service or model:
 
@@ -98,7 +102,8 @@ queued cancellation without workers, late local-output writes, expired worker
 leases, concurrent registration/collection, ownership persistence, private file
 permissions and filename collisions. These close queued-profile pinning and local
 interrupted/startup audio-cleanup acceptance within milestone 8. The real local
-model roundtrip below now has Mac acceptance. API-account, physical microphone/
+model roundtrip below now has macOS, Linux-container and Windows Server acceptance.
+See [Windows real-model evidence](STUDIO-WINDOWS-VOICE-CHECKPOINT.json). API-account, physical microphone/
 playback and personal-VM checks remain separate. Full milestone 8 remains open.
 
 ## Passive prerequisite checks
