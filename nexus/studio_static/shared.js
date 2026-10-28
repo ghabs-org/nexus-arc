@@ -35,7 +35,7 @@ async function loadSharedSnapshot(){
       if(remaining<=0){clearSharedSnapshot("Snapshot unavailable, expired or revoked");return;}
       snapshotExpiryTimer=setTimeout(expire,Math.min(remaining,2147483647));
     };
-    document.getElementById("shared-title").textContent=share.title;
+    document.getElementById("shared-title").textContent=share.title;document.title=share.title+" · Nexus Studio";
     status.textContent="Read-only snapshot · expires "+new Date(expires).toLocaleString();
     const root=document.getElementById("shared-messages");
     for(const artifact of share.artifacts||[]){
@@ -63,7 +63,7 @@ async function loadSharedSnapshot(){
     }
     for(const message of share.messages){
       const article=document.createElement("article"),heading=document.createElement("h2"),body=document.createElement("div");
-      heading.textContent=message.role==="user"?"User":"Assistant";
+      heading.textContent=message.label||(message.role==="user"?"User":"Assistant");
       body.className="message-body";
       renderContent(body,message.content);
       article.append(heading,body);root.append(article);

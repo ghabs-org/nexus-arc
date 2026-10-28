@@ -624,7 +624,7 @@ test("assistant chat shows workspace proposals with Apply and Reject", () => {
 });
 
 test("splitStepOutput numbers workflow sections and falls back when names do not match", () => {
-  const source = studioSource.slice(studioSource.indexOf("function splitStepOutput("), studioSource.indexOf("function renderRunOutput("));
+  const source = studioSource.slice(studioSource.indexOf("function splitStepOutput("), studioSource.indexOf("function runStepNames("));
   const context = vm.createContext({});
   vm.runInContext(source, context);
   const output = "plan\n# Brief\n\nDetails here\n\ncfo\nCash model\n\nboard\n";
@@ -634,7 +634,23 @@ test("splitStepOutput numbers workflow sections and falls back when names do not
     { name: "cfo", text: "Cash model" },
     { name: "board", text: "" },
   ]);
+  const skipped = context.splitStepOutput("plan\nA\n\nboard\nC", ["plan", "cfo", "board"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(skipped)), [
+    { name: "plan", text: "A" },
+    { name: "board", text: "C" },
+  ]);
   assert.equal(context.splitStepOutput(output, ["other"]), null);
   assert.equal(context.splitStepOutput(output, []), null);
   assert.match(studioSource, /class="secondary run-history-jump">Execution history</);
+});
+
+test("older workflow runs take step names from the saved definition", () => {
+  const source = studioSource.slice(studioSource.indexOf("function splitStepOutput("), studioSource.indexOf("function renderRunOutput("));
+  const context = vm.createContext({ state: { workflows: [{ id: "qb-playbook", document: { steps: [{ id: "plan" }, { id: "cfo" }] } }] } });
+  vm.runInContext(source, context);
+  const old = { kind: "workflow", workflow_definition_id: "qb-playbook", output: "plan\nBrief\n\ncfo\nCash" };
+  assert.deepEqual(Array.from(context.runStepNames(old)), ["plan", "cfo"]);
+  assert.equal(context.splitStepOutput(old.output, context.runStepNames(old)).length, 2);
+  assert.deepEqual(Array.from(context.runStepNames({ ...old, output_steps: ["plan"] })), ["plan"]);
+  assert.equal(context.runStepNames({ kind: "workflow", workflow_definition_id: "gone" }), null);
 });

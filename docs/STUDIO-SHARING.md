@@ -24,6 +24,16 @@ responses and downloads. Known expiry clears the loaded view. Returning from
 the background or browser cache rechecks current access. Revocation and expiry
 deny subsequent retrieval; they cannot remove a copy already saved by a recipient.
 
+## Workflow runs
+
+Finished runs offer the same **Share snapshot** action in **Task details**. The
+snapshot freezes the task and one section per completed workflow step
+("1. plan", "2. cfo"…); runs without recorded step names are shared as one
+output section. **Download Markdown** saves the same content locally, and
+**Print / Save as PDF** prints only the run details through the browser's print
+dialog. Neither needs a reachable Studio, so they work for recipients outside a
+private network.
+
 ## Repeatable local acceptance
 
 Run the focused regression checks:

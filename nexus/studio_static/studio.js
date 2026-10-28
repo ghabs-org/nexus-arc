@@ -938,19 +938,26 @@ function cleanupRunStatus(run){
 }
 function splitStepOutput(output,names){
   // Workflow output joins completed steps as "name\nresult" separated by blank lines.
+  // Names that did not run are skipped; a section ends where the next listed name starts.
   const sections=[];let cursor=0;
   for(let i=0;i<names.length;i++){
-    const head=(i?"\n\n":"")+names[i]+"\n";
-    if(output.slice(cursor,cursor+head.length)!==head)return null;
-    const start=cursor+head.length;
-    const end=i+1<names.length?output.indexOf("\n\n"+names[i+1]+"\n",start):output.length;
-    if(end<0)return null;
+    const head=(sections.length?"\n\n":"")+names[i]+"\n";
+    if(output.slice(cursor,cursor+head.length)!==head)continue;
+    const start=cursor+head.length;let end=output.length;
+    for(const next of names.slice(i+1)){const at=output.indexOf("\n\n"+next+"\n",start);if(at>=0){end=at;break;}}
     sections.push({name:names[i],text:output.slice(start,end)});cursor=end;
   }
-  return sections.length?sections:null;
+  return sections.length&&cursor===output.length?sections:null;
+}
+function runStepNames(run){
+  if(Array.isArray(run.output_steps))return run.output_steps;
+  // Runs from before output_steps: YAML steps are named by their id in the saved definition.
+  const steps=(state.workflows||[]).find(w=>w.id===run.workflow_definition_id)?.document?.steps;
+  return Array.isArray(steps)?steps.map(step=>String(step.id||step.name||"")).filter(Boolean):null;
 }
 function renderRunOutput(node,run,fallback){
-  const sections=run.output&&Array.isArray(run.output_steps)?splitStepOutput(run.output,run.output_steps):null;
+  const names=run.kind==="workflow"&&run.output?runStepNames(run):null;
+  const sections=names?splitStepOutput(run.output,names):null;
   if(!sections){renderContent(node,fallback);return;}
   node.replaceChildren();
   const index=document.createElement("nav");index.className="run-step-index";index.setAttribute("aria-label","Workflow steps");
@@ -979,7 +986,22 @@ function updateRunDetail(run){
     actionsBar.className="card-actions run-detail-actions";
     $("run-output").after(actionsBar);
   }
-  actionsBar.innerHTML=`<button type="button" class="secondary" data-fix-run-chat="${escapeHtml(run.id)}">Fix in conversation</button><button type="button" class="secondary" id="run-trace-button" data-run-trace="${escapeHtml(run.id)}">Inspect execution trace</button>`;
+  const finished=["completed","failed","cancelled","interrupted"].includes(run.status);
+  actionsBar.innerHTML=`<button type="button" class="secondary" data-fix-run-chat="${escapeHtml(run.id)}">Fix in conversation</button><button type="button" class="secondary" id="run-trace-button" data-run-trace="${escapeHtml(run.id)}">Inspect execution trace</button>`+(finished?'<button type="button" class="secondary" id="run-print">Print / Save as PDF</button><button type="button" class="secondary" id="run-markdown">Download Markdown</button><button type="button" class="secondary" id="run-share">Share snapshot</button>':"");
+  if(!finished)return;
+  $("run-print").onclick=()=>{document.body.classList.add("print-run");window.addEventListener("afterprint",()=>document.body.classList.remove("print-run"),{once:true});window.print();};
+  $("run-markdown").onclick=()=>{
+    const url=URL.createObjectURL(new Blob([runMarkdown(run)],{type:"text/markdown"})),a=document.createElement("a");
+    a.href=url;a.download=`${(run.workflow_definition_id||"run").replace(/[^\w.-]+/g,"-")}-${run.id.slice(0,8)}.md`;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  $("run-share").onclick=()=>shareSnapshot({run_id:run.id},"Share run","Create a read-only snapshot of this run's task and output.").catch(error=>notify(error.message));
+}
+function runMarkdown(run){
+  const names=run.kind==="workflow"&&run.output?runStepNames(run):null;
+  const sections=names&&splitStepOutput(run.output,names);
+  const body=sections?sections.map((s,i)=>`## ${i+1}. ${s.name}\n\n${s.text}`).join("\n\n"):(run.output||run.error||"");
+  return `# ${run.workflow_definition_id||"Run"}\n\n**Task:** ${run.task}\n\n*Status: ${run.status} · ${run.updated_at||run.created_at||""}*\n\n${body}\n`;
 }
 function toggleDetailMaximized(force){
   const dialog=$("detail");

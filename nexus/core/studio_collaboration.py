@@ -101,8 +101,47 @@ class StudioCollaboration:
                         )
         return record
 
+    @staticmethod
+    def run_messages(run):
+        """Task plus one labelled message per workflow step, split like the run detail view."""
+        messages = [{"role": "user", "label": "Task", "content": run["task"]}]
+        output, names = run.get("output") or run.get("error") or "", run.get("output_steps")
+        sections, cursor = [], 0
+        for i, name in enumerate(names if run["kind"] == "workflow" and names else []):
+            head = ("\n\n" if sections else "") + name + "\n"
+            if not output.startswith(head, cursor):
+                break
+            start, end = cursor + len(head), len(output)
+            for later in names[i + 1 :]:
+                at = output.find("\n\n" + later + "\n", start)
+                if at >= 0:
+                    end = at
+                    break
+            sections.append({"label": f"{i + 1}. {name}", "content": output[start:end]})
+            cursor = end
+        if not sections or cursor != len(output):
+            sections = [{"label": "Output", "content": output}]
+        return messages + [{"role": "assistant", **section} for section in sections]
+
     def share(self, data, actor):
-        session = self.owned(self.studio.session(data.get("session_id")), actor)
+        if data.get("run_id") is not None:
+            run = self.owned(self.studio.run(data["run_id"]), actor)
+            if run["status"] not in {"completed", "failed", "cancelled", "interrupted"}:
+                raise ValueError("Share a run after it finishes")
+            source = {
+                "run_id": run["id"],
+                "title": run.get("workflow_definition_id") or run["task"][:70] or "Run",
+                "messages": self.run_messages(run),
+            }
+        else:
+            session = self.owned(self.studio.session(data.get("session_id")), actor)
+            source = {
+                "session_id": session["id"],
+                "title": session["title"],
+                "messages": [
+                    {"role": m["role"], "content": m["content"]} for m in session["messages"]
+                ],
+            }
         public = data.get("public", False)
         if type(public) is not bool:
             raise ValueError("Public must be true or false")
@@ -139,14 +178,12 @@ class StudioCollaboration:
             "id": uuid.uuid4().hex,
             "version": 1,
             "owner_id": owner(actor),
-            "session_id": session["id"],
-            "title": session["title"],
+            **source,
             "public": public,
             "recipients": list(dict.fromkeys(recipients)),
             "revoked": False,
             "token_hash": hashlib.sha256(token.encode()).hexdigest() if public else None,
             "expires_at": (datetime.now(UTC) + timedelta(hours=ttl)).isoformat(),
-            "messages": [{"role": m["role"], "content": m["content"]} for m in session["messages"]],
             "artifacts": artifacts,
             "created_at": datetime.now(UTC).isoformat(),
         }
@@ -182,7 +219,7 @@ class StudioCollaboration:
         return {
             k: v
             for k, v in record.items()
-            if k not in {"token_hash", "owner_id", "recipients", "session_id"}
+            if k not in {"token_hash", "owner_id", "recipients", "session_id", "run_id"}
         }
 
     def shared_artifact(self, identity, artifact_id, actor=None, public=False):

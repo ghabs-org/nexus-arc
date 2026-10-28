@@ -120,3 +120,19 @@ def test_workflow_runs_record_output_step_names(studio):
     run = service.run(source["id"])
     assert run["output_steps"] == ["s1", "s2", "s3"]
     assert run["output"].startswith("s1\n")
+
+
+def test_finished_run_shares_as_labelled_step_snapshot(studio):
+    service, source, prompts = studio
+    shared = service.collaboration.share({"run_id": source["id"]}, None)
+    snapshot = service.collaboration.get_share(shared["id"])
+    assert [(m.get("label"), m["content"]) for m in snapshot["messages"]] == [
+        ("Task", "go"),
+        ("1. s1", "result 1"),
+        ("2. s2", "result 2"),
+        ("3. s3", "result 3"),
+    ]
+    assert snapshot["title"] == "w" and "run_id" not in snapshot
+    service._update_run(source["id"], status="running")
+    with pytest.raises(ValueError, match="after it finishes"):
+        service.collaboration.share({"run_id": source["id"]}, None)
