@@ -1,6 +1,6 @@
 {
   "date": "2026-10-28",
-  "status": "implemented-portable-guards-verified-native-windows-pending",
+  "status": "implemented-native-windows-server-verified",
   "milestone_complete": false,
   "whole_plan_complete": false,
   "scope": "Windows local speech process ownership; source changes only. No installer, VM or API account used.",
@@ -25,9 +25,9 @@
   },
   "native_consumer": "examples/nexus-bot/src/studio_windows_speech_lifecycle.py",
   "pending": [
-    "Native Windows cancellation, timeout, owner death, detached descendants, finite-input/error propagation acceptance.",
-    "Actual speech service queue cancellation/shutdown with installed Windows speech models.",
-    "Installed Windows packaging/lifecycle and signing remain milestone 9, last."
+    "Actual Whisper/Piper model runtime and shutdown checks on Windows.",
+    "Installed Windows desktop authentication, ownership, workspace flows and signing remain milestone 9, last.",
+    "Physical-device, personal VM and later deployment acceptance remain separate."
   ],
   "references": [
     "https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects",
@@ -118,5 +118,144 @@
       "nexus/core/studio_speech_windows.py": "9038641441b4d2ef148ef48c51899844c8094ac2d267910d844ce0073ad21292"
     }
   },
-  "historical_hash_scope": "Earlier source hashes and reports identify their recorded verification stages. The service_lifecycle_followup hashes identify this later consumer/gate revision; none of these macOS results establish native Windows acceptance."
+  "historical_hash_scope": "Earlier source hashes and reports identify their recorded verification stages. The service_lifecycle_followup hashes identify this later consumer/gate revision; none of these macOS results establish native Windows acceptance.",
+  "native_acceptance": {
+    "date": "2026-10-28",
+    "status": "passed",
+    "native_verified": true,
+    "branch": "codex/windows-speech-20261028",
+    "revision": "5de733c831dbbd177699017d8826b032c2ab1c9b",
+    "run_id": 40746477508,
+    "url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40746477508",
+    "runner": "Windows Server 2022 x64",
+    "source_verification": "All seven reported raw source hashes match the tested git blobs after exact LF-to-CRLF checkout conversion. Current Mac source bytes match those git blobs. The original raw Windows hashes are retained below.",
+    "source_git_blob_sha256": {
+      "nexus/core/studio_speech_windows.py": "68463fe4cdaff00b4efdaa1a48885373fa2b551d855d1def096ba3a6406c5a70",
+      "nexus/core/studio_speech_process.py": "5e0fa30ddc0651ebe01b3bf4898db65823e11533a291c83a86e30d25a8d4c351",
+      "nexus/core/studio_speech.py": "3ab8adbca3551749635cf152c7e507123c7ae78bd0ab2d2897be14aba1fae1c5",
+      "nexus/core/studio.py": "2fbafdc769f58b2b05b04283d57fd7d408fdbd9f637f363d20b2566656df1fa3",
+      "nexus/core/studio_desktop_sidecar.py": "b5a0550292940c83a3000c8378a6f0cafb12f6d9e893fef645313ca1dbe25c2d",
+      "examples/nexus-bot/src/studio_windows_speech_lifecycle.py": "1c30fb2d9c315ae4591c738a1e68d7609f093e26081b1bc9fb63a7e39f5d2378",
+      "tests/studio_windows_speech_acceptance.py": "4d70be06025192aa1a1a77244393b2a84929af1d4339b1101497013f6af1f2a9"
+    },
+    "reports": [
+      {
+        "artifact": "studio-windows-speech-py3.11",
+        "native_report": {
+          "format": "nexus-windows-speech-acceptance/v1",
+          "date": "2026-10-28T18:35:44.578432+00:00",
+          "status": "passed",
+          "native_verified": true,
+          "platform": "win32",
+          "os_release": "10",
+          "machine": "AMD64",
+          "python": "3.11.9",
+          "source_sha256": {
+            "nexus/core/studio_speech_windows.py": "92c8db364b051070eb24c8c3988033763f4df51ea8f33b3741b255c46e464ce2",
+            "nexus/core/studio_speech_process.py": "e2c6a1c918b5af22379f9785026b844ae84a946988cc47666232b294c05d042f",
+            "nexus/core/studio_speech.py": "955cfd082b8e6e55f803f867734169858670ac072a98fe85afd403293bcac384",
+            "nexus/core/studio.py": "3688483d4f6842db09514a29e111d60abb465f0a750922c6adba95a89e16949f",
+            "nexus/core/studio_desktop_sidecar.py": "45304c04bd61607f72677e36eedd08c7ffd74558d6816a3513cc947d4caca4a4",
+            "examples/nexus-bot/src/studio_windows_speech_lifecycle.py": "195a05f180a9d6eb0aeb1782dcd0920bd127642a413fff84ed31087278fe5bed",
+            "tests/studio_windows_speech_acceptance.py": "ff07c8dc688d722f5643ad43274a8bc24cbfd8f0b2252be2e64648131b3aee75"
+          },
+          "scope": "Source process ownership and synthetic Studio job cancellation/shutdown; no installed app or real speech model acceptance",
+          "revision": "5de733c831dbbd177699017d8826b032c2ab1c9b",
+          "abi_bytes": {
+            "BasicLimits": 64,
+            "ExtendedLimits": 144,
+            "Accounting": 48,
+            "Startup": 104,
+            "StartupEx": 112,
+            "ProcessInfo": 24
+          },
+          "consumer_exit_code": 0,
+          "outcomes": {
+            "cancel": "owned detached child removed",
+            "finite_input": "bytes, stderr and nonzero status retained",
+            "owner_death": "owned detached child removed",
+            "queued_cancel": "run settled; no child, temporary recording, owner record or artifact",
+            "service_cancel": "run settled; no child, temporary recording, owner record or artifact",
+            "service_shutdown": "run settled; no child, temporary recording, owner record or artifact",
+            "timeout": "owned detached child removed"
+          }
+        },
+        "native_report_sha256": "fbd4f0f135f6cd69e5a78091c5bee103876a9ef27f46360c0b1f4d09289289d0",
+        "junit_sha256": "de1ace0bd30af20831151208fdfefea35542428d6ffdda9a9691075191505bce",
+        "tests": 37,
+        "failures": 0,
+        "skips": 0
+      },
+      {
+        "artifact": "studio-windows-speech-py3.13",
+        "native_report": {
+          "format": "nexus-windows-speech-acceptance/v1",
+          "date": "2026-10-28T18:36:29.798139+00:00",
+          "status": "passed",
+          "native_verified": true,
+          "platform": "win32",
+          "os_release": "2022Server",
+          "machine": "AMD64",
+          "python": "3.13.17",
+          "source_sha256": {
+            "nexus/core/studio_speech_windows.py": "92c8db364b051070eb24c8c3988033763f4df51ea8f33b3741b255c46e464ce2",
+            "nexus/core/studio_speech_process.py": "e2c6a1c918b5af22379f9785026b844ae84a946988cc47666232b294c05d042f",
+            "nexus/core/studio_speech.py": "955cfd082b8e6e55f803f867734169858670ac072a98fe85afd403293bcac384",
+            "nexus/core/studio.py": "3688483d4f6842db09514a29e111d60abb465f0a750922c6adba95a89e16949f",
+            "nexus/core/studio_desktop_sidecar.py": "45304c04bd61607f72677e36eedd08c7ffd74558d6816a3513cc947d4caca4a4",
+            "examples/nexus-bot/src/studio_windows_speech_lifecycle.py": "195a05f180a9d6eb0aeb1782dcd0920bd127642a413fff84ed31087278fe5bed",
+            "tests/studio_windows_speech_acceptance.py": "ff07c8dc688d722f5643ad43274a8bc24cbfd8f0b2252be2e64648131b3aee75"
+          },
+          "scope": "Source process ownership and synthetic Studio job cancellation/shutdown; no installed app or real speech model acceptance",
+          "revision": "5de733c831dbbd177699017d8826b032c2ab1c9b",
+          "abi_bytes": {
+            "BasicLimits": 64,
+            "ExtendedLimits": 144,
+            "Accounting": 48,
+            "Startup": 104,
+            "StartupEx": 112,
+            "ProcessInfo": 24
+          },
+          "consumer_exit_code": 0,
+          "outcomes": {
+            "cancel": "owned detached child removed",
+            "finite_input": "bytes, stderr and nonzero status retained",
+            "owner_death": "owned detached child removed",
+            "queued_cancel": "run settled; no child, temporary recording, owner record or artifact",
+            "service_cancel": "run settled; no child, temporary recording, owner record or artifact",
+            "service_shutdown": "run settled; no child, temporary recording, owner record or artifact",
+            "timeout": "owned detached child removed"
+          }
+        },
+        "native_report_sha256": "58320778eb0f3dfc5c69a076c7bbb95b10d955d5ad7aa1ba6d76120529f90985",
+        "junit_sha256": "56570b704e46154671d663989e450b494c38015cd3fef4433f431db0a5e42616",
+        "tests": 37,
+        "failures": 0,
+        "skips": 0
+      }
+    ],
+    "local_regressions": {
+      "tests": 108,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "report": "/private/tmp/nexus-windows-final-regressions.xml",
+      "report_sha256": "bfb4e73a48cb438c4c02ef3aefa3503528405fdc2607192807f1ecad0730ce7d"
+    },
+    "initial_failures": [
+      {
+        "run_id": 40745505221,
+        "revision": "4d3c7a6a6c083a170972fe438b9f26a46bd84e97",
+        "status": "failed"
+      },
+      {
+        "run_id": 40745855122,
+        "revision": "1245453",
+        "status": "failed-diagnostic"
+      }
+    ],
+    "diagnosis": "Input/output bytes were correct. Normal Python interpreter finalization aborted because the daemon owner watcher retained the buffered stdin lock.",
+    "fix": "After supervise() confirms cleanup and closes handles, flush output and terminate only the isolated owner with os._exit. Preserve signed 32-bit Windows exit status bits. Main Studio lifecycle is unchanged.",
+    "boundary": "Actual source Job Objects, detached descendants, cancellation, timeout, owner death, finite input/nonzero status and synthetic Studio service flows passed on both Python versions. No real speech models, installed apps, VM or account/device proof; no merge or release."
+  }
 }

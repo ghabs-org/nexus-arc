@@ -25,7 +25,7 @@ them. Older dated notes below are history, not additional missing implementation
 | PostgreSQL logical restore | [47 native/regression checks](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json) | Actual VM/account-store recovery and deployment-specific physical database recovery |
 | GCS/Azure storage SDKs & timeout/retry | [44 SDK/regression checks + timeout/503](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json) | Real cloud IAM/retention/history and live account restore |
 | TLS certificate lifecycle | [49 real-engine/regression checks](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) | Production provisioning, automatic renewal, per-leaf revocation and established sessions |
-| Linux & macOS speech child containment | [74 Linux + 120 macOS/backup/PDF checks](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json) | Windows containment, installed applications, physical devices and VM |
+| Speech child containment | [Linux/macOS evidence](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json), [native Windows acceptance](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json) | Actual Windows speech models, installed applications, physical devices and VM |
 | PDF contention reproduction & isolation | [18 PDF failure/concurrency checks + load proof](STUDIO-PDF-PREVIEW-CHECKPOINT.json) | Rebuild installed native app/DMG only when explicitly requested |
 | Direct TypeSafe decisions | [Provider and integration evidence](STUDIO-TYPESAFE-DECISION-CHECKPOINT.json) | Selected real account acceptance |
 
@@ -41,45 +41,28 @@ not notarized; latest source fixes are not packaged. Final desktop release and
 Linux/Windows installed-platform acceptance remain open. See
 [tester evidence](STUDIO-DESKTOP-FRIEND-DMG-CHECKPOINT.json).
 
-### Windows speech ownership follow-up — 28 October 2026
+### Native Windows speech acceptance — 28 October 2026
 
-Windows local speech now uses an isolated Job Object owner, starting each command
-suspended and assigning ownership before resume. Explicit handle inheritance
-excludes the controller lease and job handle. Lease loss terminates the owned tree;
-cleanup queries the job until no active processes remain. Unsupported job setup
-fails before running an unowned command. Source and frozen dispatch are wired;
-no installer or DMG was rebuilt.
+Windows source process ownership is now **native-verified on Windows Server 2022
+x64**, with Python 3.11.9 and 3.13.17. Both jobs passed 37 checks without skips,
+plus all seven native cases: cancellation, timeout, abrupt owner death, finite
+input/stderr/nonzero status, queued cancellation, running Studio cancellation and
+Studio shutdown. Model commands are synthetic; queue, ownership and cleanup are
+real. The affected local regression gate also passed 108 tests with zero skips.
 
-The focused speech/worker/bundle gate passed **90 tests, zero skips** on macOS.
-Win32 boundary calls are mocked: this is portable guard/regression evidence, not
-native Windows acceptance. The runnable consumer
-`examples/nexus-bot/src/studio_windows_speech_lifecycle.py` exercises cancellation,
-timeout, detached children, owner death, finite input and error propagation on
-Windows. See [checkpoint](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json).
-Native Windows execution, real model/service shutdown and installed desktop proof
-remain pending. Do not mark Windows ownership live-verified or milestone 9 complete.
+Native CI exposed a private-supervisor shutdown abort caused by its blocked daemon
+stdin reader. The fix explicitly finishes job cleanup, flushes output and exits
+only the isolated helper without Python finalization. Both native jobs pass on
+source commit `5de733c831dbbd177699017d8826b032c2ab1c9b`.
+[Passing CI run](https://github.com/ghabs-org/nexus-arc/actions/runs/40746477508).
+All raw Windows source hashes were verified against that commit after exact
+LF-to-CRLF checkout conversion; both original reports are retained in the
+[checkpoint](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json).
 
-### Windows acceptance automation follow-up — 28 October 2026
-
-A native Windows gate is now prepared for relevant pull requests and manual
-workflow dispatch. It runs on Windows Server 2022 x64 with Python 3.11/3.13,
-retains portable JUnit and native JSON evidence, and records source hashes.
-The runner checks API structure sizes and requires every native consumer result;
-wrong-host execution returns unavailable with exit code 2 rather than passing.
-The focused portable gate passed 31 tests with zero skips on macOS.
-
-A later focused gate passed **38 tests, zero skips**, including actual macOS
-Studio jobs with synthetic speech commands. New cases exercise running recording
-cancellation, service shutdown and cancellation while all real executor workers
-are occupied. Each checks terminal run state, child cleanup where launched,
-recording/owner removal and absence of artifacts. Windows result validation now
-requires these service cases too; subprocess-only success cannot pass the gate.
-Real Whisper/Piper model checks remain separate.
-
-No Windows workflow has executed in this session. The native pending status is
-unchanged; collect real job artifacts before promoting acceptance. Hosted server
-proof does not close Windows installed-desktop or actual-model/service checks.
-See [run instructions and evidence boundary](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md).
+Changes are published only on `codex/windows-speech-20261028`; no merge, VM
+upgrade or installer build occurred. Actual Windows Whisper/Piper models,
+installed desktop flows, signing and updates remain separate acceptance gates.
+See [repeatable instructions](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md).
 
 ### Remaining work, in delivery order
 
@@ -90,9 +73,9 @@ See [run instructions and evidence boundary](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md
    proven resolved by isolated worker dispatch; `docs/USAGE.md`, audit/plan completion
    gates (`STUDIO-M9-DESKTOP-CHECKPOINT.json`), and local checkpoint `source_sha256`
    hashes are reconciled. Do not rebuild a DMG unless explicitly requested.
-2. **Native Windows, selected accounts and physical devices.** Run the Windows
-   speech ownership consumer first on an available Windows host; its Job Object
-   behavior cannot be certified by macOS fixtures. Then check configured integration
+2. **Selected accounts and physical devices.** Windows source ownership now has
+   real runner evidence; actual speech models and installed desktop checks remain
+   separate. Check configured integration
    permissions/authentication, API voice/embedding quality and billing paths;
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
    account/device results identify exactly what ran; unavailable prerequisites stay

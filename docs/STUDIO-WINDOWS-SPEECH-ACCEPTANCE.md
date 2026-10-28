@@ -1,7 +1,13 @@
 # Windows speech ownership acceptance
 
-The framework's local speech owner is implemented. Native Windows acceptance is
-still pending until a real Windows result is collected. macOS mock tests verify
+The framework's local speech owner passed native source acceptance on Windows
+Server 2022 x64 with Python 3.11.9 and 3.13.17. Each job passed 37 checks without
+skips plus all seven lifecycle cases. The tested source commit is
+`5de733c831dbbd177699017d8826b032c2ab1c9b`;
+[CI results](https://github.com/ghabs-org/nexus-arc/actions/runs/40746477508) and
+[retained reports](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json) record the exact scope.
+Raw Windows hashes match that commit after exact LF-to-CRLF checkout conversion.
+Actual speech models and installed-app acceptance remain pending. macOS mock tests verify
 failure guards and orchestration; actual macOS service tests also exercise queued
 and running cancellation and shutdown. Neither verifies Windows process behavior.
 This gate does not build or install an application, download speech models, use a
