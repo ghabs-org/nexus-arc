@@ -876,7 +876,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
   body.print-run #detail{position:static;inset:auto;transform:none;width:auto;max-width:none;max-height:none;overflow:visible;margin:0;padding:0;border:0;box-shadow:none;background:#fff;color:#000}
   body.print-run #detail::backdrop{background:none}
   body.print-run #detail-content{max-height:none;overflow:visible}
-  body.print-run #detail .dialog-heading-actions,body.print-run #detail footer,body.print-run #run-status button,body.print-run #run-actions-bar,body.print-run #run-rerun-controls,body.print-run .run-retry-actions,body.print-run .run-step-index{display:none!important}
+  body.print-run #detail .dialog-heading-actions,body.print-run #detail footer,body.print-run #detail-content>:not(#run-output,#run-status),body.print-run #run-status>:not(.badge),body.print-run .run-step-index{display:none!important}
   body.print-run .run-step{break-inside:auto}
   body.print-run .run-step-heading{break-after:avoid}
 }
