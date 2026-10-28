@@ -3,11 +3,48 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from dataclasses import replace
 
 from nexus.core.studio_connections import execution_identity
+
+
+def extract_agent_response(output: str):
+    """Extract structured tool_call or final answer from agent output even if wrapped in text/fences."""
+    if not isinstance(output, str):
+        return None
+    cleaned = output.strip()
+    try:
+        return json.loads(cleaned)
+    except (ValueError, TypeError):
+        pass
+
+    if "```" in cleaned:
+        for match in re.finditer(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned):
+            try:
+                candidate = json.loads(match.group(1).strip())
+                if isinstance(candidate, dict) and ("tool_call" in candidate or "final" in candidate):
+                    return candidate
+            except (ValueError, TypeError):
+                pass
+
+    decoder = json.JSONDecoder()
+    for marker in ('"tool_call"', '"final"'):
+        idx = cleaned.find(marker)
+        if idx != -1:
+            start = cleaned.rfind("{", 0, idx)
+            while start != -1:
+                try:
+                    obj, _ = decoder.raw_decode(cleaned[start:])
+                    if isinstance(obj, dict) and ("tool_call" in obj or "final" in obj):
+                        return obj
+                except (ValueError, TypeError):
+                    pass
+                start = cleaned.rfind("{", 0, start)
+
+    return None
 
 
 async def execute_with_tools(
@@ -52,9 +89,8 @@ async def execute_with_tools(
             invocation_id = (result.metadata or {}).get("invocation_id")
             if not result.success:
                 raise RuntimeError(result.error or "Provider failed during tool execution")
-            try:
-                answer = json.loads(result.output)
-            except (ValueError, TypeError):
+            answer = extract_agent_response(result.output)
+            if answer is None:
                 return result
             if not isinstance(answer, dict) or "tool_call" not in answer:
                 return (

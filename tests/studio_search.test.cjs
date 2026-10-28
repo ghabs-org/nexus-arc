@@ -576,5 +576,9 @@ test("renderWorkflows includes History action on each workflow card", () => {
   assert.match(innerHTML, />History<\/button>/);
 });
 
-
-
+test("updateRunDetail renders the Fix in conversation action", () => {
+  const latestStudioSource = fs.readFileSync("nexus/studio_static/studio.js", "utf8");
+  assert.match(latestStudioSource, /data-fix-run-chat/);
+  assert.match(latestStudioSource, /Fix in conversation/);
+  assert.doesNotMatch(latestStudioSource, /data-rerun-workflow/);
+});

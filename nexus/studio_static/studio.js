@@ -934,7 +934,19 @@ function cleanupRunStatus(run){
   const reasons={CleanupEffectUncertainError:"Previous attempt may have changed external data. Step was not repeated.",CleanupRejected:"Skipped after your response.",LegacyScopeCapturesUnavailable:"Older save lacks nested cleanup context. Review previous external effects."};
   return status+(run.workflow_warnings?.length?`<p role="status">${run.workflow_warnings.length} cleanup warning(s). Review execution history before starting another run.</p><ul>${run.workflow_warnings.map(w=>`<li>${escapeHtml(String(w.node_id).split("/").at(-1))}: ${escapeHtml(reasons[w.error_type]||"Step could not finish; review its recorded effects.")}</li>`).join("")}</ul>`:"");
 }
-function updateRunDetail(run){if(!$("run-output")||run.id!==state.detailRunId)return;$("run-status").innerHTML=badge(run.status,run.status)+waitingRunActions(run)+cleanupRunStatus(run);renderContent($("run-output"),run.output||run.error||(run.status==="waiting"?"Waiting for your response.":["completed","cancelled"].includes(run.status)?"No text output.":"Working…"));if(!$("run-trace-button"))$("run-output").insertAdjacentHTML("afterend",`<button class="secondary" id="run-trace-button" data-run-trace="${escapeHtml(run.id)}">Inspect execution trace</button>`);}
+function updateRunDetail(run){
+  if(!$("run-output")||run.id!==state.detailRunId)return;
+  $("run-status").innerHTML=badge(run.status,run.status)+waitingRunActions(run)+cleanupRunStatus(run);
+  renderContent($("run-output"),run.output||run.error||(run.status==="waiting"?"Waiting for your response.":["completed","cancelled"].includes(run.status)?"No text output.":"Working…"));
+  let actionsBar=$("run-actions-bar");
+  if(!actionsBar){
+    actionsBar=document.createElement("div");
+    actionsBar.id="run-actions-bar";
+    actionsBar.className="card-actions run-detail-actions";
+    $("run-output").after(actionsBar);
+  }
+  actionsBar.innerHTML=`<button type="button" class="secondary" data-fix-run-chat="${escapeHtml(run.id)}">Fix in conversation</button><button type="button" class="secondary" id="run-trace-button" data-run-trace="${escapeHtml(run.id)}">Inspect execution trace</button>`;
+}
 function toggleDetailMaximized(force){
   const dialog=$("detail");
   if(!dialog)return;
@@ -1081,6 +1093,19 @@ document.addEventListener("click",async event=>{
       const searchInput=$("activity-search-input");
       if(searchInput)searchInput.value=wfId;
       renderRuns();
+      return;
+    }
+    if(button.dataset.fixRunChat){
+      const runId=button.dataset.fixRunChat;
+      const run=(state.runs||[]).find(r=>r.id===runId)||{id:runId};
+      $("detail")?.close();
+      location.hash="chat";
+      newChat();
+      const taskInput=$("chat-task");
+      if(taskInput){
+        taskInput.value=`Help me fix run "${runId}" (${(run.task||"task").slice(0,200)}). The run had output:\n\n${(run.output||run.error||"").slice(0,1000)}`;
+        taskInput.focus();
+      }
       return;
     }
     if(button.dataset.activityFilter){

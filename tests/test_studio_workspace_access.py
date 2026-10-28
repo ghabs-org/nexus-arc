@@ -350,6 +350,19 @@ def test_additional_root_alias_cannot_make_definition_folders_writable(service_e
         )
 
 
+def test_listing_works_below_search_only_ancestor(tmp_path):
+    workspace = tmp_path / "srv" / "project"
+    (workspace / "files").mkdir(parents=True)
+    (workspace / "files" / "a.txt").write_text("ok")
+    service = StudioService(workspace)
+    (tmp_path / "srv").chmod(0o311)  # VM layouts such as /srv/nexus at 0711
+    try:
+        items = service.workspace_files.listing("files")["items"]
+    finally:
+        (tmp_path / "srv").chmod(0o755)
+    assert [item["name"] for item in items] == ["a.txt"]
+
+
 def test_read_rejects_folder_symlink_swapped_after_configuration(service_env, tmp_path):
     files = service_env.root / "files"
     files.mkdir()
@@ -460,5 +473,19 @@ def test_runtime_configuration_exposes_only_explicit_extra_roots(tmp_path):
     try:
         assert not service.workspace_files.roots["documents"]["writable"]
         assert "documents" in service.workspace_files.roots
+    finally:
+        service.close()
+
+
+def test_listing_auto_creates_missing_writable_root(tmp_path):
+    root = tmp_path / "fresh_workspace"
+    root.mkdir()
+    # files/ does not exist yet
+    assert not (root / "files").exists()
+    service = StudioService(root)
+    try:
+        res = service.workspace_files.listing("files")
+        assert res["items"] == []
+        assert (root / "files").is_dir()
     finally:
         service.close()

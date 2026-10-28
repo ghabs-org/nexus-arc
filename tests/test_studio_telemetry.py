@@ -344,3 +344,68 @@ def test_execute_with_tools_links_parent_id_to_invocation(studio):
     inv_span = next(s for s in spans if _span_id(first_inv_id) == s["spanId"])
     assert tool_span["parentSpanId"] == inv_span["spanId"]
 
+
+def test_execute_with_tools_handles_preamble_and_markdown(studio):
+    import asyncio
+
+    from nexus.core.studio_tool_loop import execute_with_tools, extract_agent_response
+    from nexus.tools import ToolResult, tool_registry
+
+    # Test extractor directly with CFO-style preamble and markdown blocks
+    cfo_text = (
+        "I'll build the model in one script. Inputs are kept in their own blocks.\n\n"
+        '{"tool_call":{"name":"preamble_tool","arguments":{"code":"1+1"}}}'
+    )
+    extracted = extract_agent_response(cfo_text)
+    assert extracted == {"tool_call": {"name": "preamble_tool", "arguments": {"code": "1+1"}}}
+
+    fenced_text = "```json\n" '{"tool_call":{"name":"preamble_tool","arguments":{}}}\n' "```"
+    assert extract_agent_response(fenced_text) == {"tool_call": {"name": "preamble_tool", "arguments": {}}}
+
+    assert extract_agent_response("Plain text response") is None
+
+    # Test full execute_with_tools loop with preamble in provider output
+    async def dummy_tool(**kwargs):
+        return ToolResult(ok=True, output={"calc": 42})
+
+    tool_registry.register("preamble_tool", dummy_tool, description="Preamble test tool")
+
+    class PreambleProvider:
+        def __init__(self):
+            self.turn = 0
+
+        async def execute_agent(self, context):
+            self.turn += 1
+            if self.turn == 1:
+                return AgentResult(
+                    success=True,
+                    output="I'll run the analysis now:\n\n"
+                    '{"tool_call":{"name":"preamble_tool","arguments":{}}}',
+                )
+            return AgentResult(
+                success=True,
+                output="Here is the calculated result: 42.",
+            )
+
+    run = studio.start_run({"kind": "chat", "task": "Preamble test", "requester_nexus_id": "bob"})
+    ctx = ExecutionContext(
+        agent_name="cfo_test_agent",
+        prompt="Calculate finance",
+        workspace=studio.root,
+        model_override="gpt-5",
+    )
+    try:
+        result = asyncio.run(
+            execute_with_tools(
+                studio,
+                PreambleProvider(),
+                ctx,
+                ["preamble_tool"],
+                {"requester_nexus_id": "bob"},
+                run["id"],
+                "codex",
+            )
+        )
+    finally:
+        tool_registry.unregister("preamble_tool")
+    assert result.output == "Here is the calculated result: 42."

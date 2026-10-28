@@ -123,24 +123,28 @@ class StudioWorkspaceFiles:
 
     @contextmanager
     def directory(self, root, path="", *, create=False):
-        """Walk through directory descriptors; no symlink can swap an ancestor."""
+        """Walk through directory descriptors; no symlink can swap a path below the root.
+
+        The root itself opens by its resolved administrator path: its ancestors may
+        grant search but not read permission (for example /srv/nexus at 0711).
+        """
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        fd = os.open("/", flags)
         try:
-            absolute = root["path"].parts[1:]
-            for index, part in enumerate(absolute):
+            try:
+                fd = os.open(root["path"], flags)
+            except FileNotFoundError:
+                if not create:
+                    raise
                 try:
-                    child = os.open(part, flags, dir_fd=fd)
-                except FileNotFoundError:
-                    if not create or index != len(absolute) - 1:
-                        raise
-                    try:
-                        os.mkdir(part, mode=0o700, dir_fd=fd)
-                    except FileExistsError:
-                        pass
-                    child = os.open(part, flags, dir_fd=fd)
-                os.close(fd)
-                fd = child
+                    os.mkdir(root["path"], mode=0o700)
+                except FileExistsError:
+                    pass
+                fd = os.open(root["path"], flags)
+        except OSError as exc:
+            raise ValueError(
+                "Workspace path is unavailable or is not a regular allowed path"
+            ) from exc
+        try:
             for part in components(path):
                 child = os.open(part, flags, dir_fd=fd)
                 os.close(fd)
@@ -158,7 +162,7 @@ class StudioWorkspaceFiles:
         parts = components(path)
         items, truncated = [], False
         try:
-            with self.directory(root, path) as fd, os.scandir(fd) as entries:
+            with self.directory(root, path, create=root.get("writable", False) and not path) as fd, os.scandir(fd) as entries:
                 for index, entry in enumerate(entries):
                     if index >= 1000:
                         truncated = True

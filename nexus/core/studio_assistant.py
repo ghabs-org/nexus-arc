@@ -48,6 +48,12 @@ TOPICS = (
         "#schedules",
         "Schedules need a running Studio runtime. A headless VM can keep running after the browser closes. Closing the portal does not stop server jobs. A stopped or sleeping host cannot execute scheduled tasks. Inspect schedule history, time zones and explicit enabling in Schedules.",
     ),
+    (
+        "workflows",
+        "Fix a failed or incomplete run",
+        "#workflows",
+        "To fix a run, inspect its step output and execution trace in Task details. If an agent step failed or skipped a tool result, edit its instructions or skills in Agents, or adjust the graph in Workflows, then start the workflow again from Workflows. Select Fix in conversation in Task details to discuss the output in a new chat.",
+    ),
 )
 
 
