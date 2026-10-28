@@ -513,6 +513,7 @@ a:hover{color:var(--accent)}
 input::placeholder,textarea::placeholder{color:#6b7479;opacity:1}
 input[type=checkbox],input[type=radio]{accent-color:var(--accent)}
 dialog{border-color:var(--line);border-radius:14px;box-shadow:0 20px 70px #13141624}
+dialog:not([open]){display:none!important}
 dialog::backdrop{background:#182e3540;backdrop-filter:blur(3px)}
 .dialog-heading h2{font-weight:600;letter-spacing:-.5px}
 .graph-canvas-wrap{background:var(--canvas);border-color:var(--line)}
@@ -801,7 +802,8 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
 }
 
 /* Dialog Full View Mode & Details Dialog */
-#detail{
+#detail:not([open]){display:none!important}
+#detail[open]{
   width:min(880px,calc(100vw - 32px));
   max-width:96vw;
   max-height:min(88dvh,920px);
@@ -811,7 +813,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
   flex-direction:column;
   transition:width .2s ease,height .2s ease,max-width .2s ease,max-height .2s ease;
 }
-#detail.maximized{
+#detail.maximized[open],#detail.maximized{
   width:calc(100vw - 32px)!important;
   max-width:1440px!important;
   height:calc(100dvh - 32px)!important;

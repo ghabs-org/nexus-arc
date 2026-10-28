@@ -361,14 +361,21 @@ test("content.js renderContent wraps markdown tables in .table-container", () =>
 
 test("studio.css pins header and close button so they stay visible when scrolled down", () => {
   const css = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
-  assert.match(css, /#detail\s*\{[^}]*overflow:\s*hidden/);
-  assert.match(css, /#detail\s*\{[^}]*padding:\s*0/);
+  assert.match(css, /#detail(\[open\])?\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(css, /#detail(\[open\])?\s*\{[^}]*padding:\s*0/);
   assert.match(css, /#detail\s+\.dialog-heading\s*\{[^}]*position:\s*sticky/);
   assert.match(css, /#detail\s+\.dialog-heading\s*\{[^}]*top:\s*0/);
   assert.match(css, /#detail-content\s*\{[^}]*overflow-y:\s*auto/);
   assert.match(css, /#detail\s+footer\s*\{[^}]*position:\s*sticky/);
   assert.match(css, /#detail\s+footer\s*\{[^}]*bottom:\s*0/);
   assert.match(css, /\.dialog-heading\s*\{[^}]*position:\s*sticky/);
+});
+
+test("studio.css keeps detail dialog strictly hidden when not open", () => {
+  const css = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
+  assert.match(css, /#detail:not\(\[open\]\)\s*\{\s*display:\s*none\s*!important\s*\}/);
+  assert.match(css, /#detail\[open\]\s*\{[^}]*display:\s*flex/);
+  assert.match(css, /dialog:not\(\[open\]\)\s*\{\s*display:\s*none\s*!important\s*\}/);
 });
 
 test("studio.js outside tap/click dismisses dialog on backdrop and preserves internal drag", () => {
