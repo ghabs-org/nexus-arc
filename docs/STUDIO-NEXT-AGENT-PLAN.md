@@ -240,6 +240,27 @@ cache version is now 62. This source fix is **not deployed to the VM** and no DM
 was rebuilt. Controlled worker/proxy recovery and full-host/account-store restore
 remain next; milestone 9 stays last.
 
+### Controlled deployed recovery — 28 October 2026
+
+The explicitly approved drill now passes on the personal VM. One stopped worker
+and one running synthetic worker used the existing filtered socket. Original
+Studio and proxy containers stopped cooperatively and restarted once with the
+same images. The running worker stopped with its controller. Restored grants
+rejected execution as cleanup-only; both saved receipts cleared with no replay,
+extra run, artifact or pending cleanup. All 12 host-layout checks and all 15
+anonymous HTTPS checks pass from both VM and external client. Five existing Nexus
+units and router remain running; zero generated workers remain.
+
+The initial readiness probe incorrectly used a localhost Host header, which the
+production server correctly rejected with 403. The initial failure report remains
+retained. Correct hosted Host returned 200; verification and cleanup then completed
+without another restart or fresh workers. The postcheck helper also needed a
+missing import before its successful run. This is a corrected operator check, not
+a product fix. See [deployed restart evidence](STUDIO-DEPLOYED-RESTART-CHECKPOINT.json).
+No provider, credential, production task, configuration, source deployment or DMG
+changed. Full-host/account-store restoration, authenticated execution/headers,
+daemon/power-loss, device/account and final desktop gates remain separate.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech
@@ -262,8 +283,8 @@ remain next; milestone 9 stays last.
    restore/rollback, then verify signed-in execution, controlled worker/proxy
    interruption and actual account-store/full-host restoration. Existing selected
    VM upgrade/worker evidence remains valid for its recorded version, not later
-   code. The prior deferral is lifted. The approved proxy repair is complete. Current gates: signed-in execution/response headers, scoped recovery and separate
-   restoration acceptance. Read-only signed-in UI is verified above.
+   code. The prior deferral is lifted. The approved proxy repair is complete. Current gates: signed-in execution/response headers and separate restoration
+   acceptance. Read-only signed-in UI and controlled service/worker recovery are verified above.
 4. **Final evidence reconciliation.** Retain explicit exclusions and compatibility
    fixtures, check source/release/report hashes and update scoped acceptance.
    Production-specific certificate renewal/revocation and physical SQL/daemon

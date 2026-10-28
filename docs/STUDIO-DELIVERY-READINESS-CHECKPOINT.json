@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-delivery-readiness/v1",
   "date": "2026-10-28",
-  "status": "vm-signed-in-ui-verified-recovery-and-delivery-pending",
+  "status": "vm-controlled-recovery-verified-restoration-and-delivery-pending",
   "whole_plan_complete": false,
   "audit_scope": "Recorded-claim consistency only, not fresh acceptance execution or a completion percentage.",
   "audit": {
@@ -59,13 +59,15 @@
   "evidence_sha256": {
     "docs/STUDIO-WINDOWS-SPEECH-CHECKPOINT.json": "92b5b0634fb9408183fbd078821d03bb06f01053f4649960a3289a72243fe697",
     "docs/STUDIO-WINDOWS-VOICE-CHECKPOINT.json": "7e5968f58994bdae5d30bb571ebcff0d01e7ab7fea1d63e9999d376d5259e9e7",
-    "docs/STUDIO-GITHUB-LIVE-READS-CHECKPOINT.json": "4e2c8f7535e98285654be00c1518224b0bf589f48814ca1d103b2f77a6338c89"
+    "docs/STUDIO-GITHUB-LIVE-READS-CHECKPOINT.json": "4e2c8f7535e98285654be00c1518224b0bf589f48814ca1d103b2f77a6338c89",
+    "docs/STUDIO-DEPLOYED-RESTART-CHECKPOINT.json": "dedf2e30eadf8e98bc19cd87847f9e4450907d7b89685d0879543b11f487dc6a"
   },
   "current_live_slices": [
     "Windows Server x64 source lifecycle on Python 3.11 and 3.13.",
     "Windows Server x64 real Piper/Whisper completion, cancellation and shutdown after observed inference on Python 3.11.",
     "Selected authenticated GitHub account: public repository issue/PR reads through a temporary single-user Studio connector.",
-    "Personal VM: signed-in owner, 18 custom agent controls, 40 Activity entries and empty approval inbox, read-only UI verification."
+    "Personal VM: signed-in owner, 18 custom agent controls, 40 Activity entries and empty approval inbox, read-only UI verification.",
+    "Personal VM: original Studio/proxy restart, running synthetic worker stops with owner, restored cleanup-only grants, two receipts cleared without replay."
   ],
   "environment_availability": {
     "other_known_integration_credential_references_in_current_environment": [],
@@ -74,9 +76,9 @@
   "next_targets": [
     {
       "target": "Personal VM",
-      "state": "signed-in-ui-and-durable-proxy-verified",
-      "needed": "Prepare controlled worker/proxy recovery and separate full-host/account-store restoration.",
-      "remaining": "Reviewed source update for the tested login banner fix; signed-in execution/response headers, controlled interruption and restoration remain separate."
+      "state": "controlled-studio-proxy-recovery-live-verified",
+      "needed": "Prepare inactive full-host/account-store restoration acceptance.",
+      "remaining": "Authenticated execution/headers, inactive full-host/account-store restore and daemon/power-loss remain separate. Tested login banner fix is not deployed."
     },
     {
       "target": "Physical phone/tablet",
@@ -97,7 +99,7 @@
       "remaining": "User must explicitly request any new DMG. Source runtime CI is not installed-app acceptance."
     }
   ],
-  "current_turn": "Verified signed-in VM UI through the user-authenticated browser without obtaining credential material or submitting actions. Fixed and tested the misleading login reconnect banner locally; no source deployment or DMG build.",
+  "current_turn": "Executed explicitly approved controlled Studio/proxy recovery. Corrected a readiness Host probe without a second restart, completed receipt cleanup, verified host isolation and HTTPS, retained initial failure honestly. No provider/credential/configuration/DMG change.",
   "history_note": "Earlier GitHub and Windows checks retain their exact source hashes, reports and boundaries; the current audit promotes no new runtime/device/live capability.",
   "vm_resume": {
     "date": "2026-10-28",

@@ -454,7 +454,7 @@
     "scope": "Only Studio/proxy were interrupted. No backend image build/pull or repository source change on VM; no main merge, installer or DMG.",
     "pending": [
       "Read-only signed-in UI verified below; signed-in execution and response-header acceptance remain separate.",
-      "Actual controlled worker/proxy interruption and ownership recovery.",
+      "Controlled Studio/proxy restart and worker cleanup now live-verified in STUDIO-DEPLOYED-RESTART-CHECKPOINT.json; daemon/power-loss remains separate.",
       "Account-store/full-host restoration, physical devices and final installed desktop acceptance."
     ]
   },
@@ -485,5 +485,16 @@
     },
     "vm_deployed": false,
     "dmg_rebuilt": false
+  },
+  "controlled_restart_2026_10_28": {
+    "status": "live-verified-after-readiness-probe-correction",
+    "checkpoint": "STUDIO-DEPLOYED-RESTART-CHECKPOINT.json",
+    "worker_stopped_with_owner": true,
+    "restored_cleanup_only": true,
+    "work_replayed": false,
+    "pending_cleanup": 0,
+    "host_checks": 12,
+    "vm_and_external_anonymous_https_checks_each": 15,
+    "readiness_probe_corrected_without_second_restart": true
   }
 }
