@@ -25,7 +25,6 @@
   },
   "native_consumer": "examples/nexus-bot/src/studio_windows_speech_lifecycle.py",
   "pending": [
-    "Interruption/cancellation while actual Windows Whisper/Piper models run; real-model completion now has separate passing evidence.",
     "Installed Windows desktop authentication, ownership, workspace flows and signing remain milestone 9, last.",
     "Physical-device, personal VM and later deployment acceptance remain separate."
   ],
@@ -260,9 +259,9 @@
   },
   "real_model_followup": {
     "date": "2026-10-28",
-    "status": "real-model-roundtrip-verified",
+    "status": "real-model-completion-and-interruption-verified",
     "checkpoint": "docs/STUDIO-WINDOWS-VOICE-CHECKPOINT.json",
-    "run_url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40748628074",
-    "boundary": "Windows Server 2022 x64/Python 3.11 real synthesis and transcription; actual-model interruption remains separate."
+    "run_url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40750333137",
+    "boundary": "Windows Server 2022 x64/Python 3.11 ordinary completion plus real-model cancellation/shutdown after observed inference. Installed applications and physical devices remain separate."
   }
 }

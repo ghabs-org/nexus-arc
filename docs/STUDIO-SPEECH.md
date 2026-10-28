@@ -63,8 +63,9 @@ for synthesis and 130 seconds for transcription. Linux, macOS and Windows use
 isolated process owners to stop their controlled child trees on cancellation
 or shutdown. Cleanup must finish before temporary files are removed; an
 unconfirmed cleanup is reported. Cancelled output is not published. Native
-Windows source ownership and real-model completion have separate recorded
-acceptance; interruption with actual Windows speech models remains pending.
+Windows source ownership, real-model completion and interruption have recorded
+acceptance. See [Windows evidence](STUDIO-WINDOWS-VOICE-CHECKPOINT.json) for the
+hosted runner, exact scope and test-only inference instrumentation.
 
 The cleanup example needs SQLite support but no account, HTTP service or model:
 

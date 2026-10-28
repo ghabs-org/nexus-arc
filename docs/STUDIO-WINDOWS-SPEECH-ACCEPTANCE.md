@@ -7,7 +7,8 @@ skips plus all seven lifecycle cases. The tested source commit is
 [CI results](https://github.com/ghabs-org/nexus-arc/actions/runs/40746477508) and
 [retained reports](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json) record the exact scope.
 Raw Windows hashes match that commit after exact LF-to-CRLF checkout conversion.
-Actual speech models and installed-app acceptance remain pending. macOS mock tests verify
+Real-model completion and interruption now have the later evidence below;
+installed-app acceptance remains pending. macOS mock tests verify
 failure guards and orchestration; actual macOS service tests also exercise queued
 and running cancellation and shutdown. Neither verifies Windows process behavior.
 This gate does not build or install an application, download speech models, use a
@@ -60,11 +61,10 @@ source revision being reviewed before updating acceptance status.
 
 ## Completion boundary
 
-A hosted Windows Server result proves source process ownership and synthetic
-Studio queue/cancellation/shutdown flows on that runner. It does not certify
-Windows desktop installation, authentication, workspace flows, real Whisper/Piper
-models, shutdown with those real models, signing or updates.
-Those remain separate checks; desktop milestone 9 stays last. No account/device/VM
+The synthetic Windows gate proves source process ownership and Studio
+queue/cancellation/shutdown flows. Real-model completion and interruption are
+verified by the separate later gates below. Installed desktop authentication,
+workspace flows, signing and updates remain open; desktop milestone 9 stays last. No account/device/VM
 acceptance record is promoted automatically from this gate.
 
 ## Real-model Windows roundtrip
@@ -87,5 +87,21 @@ never invoke the preparation helper.
 verified real generation/transcription without microphone or speech API access.
 [Durable evidence](STUDIO-WINDOWS-VOICE-CHECKPOINT.json) retains exact versions and
 results. This completes source real-model roundtrip acceptance on that runner;
-actual-model interruption, physical-device behavior and installed applications
-remain separate checks.
+physical-device behavior and installed applications remain separate checks.
+The following later gate verifies real-model interruption.
+
+## Interruption after real inference
+
+[The passing interruption run](https://github.com/ghabs-org/nexus-arc/actions/runs/40750333137)
+verifies Piper cancellation, Piper shutdown, Whisper cancellation and Whisper
+shutdown on Windows Server 2022 x64/Python 3.11. A test-only entrypoint wrapper
+marks a real generated Piper chunk or a completed Whisper encoder forward without
+replacing outputs, pausing or blocking inference. The controller verifies the
+model process is still active before requesting cancellation or Studio shutdown.
+
+Every case requires the model process to exit, correct terminal run state, empty
+speech temporary storage and ownership records, and no generated artifact. The
+same job retains the ordinary unwrapped real-model completion check. Full results,
+source hashes and sample timings are stored in the
+[voice checkpoint](STUDIO-WINDOWS-VOICE-CHECKPOINT.json). Physical-device, installed
+application and personal-VM acceptance are not established by a hosted runner.

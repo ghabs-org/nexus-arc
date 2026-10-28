@@ -1,7 +1,7 @@
 {
   "format": "nexus-windows-local-voice-checkpoint/v1",
   "date": "2026-10-28",
-  "status": "real-windows-cpu-speech-roundtrip-verified",
+  "status": "real-windows-cpu-speech-completion-and-interruption-verified",
   "milestone_complete": false,
   "whole_plan_complete": false,
   "authorization": "Previously approved public Whisper/Piper test models and temporary local speech runtime preparation. Only an ephemeral Windows CI runner was modified.",
@@ -95,8 +95,130 @@
   ],
   "migration": "Acceptance-only additions. No product runtime, speech API, persisted state, account configuration or application packaging changed.",
   "pending": [
-    "Interruption/cancellation while actual Windows speech models run; synthetic process and Studio interruption already have independent native proof.",
     "Native installed Windows desktop/authentication/workspace/signing/update acceptance remains milestone 9, last.",
     "Physical microphone/playback, broader speech/language quality, API accounts and personal VM remain separate."
-  ]
+  ],
+  "interruption_acceptance": {
+    "date": "2026-10-28",
+    "status": "passed",
+    "platform": "Windows Server 2022 x64/Python 3.11",
+    "revision": "b8923d49d4b7ce11dc2a4b7e47ac9582dd5b3ab0",
+    "run_id": 40750333137,
+    "url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40750333137",
+    "model_job_tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "junit_sha256": "72236d9848259e039fe0f633d1ef35eed370c97d888540556db9b9337fe6624d",
+    "native_interruption_result": {
+      "outcomes": {
+        "piper_cancel": {
+          "artifacts_created": 0,
+          "elapsed_seconds": 0.016,
+          "model_process_exited": true,
+          "owner_records_removed": true,
+          "real_inference_observed": true,
+          "status": "cancelled",
+          "temporary_audio_removed": true
+        },
+        "piper_shutdown": {
+          "artifacts_created": 0,
+          "elapsed_seconds": 0.031,
+          "model_process_exited": true,
+          "owner_records_removed": true,
+          "real_inference_observed": true,
+          "status": "interrupted",
+          "temporary_audio_removed": true
+        },
+        "whisper_cancel": {
+          "artifacts_created": 0,
+          "elapsed_seconds": 0.047,
+          "model_process_exited": true,
+          "owner_records_removed": true,
+          "real_inference_observed": true,
+          "status": "cancelled",
+          "temporary_audio_removed": true
+        },
+        "whisper_shutdown": {
+          "artifacts_created": 0,
+          "elapsed_seconds": 0.063,
+          "model_process_exited": true,
+          "owner_records_removed": true,
+          "real_inference_observed": true,
+          "status": "interrupted",
+          "temporary_audio_removed": true
+        }
+      },
+      "platform": "win32",
+      "source_sha256": {
+        "examples/nexus-bot/src/studio_real_speech_interruption.py": "472d822d940f25b3983e7d82acaa2e96c06e088feb0bb0d9a4f70fbc699c2d62",
+        "nexus/core/studio.py": "3688483d4f6842db09514a29e111d60abb465f0a750922c6adba95a89e16949f",
+        "nexus/core/studio_speech.py": "955cfd082b8e6e55f803f867734169858670ac072a98fe85afd403293bcac384",
+        "nexus/core/studio_speech_process.py": "e2c6a1c918b5af22379f9785026b844ae84a946988cc47666232b294c05d042f",
+        "nexus/core/studio_speech_windows.py": "92c8db364b051070eb24c8c3988033763f4df51ea8f33b3741b255c46e464ce2",
+        "nexus/core/studio_speech_worker.py": "8da78a632ed4bf368193c21d1e4e51ed6c93fa2c42558ab89d3148c9b3abd767",
+        "tests/fixtures/studio_voice_interrupt_worker.py": "891cd4924b19b6437bbf4f639025fd4b5dc2e066761797a16437b0a21eeb2fbc",
+        "tests/studio_windows_real_speech_interruption_acceptance.py": "48aa7124eb68fdd53aac54bc55e31555f89e5ee0a93d9ffadcf5620751c4b0c9"
+      }
+    },
+    "unwrapped_roundtrip": {
+      "models_sha256": {
+        "NEXUS_ACCEPTANCE_PIPER_MODEL": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+        "NEXUS_ACCEPTANCE_WHISPER_MODEL": "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03"
+      },
+      "packages": {
+        "onnxruntime": "1.31.1",
+        "openai-whisper": "20250625",
+        "piper-tts": "1.8.0",
+        "torch": "2.14.1+cpu"
+      },
+      "platform": "win32",
+      "python": "3.11.9",
+      "roundtrip": {
+        "api_client_used": false,
+        "audio_seconds": 2.972,
+        "generated_wav_bytes": 131116,
+        "microphone_used": false,
+        "model_downloaded_by_worker": false,
+        "private_audio_artifact": true,
+        "synthesis_completed": true,
+        "synthesis_seconds": 5.532,
+        "temporary_audio_removed": true,
+        "transcript": "Studio can run local speech without an external account.",
+        "transcription_completed": true,
+        "transcription_seconds": 3.734
+      },
+      "source_sha256": {
+        "examples/nexus-bot/src/studio_local_speech.py": "26a2e9e1f50f1dbcf843ac565876dc8fd2f8c12a9b50fa0bde5e3a056d99775b",
+        "nexus/core/studio.py": "3688483d4f6842db09514a29e111d60abb465f0a750922c6adba95a89e16949f",
+        "nexus/core/studio_speech.py": "955cfd082b8e6e55f803f867734169858670ac072a98fe85afd403293bcac384",
+        "nexus/core/studio_speech_process.py": "e2c6a1c918b5af22379f9785026b844ae84a946988cc47666232b294c05d042f",
+        "nexus/core/studio_speech_windows.py": "92c8db364b051070eb24c8c3988033763f4df51ea8f33b3741b255c46e464ce2",
+        "nexus/core/studio_speech_worker.py": "8da78a632ed4bf368193c21d1e4e51ed6c93fa2c42558ab89d3148c9b3abd767",
+        "tests/studio_local_speech_acceptance.py": "034a8fa0aa881b8071b0f9a7b4eafc66f8f1e8c9509778db2e6e0481f164548e"
+      }
+    },
+    "source_git_blob_sha256": {
+      "examples/nexus-bot/src/studio_real_speech_interruption.py": "d6d9b8288789d2bab62542523697dba3995a69779342491c27188d5e37c07f34",
+      "nexus/core/studio.py": "2fbafdc769f58b2b05b04283d57fd7d408fdbd9f637f363d20b2566656df1fa3",
+      "nexus/core/studio_speech.py": "3ab8adbca3551749635cf152c7e507123c7ae78bd0ab2d2897be14aba1fae1c5",
+      "nexus/core/studio_speech_process.py": "5e0fa30ddc0651ebe01b3bf4898db65823e11533a291c83a86e30d25a8d4c351",
+      "nexus/core/studio_speech_windows.py": "68463fe4cdaff00b4efdaa1a48885373fa2b551d855d1def096ba3a6406c5a70",
+      "nexus/core/studio_speech_worker.py": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7",
+      "tests/fixtures/studio_voice_interrupt_worker.py": "589002accae199a4a45c8498043903314bd6cd85a371b3c287975c64263aa241",
+      "tests/studio_windows_real_speech_interruption_acceptance.py": "46534719197c0978d0b34262c64054b9915f53ee6121beea3d8758f54cb58f25"
+    },
+    "source_verification": "Every raw Windows interruption-source hash matches the tested commit after exact LF-to-CRLF checkout conversion; current Mac sources match the git blobs.",
+    "inference_evidence": "Piper marker follows a real ONNX-generated chunk; Whisper marker follows a completed real encoder forward. Hooks preserve outputs and do not sleep or block. The controller verifies the observed process and Studio run remain active before interruption.",
+    "fixture_boundary": "Only test command entrypoints are wrapped to install inference markers. Installed real models, CPU inference, Studio queue/cancellation/shutdown, private file ownership and Windows Job Object cleanup remain active. The same job also repeats the ordinary unwrapped synthesis/transcription roundtrip.",
+    "local_checks": {
+      "tests": 48,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "report_sha256": "4ab980fe92b0e7e7b04de356834363df1afb3e2a17c5a1f0514e3664cf49b2c8"
+    },
+    "timing_scope": "Observed cleanup timings are sample results, not a general latency guarantee.",
+    "product_changes": "None in this acceptance slice. No runtime limits, APIs, schemas, packaging, VM or installed app changed."
+  }
 }
