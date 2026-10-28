@@ -279,6 +279,62 @@ was read, no credential decrypted and no archive exported off-host. Full-host
 recovery remains open. See [account restore evidence](STUDIO-ACCOUNT-RESTORE-CHECKPOINT.json).
 No product source, configuration, image, installer or DMG changed.
 
+### Requested six-target execution — 28 October 2026
+
+The user requested all remaining targets. The prior answer listed five; the sixth
+workstream is final evidence reconciliation. Desktop remains last, and this does
+not authorize a new DMG. [Target-by-target status](STUDIO-FINAL-TARGETS-CHECKPOINT.json)
+keeps dependent gates open instead of declaring the entire plan complete.
+
+The configured VM owner GitHub account now passes six GET requests through the
+installed native Studio adapter: identity, public repository, issue/PR lists and
+details. The existing consumer rejects an unselected write before transport and
+verifies no credential was persisted. No remote mutation occurred. Only that
+owner's selected credential was resolved inside the VM. Presence checks found no
+GitLab, LinkedIn or selected API-model keys for that owner; other accounts or
+locations are not ruled out. See [VM GitHub evidence](STUDIO-VM-GITHUB-CHECKPOINT.json).
+
+A frontend-only image candidate is built from the exact running Studio image.
+All 654 installed files were compared: only the two tested JavaScript assets
+change, and their hashes match current source. It is not deployed. Coordinated
+recovery is review-ready but not executed: unlike earlier Studio/proxy-only
+maintenance, it pauses five Nexus writers and copies sensitive configuration
+into a private same-VM destination. Physical-device interaction, unconfigured
+accounts, signing and installed-platform delivery remain genuine prerequisites.
+
+### Coordinated recovery and deployed acceptance — 28 October 2026
+
+The requested coordinated same-VM recovery check now passes. Five Nexus writers
+and Studio/proxy paused for 14.292 seconds. The private copy contains 723 files,
+both configured PostgreSQL databases, required key configuration and four service
+images (612,170,752-byte image archive). Files restored with matching hashes; the
+15-table account database and 3-table Studio database restored with zero invalid
+indexes. A synthetic encrypted canary verified the recovered key. New isolated
+session authorization accepted recovered owner/project access and rejected unknown
+and pending sessions. No production session was reused and no existing provider
+credential was decrypted for this recovery check. The isolated cluster is stopped.
+All secret-bearing recovery artifacts stay private on the VM. This is selected
+service-scope recovery, not an independently located backup, full OS/ingress clone
+or real browser/OAuth login against a recovered host. Initial isolated probe
+failures are retained: recovered project configuration and correct UID:GID were
+needed. [Coordinated evidence](STUDIO-COORDINATED-RESTORE-CHECKPOINT.json).
+
+The two-asset login banner fix is now deployed. Configuration preflight verified
+that only Studio's image changed. The first attempt successfully rolled back when
+an overstrict environment-list-order assertion failed; key/value comparison proved
+values unchanged. Corrected deployment passed in 4.704 seconds, with served hashes
+matching source and proxy unchanged. The signed-in browser activated the shell
+update, then submitted one Codex subscription task with Low effort and no tools.
+It returned exactly `STUDIO_ACCEPTANCE_OK`. All 12 host checks and all 15 anonymous
+HTTPS checks pass; five units, Studio/proxy/router are running and zero generated
+workers remain. [Deployment evidence](STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json).
+
+These results supersede the earlier candidate-not-deployed and maintenance-review
+statuses above. Final target status stays explicit: independent recovery/key
+escrow, authenticated HTTP headers, daemon/power-loss, real physical devices,
+unconfigured API accounts and installed/signing checks remain open. This Mac has
+zero valid code-signing identities. Milestone 9 stays last; no DMG was rebuilt.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech

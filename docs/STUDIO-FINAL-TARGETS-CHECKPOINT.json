@@ -1,0 +1,90 @@
+{
+  "format": "nexus-studio-final-six-targets/v1",
+  "date": "2026-10-28",
+  "status": "vm-work-completed-external-release-gates-open",
+  "whole_plan_complete": false,
+  "numbering": "User requested 1\u20136 after a five-item answer. Sixth workstream is final evidence reconciliation. Desktop remains last; no new DMG authorization inferred.",
+  "targets": [
+    {
+      "id": 1,
+      "target": "Coordinated recovery",
+      "status": "coordinated-same-vm-restore-verified",
+      "completed": [
+        "Coordinated five-unit plus Studio/proxy writer freeze",
+        "723 files and two databases copied/restored",
+        "Recovered-key synthetic canary",
+        "New isolated session authorization against restored project access",
+        "Four service images archived privately"
+      ],
+      "remaining": [
+        "Independent-host/off-host recovery and key escrow",
+        "Restored physical browser/OAuth login",
+        "Full OS/ingress provisioning and disaster boot"
+      ],
+      "checkpoint": "STUDIO-COORDINATED-RESTORE-CHECKPOINT.json"
+    },
+    {
+      "id": 2,
+      "target": "VM acceptance and tested frontend deployment",
+      "status": "frontend-deployed-authenticated-run-verified",
+      "candidate": {
+        "candidate_image": "sha256:4bbdeb3ab2c8304d9e98401d47b70e783465211348d2a95da7fcfba025046532",
+        "base_image": "sha256:8d442def46f3f2aeae905c42be3990d9a7160d8c08983ae12e4eac0c2249a21e",
+        "installed_files_compared": 654,
+        "changed_files": [
+          "studio_static/service-worker.js",
+          "studio_static/studio.js"
+        ],
+        "exact_source_hashes_match": true,
+        "server_started": false,
+        "live_deployed": true
+      },
+      "remaining": [
+        "Authenticated HTTP response-header verification",
+        "Daemon/power-loss under separately scoped host-wide recovery test"
+      ],
+      "checkpoint": "STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json"
+    },
+    {
+      "id": 3,
+      "target": "Real integrations",
+      "status": "configured-vm-github-read-verified",
+      "checkpoint": "STUDIO-VM-GITHUB-CHECKPOINT.json",
+      "remaining": [
+        "API voice/embedding and other selected providers require configured accounts and explicit paid-call scope"
+      ]
+    },
+    {
+      "id": 4,
+      "target": "Physical mobile",
+      "status": "requires-real-device-user-interaction",
+      "remaining": [
+        "Microphone permissions",
+        "Playback and stop",
+        "Touch/accessibility",
+        "Installation"
+      ],
+      "prepared_instructions": "STUDIO-PHYSICAL-DEVICE-ACCEPTANCE.md"
+    },
+    {
+      "id": 5,
+      "target": "Installed desktop release",
+      "status": "milestone-9-last",
+      "remaining": [
+        "Installed Linux/Windows acceptance",
+        "Another physical Mac",
+        "Signing/notarization and verified updates"
+      ],
+      "dmg_rebuild_authorized": false,
+      "local_signing_identity_check": "0 valid macOS code-signing identities found on this Mac; no key or certificate was exported."
+    },
+    {
+      "id": 6,
+      "target": "Evidence reconciliation",
+      "status": "reconciled-zero-record-inconsistencies",
+      "whole_plan_complete": false
+    }
+  ],
+  "maintenance_review_sha256": "525a9ec0f84317f65c8057cbb11a605d5d46c758cc0113827cb8d210575c8e1a",
+  "next_user_prerequisite": "Choose independent encrypted recovery destination; provide real-device results and signing/installed-platform environments when available."
+}

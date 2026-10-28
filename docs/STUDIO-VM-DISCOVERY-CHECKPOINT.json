@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-vm-discovery/v1",
-  "date": "2026-10-26",
-  "status": "approved-durable-proxy-repair-live-verified",
+  "date": "2026-10-28",
+  "status": "coordinated-service-restore-and-frontend-deployment-verified",
   "whole_plan_complete": false,
   "whole_milestone_complete": false,
   "scope": "User-approved Studio-only upgrade on the selected personal VM. Private namespace backup, verification and inactive restore, deployed source identity, cooperative service restart, rollback, actual host isolation and anonymous HTTPS checks are verified. Account/device/full-host gates remain separate.",
@@ -123,7 +123,7 @@
   },
   "vm_files_changed": true,
   "vm_services_restarted": true,
-  "credentials_read_or_exported": false,
+  "credentials_read_or_exported": true,
   "desktop_app_built": false,
   "dmg_rebuilt": false,
   "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
@@ -453,7 +453,7 @@
     "external_report_sha256": "55e4a9958577d9f01b4f582ab2dde78130938b51b27e3ecf375704695fa40164",
     "scope": "Only Studio/proxy were interrupted. No backend image build/pull or repository source change on VM; no main merge, installer or DMG.",
     "pending": [
-      "Read-only signed-in UI verified below; signed-in execution and response-header acceptance remain separate.",
+      "Read-only signed-in UI and a synthetic Codex subscription task now verified. Authenticated HTTP-header checks remain separate.",
       "Controlled Studio/proxy restart and worker cleanup now live-verified in STUDIO-DEPLOYED-RESTART-CHECKPOINT.json; daemon/power-loss remains separate.",
       "Account-store/full-host restoration, physical devices and final installed desktop acceptance."
     ]
@@ -472,7 +472,7 @@
     "private_screenshot_sha256": "f27cd529da87de49dab76e999ec7dc7406576b72da2f24e976cb8132a54aa377"
   },
   "login_banner_source_fix": {
-    "status": "source-verified-not-deployed",
+    "status": "deployed-verified",
     "behavior": "Hide reconnect notices during required sign-in; preserve offline notices, run monitoring and genuine outage retries.",
     "regression_tests": 220,
     "failures": 0,
@@ -483,8 +483,9 @@
       "nexus/studio_static/service-worker.js": "bc6d0fe90615360e945860eb79d8827eccef87a0dca1a818c8194bccd04b3f55",
       "tests/studio_browser.test.cjs": "d7adb5a196119f1d260d7cd2f6cc2c82ab98d418ba3ba4c89eb7a355f7059ff6"
     },
-    "vm_deployed": false,
-    "dmg_rebuilt": false
+    "vm_deployed": true,
+    "dmg_rebuilt": false,
+    "checkpoint": "STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json"
   },
   "controlled_restart_2026_10_28": {
     "status": "live-verified-after-readiness-probe-correction",
@@ -506,5 +507,15 @@
     "production_services_stopped": false,
     "master_key_read": false,
     "full_host_restore_complete": false
-  }
+  },
+  "coordinated_restore_2026_10_28": {
+    "status": "live-verified-selected-service-scope",
+    "checkpoint": "STUDIO-COORDINATED-RESTORE-CHECKPOINT.json",
+    "files": 723,
+    "databases": 2,
+    "key_canary_verified": true,
+    "isolated_authorization_verified": true,
+    "independent_host_disaster_restore_verified": false
+  },
+  "current_credential_scope": "Requested coordinated recovery copied opaque key configuration privately on the VM and tested a synthetic key canary. Selected GitHub credential resolved only inside the VM process for user-authorized GET checks. No credential/session/key values returned to chat, committed, or exported off VM."
 }

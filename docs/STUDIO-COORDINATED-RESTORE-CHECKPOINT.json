@@ -1,0 +1,90 @@
+{
+  "format": "nexus-studio-coordinated-restore/v1",
+  "date": "2026-10-28",
+  "status": "live-verified-selected-service-scope",
+  "whole_plan_complete": false,
+  "scope": "Coordinated same-VM recovery copy of selected Nexus Studio state, project configuration, account homes, both configured PostgreSQL databases and required key environment. This is not an OS/disk clone or an independently located disaster backup.",
+  "snapshot": {
+    "status": "snapshot-verified",
+    "scope": "Selected Nexus Studio service state, accounts and configuration, not OS/disk image",
+    "production_database_overwritten": false,
+    "secrets_exported_off_vm": false,
+    "existing_credentials_decrypted": false,
+    "dmg_rebuilt": false,
+    "files_copied": 723,
+    "symlinks_preserved_without_following": 1,
+    "runtime_objects_excluded": 0,
+    "databases": 2,
+    "key_configuration_copied_privately": true,
+    "maintenance_seconds": 14.292,
+    "services_active": true,
+    "containers_running": true,
+    "generated_workers_remaining": 0
+  },
+  "restore": {
+    "status": "passed-selected-service-restore-after-probe-correction",
+    "network_listener": false,
+    "application_started": false,
+    "provider_calls": 0,
+    "production_database_modified": false,
+    "existing_credentials_decrypted": false,
+    "secrets_exported_off_vm": false,
+    "restored_files_verified": 723,
+    "recovered_key_canary": true,
+    "restored_databases": [
+      {
+        "tables": 15,
+        "invalid_indexes": 0
+      },
+      {
+        "tables": 3,
+        "invalid_indexes": 0
+      }
+    ],
+    "isolated_cluster_stopped": true,
+    "cluster_pid_absent": true,
+    "initial_authorization_probe_failed": true,
+    "authorization_probe_corrections": [
+      "Recovered PROJECT_CONFIG_PATH supplied in ephemeral tmpfs",
+      "Isolated client matched deployed UID:GID 1001:1001"
+    ],
+    "restored_authorization": {
+      "new_isolated_session_authorized": true,
+      "restored_project_access_verified": true,
+      "unknown_and_pending_sessions_denied": true,
+      "production_sessions_used": false,
+      "browser_oauth_login_tested": false
+    },
+    "production_services_still_active": true
+  },
+  "image_archive": {
+    "images": 4,
+    "bytes": 612170752,
+    "exported_off_vm": false
+  },
+  "final_postcheck": {
+    "host_checks": 12,
+    "anonymous_https_passed": 15,
+    "nexus_units_active": 5,
+    "selected_containers_running": 3,
+    "generated_workers_remaining": 0,
+    "authenticated_headers": "not tested without existing session material"
+  },
+  "probe_history": "Initial inactive authorization probe failed because recovered project configuration and deployed UID:GID were not supplied. Both were corrected only in the isolated client; the initial failed report is retained privately.",
+  "sensitive_data_handling": "Recovery key configuration and opaque account homes were copied root-only on the same VM. Recovered key tested using synthetic canary only. No existing token decrypted for recovery; no production login session used; no secret/backup exported off VM.",
+  "evidence_sha256": {
+    "snapshot-result.json": "72d976b0ffe38f41216fde5d68e7af8bf746c112a4fa53dedec3fadeb79d09d4",
+    "acceptance-result.json": "3b67e83c99bc47c8c2458a231778837901d8063013c28627fea123e7153b2288",
+    "final-postcheck.json": "50d9ccf94c873539ef95789716ee59a4617f37e3d31f435afd2a605d5b95b5d1",
+    "external-https.json": "3fc72c7f640913e996dd2cd40004fb682c92ed520f3c513c493803abbc291a57",
+    "snapshot.py": "116f4af11296eca0533bb7b932ce10fc60dfb9a0e389efbfcb4dfea4b33b1cb5",
+    "restore.py": "1d12d8fb1122bef2d4758e746e15e39fb23cb506988e70b8cb0f17999d604ded",
+    "auth-followup.py": "9ca565ecde57485d3e6992c0598634ce50e2d10e624ea6460a70090f90dcf15b"
+  },
+  "pending": [
+    "Independent-host/off-host archive and key recovery, full OS/ingress provisioning and disaster boot remain unverified.",
+    "Restored authorization is real policy/persistence with a new synthetic isolated session; real browser/OAuth login against the restore remains separate.",
+    "Daemon restart/power-loss and physical-device/installed-platform delivery remain open."
+  ],
+  "dmg_rebuilt": false
+}
