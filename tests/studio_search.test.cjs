@@ -622,3 +622,19 @@ test("assistant chat shows workspace proposals with Apply and Reject", () => {
   assert.match(studioSource, /isStudioAssistant&&typeof renderWorkspaceProposals==="function"\)renderWorkspaceProposals\(reply,finished\.id\)/);
   assert.match(studioSource, /session\.studio_assistant&&m\.role==="assistant"&&m\.run_id/);
 });
+
+test("splitStepOutput numbers workflow sections and falls back when names do not match", () => {
+  const source = studioSource.slice(studioSource.indexOf("function splitStepOutput("), studioSource.indexOf("function renderRunOutput("));
+  const context = vm.createContext({});
+  vm.runInContext(source, context);
+  const output = "plan\n# Brief\n\nDetails here\n\ncfo\nCash model\n\nboard\n";
+  const sections = context.splitStepOutput(output, ["plan", "cfo", "board"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(sections)), [
+    { name: "plan", text: "# Brief\n\nDetails here" },
+    { name: "cfo", text: "Cash model" },
+    { name: "board", text: "" },
+  ]);
+  assert.equal(context.splitStepOutput(output, ["other"]), null);
+  assert.equal(context.splitStepOutput(output, []), null);
+  assert.match(studioSource, /class="secondary run-history-jump">Execution history</);
+});

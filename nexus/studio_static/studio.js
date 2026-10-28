@@ -54,7 +54,7 @@ function agentOptions(selected=""){
 }
 function renderAgents(){
   $("agent-count").textContent=state.agents.length;
-  const builtinHtml=`<div class="section-subheading" style="margin-bottom:14px"><span class="eyebrow">STANDARD ROLES</span><h2 style="font-size:18px;margin:4px 0 0">Built-in specialists</h2><p style="font-size:12px;color:var(--muted);margin:4px 0 0">Ready-made platform assistants available in every workspace.</p></div><div class="resource-grid"><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>General assistant</span></div><h2>General assistant</h2><p>Direct conversation with your selected provider and tools. Flexible general-purpose assistant for any task.</p><div class="card-meta"><span>Provider default model</span><span>· Interactive chat</span></div><div class="card-actions"><button data-agent="">Start conversation</button></div></article><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>Platform help</span></div><h2>Studio assistant</h2><p>Answers platform questions using built-in documentation and authorized workspace metadata.</p><div class="card-meta"><span>Platform documentation</span><span>· Read-only tools</span></div><div class="card-actions"><button data-agent="studio-assistant">Start conversation</button><a class="button-link secondary" href="#assistant">Help center</a></div></article></div>`;
+  const builtinHtml=`<div class="section-subheading" style="margin-bottom:14px"><span class="eyebrow">STANDARD ROLES</span><h2 style="font-size:18px;margin:4px 0 0">Built-in specialists</h2><p style="font-size:12px;color:var(--muted);margin:4px 0 0">Ready-made platform assistants available in every workspace.</p></div><div class="resource-grid"><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>General assistant</span></div><h2>General assistant</h2><p>Direct conversation with your selected provider and tools. Flexible general-purpose assistant for any task.</p><div class="card-meta"><span>Provider default model</span><span>· Interactive chat</span></div><div class="card-actions"><button data-agent="">Start conversation</button></div></article><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>Platform help</span></div><h2>Studio assistant</h2><p>Answers platform questions and reads, lists and edits workspace files. Every change waits for your Apply and is versioned in git.</p><div class="card-meta"><span>Platform documentation</span><span>· Workspace files</span><span>· Changes need approval</span></div><div class="card-actions"><button data-agent="studio-assistant">Start conversation</button><a class="button-link secondary" href="#assistant">Help center</a></div></article></div>`;
   const customCards=state.agents.length?`<div class="resource-grid">${state.agents.map(item=>{
     const doc=item.document||{},meta=doc.metadata||{},spec=doc.spec||{};
     if(item.error)return `<article class="resource-card"><h2>${escapeHtml(item.id)}</h2>${badge("Invalid definition","failed")}<p>${escapeHtml(item.error)}</p></article>`;
@@ -936,10 +936,42 @@ function cleanupRunStatus(run){
   const reasons={CleanupEffectUncertainError:"Previous attempt may have changed external data. Step was not repeated.",CleanupRejected:"Skipped after your response.",LegacyScopeCapturesUnavailable:"Older save lacks nested cleanup context. Review previous external effects."};
   return status+(run.workflow_warnings?.length?`<p role="status">${run.workflow_warnings.length} cleanup warning(s). Review execution history before starting another run.</p><ul>${run.workflow_warnings.map(w=>`<li>${escapeHtml(String(w.node_id).split("/").at(-1))}: ${escapeHtml(reasons[w.error_type]||"Step could not finish; review its recorded effects.")}</li>`).join("")}</ul>`:"");
 }
+function splitStepOutput(output,names){
+  // Workflow output joins completed steps as "name\nresult" separated by blank lines.
+  const sections=[];let cursor=0;
+  for(let i=0;i<names.length;i++){
+    const head=(i?"\n\n":"")+names[i]+"\n";
+    if(output.slice(cursor,cursor+head.length)!==head)return null;
+    const start=cursor+head.length;
+    const end=i+1<names.length?output.indexOf("\n\n"+names[i+1]+"\n",start):output.length;
+    if(end<0)return null;
+    sections.push({name:names[i],text:output.slice(start,end)});cursor=end;
+  }
+  return sections.length?sections:null;
+}
+function renderRunOutput(node,run,fallback){
+  const sections=run.output&&Array.isArray(run.output_steps)?splitStepOutput(run.output,run.output_steps):null;
+  if(!sections){renderContent(node,fallback);return;}
+  node.replaceChildren();
+  const index=document.createElement("nav");index.className="run-step-index";index.setAttribute("aria-label","Workflow steps");
+  sections.forEach((section,i)=>{
+    const link=document.createElement("button");link.type="button";link.className="run-step-link";link.textContent=`${i+1}. ${section.name}`;
+    link.onclick=()=>$(`run-step-${i+1}`)?.scrollIntoView({behavior:"smooth",block:"start"});
+    index.append(link);
+  });
+  node.append(index);
+  sections.forEach((section,i)=>{
+    const block=document.createElement("section");block.className="run-step";block.id=`run-step-${i+1}`;
+    block.innerHTML=`<h3 class="run-step-heading"><span class="run-step-number">${i+1}</span>${escapeHtml(section.name)}</h3><div class="message-body"></div>`;
+    renderContent(block.querySelector(".message-body"),section.text||"No text output.");
+    node.append(block);
+  });
+}
 function updateRunDetail(run){
   if(!$("run-output")||run.id!==state.detailRunId)return;
-  $("run-status").innerHTML=badge(run.status,run.status)+waitingRunActions(run)+cleanupRunStatus(run);
-  renderContent($("run-output"),run.output||run.error||(run.status==="waiting"?"Waiting for your response.":["completed","cancelled"].includes(run.status)?"No text output.":"Working…"));
+  $("run-status").innerHTML=badge(run.status,run.status)+waitingRunActions(run)+cleanupRunStatus(run)+'<button type="button" class="secondary run-history-jump">Execution history</button>';
+  $("run-status").querySelector(".run-history-jump").onclick=()=>($("run-execution")||$("run-trace-button"))?.scrollIntoView({behavior:"smooth",block:"start"});
+  renderRunOutput($("run-output"),run,run.output||run.error||(run.status==="waiting"?"Waiting for your response.":["completed","cancelled"].includes(run.status)?"No text output.":"Working…"));
   let actionsBar=$("run-actions-bar");
   if(!actionsBar){
     actionsBar=document.createElement("div");

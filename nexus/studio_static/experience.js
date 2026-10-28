@@ -311,7 +311,7 @@ const DEFAULT_GUIDE_STEPS = [
     target: "#view-assistant",
     fallback_target: "#studio-help-form",
     min_role: "viewer",
-    summary: "Ask how Studio works or find your agents, workflows, and server files. Uses built-in documentation and authorized workspace metadata with zero provider tokens.",
+    summary: "Ask how Studio works, or have it read and edit your server files. Local answers use built-in documentation with zero provider tokens; Ask AI can propose file changes you apply.",
     branch_title: "Local help vs Ask AI",
     branch_body: "Find local answer uses built-in documentation and current resource names without API keys. Ask AI optionally routes the question to your configured provider.",
     practice: {

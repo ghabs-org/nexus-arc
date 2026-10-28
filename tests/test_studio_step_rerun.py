@@ -113,3 +113,10 @@ def test_only_workflow_runs_can_rerun(studio):
     chat = wait(service, service.start_run({"kind": "chat", "task": "hi"}))
     plan = service.step_rerun.describe(chat["id"])
     assert not plan["can_rerun"] and "workflow runs" in plan["blocked_reason"]
+
+
+def test_workflow_runs_record_output_step_names(studio):
+    service, source, prompts = studio
+    run = service.run(source["id"])
+    assert run["output_steps"] == ["s1", "s2", "s3"]
+    assert run["output"].startswith("s1\n")

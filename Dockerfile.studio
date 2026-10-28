@@ -12,6 +12,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+# git versions the workspace so applied changes can be reverted (studio_workspace_git.py).
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md LICENSE MANIFEST.in /nexus-arc/
 COPY nexus /nexus-arc/nexus

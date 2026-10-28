@@ -102,6 +102,10 @@ class StudioWorkspaceProposals:
                     actor,
                 )
                 record["revision"] = written["revision"]
+                target = studio.workspace_files.roots[record["root"]]["path"] / record["path"]
+                record["git"] = studio.workspace_git.commit(
+                    [target], f"Apply assistant change to {record['path']}", self.owner(actor)
+                )
             record.update(status="applied" if action == "apply" else "rejected", decided_at=_now())
             studio._write(path, record)
             return record

@@ -133,7 +133,10 @@ async function renderWorkspaceProposals(node,runId){
         };
         actions.append(button);
       }
-    }else actions.innerHTML=badge(item.status,item.status==="applied"?"Applied":"Rejected");
+    }else{
+      actions.innerHTML=badge(item.status,item.status==="applied"?"Applied":"Rejected");
+      if(item.git){const note=document.createElement("small");note.className="card-meta";note.textContent=item.git.versioned?`Saved in git as ${String(item.git.commit||"").slice(0,8)}; revert it with git revert.`:`Not saved in git: ${item.git.reason}.`;actions.append(note);}
+    }
     card.append(actions);list.append(card);
   }
   node.append(list);

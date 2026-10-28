@@ -257,6 +257,9 @@ class StudioService:
         from nexus.core.studio_workspace_files import StudioWorkspaceFiles
 
         self.workspace_files = StudioWorkspaceFiles(self, **(workspace_file_options or {}))
+        from nexus.core.studio_workspace_git import StudioWorkspaceGit
+
+        self.workspace_git = StudioWorkspaceGit(self)
         from nexus.core.studio_workspace_proposals import StudioWorkspaceProposals
 
         self.workspace_proposals = StudioWorkspaceProposals(self)
@@ -552,6 +555,7 @@ class StudioService:
             # Creates only. Existing definitions can be edited in their source YAML.
             with path.open("x", encoding="utf-8") as handle:
                 yaml.safe_dump(doc, handle, sort_keys=False, allow_unicode=True)
+        self.workspace_git.commit([path], f"Create {kind[:-1]} {identity}")
         result = {
             "id": identity,
             "document": doc,
@@ -595,6 +599,7 @@ class StudioService:
                 temporary.replace(path)
             finally:
                 temporary.unlink(missing_ok=True)
+            self.workspace_git.commit([path], f"Update {kind[:-1]} {identity}")
             result = {
                 "id": identity,
                 "document": doc,
@@ -614,6 +619,7 @@ class StudioService:
             if not path.is_file():
                 raise FileNotFoundError(f"{kind.rstrip('s').title()} not found: {identity}")
             path.unlink()
+        self.workspace_git.commit([path], f"Delete {kind[:-1]} {identity}")
         return {"id": identity, "deleted": True}
 
     def records(self, collection: str, limit: int | None = 100) -> list[dict]:

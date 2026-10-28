@@ -134,9 +134,15 @@ class StudioLegacyWorkflows:
                     run_id,
                     awaiting_approval=[{"id": self.gate(step), "name": step.name}],
                     output=self.output(workflow),
+                    output_steps=self.output_steps(workflow),
                 )
                 raise StudioPausedError("YAML workflow awaits approval")
-            self.studio._update_run(run_id, step=step.name, output=self.output(workflow))
+            self.studio._update_run(
+                run_id,
+                step=step.name,
+                output=self.output(workflow),
+                output_steps=self.output_steps(workflow),
+            )
             try:
                 await self.run_parallel(engine, workflow, state, step, payload, run_id)
                 cached = state.get("parallel_outputs", {}).get(self.gate(step))
@@ -157,7 +163,9 @@ class StudioLegacyWorkflows:
                 raise
             workflow = await engine.complete_step(workflow.id, step.step_num, {"result": output})
             self.snapshot(state, workflow)
-        self.studio._update_run(run_id, awaiting_approval=[])
+        self.studio._update_run(
+            run_id, awaiting_approval=[], output_steps=self.output_steps(workflow)
+        )
         if workflow.state != WorkflowState.COMPLETED:
             raise ValueError(
                 "YAML workflow stopped before completion or reached its execution limit"
@@ -321,6 +329,7 @@ class StudioLegacyWorkflows:
                 run_id,
                 awaiting_approval=[{"id": self.gate(item), "name": item.name} for item in gates],
                 output=self.output(workflow),
+                output_steps=self.output_steps(workflow),
             )
             raise StudioPausedError("Parallel YAML group awaits approval")
 
@@ -346,6 +355,11 @@ class StudioLegacyWorkflows:
         )
         if current_error:
             raise current_error
+
+    @staticmethod
+    def output_steps(workflow):
+        """Step names in the order output() joins them, so viewers can split the text."""
+        return [step.name for step in workflow.steps if step.status == StepStatus.COMPLETED]
 
     @staticmethod
     def output(workflow):

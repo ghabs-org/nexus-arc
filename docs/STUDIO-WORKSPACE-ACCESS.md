@@ -20,6 +20,22 @@ writable roots, into folders that already exist. Replacing a file needs the revi
 the assistant read, and Apply is refused if the file changed since then. Agent and
 workflow folders stay read-only; use their editors.
 
+### Git versioning
+
+Applied proposals and agent/workflow saves, edits and deletions are committed to a
+git repository at the workspace root, one commit per change and only for the changed
+path. The author is the person who applied the change. Undo one with
+`git revert <commit>`; the proposal card shows the commit it created.
+
+- Hosted (team-mode) workspaces get the repository automatically on first change,
+  with an initial snapshot of `agents/`, `workflows/` and `files/` and a `.gitignore`
+  for private `.nexus` state. The Studio image includes `git`.
+- Desktop workspaces are versioned only after opting in from the workspace root:
+  `git init && git config nexus.studioWorkspace true`. A workspace inside another
+  repository is never committed to.
+- Without git, or for extra roots outside the workspace, changes still apply; the card
+  says why they were not saved in git.
+
 Open **Workspace files** to browse these server-side roots:
 
 - `files`: `<workspace>/files`, writable through create-only upload/new-folder actions.
