@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-vm-discovery/v1",
   "date": "2026-10-26",
-  "status": "studio-only-upgrade-live-verified",
+  "status": "approved-durable-proxy-repair-live-verified",
   "whole_plan_complete": false,
   "whole_milestone_complete": false,
   "scope": "User-approved Studio-only upgrade on the selected personal VM. Private namespace backup, verification and inactive restore, deployed source identity, cooperative service restart, rollback, actual host isolation and anonymous HTTPS checks are verified. Account/device/full-host gates remain separate.",
@@ -178,10 +178,10 @@
   },
   "resume_preflight": {
     "date": "2026-10-28",
-    "status": "user-availability-confirmed-awaiting-tailscale-ssh-check",
+    "status": "approved-proxy-repair-applied-and-verified",
     "user_vm_deferral_lifted": true,
-    "remote_commands_completed": false,
-    "vm_modified": false,
+    "remote_commands_completed": true,
+    "vm_modified": true,
     "requested_scope": "Read-only inventory of deployed images, services and source before preparing a reviewed Studio-only upgrade.",
     "local_preflight": {
       "tests": 57,
@@ -204,5 +204,258 @@
       "Prepare exact candidate and backup/inactive-restore/rollback review before any new deployment."
     ],
     "authorization_boundary": "VM access availability resumes discovery, not approval of an unspecified new production upgrade. Prior exact deployment approval remains historical. No new DMG authorized."
+  },
+  "live_scope_note": "The live field records the historical 26 October deployment. Current 28 October inspection below supersedes it for running image and durable proxy configuration; historical success is not current configuration proof.",
+  "current_live_2026_10_28": {
+    "status": "inspection-complete-proxy-state-repair-awaiting-approval",
+    "platform": "Linux aarch64",
+    "ssh": "Tailscale identity verification completed; existing authenticated connection used.",
+    "studio_image": "sha256:8d442def46f3f2aeae905c42be3990d9a7160d8c08983ae12e4eac0c2249a21e",
+    "installed_source_assets": 548,
+    "changed_source_files": [
+      "core/studio_desktop_sidecar.py",
+      "core/studio_speech.py",
+      "core/studio_desktop_bundle.py",
+      "core/studio_speech_process.py"
+    ],
+    "new_local_file": "core/studio_speech_windows.py",
+    "difference_scope": "Only Windows speech dispatch and desktop bundling; deployed Linux application behavior matches current source. No app image upgrade needed for this repair.",
+    "anonymous_https": {
+      "passed": 15,
+      "failed": 0,
+      "signed_in_session": "not inspected; no session token obtained"
+    },
+    "host_layout": {
+      "format": "nexus-studio-host-check/v1",
+      "checked_at": "2026-10-28T20:21:39.242039+00:00",
+      "scope": "Container mount configuration and private-store stat metadata only. Run on the selected daemon host; not complete deployment acceptance.",
+      "passed": false,
+      "checks": [
+        {
+          "check": "distinct-running-containers",
+          "status": "passed",
+          "passed": true,
+          "detail": "Select distinct running Studio and proxy containers."
+        },
+        {
+          "check": "studio-unprivileged",
+          "status": "passed",
+          "passed": true,
+          "detail": "Studio must not run as a privileged container."
+        },
+        {
+          "check": "dedicated-private-mount",
+          "status": "failed",
+          "passed": false,
+          "detail": "Proxy storage requires its own writable bind or volume mount."
+        },
+        {
+          "check": "private-mount-unshadowed",
+          "status": "passed",
+          "passed": true,
+          "detail": "Nested mounts must not replace the private ledger or any part of its storage directory."
+        },
+        {
+          "check": "upstream-socket-mount",
+          "status": "passed",
+          "passed": true,
+          "detail": "The selected upstream socket must have an identifiable host source."
+        },
+        {
+          "check": "host-source-identity",
+          "status": "unavailable",
+          "passed": false,
+          "detail": "All host sources must resolve on the selected daemon host; each isolation result is reported independently."
+        },
+        {
+          "check": "private-source-isolation",
+          "status": "unavailable",
+          "passed": false,
+          "detail": "This source or a Studio source cannot be resolved; aliases remain unverified."
+        },
+        {
+          "check": "raw-socket-isolation",
+          "status": "passed",
+          "passed": true,
+          "detail": "No Studio mount may expose the raw daemon socket or its parent."
+        },
+        {
+          "check": "proxy-nonroot-user",
+          "status": "passed",
+          "passed": true,
+          "detail": "Proxy runs under a non-root service UID."
+        },
+        {
+          "check": "upstream-socket-access",
+          "status": "passed",
+          "passed": true,
+          "detail": "The proxy UID/groups must access a non-world-writable Unix upstream socket."
+        },
+        {
+          "check": "private-directory",
+          "status": "failed",
+          "passed": false,
+          "detail": "Private storage must be a canonical service-owned directory with mode 0700."
+        },
+        {
+          "check": "private-ledger",
+          "status": "unavailable",
+          "passed": false,
+          "detail": "Private storage is missing or unreadable; ledger metadata cannot be verified."
+        }
+      ],
+      "targets": {
+        "studio": "1d5b95e116870692cdd945d505a125f7a7dfe5769333a08678fa4785a56d3390",
+        "proxy": "f6bf8d2609649224125793f11c369249277f01f4c81108e543023a896230174c"
+      },
+      "ledger": "unavailable"
+    },
+    "persistent_proxy_state_configured": false,
+    "generated_workers_present": 0,
+    "other_nexus_units_running": 5,
+    "router": "running and healthy",
+    "repair": {
+      "state": "prepared-not-applied",
+      "exact_compose_replacement_validated": true,
+      "original_workspace_overlay_preserved": true,
+      "same_existing_images": true,
+      "fresh_private_store_required": true,
+      "backup_and_rollback": "Original selected private overlay and captured image/layout metadata; restore original proxy stack and original Studio container on failure.",
+      "requires_short_studio_proxy_maintenance": true
+    },
+    "report_sha256": {
+      "host-inspection.json": "eb06296d24ff0f0a40b422a96d76aa1367ccedc4a757e4e23d8b13720e2a91b9",
+      "source-comparison.json": "14ae10da8fd3eb13e37e68bb1ee8fd6aed6b8c4ce87fb1e306790896c7133a51",
+      "anonymous-https.json": "c302e7b6429df7ff157162ee467c5a7f002c94992bcc0e463ab9c706ce3b33b4",
+      "host-layout-and-plan.json": "8d2c02deef6de0db22e66fae99b9990255336f7cdabcbaa73a0fadb8568c0c16",
+      "repair-prerequisites.json": "0b1b05e8372a3f067afd77f084a04ae1423759b4816b63cf9c2d96c83dc57b6c",
+      "exact-repair-validation.json": "5c664aaad65fbf803fe7b4d13e4223ec0cc5b641695a7fa7c12c8c02c1cc44dc",
+      "repair-plan.json": "e401a658ae973226562a27c5467d6dff87646741fac01411443436e3200f95bf"
+    },
+    "private_operations_plan": "Private operator artifact retained locally; no hostname, access link, credential or private deployment path is published.",
+    "vm_changed": false,
+    "pending": [
+      "Approve/apply scoped proxy-state repair, then verify all host-layout/HTTPS checks.",
+      "Signed-in account/session checks and controlled worker/proxy recovery.",
+      "Actual account-store/full-host restoration and physical device acceptance."
+    ]
+  },
+  "approved_proxy_repair_2026_10_28": {
+    "status": "passed",
+    "authorization": "User explicitly selected Apply the Studio/proxy repair after reviewing same-image maintenance/backup/rollback scope.",
+    "maintenance_seconds": 10.224,
+    "same_studio_image": "sha256:8d442def46f3f2aeae905c42be3990d9a7160d8c08983ae12e4eac0c2249a21e",
+    "same_proxy_image": "sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+    "studio_container_preserved": true,
+    "configuration_backup_verified": true,
+    "overlay_original_sha256": "9194d29db65dee3e4d2cb1a6269756111a3f973747d70624d48e04ab7c801cef",
+    "overlay_patched_sha256": "45208ed64250581434785b3343fbc7b51f5043ced8d43f15e0d11940999e6e47",
+    "application_source_or_schema_changed": false,
+    "auth_database_or_credentials_changed": false,
+    "private_store": "Dedicated service-owned mode-0700 mount outside Studio sources; service-owned mode-0600 single-link ledger present.",
+    "host_layout": {
+      "format": "nexus-studio-host-check/v1",
+      "checked_at": "2026-10-28T20:46:55.910967+00:00",
+      "scope": "Container mount configuration and private-store stat metadata only. Run on the selected daemon host; not complete deployment acceptance.",
+      "passed": true,
+      "checks": [
+        {
+          "check": "distinct-running-containers",
+          "status": "passed",
+          "passed": true,
+          "detail": "Select distinct running Studio and proxy containers."
+        },
+        {
+          "check": "studio-unprivileged",
+          "status": "passed",
+          "passed": true,
+          "detail": "Studio must not run as a privileged container."
+        },
+        {
+          "check": "dedicated-private-mount",
+          "status": "passed",
+          "passed": true,
+          "detail": "Proxy storage requires its own writable bind or volume mount."
+        },
+        {
+          "check": "private-mount-unshadowed",
+          "status": "passed",
+          "passed": true,
+          "detail": "Nested mounts must not replace the private ledger or any part of its storage directory."
+        },
+        {
+          "check": "upstream-socket-mount",
+          "status": "passed",
+          "passed": true,
+          "detail": "The selected upstream socket must have an identifiable host source."
+        },
+        {
+          "check": "host-source-identity",
+          "status": "passed",
+          "passed": true,
+          "detail": "All host sources must resolve on the selected daemon host; each isolation result is reported independently."
+        },
+        {
+          "check": "private-source-isolation",
+          "status": "passed",
+          "passed": true,
+          "detail": "No Studio bind or volume source may expose any part or parent of private proxy storage, even read-only."
+        },
+        {
+          "check": "raw-socket-isolation",
+          "status": "passed",
+          "passed": true,
+          "detail": "No Studio mount may expose the raw daemon socket or its parent."
+        },
+        {
+          "check": "proxy-nonroot-user",
+          "status": "passed",
+          "passed": true,
+          "detail": "Proxy runs under a non-root service UID."
+        },
+        {
+          "check": "upstream-socket-access",
+          "status": "passed",
+          "passed": true,
+          "detail": "The proxy UID/groups must access a non-world-writable Unix upstream socket."
+        },
+        {
+          "check": "private-directory",
+          "status": "passed",
+          "passed": true,
+          "detail": "Private storage must be a canonical service-owned directory with mode 0700."
+        },
+        {
+          "check": "private-ledger",
+          "status": "passed",
+          "passed": true,
+          "detail": "Existing ledger must be a service-owned mode-0600 regular file with one link; an absent ledger is not recovery proof."
+        }
+      ],
+      "targets": {
+        "studio": "1d5b95e116870692cdd945d505a125f7a7dfe5769333a08678fa4785a56d3390",
+        "proxy": "f321cdee3347fd557a208ea01c178f9ce6d8b42037cbbc1d3a941d65c443128c"
+      },
+      "ledger": "present"
+    },
+    "anonymous_https": {
+      "vm_checks_passed": 15,
+      "external_checks_passed": 15,
+      "failed": 0,
+      "signed_in_session": "Still pending. The deployment verifier includes an intentionally unpassed identity check when no existing session is supplied; it is not an anonymous-route regression."
+    },
+    "other_services_unchanged": true,
+    "generated_workers_created": 0,
+    "generated_workers_present": 0,
+    "rollback_used": false,
+    "rollback_scope": "Prepared original overlay/proxy stack and original Studio container; not invoked because repair passed. New store would be retained on rollback.",
+    "report_sha256": "faacd2964f78cfc50254fdc0bc583b4e59eb167ba65e0cecd217ed7da29e1d81",
+    "external_report_sha256": "55e4a9958577d9f01b4f582ab2dde78130938b51b27e3ecf375704695fa40164",
+    "scope": "Only Studio/proxy were interrupted. No backend image build/pull or repository source change on VM; no main merge, installer or DMG.",
+    "pending": [
+      "Existing signed-in Nexus account/session verification.",
+      "Actual controlled worker/proxy interruption and ownership recovery.",
+      "Account-store/full-host restoration, physical devices and final installed desktop acceptance."
+    ]
   }
 }

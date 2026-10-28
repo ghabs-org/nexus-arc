@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-delivery-readiness/v1",
   "date": "2026-10-28",
-  "status": "vm-selected-ssh-identity-check-pending",
+  "status": "vm-proxy-repair-verified-further-acceptance-pending",
   "whole_plan_complete": false,
   "audit_scope": "Recorded-claim consistency only, not fresh acceptance execution or a completion percentage.",
   "audit": {
@@ -73,8 +73,8 @@
   "next_targets": [
     {
       "target": "Personal VM",
-      "state": "available-user-confirmed-ssh-check-pending",
-      "needed": "User completes Tailscale-required SSH identity check; then read-only host inspection before candidate/upgrade review.",
+      "state": "durable-proxy-repaired-live-verified",
+      "needed": "Verify an existing signed-in account, then scope controlled recovery and separate full-host/account-store restoration.",
       "remaining": "Prepare reviewed newer source candidate, backup/restore/rollback, signed-in and controlled interruption/recovery checks."
     },
     {
@@ -101,9 +101,11 @@
   "vm_resume": {
     "date": "2026-10-28",
     "user_confirmed_availability": true,
-    "ssh_identity_check_pending": true,
-    "remote_commands_completed": false,
-    "vm_modified": false,
-    "preflight": "docs/STUDIO-VM-DISCOVERY-CHECKPOINT.json"
+    "ssh_identity_check_pending": false,
+    "remote_commands_completed": true,
+    "vm_modified": true,
+    "preflight": "docs/STUDIO-VM-DISCOVERY-CHECKPOINT.json",
+    "proxy_state_repair_pending": false,
+    "proxy_state_repair_verified": true
   }
 }

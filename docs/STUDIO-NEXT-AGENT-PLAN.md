@@ -167,6 +167,59 @@ candidate, consistent backup, inactive restore and rollback evidence before any
 new Studio-only upgrade. Earlier approval applied to the earlier artifact, not
 an unspecified new revision. See [resume record](STUDIO-VM-DISCOVERY-CHECKPOINT.json).
 
+### Current VM discovery — 28 October 2026
+
+SSH identity verification completed. Studio and its proxy are running on the
+ARM64 VM; the router and five existing Nexus units remain running. All 15
+anonymous HTTPS checks pass. Exact comparison of 548 installed source/assets
+finds only four Windows/desktop changes and the new Windows helper absent. The
+VM already has current Linux application behavior; do not deploy an unnecessary
+new backend image.
+
+Current configuration does not match the historical durable-proxy record:
+`PROXY_STATE_DIR` is unset, the dedicated store is not mounted, and its expected
+host directory is absent. Host layout reports seven passed checks and five
+failed/unavailable. Raw socket isolation still passes. No generated analysis/CLI
+containers exist. Do not run disruption/recovery acceptance against this layout.
+
+A concrete repair is prepared but **not applied**: back up the private selected
+Compose file, stop Studio cooperatively, ensure workers are gone, append durable
+state settings/helper mounts while preserving the existing overlay, create the
+isolated service-owned store, recreate only the proxy without pull/build and
+start the unchanged Studio container. Exact merged configuration validates.
+Preserve original proxy stack/image and overlay for rollback; require all host
+layout and anonymous HTTPS checks afterward. No auth database, credentials,
+repository source, other Nexus service or installer changes are proposed.
+
+[Current VM evidence](STUDIO-VM-DISCOVERY-CHECKPOINT.json) retains redacted results.
+The private reviewable plan stays outside the repository. A new maintenance
+approval is required because earlier deployment approval covered a different
+artifact. Signed-in identity, controlled recovery and full-host/account-store
+restore remain separate gates. No VM change has been applied in this discovery.
+
+### Approved VM proxy repair — 28 October 2026
+
+The user approved the concrete Studio/proxy repair. It is now applied and
+live-verified: original overlay backup checksums passed; Studio stopped
+cooperatively; the reviewed append-only private Compose change and isolated
+ownership store were installed; only the proxy was recreated; the original
+Studio container restarted with the same image. Both image identities are
+unchanged. No source update, auth/database/credential migration or image pull/build
+occurred. Maintenance took 10.224 seconds in this observed run.
+
+All 12 daemon-host layout checks pass, including private-source/raw-socket
+isolation and mode/ownership of the now-present ledger. All 15 anonymous HTTPS
+checks pass both from the VM and externally. Five Nexus units and the router/
+other running containers remain unchanged; no generated worker was created or
+left behind. Rollback was prepared but not needed. Private backup paths and
+operator artifacts remain outside the repository.
+
+[Current acceptance record](STUDIO-VM-DISCOVERY-CHECKPOINT.json) supersedes the
+pre-repair drift snapshot. An existing signed-in session is still unverified;
+the verifier's missing-session identity result must not be counted as an
+anonymous-route failure. Controlled worker/proxy recovery and full-host/account-
+store restore remain separate gates. No DMG or installed application was built.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech
@@ -183,14 +236,14 @@ an unspecified new revision. See [resume record](STUDIO-VM-DISCOVERY-CHECKPOINT.
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
    account/device results identify exactly what ran; unavailable prerequisites stay
    pending. Local HTTP/SDK fixtures and emulated widths are already available.
-3. **Personal VM operations resumed, SSH check pending.** The user confirmed
-   availability on 28 October. Complete Tailscale identity verification and inspect
-   actual deployed state first, then prepare a reviewed candidate containing later source fixes, retain backup/inactive
+3. **VM repaired; remaining acceptance.** SSH, same-image durable proxy repair,
+   all host-layout checks and anonymous HTTPS are verified. No backend image
+   upgrade is needed. Retain a reviewed candidate containing later source fixes, retain backup/inactive
    restore/rollback, then verify signed-in execution, controlled worker/proxy
    interruption and actual account-store/full-host restoration. Existing selected
    VM upgrade/worker evidence remains valid for its recorded version, not later
-   code. The prior deferral is lifted; the current access gate is Tailscale identity
-   verification. Do not apply an unspecified upgrade before candidate review.
+   code. The prior deferral is lifted. The approved proxy repair is complete. Current gates: an existing signed-in
+   session, scoped recovery and separate restoration acceptance.
 4. **Final evidence reconciliation.** Retain explicit exclusions and compatibility
    fixtures, check source/release/report hashes and update scoped acceptance.
    Production-specific certificate renewal/revocation and physical SQL/daemon
