@@ -8,6 +8,7 @@ therefore terminates the owned tree, including detached descendants.
 import base64
 import ctypes
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -315,7 +316,13 @@ def main():
             "Windows speech supervision could not initialize or confirm cleanup.", file=sys.stderr
         )
         result = 125
-    raise SystemExit(result)
+    # The owner watcher can still be blocked in stdin when the command exits.
+    # Interpreter finalization would acquire its BufferedReader lock and abort.
+    # supervise() has already confirmed tree cleanup and closed job/process
+    # handles; terminate only this private helper without Python finalizers.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(ctypes.c_int32(result).value)
 
 
 if __name__ == "__main__":

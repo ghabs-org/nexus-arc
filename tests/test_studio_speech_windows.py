@@ -203,3 +203,38 @@ def test_windows_local_speech_uses_owned_runner(monkeypatch):
     monkeypatch.setattr(studio_speech_process, "run", runner)
     assert asyncio.run(studio_speech.local_process(["worker"], input=b"text")) == "owned result"
     runner.assert_awaited_once_with(["worker"], input=b"text")
+
+
+@pytest.mark.parametrize("result, failure", [(7, False), (0xC0000005, False), (125, True)])
+def test_private_owner_exits_after_explicit_cleanup_without_finalizing_reader(
+    monkeypatch, result, failure
+):
+    calls = []
+    monkeypatch.setattr(sys, "argv", ["owner", "--speech", "--", "worker"])
+
+    def finish(_command):
+        calls.append("cleanup finished")
+        if failure:
+            raise OSError("controlled cleanup failure")
+        return result
+
+    monkeypatch.setattr(windows, "supervise", finish)
+    monkeypatch.setattr(
+        sys, "stdout", SimpleNamespace(flush=lambda: calls.append("stdout flushed"))
+    )
+    monkeypatch.setattr(
+        sys,
+        "stderr",
+        SimpleNamespace(write=lambda _text: None, flush=lambda: calls.append("stderr flushed")),
+    )
+
+    def exit_owner(code):
+        calls.append(("private exit", code))
+        raise SystemExit(code)
+
+    monkeypatch.setattr(windows.os, "_exit", exit_owner)
+    with pytest.raises(SystemExit) as error:
+        windows.main()
+    assert error.value.code == ctypes.c_int32(125 if failure else result).value
+    assert calls[0] == "cleanup finished"
+    assert calls[-3:] == ["stdout flushed", "stderr flushed", ("private exit", error.value.code)]
