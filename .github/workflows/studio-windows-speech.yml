@@ -83,8 +83,6 @@ jobs:
       OMP_NUM_THREADS: '1'
       MKL_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
-      NEXUS_ACCEPTANCE_WHISPER_MODEL: '${{ runner.temp }}/nexus-voice-models/tiny.en.pt'
-      NEXUS_ACCEPTANCE_PIPER_MODEL: '${{ runner.temp }}/nexus-voice-models/en_US-lessac-medium.onnx'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,6 +103,9 @@ jobs:
       - name: Prepare approved model snapshots with exact hash verification
         run: python tests/fixtures/studio_voice_models.py --directory "${{ runner.temp }}/nexus-voice-models"
       - name: Exercise actual local speech through Studio jobs
+        env:
+          NEXUS_ACCEPTANCE_WHISPER_MODEL: '${{ runner.temp }}/nexus-voice-models/tiny.en.pt'
+          NEXUS_ACCEPTANCE_PIPER_MODEL: '${{ runner.temp }}/nexus-voice-models/en_US-lessac-medium.onnx'
         run: >-
           python -m pytest -o addopts=''
           tests/studio_local_speech_acceptance.py
