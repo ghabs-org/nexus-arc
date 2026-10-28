@@ -4,7 +4,7 @@
 only after an explicit user request. Routine implementation must leave existing
 DMGs and their recorded checksums unchanged.
 
-Updated 27 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
+Updated 28 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
 current implementation plan first. Inspect the working tree before edits and
 preserve work from other agents. This handoff identifies remaining delivery
 capabilities; do not rebuild features already present.
@@ -41,6 +41,46 @@ not notarized; latest source fixes are not packaged. Final desktop release and
 Linux/Windows installed-platform acceptance remain open. See
 [tester evidence](STUDIO-DESKTOP-FRIEND-DMG-CHECKPOINT.json).
 
+### Windows speech ownership follow-up — 28 October 2026
+
+Windows local speech now uses an isolated Job Object owner, starting each command
+suspended and assigning ownership before resume. Explicit handle inheritance
+excludes the controller lease and job handle. Lease loss terminates the owned tree;
+cleanup queries the job until no active processes remain. Unsupported job setup
+fails before running an unowned command. Source and frozen dispatch are wired;
+no installer or DMG was rebuilt.
+
+The focused speech/worker/bundle gate passed **90 tests, zero skips** on macOS.
+Win32 boundary calls are mocked: this is portable guard/regression evidence, not
+native Windows acceptance. The runnable consumer
+`examples/nexus-bot/src/studio_windows_speech_lifecycle.py` exercises cancellation,
+timeout, detached children, owner death, finite input and error propagation on
+Windows. See [checkpoint](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json).
+Native Windows execution, real model/service shutdown and installed desktop proof
+remain pending. Do not mark Windows ownership live-verified or milestone 9 complete.
+
+### Windows acceptance automation follow-up — 28 October 2026
+
+A native Windows gate is now prepared for relevant pull requests and manual
+workflow dispatch. It runs on Windows Server 2022 x64 with Python 3.11/3.13,
+retains portable JUnit and native JSON evidence, and records source hashes.
+The runner checks API structure sizes and requires every native consumer result;
+wrong-host execution returns unavailable with exit code 2 rather than passing.
+The focused portable gate passed 31 tests with zero skips on macOS.
+
+A later focused gate passed **38 tests, zero skips**, including actual macOS
+Studio jobs with synthetic speech commands. New cases exercise running recording
+cancellation, service shutdown and cancellation while all real executor workers
+are occupied. Each checks terminal run state, child cleanup where launched,
+recording/owner removal and absence of artifacts. Windows result validation now
+requires these service cases too; subprocess-only success cannot pass the gate.
+Real Whisper/Piper model checks remain separate.
+
+No Windows workflow has executed in this session. The native pending status is
+unchanged; collect real job artifacts before promoting acceptance. Hosted server
+proof does not close Windows installed-desktop or actual-model/service checks.
+See [run instructions and evidence boundary](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md).
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech
@@ -50,7 +90,9 @@ Linux/Windows installed-platform acceptance remain open. See
    proven resolved by isolated worker dispatch; `docs/USAGE.md`, audit/plan completion
    gates (`STUDIO-M9-DESKTOP-CHECKPOINT.json`), and local checkpoint `source_sha256`
    hashes are reconciled. Do not rebuild a DMG unless explicitly requested.
-2. **Selected accounts and physical devices.** Check configured integration
+2. **Native Windows, selected accounts and physical devices.** Run the Windows
+   speech ownership consumer first on an available Windows host; its Job Object
+   behavior cannot be certified by macOS fixtures. Then check configured integration
    permissions/authentication, API voice/embedding quality and billing paths;
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
    account/device results identify exactly what ran; unavailable prerequisites stay

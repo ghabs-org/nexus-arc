@@ -14,6 +14,7 @@ WORKERS = {
     "nexus.core.studio_speech_worker": "module",
     "nexus.core.studio_finance_worker": "isolated-file",
     "nexus.core.studio_mcp_supervisor": "isolated-file",
+    "nexus.core.studio_speech_windows": "isolated-file",
 }
 
 

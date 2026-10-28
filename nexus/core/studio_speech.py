@@ -33,7 +33,7 @@ _REAL_SUBPROCESS_RUN = subprocess.run
 
 async def local_process(*args, **kwargs):
     """Keep temporary files until the bounded child process has actually stopped."""
-    if sys.platform in {"linux", "darwin"} and subprocess.run is _REAL_SUBPROCESS_RUN:
+    if sys.platform in {"linux", "darwin", "win32"} and subprocess.run is _REAL_SUBPROCESS_RUN:
         from nexus.core.studio_speech_process import run
 
         return await run(*args, **kwargs)

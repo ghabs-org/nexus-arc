@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-28",
+  "status": "implemented-portable-guards-verified-native-windows-pending",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Windows local speech process ownership; source changes only. No installer, VM or API account used.",
+  "implementation": [
+    "Start a worker suspended and assign it to a private non-breakaway kill-on-close Job Object before resuming.",
+    "Explicit inherited handle list contains only finite input and output streams; excludes controller lease and job handle.",
+    "Controller EOF triggers job termination and queries active process count until zero. Supervisor death closes its non-inherited job handle.",
+    "Job setup/assignment/resume failures never run an unowned worker; launch errors remain redacted.",
+    "Source and frozen worker allowlists include the isolated standard-library Windows owner; no frozen artifact was rebuilt."
+  ],
+  "verification": {
+    "host": "macOS",
+    "required_tests": 90,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "report": "/private/tmp/nexus-windows-speech-required.xml",
+    "report_sha256": "02623306a95bf5e3e51cbcfcb2b2e011e80a2dab8f166b0ccd37a84945f461fd",
+    "command": "PYTHONPATH=. .venv/bin/python -m pytest -o addopts='' tests/test_studio_speech.py tests/test_studio_speech_cleanup.py tests/test_studio_speech_pins.py tests/test_studio_speech_readiness.py tests/test_studio_speech_windows.py tests/test_studio_mcp_supervision.py tests/test_studio_speech_worker.py tests/test_studio_desktop_bundle.py -q --tb=short",
+    "boundary": "Win32 calls are mocked on macOS; API structure layout, process inheritance and actual Job Object behavior require native Windows.",
+    "earlier_broader_attempt": "103 passed, 4 failed, 1 setup error from restricted localhost binding and legacy desktop import test writing to the host application-support folder. No product failure established; focused speech/worker/bundle suite rerun with localhost access passed all 90."
+  },
+  "native_consumer": "examples/nexus-bot/src/studio_windows_speech_lifecycle.py",
+  "pending": [
+    "Native Windows cancellation, timeout, owner death, detached descendants, finite-input/error propagation acceptance.",
+    "Actual speech service queue cancellation/shutdown with installed Windows speech models.",
+    "Installed Windows packaging/lifecycle and signing remain milestone 9, last."
+  ],
+  "references": [
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject"
+  ],
+  "source_sha256": {
+    "nexus/core/studio_speech_windows.py": "9038641441b4d2ef148ef48c51899844c8094ac2d267910d844ce0073ad21292",
+    "nexus/core/studio_speech_process.py": "5e0fa30ddc0651ebe01b3bf4898db65823e11533a291c83a86e30d25a8d4c351",
+    "nexus/core/studio_speech.py": "3ab8adbca3551749635cf152c7e507123c7ae78bd0ab2d2897be14aba1fae1c5",
+    "nexus/core/studio_desktop_sidecar.py": "b5a0550292940c83a3000c8378a6f0cafb12f6d9e893fef645313ca1dbe25c2d",
+    "nexus/core/studio_desktop_bundle.py": "3f68aec8463d320620e5517d119c12580982e072c3a1e1d1ea87a7db877c757c",
+    "tests/test_studio_speech_windows.py": "203f55374f313157b1f45c696cc2e51ff072a0675e001ff9096f4cf6703aeab0",
+    "examples/nexus-bot/src/studio_windows_speech_lifecycle.py": "7f1510bfd1a3c9f45790e377ba8a4a94e77ee19b5bf42a57914b140654bb8199"
+  },
+  "automation": {
+    "date": "2026-10-28",
+    "status": "prepared-not-executed-on-windows",
+    "workflow": ".github/workflows/studio-windows-speech.yml",
+    "runner": "windows-2022 x64",
+    "python_versions": [
+      "3.11",
+      "3.13"
+    ],
+    "triggers": [
+      "relevant pull requests",
+      "workflow_dispatch"
+    ],
+    "native_runner": "tests/studio_windows_speech_acceptance.py",
+    "guide": "docs/STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md",
+    "portable_tests": 31,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "report": "/private/tmp/nexus-windows-acceptance-runner.xml",
+    "report_sha256": "3116ae528ec5cef43078b8fc9b107f591f1c44cfc8cc3ab9b2e5891086751056",
+    "non_windows_probe": {
+      "status": "unavailable",
+      "native_verified": false,
+      "exit_code": 2
+    },
+    "native_verified": false,
+    "scope": "No remote workflow was dispatched or executed; a workflow definition does not satisfy native acceptance.",
+    "source_sha256": {
+      ".github/workflows/studio-windows-speech.yml": "bad7d0300f2f37d36f7e87d7597db6e3b652e22f8c8c657c728b15ba2bcd8bc2",
+      "tests/studio_windows_speech_acceptance.py": "08c504bd0db3cb220be0e638853f0eda1d1c348d383e15ffbffe4b3bb8e8379d",
+      "tests/test_studio_windows_acceptance_runner.py": "a0ab5ab9675e0a2781a2194375e5228d0e03786c6efc371af0a596f369ca1e4f",
+      "docs/STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md": "d339f4c414f74beec4f15733151d0da463778d2f25973e8d0d28ab9ccb8d2de2"
+    },
+    "plan_consistency_tests": 4,
+    "combined_local_checks": 35
+  },
+  "service_lifecycle_followup": {
+    "date": "2026-10-28",
+    "status": "actual-macos-service-verified-native-windows-pending",
+    "host": "macOS",
+    "required_checks": 38,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "report": "/private/tmp/nexus-speech-service-lifecycle.xml",
+    "report_sha256": "57086aeeecc2b685308cdc22110aa0f3d481c807a83f9b13e88fd515d174310c",
+    "actual_service_cases": [
+      "running recording cancellation",
+      "service shutdown with running recording",
+      "queued recording cancellation while the real executor is occupied"
+    ],
+    "assertions": [
+      "Expected terminal run status: cancelled or interrupted",
+      "Detached worker child removed for running cases",
+      "No model command dispatched for queued cancellation",
+      "Temporary recordings removed",
+      "Input owner records removed",
+      "No generated artifacts"
+    ],
+    "fixture_boundary": "Only Whisper engine command dispatch is replaced by a synthetic controlled process. StudioService, its executor, speech queue, private input records and isolated process ownership remain real. No speech models or providers were invoked.",
+    "windows_gate": "The Windows consumer and result validator now require all three service cases as well as the four existing subprocess cases. The workflow executes the service test and the complete native consumer.",
+    "native_verified": false,
+    "source_sha256": {
+      "examples/nexus-bot/src/studio_windows_speech_lifecycle.py": "5fe07c5036fa12025f1fbf575068cbadd08a3760b7123b94459337a4fccc0af4",
+      "tests/studio_windows_speech_acceptance.py": "4d70be06025192aa1a1a77244393b2a84929af1d4339b1101497013f6af1f2a9",
+      "tests/test_studio_windows_acceptance_runner.py": "67c225a34c7be0c8847e89d1dc95e4d63744c38ccffe26e0d5a36a5dce1459db",
+      "tests/test_studio_speech_service_lifecycle.py": "29d6883132df1f61ee664534c614bcc2fb54113102c5363f575d691370b0b9f5",
+      ".github/workflows/studio-windows-speech.yml": "d3606eab284033f78a5366a35f8472b084756ce5d5de580f96ec97f32d2acffd",
+      "docs/STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md": "daa90c34a76c85bbd4f602cef48fb39fe4be524ed046ff0848622e313b3c4d3f",
+      "nexus/core/studio.py": "2fbafdc769f58b2b05b04283d57fd7d408fdbd9f637f363d20b2566656df1fa3",
+      "nexus/core/studio_speech.py": "3ab8adbca3551749635cf152c7e507123c7ae78bd0ab2d2897be14aba1fae1c5",
+      "nexus/core/studio_speech_process.py": "5e0fa30ddc0651ebe01b3bf4898db65823e11533a291c83a86e30d25a8d4c351",
+      "nexus/core/studio_speech_windows.py": "9038641441b4d2ef148ef48c51899844c8094ac2d267910d844ce0073ad21292"
+    }
+  },
+  "historical_hash_scope": "Earlier source hashes and reports identify their recorded verification stages. The service_lifecycle_followup hashes identify this later consumer/gate revision; none of these macOS results establish native Windows acceptance."
+}

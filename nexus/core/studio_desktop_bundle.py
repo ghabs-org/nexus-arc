@@ -21,7 +21,8 @@ import sys
 
 multiprocessing.freeze_support()
 if sys.argv[1:3] in (["--nexus-worker", "nexus.core.studio_artifact_extract"],
-                       ["--nexus-worker", "nexus.core.studio_mcp_supervisor"]):
+                       ["--nexus-worker", "nexus.core.studio_mcp_supervisor"],
+                       ["--nexus-worker", "nexus.core.studio_speech_windows"]):
     import runpy
     from pathlib import Path
 
@@ -151,6 +152,10 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
             + "nexus/core",
             "--add-data",
             str(repo_root / "nexus" / "core" / "studio_mcp_supervisor.py")
+            + os.pathsep
+            + "nexus/core",
+            "--add-data",
+            str(repo_root / "nexus" / "core" / "studio_speech_windows.py")
             + os.pathsep
             + "nexus/core",
             "--copy-metadata",

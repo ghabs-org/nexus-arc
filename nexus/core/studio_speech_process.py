@@ -1,19 +1,25 @@
-"""Isolated Linux and macOS speech subprocess ownership."""
+"""Isolated Linux, macOS and Windows speech subprocess ownership."""
 
 import asyncio
 import base64
 import json
 import subprocess
+import sys
 
 
 async def run(command, *, input=None, stdout=None, stderr=None, timeout=None, check=False):
     from nexus.core.studio_desktop_sidecar import worker_command
 
+    module = (
+        "nexus.core.studio_speech_windows"
+        if sys.platform == "win32"
+        else "nexus.core.studio_mcp_supervisor"
+    )
     stopped = asyncio.Event()
 
     async def owned():
         process = await asyncio.create_subprocess_exec(
-            *worker_command("nexus.core.studio_mcp_supervisor", "--speech", "--", *command),
+            *worker_command(module, "--speech", "--", *command),
             stdin=asyncio.subprocess.PIPE,
             stdout=stdout,
             stderr=stderr,

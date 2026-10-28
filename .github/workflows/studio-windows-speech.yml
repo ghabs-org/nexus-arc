@@ -1,0 +1,69 @@
+name: Studio Windows speech acceptance
+
+on:
+  push:
+    branches:
+      - 'codex/windows-speech-*'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/studio-windows-speech.yml'
+      - 'nexus/core/studio_speech*.py'
+      - 'nexus/core/studio.py'
+      - 'nexus/core/studio_desktop_sidecar.py'
+      - 'nexus/core/studio_desktop_bundle.py'
+      - 'examples/nexus-bot/src/studio_windows_speech_lifecycle.py'
+      - 'tests/test_studio_speech_windows.py'
+      - 'tests/test_studio_speech_worker.py'
+      - 'tests/test_studio_speech_service_lifecycle.py'
+      - 'tests/studio_windows_speech_acceptance.py'
+      - 'tests/test_studio_windows_acceptance_runner.py'
+      - 'pyproject.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-speech:
+    name: Windows x64 / Python ${{ matrix.python }}
+    runs-on: windows-2022
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    env:
+      PYTHONPATH: '.'
+      PYTHONUTF8: '1'
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: x64
+      - name: Install framework and test runner
+        run: python -m pip install --editable . pytest pytest-asyncio
+      - name: Check portable ownership guards
+        run: >-
+          python -m pytest -o addopts=''
+          tests/test_studio_speech_windows.py tests/test_studio_speech_worker.py
+          tests/test_studio_windows_acceptance_runner.py
+          tests/test_studio_speech_service_lifecycle.py
+          --junitxml=acceptance-results/portable.xml -q
+      - name: Exercise actual Windows process ownership
+        if: ${{ !cancelled() && success() }}
+        run: >-
+          python tests/studio_windows_speech_acceptance.py
+          --report acceptance-results/native-windows.json
+      - name: Retain evidence even when checks fail
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-windows-speech-py${{ matrix.python }}
+          path: acceptance-results/
+          if-no-files-found: warn
+          retention-days: 14
