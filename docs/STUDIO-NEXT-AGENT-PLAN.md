@@ -215,10 +215,30 @@ left behind. Rollback was prepared but not needed. Private backup paths and
 operator artifacts remain outside the repository.
 
 [Current acceptance record](STUDIO-VM-DISCOVERY-CHECKPOINT.json) supersedes the
-pre-repair drift snapshot. An existing signed-in session is still unverified;
-the verifier's missing-session identity result must not be counted as an
-anonymous-route failure. Controlled worker/proxy recovery and full-host/account-
+pre-repair drift snapshot. Signed-in rendered UI access is now verified below;
+the verifier's missing-session identity result still does not establish authenticated
+HTTP header acceptance and is not an anonymous-route failure. Controlled worker/proxy recovery and full-host/account-
 store restore remain separate gates. No DMG or installed application was built.
+
+### Signed-in VM UI and login banner — 28 October 2026
+
+The user signed in through Nexus. Read-only browser inspection verified the owner
+view, 18 custom agent instruction controls, 40 Activity detail controls and an empty
+approval inbox. No task, approval or provider call was submitted. No session
+reference, cookie or credential was obtained. The private screenshot checksum and
+exact boundaries are retained in [the VM checkpoint](STUDIO-VM-DISCOVERY-CHECKPOINT.json).
+This closes rendered signed-in access only; authenticated HTTP response headers,
+signed-in execution and controlled recovery remain separate checks.
+
+The sign-in page exposed a misleading workspace reconnect banner. The shared
+frontend now hides reconnect notices while login is required, retains offline
+reporting and run monitoring, and preserves retry/backoff for genuine outages.
+All 220 frontend checks pass with zero skips; the three added regressions cover
+401, 503, retained run monitors and offline transitions. The existing Studio
+example server consumes these shared assets without separate wiring. Public-shell
+cache version is now 62. This source fix is **not deployed to the VM** and no DMG
+was rebuilt. Controlled worker/proxy recovery and full-host/account-store restore
+remain next; milestone 9 stays last.
 
 ### Remaining work, in delivery order
 
@@ -242,8 +262,8 @@ store restore remain separate gates. No DMG or installed application was built.
    restore/rollback, then verify signed-in execution, controlled worker/proxy
    interruption and actual account-store/full-host restoration. Existing selected
    VM upgrade/worker evidence remains valid for its recorded version, not later
-   code. The prior deferral is lifted. The approved proxy repair is complete. Current gates: an existing signed-in
-   session, scoped recovery and separate restoration acceptance.
+   code. The prior deferral is lifted. The approved proxy repair is complete. Current gates: signed-in execution/response headers, scoped recovery and separate
+   restoration acceptance. Read-only signed-in UI is verified above.
 4. **Final evidence reconciliation.** Retain explicit exclusions and compatibility
    fixtures, check source/release/report hashes and update scoped acceptance.
    Production-specific certificate renewal/revocation and physical SQL/daemon

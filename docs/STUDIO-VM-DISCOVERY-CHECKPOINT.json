@@ -112,7 +112,7 @@
     "maintenance": "Approved update applied only to Studio and its Docker proxy. Two private namespace backups and inactive review restores passed. Automatic rollback restored the original image/routes before corrected reapply. Cooperative SIGTERM exited zero and both updated services restarted successfully. Live SQL was never overwritten; other Nexus services and source checkout were unchanged."
   },
   "pending": [
-    "Existing signed-in session, selected live accounts and physical devices remain unverified. Anonymous HTTPS checks do not establish signed-in identity acceptance.",
+    "Signed-in owner/resource/Activity/inbox UI is live-verified below. Signed-in execution and HTTP response-header checks, other selected accounts and physical devices remain separate.",
     "Full-host/auth-store and object-store restore, daemon/power-loss and remaining deployed interruption cases remain separate. Data/python/media profiles and six tools are now configured/live-verified. Stopped-owner SIGKILL cleanup passes without replay; signed-in execution remains unverified.",
     "Native/frozen desktop delivery, installed OS checks and stronger detached-process containment retain their own open gates. No DMG rebuild."
   ],
@@ -453,9 +453,37 @@
     "external_report_sha256": "55e4a9958577d9f01b4f582ab2dde78130938b51b27e3ecf375704695fa40164",
     "scope": "Only Studio/proxy were interrupted. No backend image build/pull or repository source change on VM; no main merge, installer or DMG.",
     "pending": [
-      "Existing signed-in Nexus account/session verification.",
+      "Read-only signed-in UI verified below; signed-in execution and response-header acceptance remain separate.",
       "Actual controlled worker/proxy interruption and ownership recovery.",
       "Account-store/full-host restoration, physical devices and final installed desktop acceptance."
     ]
+  },
+  "signed_in_ui_2026_10_28": {
+    "status": "live-verified-read-only-ui",
+    "authentication": "User completed Nexus login in the browser; existing browser session used. No session reference, cookie or credential was read or exported.",
+    "observed": {
+      "owner_role": true,
+      "custom_agent_instruction_controls": 18,
+      "activity_detail_controls": 40,
+      "approval_inbox": "Nothing waiting for review",
+      "login_panel_hidden": true
+    },
+    "scope": "Rendered owner/resource/Activity/inbox views only. No task, approval, provider invocation or configuration mutation. Signed-in HTTP response headers and execution/recovery are not established by this check.",
+    "private_screenshot_sha256": "f27cd529da87de49dab76e999ec7dc7406576b72da2f24e976cb8132a54aa377"
+  },
+  "login_banner_source_fix": {
+    "status": "source-verified-not-deployed",
+    "behavior": "Hide reconnect notices during required sign-in; preserve offline notices, run monitoring and genuine outage retries.",
+    "regression_tests": 220,
+    "failures": 0,
+    "skips": 0,
+    "report_sha256": "b3ecaea929b4bb0f7036a629cdb03e7f976e0acc654ef2a17b2d4713989e910a",
+    "source_sha256": {
+      "nexus/studio_static/studio.js": "59c323e3f560db0379ae3d9be04fef02e6de6441fc5d38122625d6249a3800f9",
+      "nexus/studio_static/service-worker.js": "bc6d0fe90615360e945860eb79d8827eccef87a0dca1a818c8194bccd04b3f55",
+      "tests/studio_browser.test.cjs": "d7adb5a196119f1d260d7cd2f6cc2c82ab98d418ba3ba4c89eb7a355f7059ff6"
+    },
+    "vm_deployed": false,
+    "dmg_rebuilt": false
   }
 }

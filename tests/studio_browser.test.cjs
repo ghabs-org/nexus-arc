@@ -315,3 +315,52 @@ test("install app button is hidden when running inside standalone or desktop app
     assert.equal($("install-app").hidden, true);
   }
 });
+
+function bootstrapAuthContext(status){
+  const elements=new Map(),timers=new Map();let sequence=0;
+  const $=id=>{if(!elements.has(id))elements.set(id,{hidden:true,textContent:"",disabled:false,replaceChildren(){}});return elements.get(id);};
+  const context=vm.createContext({$,URL,AbortController,state:{ready:false,token:"expired"},navigator:{onLine:true},location:{href:"https://studio.example/",origin:"https://studio.example",host:"studio.example"},
+    document:{querySelectorAll(){return [];}},notify(){},
+    setTimeout(fn,delay){const id=++sequence;timers.set(id,{fn,delay});return id;},clearTimeout(id){timers.delete(id);},
+    fetch:async()=>({status,ok:false,json:async()=>status===401?{error:"Sign in",login_url:"/login?next=/"}:{error:"Unavailable"}})});
+  vm.runInContext('let bootstrapInFlight=false,bootstrapFailures=0,bootstrapRetryTimer;const disconnectedRuns=new Set(["bootstrap","existing-run"]);',context);
+  vm.runInContext(source.slice(source.indexOf("async function api("),source.indexOf("function providerName")),context);
+  vm.runInContext(source.slice(source.indexOf("function connectionStatus("),source.indexOf("function waitForConnection(")),context);
+  vm.runInContext(source.slice(source.indexOf("async function bootstrap("),source.indexOf('window.addEventListener("studio-connection-restored"')),context);
+  return {context,elements,timers,$};
+}
+
+test("sign-in requirement clears workspace outage without discarding run monitors or scheduling bootstrap retries",async()=>{
+  const {context,$,timers}=bootstrapAuthContext(401);
+  await vm.runInContext('bootstrap()',context);
+  assert.equal($("team-login").hidden,false);
+  assert.equal($("connection-status").hidden,true);
+  assert.equal(vm.runInContext('disconnectedRuns.has("bootstrap")',context),false);
+  assert.equal(vm.runInContext('disconnectedRuns.has("existing-run")',context),true);
+  assert.equal(timers.size,0);
+});
+
+test("real workspace outages retain reconnect banner and bounded bootstrap retry",async()=>{
+  const {context,$,timers}=bootstrapAuthContext(503);
+  await vm.runInContext('bootstrap()',context);
+  assert.equal($("team-login").hidden,true);
+  assert.equal($("connection-status").hidden,false);
+  assert.match($("connection-message").textContent,/Workspace unavailable/);
+  assert.equal(timers.size,1);
+  assert.equal([...timers.values()][0].delay,1000);
+});
+
+test("login hides run reconnect notices but preserves offline reporting and later monitoring",()=>{
+  const {context,$}=bootstrapAuthContext(401);
+  $("team-login").hidden=false;
+  vm.runInContext('connectionStatus()',context);
+  assert.equal($("connection-status").hidden,true);
+  $("team-login").hidden=true;
+  vm.runInContext('disconnectedRuns.delete("bootstrap");connectionStatus()',context);
+  assert.equal($("connection-status").hidden,false);
+  assert.match($("connection-message").textContent,/your runs/);
+  $("team-login").hidden=false;
+  vm.runInContext('navigator.onLine=false;connectionStatus()',context);
+  assert.equal($("connection-status").hidden,false);
+  assert.match($("connection-message").textContent,/offline/);
+});
