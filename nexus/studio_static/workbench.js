@@ -1,5 +1,5 @@
 "use strict";
-const wb={area:"memory",data:{},cleanupBusy:false,cleanupAvailable:false,campaign:null,checkpoint:null,controlsRevision:0,areas:["memory","checkpoints","agents","campaigns","analytics","transcription","decisions","controls","storage","readiness"]};
+const wb={area:"memory",data:{},cleanupBusy:false,cleanupAvailable:false,connectionBusy:false,campaign:null,checkpoint:null,controlsRevision:0,areas:["memory","checkpoints","agents","campaigns","analytics","transcription","decisions","controls","storage","readiness"]};
 const wbPlatformNames={linkedin:"LinkedIn",discord:"Discord",x:"X",meta_facebook:"Facebook",meta_instagram:"Instagram"};
 let decisionModels=[];
 async function refreshDecisionPresets(){
@@ -51,8 +51,38 @@ function renderDecisions(items){
   });
 }
 function renderControls(data){wb.controlsRevision=data.revision;const form=$("wb-controls-form");for(const name of ["max_prompt_chars","summary_max_chars","cooldown_seconds"])form.elements[name].value=data[name];form.elements.prompt_budget_enabled.checked=data.prompt_budget_enabled;$("wb-cooldown-status").textContent=`${data.active_cooldowns} active matching-task cooldowns. Settings apply to your own runs.`;}
+// Use the browser's existing session. Never read response bodies or credentials.
+async function checkPrivateResponses(request=fetch){
+  const items=[];
+  for(const [name,path] of [["Workspace","/api/bootstrap"],["Approval inbox","/api/workbench/inbox"]]){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+    try{
+      const response=await request(path,{method:"GET",credentials:"same-origin",mode:"same-origin",redirect:"error",cache:"no-store",signal:controller.signal});
+      const checks={access:response.status===200&&!response.redirected,json:(response.headers.get("Content-Type")||"").split(";")[0].trim().toLowerCase()==="application/json",privateCaching:(response.headers.get("Cache-Control")||"").split(",").some(value=>value.trim().toLowerCase()==="no-store")};
+      items.push({name,path,status:response.status,checks,passed:Object.values(checks).every(Boolean)});
+      // Release unread private content without retaining it in the result.
+      try{await response.body?.cancel();}catch{}
+    }catch{
+      items.push({name,path,status:null,checks:{access:false,json:false,privateCaching:false},passed:false});
+    }finally{clearTimeout(timer);}
+  }
+  return {format:"nexus-studio-browser-connection/v1",checked_at:new Date().toISOString(),passed:items.every(item=>item.passed),items};
+}
+async function runBrowserConnectionCheck(){
+  if(wb.connectionBusy||!canRetryContainerCleanup())return;
+  const button=$("check-browser-connection"),result=$("browser-connection-result");
+  wb.connectionBusy=true;button.disabled=true;button.textContent="Checking connection…";
+  result.hidden=false;result.textContent="Checking this browser’s private access…";result.setAttribute("aria-busy","true");
+  try{
+    const report=await checkPrivateResponses();
+    const labels={access:"Signed-in access",json:"JSON response",privateCaching:"Private caching"};
+    result.innerHTML=`<p><strong>${report.passed?"Private connection checks passed.":"Some connection checks need attention."}</strong></p><ul class="cleanup-results">${report.items.map(item=>`<li><strong>${escapeHtml(item.name)}</strong><p>${Object.entries(item.checks).map(([key,passed])=>`${labels[key]}: ${passed?"passed":"failed"}`).join(" · ")}</p></li>`).join("")}</ul><p class="workspace-scope">Checks this browser’s current access and response headers. New login, physical devices and recovery need separate checks.</p>`;
+  }catch{result.textContent="Could not check the connection. Sign in or check the server, then try again.";}
+  finally{wb.connectionBusy=false;button.disabled=false;button.textContent="Check private connection";result.setAttribute("aria-busy","false");}
+}
 function canRetryContainerCleanup(){return Boolean(state.ready)&&(state.mode!=="team"||state.user?.role==="owner");}
 function renderDeploymentReadiness(data){
+  $("browser-connection-check").hidden=!canRetryContainerCleanup();
   $("deployment-checks").innerHTML=data.items.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.detail)}</p></div>${badge(({needs_setup:"Needs setup",not_verified:"Not verified",checked:"Checked",configured:"Configured",failed:"Failed"})[item.status]||"Needs review",item.status==="checked"?"ready":item.status==="failed"?"failed":"")}</article>`).join("");
   wb.cleanupAvailable=data.analysis_cleanup?.available===true;
   $("container-cleanup").hidden=!canRetryContainerCleanup()||!data.analysis_cleanup;
@@ -97,6 +127,7 @@ async function refreshWorkbench(){if(view()!=="workbench")return;const area=loca
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
  if(button.dataset.wbArea){const mapping={budgets:"controls"};openWorkbench(mapping[button.dataset.wbArea]||button.dataset.wbArea);}
  if(button.id==="wb-refresh")await refreshWorkbench();
+ if(button.id==="check-browser-connection")return await runBrowserConnectionCheck();
  if(button.id==="retry-container-cleanup")return await retryContainerCleanup();
  if(button.dataset.wbMemoryView){const item=await api(`/api/workbench/memory/${encodeURIComponent(button.dataset.wbMemoryView)}`);showDetail(item.title,item.messages.map(message=>`<article class="wb-review-channel"><h3>${escapeHtml(message.role)}</h3><pre class="workbench-output">${escapeHtml(message.content)}</pre></article>`).join(""));}
  if(button.dataset.wbMemoryEdit){const item=wb.data.memory.find(item=>item.id===button.dataset.wbMemoryEdit);showDetail("Conversation settings",`<form id="wb-memory-form" data-id="${escapeHtml(item.id)}"><label>Name<input name="title" value="${escapeHtml(item.title)}" maxlength="200" required></label><label class="check-label"><input name="archived" type="checkbox" ${item.archived?"checked":""}> Archive this conversation</label><button type="submit">Save conversation</button></form>`);}

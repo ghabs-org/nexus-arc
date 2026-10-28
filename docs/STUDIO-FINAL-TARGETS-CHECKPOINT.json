@@ -24,29 +24,49 @@
         "Real browser/OAuth login against recovered host",
         "Full OS/ingress provisioning and daemon/power-loss disaster boot"
       ],
-      "checkpoint": "STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json"
+      "checkpoint": "STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json",
+      "prepared_login_procedure": "STUDIO-RECOVERED-HOST-LOGIN.md",
+      "recovered_host_preflight": {
+        "candidate_supplied_by_user": true,
+        "dns_record_exists": false,
+        "anonymous_https_resolves": false,
+        "existing_origin_certificate_covers_candidate": true,
+        "ingress": "Nginx over Tailscale",
+        "dns_provider": "Cloudflare",
+        "matching_dns_plugin_found": false,
+        "required_record": "DNS-only CNAME to existing Studio ingress",
+        "dns_or_ingress_changed": false,
+        "isolated_ui_and_auth_routing_prepared": false,
+        "provider_callback_review_pending": true,
+        "private_operator_review_sha256": "74b42beb3dbddb60bbcf851f28e911295637304a5e173ef152d60ac59bba41fc"
+      }
     },
     {
       "id": 2,
       "target": "VM acceptance and tested frontend deployment",
-      "status": "frontend-deployed-authenticated-run-verified",
+      "status": "frontend-authenticated-run-and-private-headers-verified",
       "candidate": {
-        "candidate_image": "sha256:4bbdeb3ab2c8304d9e98401d47b70e783465211348d2a95da7fcfba025046532",
-        "base_image": "sha256:8d442def46f3f2aeae905c42be3990d9a7160d8c08983ae12e4eac0c2249a21e",
+        "base_image": "sha256:4bbdeb3ab2c8304d9e98401d47b70e783465211348d2a95da7fcfba025046532",
+        "candidate_image": "sha256:c0f9356b56f4ec73ef5f83857cfb5e5de28cb703e6c4841519cd2674b033a65a",
+        "base_public_assets_match_repository": true,
+        "candidate_files": [
+          "workbench.js",
+          "index.html",
+          "service-worker.js"
+        ],
+        "live_deployed": true,
         "installed_files_compared": 654,
         "changed_files": [
+          "studio_static/index.html",
           "studio_static/service-worker.js",
-          "studio_static/studio.js"
+          "studio_static/workbench.js"
         ],
-        "exact_source_hashes_match": true,
-        "server_started": false,
-        "live_deployed": true
+        "exact_source_hashes_match": true
       },
       "remaining": [
-        "Authenticated HTTP response-header verification",
         "Daemon/power-loss under separately scoped host-wide recovery test"
       ],
-      "checkpoint": "STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json"
+      "checkpoint": "STUDIO-PRIVATE-CONNECTION-CHECKPOINT.json"
     },
     {
       "id": 3,
@@ -89,5 +109,5 @@
     }
   ],
   "maintenance_review_sha256": "525a9ec0f84317f65c8057cbb11a605d5d46c758cc0113827cb8d210575c8e1a",
-  "next_user_prerequisite": "Independent Mac destination verified. Real-device results, selected API accounts, recovered-host browser/OAuth and installed-platform/signing environments remain separate."
+  "next_user_prerequisite": "Owner-proposed recovery hostname preflight completed; DNS-only CNAME is missing. Distinct restored UI/auth routing and compatible OAuth callback are required next. Physical-device, API-account and final installed signing prerequisites remain open."
 }

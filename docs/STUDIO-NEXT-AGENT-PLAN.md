@@ -368,6 +368,36 @@ full OS/ingress clone, recovered-host browser/OAuth login, daemon/power-loss boo
 physical-device testing or final signed desktop delivery. Those remain open. No
 DMG was rebuilt and the source VM production runtime was unchanged.
 
+### Browser-owned private response checks — 29 October 2026
+
+Authenticated private-response header acceptance is now **live-verified** without
+obtaining a session reference or cookie. Owners can use Workspace tools →
+Deployment checks → Check private connection. The shared browser checker sends
+only GET `/api/bootstrap` and GET `/api/workbench/inbox`, using existing same-origin
+credentials. It checks status 200, JSON media type and exact `no-store` cache
+policy. Bodies, cookies and tokens are never read or included in its report.
+Timeouts are bounded; redirects, HTML, 401 and misleading cache directives fail.
+There are no automatic retries, task submissions or settings changes.
+
+The thin example consumer passes against a disposable loopback HTTP fixture.
+All 226 frontend regressions pass without skips. The three-asset image update
+changes no backend/configuration/schema: all 654 installed files were compared,
+served hashes match, original proxy/environment stay unchanged, and Studio's
+restart took 6.147 seconds without rollback. The signed-in live browser passes
+all three checks for both routes after activating shell cache version 63.
+All 12 host checks and 15 anonymous HTTPS checks pass afterward, with existing
+services active and zero generated workers. See
+[private connection evidence](STUDIO-PRIVATE-CONNECTION-CHECKPOINT.json).
+
+This closes the earlier authenticated-header gap. It does not certify a fresh
+OAuth login or recovered-host browser login. The
+[recovered-host procedure](STUDIO-RECOVERED-HOST-LOGIN.md) is prepared; a separate
+HTTPS test hostname was proposed by the owner. Preflight found missing DNS;
+existing ingress/certificate coverage is suitable. A DNS-only CNAME, distinct
+restored UI/auth routing and compatible provider callback are needed next.
+Physical-device, unavailable API-account and installed/signing gates remain open.
+Milestone 9 stays last. No DMG was rebuilt.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech

@@ -53,6 +53,15 @@ OAuth redirect or submits a task. A reachable login page is not proof that an
 interactive OAuth sign-in completed. Then test your actual login/provider and
 read-only connector access, and the phone flows described in `README.md`.
 
+Owners can also open **Workspace tools → Deployment checks → Check private
+connection** in their signed-in browser. This performs two fixed same-origin GETs
+and checks access, JSON response type and `Cache-Control: no-store` without reading
+cookies, tokens or response bodies. It submits no tasks and changes no settings.
+The current-browser result does not certify a new OAuth or recovered-host login.
+For a disposable example of the same checker, run
+`node examples/nexus-bot/src/studio_connection_check.mjs` from the repository root.
+See [recovered-host login preparation](../../docs/STUDIO-RECOVERED-HOST-LOGIN.md).
+
 The local infrastructure suite is explicit, so normal tests do not unexpectedly
 start Docker or quietly skip missing deployment dependencies:
 

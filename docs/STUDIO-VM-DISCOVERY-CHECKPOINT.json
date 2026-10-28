@@ -527,5 +527,17 @@
     "independent_databases_restored": 2,
     "recovered_key_and_authorization_verified": true,
     "full_os_or_browser_oauth_recovery_complete": false
+  },
+  "current_private_headers_2026_10_29": {
+    "checkpoint": "STUDIO-PRIVATE-CONNECTION-CHECKPOINT.json",
+    "status": "live-verified-existing-browser-session",
+    "private_get_routes": 2,
+    "checks_each": [
+      "HTTP 200",
+      "application/json",
+      "Cache-Control no-store"
+    ],
+    "session_material_extracted": false,
+    "response_bodies_read": false
   }
 }
