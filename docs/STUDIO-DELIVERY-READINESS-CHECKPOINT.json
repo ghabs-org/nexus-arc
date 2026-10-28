@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-delivery-readiness/v1",
-  "date": "2026-10-28",
-  "status": "coordinated-vm-recovery-deployment-verified-external-release-gates-open",
+  "date": "2026-10-29",
+  "status": "independent-encrypted-recovery-verified-external-release-gates-open",
   "whole_plan_complete": false,
   "audit_scope": "Recorded-claim consistency only, not fresh acceptance execution or a completion percentage.",
   "audit": {
@@ -62,10 +62,11 @@
     "docs/STUDIO-GITHUB-LIVE-READS-CHECKPOINT.json": "4e2c8f7535e98285654be00c1518224b0bf589f48814ca1d103b2f77a6338c89",
     "docs/STUDIO-DEPLOYED-RESTART-CHECKPOINT.json": "dedf2e30eadf8e98bc19cd87847f9e4450907d7b89685d0879543b11f487dc6a",
     "docs/STUDIO-ACCOUNT-RESTORE-CHECKPOINT.json": "b1ef97dd515847b91335ef23895dcb15ef8259490e03215642482b0632377473",
-    "docs/STUDIO-FINAL-TARGETS-CHECKPOINT.json": "0ab13ea633714ba83b0208ed9e4068c03ad1dc01e95aad195cde34459c10a84d",
+    "docs/STUDIO-FINAL-TARGETS-CHECKPOINT.json": "c8222bf9a875de213dc9a477b999166047546df7ad9a506adc1997a6f2839344",
     "docs/STUDIO-VM-GITHUB-CHECKPOINT.json": "149d9196cfb39eae82e200a248a3ddc9826a34104f9c654581959e178dfb7d13",
     "docs/STUDIO-COORDINATED-RESTORE-CHECKPOINT.json": "76d0be3d5c5931a47150b4383a28069dbbd66e602647ef4d91236e1ac62e35bb",
-    "docs/STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json": "3cd579dc50eac3cdb887108b33003734713155372bcde04e88577345013d9434"
+    "docs/STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json": "3cd579dc50eac3cdb887108b33003734713155372bcde04e88577345013d9434",
+    "docs/STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json": "f37f185f1c63f77e39731b4c3acdbccaeec5e3e0b330ccb5df96f1484732ebb9"
   },
   "current_live_slices": [
     "Windows Server x64 source lifecycle on Python 3.11 and 3.13.",
@@ -76,7 +77,8 @@
     "Personal VM: actual PostgreSQL 18.6 account database snapshot restored into isolated no-TCP cluster; 15 account tables, zero invalid indexes, readable re-export, isolated cluster stopped.",
     "Configured VM owner GitHub account: six native Studio GETs against public repository; writes blocked before transport, no credential persisted.",
     "Coordinated VM snapshot: 723 files, two PostgreSQL databases, opaque key configuration and four images; inactive restore, synthetic key canary and isolated authorization verified.",
-    "Tested two-asset login fix deployed; signed-in Codex subscription task returned exact acceptance marker with Low effort and no tools."
+    "Tested two-asset login fix deployed; signed-in Codex subscription task returned exact acceptance marker with Low effort and no tools.",
+    "Independent Mac: authenticated encrypted VM snapshot transfer, 723 file hashes, two restored PostgreSQL databases, recovered-key canary and restored policy authorization; private bundle verified and disposable resources removed."
   ],
   "environment_availability": {
     "other_known_integration_credential_references_in_current_environment": [],
@@ -85,9 +87,9 @@
   "next_targets": [
     {
       "target": "Personal VM",
-      "state": "coordinated-same-vm-restore-and-authenticated-task-verified",
-      "needed": "Choose an independent recovery target and scoped daemon/power-loss acceptance environment.",
-      "remaining": "Off-host/key escrow, independent-host recovery, restored browser/OAuth login, authenticated response headers and daemon/power-loss remain separate. Frontend fix is now deployed."
+      "state": "independent-service-recovery-and-authenticated-task-verified",
+      "needed": "Choose recovered-host browser/OAuth and separately scoped OS/ingress/daemon/power-loss acceptance environments.",
+      "remaining": "Selected service data and key recovery on independent Mac are verified. Real recovered-host browser login, OS/ingress provisioning, authenticated response headers and daemon/power-loss remain separate."
     },
     {
       "target": "Physical phone/tablet",
@@ -108,7 +110,7 @@
       "remaining": "User must explicitly request any new DMG. Source runtime CI is not installed-app acceptance."
     }
   ],
-  "current_turn": "Completed coordinated same-VM recovery, recovered-key canary, isolated authorization, configured VM GitHub reads, frontend deployment and one signed-in Codex task. Retained initial probe/deployment failures and successful corrections. Physical devices, unavailable API accounts, independent recovery and final desktop signing/install gates remain open.",
+  "current_turn": "User-approved encrypted export and independent Mac restore passed. Initial packaging omission was caught and corrected with an encrypted database supplement from the same frozen snapshot. Private recovery ZIP excludes the recipient key; no secret or archive enters Git. Temporary plaintext and test resources removed. Source production runtime unchanged; no DMG.",
   "history_note": "Earlier GitHub and Windows checks retain their exact source hashes, reports and boundaries; the current audit promotes no new runtime/device/live capability.",
   "vm_resume": {
     "date": "2026-10-28",

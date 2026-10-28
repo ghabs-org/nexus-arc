@@ -517,5 +517,15 @@
     "isolated_authorization_verified": true,
     "independent_host_disaster_restore_verified": false
   },
-  "current_credential_scope": "Requested coordinated recovery copied opaque key configuration privately on the VM and tested a synthetic key canary. Selected GitHub credential resolved only inside the VM process for user-authorized GET checks. No credential/session/key values returned to chat, committed, or exported off VM."
+  "current_credential_scope": "Requested coordinated recovery copied opaque key configuration privately on the VM and tested a synthetic key canary. Selected GitHub credential resolved only inside the VM process for user-authorized GET checks. No credential/session/key values returned to chat, committed, or exported off VM.",
+  "independent_recovery_2026_10_29": {
+    "status": "live-verified-independent-selected-service-recovery",
+    "checkpoint": "STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json",
+    "encrypted_export_approved": true,
+    "plaintext_exported_from_vm": false,
+    "independent_files_verified": 723,
+    "independent_databases_restored": 2,
+    "recovered_key_and_authorization_verified": true,
+    "full_os_or_browser_oauth_recovery_complete": false
+  }
 }

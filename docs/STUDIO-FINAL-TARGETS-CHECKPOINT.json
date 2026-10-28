@@ -1,6 +1,6 @@
 {
   "format": "nexus-studio-final-six-targets/v1",
-  "date": "2026-10-28",
+  "date": "2026-10-29",
   "status": "vm-work-completed-external-release-gates-open",
   "whole_plan_complete": false,
   "numbering": "User requested 1\u20136 after a five-item answer. Sixth workstream is final evidence reconciliation. Desktop remains last; no new DMG authorization inferred.",
@@ -8,20 +8,23 @@
     {
       "id": 1,
       "target": "Coordinated recovery",
-      "status": "coordinated-same-vm-restore-verified",
+      "status": "coordinated-and-independent-service-restore-verified",
       "completed": [
         "Coordinated five-unit plus Studio/proxy writer freeze",
         "723 files and two databases copied/restored",
         "Recovered-key synthetic canary",
         "New isolated session authorization against restored project access",
-        "Four service images archived privately"
+        "Four service images archived privately",
+        "Encrypted recovery copy transferred to independent Mac with matching checksums",
+        "723 files and both databases restored on Mac",
+        "Recovered key and restored project authorization verified independently",
+        "Private encrypted ZIP verified; temporary plaintext/container/volumes removed"
       ],
       "remaining": [
-        "Independent-host/off-host recovery and key escrow",
-        "Restored physical browser/OAuth login",
-        "Full OS/ingress provisioning and disaster boot"
+        "Real browser/OAuth login against recovered host",
+        "Full OS/ingress provisioning and daemon/power-loss disaster boot"
       ],
-      "checkpoint": "STUDIO-COORDINATED-RESTORE-CHECKPOINT.json"
+      "checkpoint": "STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json"
     },
     {
       "id": 2,
@@ -86,5 +89,5 @@
     }
   ],
   "maintenance_review_sha256": "525a9ec0f84317f65c8057cbb11a605d5d46c758cc0113827cb8d210575c8e1a",
-  "next_user_prerequisite": "Choose independent encrypted recovery destination; provide real-device results and signing/installed-platform environments when available."
+  "next_user_prerequisite": "Independent Mac destination verified. Real-device results, selected API accounts, recovered-host browser/OAuth and installed-platform/signing environments remain separate."
 }

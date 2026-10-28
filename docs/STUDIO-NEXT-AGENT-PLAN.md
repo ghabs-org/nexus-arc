@@ -4,7 +4,7 @@
 only after an explicit user request. Routine implementation must leave existing
 DMGs and their recorded checksums unchanged.
 
-Updated 28 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
+Updated 29 October 2026. Continue in `nexus-arc`, reading `AGENTS.md` and the
 current implementation plan first. Inspect the working tree before edits and
 preserve work from other agents. This handoff identifies remaining delivery
 capabilities; do not rebuild features already present.
@@ -334,6 +334,39 @@ statuses above. Final target status stays explicit: independent recovery/key
 escrow, authenticated HTTP headers, daemon/power-loss, real physical devices,
 unconfigured API accounts and installed/signing checks remain open. This Mac has
 zero valid code-signing identities. Milestone 9 stays last; no DMG was rebuilt.
+
+### Independent encrypted Mac recovery — 29 October 2026
+
+The user explicitly approved this Mac as the encrypted recovery target. The
+28 October frozen snapshot now has independent-host selected-service restore
+proof. Only a public recipient certificate went to the VM. OpenSSL CMS with
+AES-256-GCM and RSA-3072 OAEP encrypted the export before transfer; synthetic
+roundtrip and tamper rejection passed. Ciphertext hashes matched across hosts.
+The private recipient key stays on this Mac and is excluded from the recovery ZIP.
+
+Independent restore caught an operator packaging error: both database archives
+were omitted from the first payload. The failed result remains retained. A second
+authenticated encrypted payload supplied those exact frozen dump files; their
+hashes match the manifest inside the first payload. The final ZIP contains both
+payloads and instructions, with verified CRC and ciphertext hashes. No source
+service interruption or live database resnapshot was needed.
+
+On this independent Apple Silicon Mac, all 723 regular file hashes matched, four
+archived service images loaded, and PostgreSQL 18.6 restored the 15-table account
+database and 3-table Studio database with zero invalid indexes. A synthetic canary
+verified the recovered key. Real Nexus persistence/project policy accepted a new
+isolated session and denied unknown/pending sessions. Existing provider tokens and
+production login sessions were not used. One archived symlink was deliberately
+not activated. Test containers had no network or published ports; no restored
+scheduler or provider started. Temporary plaintext, database container and volumes
+were removed after success. Encrypted backup and private key remain outside Git
+in a protected Mac application-data directory.
+
+[Independent recovery evidence](STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json) closes
+the independent selected-service data/key recovery gap. It does not establish a
+full OS/ingress clone, recovered-host browser/OAuth login, daemon/power-loss boot,
+physical-device testing or final signed desktop delivery. Those remain open. No
+DMG was rebuilt and the source VM production runtime was unchanged.
 
 ### Remaining work, in delivery order
 
