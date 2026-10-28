@@ -263,5 +263,20 @@
     "checkpoint": "docs/STUDIO-WINDOWS-VOICE-CHECKPOINT.json",
     "run_url": "https://github.com/ghabs-org/nexus-arc/actions/runs/40750333137",
     "boundary": "Windows Server 2022 x64/Python 3.11 ordinary completion plus real-model cancellation/shutdown after observed inference. Installed applications and physical devices remain separate."
+  },
+  "develop_integration": {
+    "date": "2026-10-28",
+    "status": "verified-fast-forward-integration",
+    "source_head": "761003a05f81254c19ac28c9ef409b6e827611c8",
+    "target_branch": "develop",
+    "source_branch": "codex/windows-speech-20261028",
+    "incoming_develop_commits": 0,
+    "regression_tests": 115,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "report_sha256": "38f13d5a2adc1b2fbe83ace93bddbe256759edcda43f3483ba906cd0a22aa721",
+    "source_files_matching_native_evidence": 13,
+    "scope": "Fast-forward preserves all native-tested source revisions. Plan/report documentation changes only afterward. No main merge, VM deployment, installer build or model redistribution."
   }
 }

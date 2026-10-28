@@ -59,8 +59,8 @@ All raw Windows source hashes were verified against that commit after exact
 LF-to-CRLF checkout conversion; both original reports are retained in the
 [checkpoint](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json).
 
-Changes are published only on `codex/windows-speech-20261028`; no merge, VM
-upgrade or installer build occurred. Real Windows model completion and
+The work originated on `codex/windows-speech-20261028` and is now integrated
+into `develop` as described below. No VM upgrade or installer build occurred. Real Windows model completion and
 interruption now have the later evidence below; installed desktop flows, signing and updates remain separate gates.
 See [repeatable instructions](STUDIO-WINDOWS-SPEECH-ACCEPTANCE.md).
 
@@ -101,6 +101,21 @@ keeps full outcomes and instrumentation boundaries. Timings are samples, not an 
 No product runtime change, merge, VM operation or installer build was required.
 The remaining gates are installed desktop, physical devices, selected API accounts
 and deferred VM operations; desktop milestone 9 stays last.
+
+### Development branch integration — 28 October 2026
+
+The complete Windows speech implementation and acceptance work is integrated
+into `develop` by fast-forward from `codex/windows-speech-20261028`. There were
+no incoming development changes or conflicts. The affected speech, ownership,
+worker, bundling and plan gate passed **115 checks with zero skips**. All 13
+source files covered by the retained native Windows reports match their recorded
+hashes; integration did not change tested runtime code.
+
+[Integration evidence](STUDIO-WINDOWS-SPEECH-CHECKPOINT.json) records the source
+head and report hash. This updates the development branch only: no main-branch
+merge, VM deployment or installer build was performed. The remaining work below
+requires selected accounts, physical devices or the deferred deployment target;
+installed desktop milestone 9 remains last.
 
 ### Remaining work, in delivery order
 
