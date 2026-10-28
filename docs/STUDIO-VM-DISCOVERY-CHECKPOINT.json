@@ -175,5 +175,34 @@
       "analysis_image_id": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
       "current_source_files_verified": 653
     }
+  },
+  "resume_preflight": {
+    "date": "2026-10-28",
+    "status": "user-availability-confirmed-awaiting-tailscale-ssh-check",
+    "user_vm_deferral_lifted": true,
+    "remote_commands_completed": false,
+    "vm_modified": false,
+    "requested_scope": "Read-only inventory of deployed images, services and source before preparing a reviewed Studio-only upgrade.",
+    "local_preflight": {
+      "tests": 57,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "report_sha256": "9b4f6d21ebea64cfad353150e74888c9e0689e5d370e690fba80786a228d15f9"
+    },
+    "candidate_source_revision": "f644af55c6a8a99b125b02c02a52e80c8d0f5905",
+    "historical_comparison": {
+      "baseline": "790fbe36c75cc877226171cd10166f29493f2660",
+      "changed_files": 58,
+      "dockerfile_changed": true,
+      "compose_changed": true,
+      "scope": "Historical base only; exact deployed patches/image still require live inspection."
+    },
+    "required_next": [
+      "User completes Tailscale-required SSH identity check.",
+      "Read actual running image, source manifest, mount layout and service status without reading credential values.",
+      "Prepare exact candidate and backup/inactive-restore/rollback review before any new deployment."
+    ],
+    "authorization_boundary": "VM access availability resumes discovery, not approval of an unspecified new production upgrade. Prior exact deployment approval remains historical. No new DMG authorized."
   }
 }

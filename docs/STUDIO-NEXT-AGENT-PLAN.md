@@ -145,12 +145,27 @@ See the [readiness snapshot](STUDIO-DELIVERY-READINESS-CHECKPOINT.json).
 No other common integration credential reference is exposed in the current Mac
 process environment. This is a presence check, not proof that no other account
 exists. Do not search credential files or invent additional local tests as a
-substitute for the remaining live gates. The user has been asked which target is
-available: VM access again, a real phone/tablet, or another configured integration
-account. Keep dependent work pending until that answer provides scope. VM work
-remains deferred, desktop milestone 9 remains last, and a new DMG requires an
-explicit request. Do not repeat already accepted native CI without a change or
+substitute for the remaining live gates. The user confirmed VM access is available again on 28 October. SSH currently
+requires a renewed Tailscale identity check, so no host discovery command has
+completed yet. Resume read-only inspection after that check; prepare an exact
+upgrade/backup/rollback review before changing live services. Desktop milestone 9
+remains last, and a new DMG requires an explicit request. Do not repeat already accepted native CI without a change or
 unresolved failure that warrants it.
+
+### VM resumption preflight — 28 October 2026
+
+The user selected VM acceptance and confirmed availability. Tailscale requires a
+renewed SSH identity check; its link was presented only in chat. No remote
+inventory command has completed and no VM state changed. The local deployment,
+host-check and backup gate passed **57 checks with zero skips**.
+
+Current candidate source is `f644af55c6a8a99b125b02c02a52e80c8d0f5905`.
+Comparison against the historical VM base identifies 58 changed files, including
+Dockerfile/Compose changes; it is not an exact comparison with the deployed
+patched image. Obtain the actual manifest after SSH verification. Prepare exact
+candidate, consistent backup, inactive restore and rollback evidence before any
+new Studio-only upgrade. Earlier approval applied to the earlier artifact, not
+an unspecified new revision. See [resume record](STUDIO-VM-DISCOVERY-CHECKPOINT.json).
 
 ### Remaining work, in delivery order
 
@@ -168,12 +183,14 @@ unresolved failure that warrants it.
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
    account/device results identify exactly what ran; unavailable prerequisites stay
    pending. Local HTTP/SDK fixtures and emulated widths are already available.
-3. **Deferred personal VM operations.** When the user can interact again, prepare
-   a reviewed candidate containing later source fixes, retain backup/inactive
+3. **Personal VM operations resumed, SSH check pending.** The user confirmed
+   availability on 28 October. Complete Tailscale identity verification and inspect
+   actual deployed state first, then prepare a reviewed candidate containing later source fixes, retain backup/inactive
    restore/rollback, then verify signed-in execution, controlled worker/proxy
    interruption and actual account-store/full-host restoration. Existing selected
    VM upgrade/worker evidence remains valid for its recorded version, not later
-   code. Do not contact or modify the VM while the deferral remains active.
+   code. The prior deferral is lifted; the current access gate is Tailscale identity
+   verification. Do not apply an unspecified upgrade before candidate review.
 4. **Final evidence reconciliation.** Retain explicit exclusions and compatibility
    fixtures, check source/release/report hashes and update scoped acceptance.
    Production-specific certificate renewal/revocation and physical SQL/daemon

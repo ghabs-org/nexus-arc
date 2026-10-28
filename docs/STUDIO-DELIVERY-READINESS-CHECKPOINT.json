@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-delivery-readiness/v1",
   "date": "2026-10-28",
-  "status": "local-evidence-consistent-external-target-selection-pending",
+  "status": "vm-selected-ssh-identity-check-pending",
   "whole_plan_complete": false,
   "audit_scope": "Recorded-claim consistency only, not fresh acceptance execution or a completion percentage.",
   "audit": {
@@ -73,8 +73,8 @@
   "next_targets": [
     {
       "target": "Personal VM",
-      "state": "deferred-by-user",
-      "needed": "User confirms VM interaction is available again.",
+      "state": "available-user-confirmed-ssh-check-pending",
+      "needed": "User completes Tailscale-required SSH identity check; then read-only host inspection before candidate/upgrade review.",
       "remaining": "Prepare reviewed newer source candidate, backup/restore/rollback, signed-in and controlled interruption/recovery checks."
     },
     {
@@ -97,5 +97,13 @@
     }
   ],
   "current_turn": "No VM, real device, new integration account, paid provider or installer was accessed. Recorded checks were reconciled without rerunning accepted native CI.",
-  "history_note": "Earlier GitHub and Windows checks retain their exact source hashes, reports and boundaries; the current audit promotes no new runtime/device/live capability."
+  "history_note": "Earlier GitHub and Windows checks retain their exact source hashes, reports and boundaries; the current audit promotes no new runtime/device/live capability.",
+  "vm_resume": {
+    "date": "2026-10-28",
+    "user_confirmed_availability": true,
+    "ssh_identity_check_pending": true,
+    "remote_commands_completed": false,
+    "vm_modified": false,
+    "preflight": "docs/STUDIO-VM-DISCOVERY-CHECKPOINT.json"
+  }
 }
