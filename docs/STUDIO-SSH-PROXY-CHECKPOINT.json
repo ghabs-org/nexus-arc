@@ -95,14 +95,14 @@
   },
   "source_sha256": {
     "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
-    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
     "nexus/core/studio_docker_route.py": "0845703a75bb6ab73c2c448f693769ca63797438e4d79bc6efed042f65f56868",
     "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
     "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
     "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
     "deploy/studio/recovery-checks/Dockerfile.ssh-proxy": "82e06bfb664684b15e493192af8fabec7ed3a6c869f13c470e0e9d6ddc928a5a",
-    "examples/nexus-bot/src/studio_proxy_ssh.py": "f81cf97dca50242f902be7daedc994f8311f26f89088a33e8b396e57459e9242",
-    "tests/studio_ssh_proxy_acceptance.py": "25fb9292e1046e6bae2234ac320c26158382eb41c2cf0f9a1091e262eae5a135"
+    "examples/nexus-bot/src/studio_proxy_ssh.py": "46e3ff08a7f6a524b4eb298fbc761f71a6a62c29108c9e57876082061779ec56",
+    "tests/studio_ssh_proxy_acceptance.py": "c1e04f0540ab686fe274239e90d8d62864ec96c8f02d2abbb47ec3b3522de107"
   },
   "user_workspace_changed": false,
   "vm_changed": false,

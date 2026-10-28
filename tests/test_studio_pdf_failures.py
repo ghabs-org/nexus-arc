@@ -183,3 +183,91 @@ def test_missing_dependency_worker_exits_without_exception_details():
     )
     assert result.returncode == DEPENDENCY_MISSING
     assert not result.stdout and not result.stderr
+
+
+def test_concurrent_mixed_pdf_previews_preserve_pages_and_error_categories(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    app = StudioService(tmp_path)
+    try:
+        writer = PdfWriter()
+        font = DictionaryObject(
+            {
+                NameObject("/Type"): NameObject("/Font"),
+                NameObject("/Subtype"): NameObject("/Type1"),
+                NameObject("/BaseFont"): NameObject("/Helvetica"),
+            }
+        )
+        font_ref = writer._add_object(font)
+        for index in (1, 2):
+            page = writer.add_blank_page(width=612, height=792)
+            page[NameObject("/Resources")] = DictionaryObject(
+                {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font_ref})}
+            )
+            stream = DecodedStreamObject()
+            stream.set_data(f"BT /F1 12 Tf 72 720 Td (Concurrent page {index}) Tj ET".encode())
+            page[NameObject("/Contents")] = writer._add_object(stream)
+        valid_buf = io.BytesIO()
+        writer.write(valid_buf)
+        encrypted_buf = io.BytesIO()
+        writer.encrypt("example-only-secret")
+        writer.write(encrypted_buf)
+
+        valid_rec = app.catalog.save(
+            "artifacts",
+            {
+                "name": "Valid multi-page",
+                "data": {
+                    "filename": "valid.pdf",
+                    "content_base64": base64.b64encode(valid_buf.getvalue()).decode(),
+                },
+            },
+        )
+        damaged_rec = app.catalog.save(
+            "artifacts",
+            {
+                "name": "Damaged",
+                "data": {
+                    "filename": "damaged.pdf",
+                    "content_base64": base64.b64encode(b"%PDF- broken").decode(),
+                },
+            },
+        )
+        encrypted_rec = app.catalog.save(
+            "artifacts",
+            {
+                "name": "Encrypted",
+                "data": {
+                    "filename": "encrypted.pdf",
+                    "content_base64": base64.b64encode(encrypted_buf.getvalue()).decode(),
+                },
+            },
+        )
+
+        def worker(index):
+            mode = index % 4
+            if mode == 0:
+                res = app.artifacts.preview(valid_rec, page=1)
+                assert res["extraction_available"] and res["pages"] == 2
+                assert res["text"] == "Concurrent page 1"
+            elif mode == 1:
+                res = app.artifacts.preview(valid_rec, page=2)
+                assert res["extraction_available"] and res["pages"] == 2
+                assert res["text"] == "Concurrent page 2"
+            elif mode == 2:
+                res = app.artifacts.preview(damaged_rec, page=1)
+                assert not res["extraction_available"] and "pages" not in res
+                assert res["error_code"] == "pdf_unreadable"
+            else:
+                res = app.artifacts.preview(encrypted_rec, page=1)
+                assert not res["extraction_available"] and "pages" not in res
+                assert res["error_code"] == "pdf_unreadable"
+            return True
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            outcomes = list(pool.map(worker, range(16)))
+        assert all(outcomes)
+    finally:
+        app.close()
+

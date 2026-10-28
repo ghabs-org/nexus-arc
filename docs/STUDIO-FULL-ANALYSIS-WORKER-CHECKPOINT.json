@@ -336,8 +336,8 @@
   "source_sha256": {
     "deploy/studio/analysis-worker/Dockerfile": "edd414b56241333a9b500d5d13f586141c8f86faf80112f4bbb9e3210d90d5c4",
     "deploy/studio/analysis-worker/requirements.txt": "75b6eac09c5c5e8857548cda13d156351ece02e0c570a7d1ab26cf2aec215872",
-    "nexus/core/studio_sandbox.py": "453b7ce61c03d41218d7bc0c892efa5d2934ea20ee7aab850ce1445548c2e4d2",
-    "nexus/core/studio_container_recovery.py": "d114b8dbce566071e1261ebdeba8f43c07af01d794d43415dd3b3af8ea810589",
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
     "nexus/core/studio_data_tools.py": "fa4c7576d08021a92d84727e4e06562240218b20a75c165221a4e682055006fa",
     "examples/nexus-bot/src/studio_data_workers.py": "a093c2178f85d4a1d7cd24317c0dcfc8dbe941c0b021e2da0a7a9648480b28cf",
     "tests/studio_data_worker_acceptance.py": "249d953a28846e227f38c8af9bb084acbea664d76907aa9d940b4ab7ffa7e718"

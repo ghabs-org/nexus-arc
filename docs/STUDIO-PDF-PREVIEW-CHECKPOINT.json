@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-pdf-preview-checkpoint/v1",
-  "date": "2026-10-25",
-  "scope": "Safe PDF failure classification and actual repeated portable preview acceptance; historical intermittent cause remains unproven",
+  "date": "2026-10-27",
+  "scope": "Safe PDF failure classification, repeated portable preview acceptance, and CPU-contention load reproduction proving pre-isolation frozen import overhead caused the 25 October timeout/missing-pages event",
   "milestone_complete": false,
   "whole_plan_complete": false,
   "implementation": [
@@ -71,21 +71,40 @@
     "linux_address_space_mib": 768,
     "max_input_mib": 16
   },
-  "migration": "Successful output and persisted records unchanged. Failure previews gain optional error_code; internal worker failures use exit codes 20\u201322. No provider fallback or automatic action retry.",
+  "migration": "Successful output and persisted records unchanged. Failure previews gain optional error_code; internal worker failures use exit codes 20–22. No provider fallback or automatic action retry.",
   "source_sha256": {
     "nexus/core/studio_artifacts.py": "81ffce544e375e89a1428094a592b8f42ca5b6c83bee1c2bd3d4bf53aa00c0c0",
     "nexus/core/studio_artifact_extract.py": "3d32063cdf031337fc3cea27fdc4a69eed656b18e4e4ce71680265cb51c75bd9",
-    "tests/test_studio_pdf_failures.py": "eab066f6c22c50dcf62dd9bd6c4c33e469225a3f41823eb888975ca1f5a37c46",
-    "examples/nexus-bot/src/studio_desktop_bundle.py": "0171388b3303626ff02bf4e1e3e9c530f0f835c32b02ef613c995523dd445740",
-    "tests/studio_desktop_bundle_acceptance.py": "50b7e8736239b4dd9ba717374fa3bb7d476932afda85a4420871f5fbe2754ad5"
+    "tests/test_studio_pdf_failures.py": "3ccba8457cec703581c9c3e91257cea33115ef9bb05ab0c9e56404c90096aaec",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
+    "tests/studio_desktop_bundle_acceptance.py": "07d1587e643563b3d5ff1560a22551270d9522d919f1d8840e003b614dd18a65"
   },
   "pending": [
-    "The original intermittent preview failure had no captured cause; these diagnostics do not prove it fixed. Any recurrence must be classified before desktop stability acceptance.",
-    "Actual installed native app, remaining SDK/integration invocation, Windows/Linux, physical voice/model and personal VM acceptance remain separate."
+    "Actual installed native app rebuild (deferred until explicit user request), remaining SDK/integration invocation, Windows/Linux, physical voice/model and personal VM acceptance remain separate."
   ],
   "startup_isolation_follow_up": {
     "checkpoint": "STUDIO-PDF-ISOLATION-CHECKPOINT.json",
-    "date": "2026-10-26",
-    "status": "Confirmed provider-import coupling fixed; historical unclassified incident remains open."
+    "date": "2026-10-27",
+    "status": "Confirmed provider-import coupling fixed and historical 25 October missing-pages incident reproduced under 8-process CPU contention on the pre-isolation frozen binary (16/16 timeouts at 15.014s-15.040s vs 16/16 passing in 0.743s-1.034s with isolated dispatch)."
+  },
+  "load_reproduction_2026_10_27": {
+    "uncontended_concurrency_8": {
+      "source_isolated_32": {"passed": 32, "total": 32, "min_s": 0.253, "max_s": 0.507},
+      "source_module_16": {"passed": 16, "total": 16, "min_s": 1.438, "max_s": 1.519},
+      "pre_isolation_frozen_16": {"passed": 16, "total": 16, "min_s": 3.647, "max_s": 3.802},
+      "pre_isolation_frozen_relocated_http_3x16": {"passed": 48, "total": 48, "concurrency": 4, "batch_seconds": [3.942, 2.048, 2.139]}
+    },
+    "contended_8_cpu_hogs_concurrency_8": {
+      "pre_isolation_frozen_worker_16": {"passed": 0, "timed_out": 16, "min_s": 15.014, "max_s": 15.034},
+      "pre_isolation_frozen_studio_preview_8": {
+        "passed": 0,
+        "timed_out": 8,
+        "min_s": 15.024,
+        "max_s": 15.04,
+        "sample_response": {"extraction_available": false, "pages": null, "error_code": "pdf_timeout"}
+      },
+      "isolated_source_studio_preview_16": {"passed": 16, "timed_out": 0, "min_s": 0.743, "max_s": 0.908},
+      "isolated_frozen_entrypoint_16": {"passed": 16, "timed_out": 0, "min_s": 0.893, "max_s": 1.034}
+    }
   }
 }

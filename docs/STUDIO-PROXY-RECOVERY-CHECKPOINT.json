@@ -92,15 +92,15 @@
   ],
   "contract": "postman/contracts/studio-docker-proxy.md",
   "source_sha256": {
-    "nexus/core/studio_docker_proxy_policy.py": "4c3916bc45308ae29c31167c49aa490288096a68b294552298053714b3a073e7",
-    "deploy/studio/docker_proxy.py": "be2decae9affd601d024e523e766b8b3a7b3a97e8dd0465766edaded954585b5",
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
     "docker-compose.studio-workers.yml": "196f41425ea4d372076a6545bb690d17680419afbf0a8e6e4eb12d513153b6f1",
-    "tests/test_studio_docker_proxy.py": "05711479f8bbe85f092870ce95c8ef52c4a14be2e87faee6a44474cc57b367d4",
-    "tests/test_studio_docker_proxy_policy.py": "1b0c2cd6c5fb1c14b9714830feaa7a763127de46797bc1782621cd90cba554f6",
-    "tests/studio_proxy_recovery_acceptance.py": "4a0a87f7e9f470ebdc405b489ea96c905edc7c99eb4c55c60287e2f67d8a8b5d",
-    "examples/nexus-bot/src/studio_proxy_recovery.py": "a19c3439f24eddbdf0069d5eb92b2e7e9ac587599fc7acf25288d75510a7d407",
-    "postman/contracts/studio-docker-proxy.md": "fbd06814cf2366d2bca01f163f518efecabb6e126bea524bfbdf29053241463d",
-    "deploy/studio/README.md": "3b5a3a3fb026b78152ceb07f6ed2b9f802f4d03f34dbf2205025c97478a9e5a4"
+    "tests/test_studio_docker_proxy.py": "c29ab098c49b42ef7552fc8e9e69296eb077f02bff4efb1326fa7be8eb1c1f25",
+    "tests/test_studio_docker_proxy_policy.py": "739a4d45bf80248126e25f79a34870ac9e184a5eaf54583cfb24d1aabba7f2e9",
+    "tests/studio_proxy_recovery_acceptance.py": "d044ca7086bf86e1dfb517f4f73516e9ec3288a312dff4461b696d6f9da9128a",
+    "examples/nexus-bot/src/studio_proxy_recovery.py": "407fddd500a1a75ab11ee8f4067655a1e8af3c5289aa2a5f489ced9c390f0787",
+    "postman/contracts/studio-docker-proxy.md": "4ab989db7f22c595cbd52766ddbcaecbe04b685fd6d7bac91f3117df8d7546d8",
+    "deploy/studio/README.md": "c05feebcddb157a22256163a011b36f13ca3ad480ee7147a2f5865a29f9ce687"
   },
   "user_workspace_changed": false,
   "vm_changed": false,

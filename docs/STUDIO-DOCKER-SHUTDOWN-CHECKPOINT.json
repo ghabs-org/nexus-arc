@@ -99,12 +99,12 @@
     "Signing/notarization, account/model/device/personal-VM validation and historical intermittent PDF diagnosis remain separate."
   ],
   "source_sha256": {
-    "nexus/core/studio_sandbox.py": "c41fc29f66a4fabdd98afd6a2ffccfcce0655c10d575fe2b8928ca9ab29a66a6",
-    "nexus/core/studio_data_tools.py": "0645c53f4e5cb891ed94a5d4260f0c5e5492f74393a9c43d726a152207311adc",
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "nexus/core/studio_data_tools.py": "fa4c7576d08021a92d84727e4e06562240218b20a75c165221a4e682055006fa",
     "nexus/core/studio.py": "446b507bd42369742af5173708df2a6ab21183f506e7ca01458811a890937ea6",
-    "tests/test_studio_sandbox.py": "d96cded0f9cb0864bf5e79bb4012ca3c675cff531e4b781d3450da88b59bc044",
+    "tests/test_studio_sandbox.py": "70c7528bbdf9597a2d00a27d8601dbd08f07c6bfe1d905d1080ef6893091690a",
     "tests/test_studio_data_publication.py": "53adbe6afc884b886111240be6ac228ec95c7ea85c781ab37d081d342b9d094d",
-    "tests/studio_docker_lifecycle_acceptance.py": "32c22d66cb767764e62a46e63fdc0095bf6629586de3dec1335faa671d2416cd",
-    "examples/nexus-bot/src/studio_docker_lifecycle.py": "76a693353789e505a081d29ec545d3db2b6d76d5e8c2182876ee6abb4a861e91"
+    "tests/studio_docker_lifecycle_acceptance.py": "dfa6f84da4a23cb188ef7f940508a9baa80e829c3fc819091ac5542a48ee0ab7",
+    "examples/nexus-bot/src/studio_docker_lifecycle.py": "fdfc8599f3a6f060dc258b9778809b9ff1c26113a05b4f4226f21b1b5fe8c2bd"
   }
 }

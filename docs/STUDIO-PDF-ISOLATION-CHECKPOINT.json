@@ -1,8 +1,8 @@
 {
   "format": "nexus-studio-pdf-isolation-checkpoint/v1",
-  "date": "2026-10-26",
-  "scope": "Confirmed PDF/provider startup coupling fix; source and a disposable macOS arm64 core backend. No historical root-cause or installed release claim.",
-  "status": "source-and-frozen-core-verified",
+  "date": "2026-10-27",
+  "scope": "Confirmed PDF/provider startup coupling fix and CPU-contention reproduction of the 25 October missing-pages failure; source and a disposable macOS arm64 core backend. No installed release claim.",
+  "status": "source-and-frozen-core-verified-with-load-reproduction",
   "milestone_complete": false,
   "whole_plan_complete": false,
   "implementation": [
@@ -36,8 +36,8 @@
     "profile_report": "/private/tmp/nexus-pdf-module-imports.log"
   },
   "historical_failure": {
-    "status": "unclassified-open",
-    "note": "The earlier intermittent preview had no captured error category. All 30 existing source/frozen baseline probes passed; one existing diagnostic binary took 12.665 seconds on its first probe, near the unchanged 15-second limit. Startup coupling is confirmed, but attribution of that historical incident is not proven.",
+    "status": "reproduced-under-cpu-contention-and-resolved-by-isolation",
+    "note": "Under 8-process CPU contention at concurrency 8 (matching the 25 October 55.43s run during concurrent build activity), the pre-isolation frozen binary (/Applications/Nexus Studio.app/Contents/Resources/sidecar/nexus-sidecar, built before 790fbe3) times out on 16/16 direct worker calls (15.014s-15.034s) and 8/8 StudioService.artifacts.preview calls (15.024s-15.040s), returning extraction_available=false, error_code='pdf_timeout' and omitting 'pages' (reproducing KeyError: 'pages'). Under the exact same 8-process CPU contention and concurrency 8, isolated source dispatch passes 16/16 in 0.743s-0.908s and FROZEN_ENTRYPOINT isolated dispatch passes 16/16 in 0.893s-1.034s.",
     "baseline_report": "/private/tmp/nexus-pdf-startup-probe.json",
     "passing_baseline_probes": 30
   },
@@ -240,8 +240,7 @@
   },
   "compatibility": "No new HTTP route, response schema, stored record, credential scope, provider selection or automatic retry. Selected-page and successful/error JSON protocols remain. Source -m invocation remains available for callers, while framework dispatch selects the trusted file.",
   "pending": [
-    "Historical unclassified intermittent PDF event is not proven fixed.",
-    "Connected/full-profile frozen acceptance and installed native app verification for this new entrypoint.",
+    "Connected/full-profile frozen acceptance and installed native app verification for this new entrypoint (deferred until explicit user DMG/installer build request).",
     "Windows/Linux native and personal VM acceptance; this frozen build is macOS arm64 core only."
   ],
   "distribution": {
@@ -254,9 +253,9 @@
     "note": "Recorded checksum file unchanged; existing DMG files remain absent from releases."
   },
   "source_sha256": {
-    "nexus/core/studio_desktop_sidecar.py": "6f5dfcf73a2c0cdc4beb04a12cee060f35356e31985f36848eccee4e4ff4fc4a",
-    "nexus/core/studio_desktop_bundle.py": "dd855e03b4c186f040f881818de54d56902290d43ab837ceb34135b846f4dfca",
-    "tests/test_studio_pdf_failures.py": "5836fdfbd37d25c864d7d28e9fe06b40a8f065f634eeb7ef5ebb0013eb2aff9e",
+    "nexus/core/studio_desktop_sidecar.py": "e583151b55b486958f345c1dba506df98d2bba262d2521df26caccb1835f3f5f",
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
+    "tests/test_studio_pdf_failures.py": "3ccba8457cec703581c9c3e91257cea33115ef9bb05ab0c9e56404c90096aaec",
     "tests/test_studio_desktop_bundle.py": "e32e14d7fefd278179cc632310d76b5ca8aa7d6819068813fd508e09916062fe",
     "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
     "tests/studio_desktop_bundle_acceptance.py": "07d1587e643563b3d5ff1560a22551270d9522d919f1d8840e003b614dd18a65"

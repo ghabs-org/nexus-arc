@@ -47,10 +47,16 @@ def audit(directory):
         checkpoints[str(number)] = checkpoint.get("milestone_complete") is True
         if checkpoints[str(number)] and any(not r.get("acceptance_complete") for r in related):
             errors.append(f"Milestone {number} claims completion with open requirements")
-        if number == 9 and not checkpoints["9"]:
+        if checkpoints[str(number)] and checkpoint.get("pending"):
+            errors.append(f"Milestone {number} claims completion with pending items")
+        if checkpoint.get("whole_plan_complete") is True:
+            errors.append(f"Milestone {number} checkpoint claims whole-plan completion")
+        if number == 9:
             line = next((s for s in plan.splitlines() if s.startswith("| 9.")), "")
-            if re.search(r"\|\s*Locally accepted\s*\|", line):
+            if not checkpoints["9"] and re.search(r"\|\s*Locally accepted\s*\|", line):
                 errors.append("Desktop table claims acceptance while its delivery gate is open")
+            if checkpoints["9"] and re.search(r"\|\s*Separate gate:\s*open\s*\|", line):
+                errors.append("Desktop checkpoint claims completion while plan delivery gate is open")
     # Added scope has separate delivery gates outside the frozen 135 records.
     for number, label in ((10, "MANIFEST"), (11, "AUTHORING"), (12, "OPENCLAW")):
         path = directory / f"STUDIO-M{number}-{label}-CHECKPOINT.json"
@@ -59,6 +65,13 @@ def audit(directory):
             continue
         checkpoint = json.loads(path.read_text())
         checkpoints[str(number)] = checkpoint.get("milestone_complete") is True
+        if checkpoint.get("whole_plan_complete") is True:
+            errors.append(f"Milestone {number} checkpoint claims whole-plan completion")
+        line = next((s for s in plan.splitlines() if s.startswith(f"| {number}.")), "")
+        if line and checkpoints[str(number)] and re.search(r"\|\s*Separate gate:\s*open\s*\|", line):
+            errors.append(f"Milestone {number} checkpoint claims completion while plan delivery gate is open")
+        if line and not checkpoints[str(number)] and re.search(r"\|\s*Separate gate:\s*passed\s*\|", line):
+            errors.append(f"Milestone {number} table claims passed gate while checkpoint is open")
     complete = not opened and all(checkpoints.values()) and not errors
     if inventory.get("completion_declared") is True and not complete:
         errors.append("Whole-plan completion is declared without all acceptance gates")

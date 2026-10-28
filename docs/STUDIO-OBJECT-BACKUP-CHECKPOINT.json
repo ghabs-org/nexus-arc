@@ -69,16 +69,16 @@
     "Remaining frozen catalog, cross-cutting and desktop delivery gates; no blanket acceptance promotion."
   ],
   "source_sha256": {
-    "nexus/core/studio_backup.py": "08a890a03227fdcb4e9870875593878d9531d6cc9b3105f04f7bedd2b1de4d58",
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
     "nexus/core/studio_backup_artifacts.py": "65ef442f29912e2c5470dcf76d7546747bdacc2b20afe32892d9f7ce0e7b728d",
-    "nexus/core/studio_artifacts.py": "2fb6f655433a29ec47a35d4f28c850725d64ee7051ab0cb59083a181f58a722b",
+    "nexus/core/studio_artifacts.py": "81ffce544e375e89a1428094a592b8f42ca5b6c83bee1c2bd3d4bf53aa00c0c0",
     "nexus/adapters/artifacts/__init__.py": "9f6126c737b73ddeeecaaaf58cfaf99392a55865c490ae71466d7fbd65c03baf",
     "tests/test_studio_backup_artifacts.py": "da208a29bcd5b1ff401eaceba4c42dc7ed8baecfee0e6b9d58dc793b67e5b4d3",
-    "tests/test_artifact_store.py": "237565497c31fb1d965331533ddc4759916086fcfd6fb81d182a9049c2baf938",
+    "tests/test_artifact_store.py": "73f372c68b2547eeb5af736dbc3592e816a43b609f862e878769535ace495e21",
     "tests/studio_object_backup_acceptance.py": "d10b0d33ef6576f278d1e6568a9d48304a78cf1aa6a478ee25c8aa7ec12dcc8a",
     "examples/nexus-bot/src/studio_remote_recovery.py": "460f91d334b55c79cebffb7050e1f22630eea5930d24682f9b316742e7f0cbf6",
-    "docs/STUDIO-RECOVERY.md": "60cb859b9b0993e86f55fd9171ecd79145f11dc1ec8b1f496990203253e23459",
-    "postman/contracts/studio-object-backup.md": "2613cf09b3d272d60ddb8c941b4af525889c2a19c23bd88459dd8dfff2b3879e",
+    "docs/STUDIO-RECOVERY.md": "3f76e5a8bc877d328e0eaa7a9787c0d95d882442dbcf8f2a947e34ba2f4f958c",
+    "postman/contracts/studio-object-backup.md": "6906e6046a6fc5623c96f1b5785e542c98fb4f4de85fd64ec872deb4906bf171",
     "postman/mocks/studio-object-backup/config.yaml": "8a198e395a29c9c4fc7adaee99c94f93e6bb61021f18b2d4a94f2e8c353bd93e",
     "postman/mocks/studio-object-backup/default.js": "5dad6dc225a5d56007b4edfe28e14a1b27cda215dd1409875a77719a0b6ef322",
     "postman/simulations/studio-object-backup.sim.yaml": "eaa5bfcfda71a75d877bc576e1827b421551be7ca0a54aa2285805f9ff338c56"

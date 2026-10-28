@@ -116,11 +116,11 @@
     "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
     "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
     "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
-    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
     "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
     "deploy/studio/recovery-checks/Dockerfile.private-proxy": "db198dc0a5c510270d24651f70ef631748bc13c264570f4b323ae1d281470ffc",
     "examples/nexus-bot/src/studio_proxy_linux.py": "d04cf0159a94a3b82c4f24f6f87bf20ecbf2ec002bf7ca8aea99ef4dd020876a",
-    "tests/studio_linux_proxy_acceptance.py": "e86cc4fdfff7adc63f32ec6aa737c873a745b4d401cbf16ebc89112da0985f4d",
+    "tests/studio_linux_proxy_acceptance.py": "22998344bf3be739531969bf93befb23f881c5279c04d0a7b2d380dcba1ca3fb",
     "tests/test_studio_docker_proxy_policy.py": "739a4d45bf80248126e25f79a34870ac9e184a5eaf54583cfb24d1aabba7f2e9",
     "tests/test_studio_docker_proxy_state.py": "11ce6bf9559eb85a4056236622f9ea5ca951f741d39296e52439667dbc742b22"
   },

@@ -1,73 +1,73 @@
 {
- "format": "nexus-studio-desktop-workspaces-checkpoint/v1",
- "date": "2026-10-26",
- "milestone": 9,
- "status": "partial-native-workspace-chooser-macos",
- "whole_milestone_complete": false,
- "whole_plan_complete": false,
- "scope": "Native Workspace menu (open in place, import a copy, reveal), remembered workspace, unsafe-root refusal and import safety. macOS 1.0.2 core build, ad-hoc signed; not Linux/Windows.",
- "implemented": [
-  "Shell: Workspace menu (Open Workspace\u2026 \u2318O, Import Workspace\u2026, Show Workspace in Finder) via tauri-plugin-dialog 2.8.3; switches stop the current backend cleanly and reopen the owner (never once quitting); desktop.json in the app config folder is written only after a verified launch; a vanished remembered folder shows 'workspace-missing' instead of being replaced.",
-  "Framework: check_workspace_root refuses the home folder or any ancestor, system folders and app bundles for native launches (UnsafeWorkspaceError, exit 64, before any write); terminal `nexus studio` unchanged.",
-  "Framework: import_workspace refuses nested source/destination and a source locked by another Studio (a copy of a live workspace could be inconsistent).",
-  "Frozen entry: --nexus-desktop routes to the existing `nexus desktop` CLI; the shell imports with `--nexus-desktop import --from SRC --dir DST --json`. Debug wrapper now runs the same entry module."
- ],
- "validation": {
-  "rust": {
-   "tests": 13,
-   "passed": 13,
-   "clippy_warnings": 0
-  },
-  "python": {
-   "tests": 570,
-   "failures": 0,
-   "errors": 0,
-   "skipped": 0,
-   "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/round6-regression.xml"
-  },
-  "release": {
-   "version": "1.0.2",
-   "dmg_sha256": "42b74bade6eb6cf1a9670fb56ce8671752eb1496d9ef9b6e79c9a0aabe370ce7",
-   "app_mib": 48.78,
-   "dmg_mib": 22.31,
-   "install": "from DMG to <scratchpad>/Workspace Root/Applications, strict signature verification passed"
-  },
-  "installed_drills_automatic": [
-   "Remembered Project A: backend served it with the lock; desktop.json unchanged.",
-   "Remembered folder missing: no backend started; shell stayed on its screen.",
-   "Remembered home folder: backend refused with exit 64; home listing unchanged; choice not overwritten."
+  "format": "nexus-studio-desktop-workspaces-checkpoint/v1",
+  "date": "2026-10-26",
+  "milestone": 9,
+  "status": "partial-native-workspace-chooser-macos",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Native Workspace menu (open in place, import a copy, reveal), remembered workspace, unsafe-root refusal and import safety. macOS 1.0.2 core build, ad-hoc signed; not Linux/Windows.",
+  "implemented": [
+    "Shell: Workspace menu (Open Workspace… ⌘O, Import Workspace…, Show Workspace in Finder) via tauri-plugin-dialog 2.8.3; switches stop the current backend cleanly and reopen the owner (never once quitting); desktop.json in the app config folder is written only after a verified launch; a vanished remembered folder shows 'workspace-missing' instead of being replaced.",
+    "Framework: check_workspace_root refuses the home folder or any ancestor, system folders and app bundles for native launches (UnsafeWorkspaceError, exit 64, before any write); terminal `nexus studio` unchanged.",
+    "Framework: import_workspace refuses nested source/destination and a source locked by another Studio (a copy of a live workspace could be inconsistent).",
+    "Frozen entry: --nexus-desktop routes to the existing `nexus desktop` CLI; the shell imports with `--nexus-desktop import --from SRC --dir DST --json`. Debug wrapper now runs the same entry module."
   ],
-  "installed_drills_user": "User confirmed the home-folder message, then Open (Project B), Import (Old CLI Workspace; 'Old CLI Agent' visible) and Show in Finder all worked.",
-  "verified_on_disk": [
-   "desktop.json points to <app data>/workspaces/Old CLI Workspace; the copy contains old-cli-agent.yaml; the backend serves and locks it.",
-   "Original Old CLI Workspace content hash unchanged.",
-   "Project B received Studio state when opened and its lock was released on switching."
+  "validation": {
+    "rust": {
+      "tests": 13,
+      "passed": 13,
+      "clippy_warnings": 0
+    },
+    "python": {
+      "tests": 570,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "<temporary>/round6-regression.xml"
+    },
+    "release": {
+      "version": "1.0.2",
+      "dmg_sha256": "42b74bade6eb6cf1a9670fb56ce8671752eb1496d9ef9b6e79c9a0aabe370ce7",
+      "app_mib": 48.78,
+      "dmg_mib": 22.31,
+      "install": "from DMG to <scratchpad>/Workspace Root/Applications, strict signature verification passed"
+    },
+    "installed_drills_automatic": [
+      "Remembered Project A: backend served it with the lock; desktop.json unchanged.",
+      "Remembered folder missing: no backend started; shell stayed on its screen.",
+      "Remembered home folder: backend refused with exit 64; home listing unchanged; choice not overwritten."
+    ],
+    "installed_drills_user": "User confirmed the home-folder message, then Open (Project B), Import (Old CLI Workspace; 'Old CLI Agent' visible) and Show in Finder all worked.",
+    "verified_on_disk": [
+      "desktop.json points to <app data>/workspaces/Old CLI Workspace; the copy contains old-cli-agent.yaml; the backend serves and locks it.",
+      "Original Old CLI Workspace content hash unchanged.",
+      "Project B received Studio state when opened and its lock was released on switching."
+    ],
+    "cleanup": "App data, WebKit and cache folders created by the drill (23:59:53) removed; scratchpad drill folders kept."
+  },
+  "compatibility": "Native launches now refuse home/system/app-bundle folders. `nexus desktop import` now refuses nested folders and a source open in another Studio. Tracked development wrappers run nexus.core.studio_desktop_sidecar instead of `nexus.cli studio` (same behaviour plus --nexus-desktop). No schema change.",
+  "remaining": [
+    "Pre-import backup restore from the app (imports always target a new folder, so none is created today).",
+    "Windows/Linux dialogs, reveal commands and system-folder lists are untested.",
+    "Real schema migrations; Developer ID signing; Linux/Windows packages."
   ],
-  "cleanup": "App data, WebKit and cache folders created by the drill (23:59:53) removed; scratchpad drill folders kept."
- },
- "compatibility": "Native launches now refuse home/system/app-bundle folders. `nexus desktop import` now refuses nested folders and a source open in another Studio. Tracked development wrappers run nexus.core.studio_desktop_sidecar instead of `nexus.cli studio` (same behaviour plus --nexus-desktop). No schema change.",
- "remaining": [
-  "Pre-import backup restore from the app (imports always target a new folder, so none is created today).",
-  "Windows/Linux dialogs, reveal commands and system-folder lists are untested.",
-  "Real schema migrations; Developer ID signing; Linux/Windows packages."
- ],
- "source_sha256": {
-  "nexus/core/studio_desktop.py": "989b6afbd06ddfe02c4b1c43767bd490872d97296b904d93ed772b8a247b7b91",
-  "nexus/core/studio_desktop_sidecar.py": "867ad118fd45d36ed1363b1846164c7f25a0d5a43488cb037f8e4849edc117bd",
-  "nexus/studio.py": "fd8399e4a2b15668db234f1be8e82bd9e2f66b102557435de0e66784b9418e3f",
-  "nexus/cli.py": "eba6d200e3adf4671adf030b75274a8fe3999c630265bb5ec3c191661c5458e9",
-  "apps/studio-desktop/src-tauri/src/main.rs": "73892bfa1b101209c38b2e77aef1178eb75950cd2c773f1bdaa2cc66efd086d2",
-  "apps/studio-desktop/src-tauri/src/backend.rs": "fe7f223d64460e5b05a48eef7a26b1ee3fd33bea80fa12e3a0a92cc054f3f1b9",
-  "apps/studio-desktop/src-tauri/Cargo.toml": "4ea969778b14ec26628b598add6181dac9f36916a37695307acc6c92b3eb24f2",
-  "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
-  "apps/studio-desktop/build_desktop.py": "a25d8a730a51efba5c69ca85a1f67c04c3d4efb4b375ef3b6cda6510a8c9356b",
-  "apps/studio-desktop/src-tauri/binaries/nexus-sidecar": "69f13d7b9692d894eead52bf58de1fe8cffd914e814d2b6dde2a3cdca3a80e55",
-  "tests/test_studio_desktop.py": "3b2e79d4cb89eb4d4d3e63b9202bbffd3d2936e1aec025ed808dbb1a3a614368",
-  "examples/nexus-bot/src/studio_desktop.py": "82bfb242503440629ecd415ca3c2e642ef315b73738a24bee3f7e81aca54b999"
- },
- "example": {
-  "script": "examples/nexus-bot/src/studio_desktop.py",
-  "step": "6: safe workspace choice, import refusals, newer-release refusal (exit 64/65)",
-  "status": "passed"
- }
+  "source_sha256": {
+    "nexus/core/studio_desktop.py": "989b6afbd06ddfe02c4b1c43767bd490872d97296b904d93ed772b8a247b7b91",
+    "nexus/core/studio_desktop_sidecar.py": "e583151b55b486958f345c1dba506df98d2bba262d2521df26caccb1835f3f5f",
+    "nexus/studio.py": "91d4420dae277f1a2b140fa003c723ab0a0700179bb3a695267de6cba76d4830",
+    "nexus/cli.py": "b2f53583c840663471a60f8942ad08784519e01331bd5d8df2f17cade5c7357e",
+    "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
+    "apps/studio-desktop/src-tauri/src/backend.rs": "fe7f223d64460e5b05a48eef7a26b1ee3fd33bea80fa12e3a0a92cc054f3f1b9",
+    "apps/studio-desktop/src-tauri/Cargo.toml": "4ea969778b14ec26628b598add6181dac9f36916a37695307acc6c92b3eb24f2",
+    "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
+    "apps/studio-desktop/build_desktop.py": "a25d8a730a51efba5c69ca85a1f67c04c3d4efb4b375ef3b6cda6510a8c9356b",
+    "apps/studio-desktop/src-tauri/binaries/nexus-sidecar": "69f13d7b9692d894eead52bf58de1fe8cffd914e814d2b6dde2a3cdca3a80e55",
+    "tests/test_studio_desktop.py": "3b2e79d4cb89eb4d4d3e63b9202bbffd3d2936e1aec025ed808dbb1a3a614368",
+    "examples/nexus-bot/src/studio_desktop.py": "82bfb242503440629ecd415ca3c2e642ef315b73738a24bee3f7e81aca54b999"
+  },
+  "example": {
+    "script": "examples/nexus-bot/src/studio_desktop.py",
+    "step": "6: safe workspace choice, import refusals, newer-release refusal (exit 64/65)",
+    "status": "passed"
+  }
 }

@@ -64,3 +64,25 @@ def test_detects_stale_counts_and_false_desktop_acceptance(documents):
     errors = audit(documents)["inconsistencies"]
     assert "Plan totals differ from the frozen requirement inventory" in errors
     assert "Desktop table claims acceptance while its delivery gate is open" in errors
+
+
+def test_detects_desktop_checkpoint_contradicting_open_plan_gate(documents):
+    path = documents / "STUDIO-M9-DESKTOP-CHECKPOINT.json"
+    path.write_text(
+        json.dumps(
+            {
+                "milestone": 9,
+                "milestone_complete": True,
+                "whole_plan_complete": True,
+                "pending": ["Windows/Linux startup"],
+            }
+        )
+    )
+    result = audit(documents)
+    assert not result["plan_complete"]
+    assert "Milestone 9 claims completion with pending items" in result["inconsistencies"]
+    assert "Milestone 9 checkpoint claims whole-plan completion" in result["inconsistencies"]
+    assert (
+        "Desktop checkpoint claims completion while plan delivery gate is open"
+        in result["inconsistencies"]
+    )

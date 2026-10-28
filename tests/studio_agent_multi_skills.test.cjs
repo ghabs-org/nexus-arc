@@ -5,6 +5,7 @@ const vm = require("node:vm");
 
 const studioSource = fs.readFileSync("nexus/studio_static/studio.js", "utf8");
 const librarySource = fs.readFileSync("nexus/studio_static/library.js", "utf8");
+const quickBuildSource = fs.readFileSync("nexus/studio_static/quick-build.js", "utf8");
 
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({
@@ -229,3 +230,293 @@ test("agent editor renders compact new skill and import skill buttons in skills 
   );
   assert.doesNotMatch(studioSource, /class="quiet new-skill-btn"/);
 });
+
+test("agent editor renders skill search filter input above skills list", () => {
+  assert.match(
+    studioSource,
+    /<input type="search" class="skills-filter-input" placeholder="Filter skills…" aria-label="Filter skills">/
+  );
+  const cssSource = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
+  assert.match(cssSource, /\.skills-filter-input\{/);
+});
+
+test("quick build renders multi-skill checklist and filter search input", () => {
+  assert.match(quickBuildSource, /class="skills-filter-input"/);
+  assert.match(quickBuildSource, /data-build-agent-skills/);
+  assert.match(quickBuildSource, /agentSkillOptions\(a\.skill_ids/);
+  assert.doesNotMatch(
+    quickBuildSource,
+    /<select data-build-field="agents\.\$\{i\}\.skill_ids" class="agent-skill-select"/
+  );
+});
+
+test("filterSkillsList filters skills by name, description and id while preserving checkboxes", () => {
+  const filterFn = studioSource.slice(
+    studioSource.indexOf("function filterSkillsList("),
+    studioSource.indexOf("function handleSkillsFilter(")
+  );
+  const context = vm.createContext({
+    String,
+    document: {
+      createElement: (tag) => ({
+        tagName: tag.toUpperCase(),
+        className: "",
+        style: {},
+        textContent: "",
+        hidden: false,
+      }),
+    },
+  });
+  vm.runInContext(filterFn, context);
+
+  function createMockItem(id, name, desc, checked = false) {
+    const checkbox = { value: id, checked };
+    const nameEl = { textContent: `${name} (${id})` };
+    const descEl = { textContent: desc };
+    return {
+      hidden: false,
+      querySelector(sel) {
+        if (sel === ".skills-select-name") return nameEl;
+        if (sel === ".skills-select-desc") return descEl;
+        if (sel === 'input[type="checkbox"]') return checkbox;
+        return null;
+      },
+    };
+  }
+
+  const item1 = createMockItem("brag", "Brag", "Turn site into video", true);
+  const item2 = createMockItem("design-taste", "Design Taste", "Frontend polish", false);
+  const item3 = createMockItem("code-review", "Code Review", "Review PR diffs", true);
+  const items = [item1, item2, item3];
+  let emptyNote = null;
+
+  const mockList = {
+    querySelectorAll(sel) {
+      if (sel === ".skills-select-item") return items;
+      return [];
+    },
+    querySelector(sel) {
+      if (sel === ".skills-filter-empty") return emptyNote;
+      return null;
+    },
+    appendChild(node) {
+      emptyNote = node;
+    },
+  };
+
+  // Filter for 'taste' (matches name in item2)
+  context.filterSkillsList(mockList, "taste");
+  assert.equal(item1.hidden, true);
+  assert.equal(item2.hidden, false);
+  assert.equal(item3.hidden, true);
+  assert.equal(item1.querySelector('input[type="checkbox"]').checked, true); // checked state intact
+
+  // Filter for 'video' (matches description in item1)
+  context.filterSkillsList(mockList, "video");
+  assert.equal(item1.hidden, false);
+  assert.equal(item2.hidden, true);
+  assert.equal(item3.hidden, true);
+
+  // Filter for ID 'code-review'
+  context.filterSkillsList(mockList, "code-review");
+  assert.equal(item1.hidden, true);
+  assert.equal(item2.hidden, true);
+  assert.equal(item3.hidden, false);
+
+  // Filter for nonexistent query: empty note shown
+  context.filterSkillsList(mockList, "nonexistent");
+  assert.equal(item1.hidden, true);
+  assert.equal(item2.hidden, true);
+  assert.equal(item3.hidden, true);
+  assert.ok(emptyNote);
+  assert.equal(emptyNote.hidden, false);
+  assert.match(emptyNote.textContent, /No skills match "nonexistent"/);
+
+  // Clear query: all unhidden, empty note hidden
+  context.filterSkillsList(mockList, "");
+  assert.equal(item1.hidden, false);
+  assert.equal(item2.hidden, false);
+  assert.equal(item3.hidden, false);
+  assert.equal(emptyNote.hidden, true);
+});
+
+test("agentToolOptions renders checkboxes with action name and descriptions from state.tools", () => {
+  const context = vm.createContext({
+    escapeHtml,
+    state: {
+      tools: [
+        { id: "studio:abc1234:web_fetch", description: "Fetch web pages" },
+        { id: "studio:def5678:web_search", description: "Search the web" },
+        { id: "read_file", description: "Read a local file" },
+      ],
+    },
+  });
+
+  const fnSource = studioSource.slice(
+    studioSource.indexOf("function agentToolOptions("),
+    studioSource.indexOf("function createSkillDialog(")
+  );
+  vm.runInContext(fnSource, context);
+
+  const html = context.agentToolOptions(["studio:abc1234:web_fetch"]);
+  assert.match(html, /name="tool_ids"/);
+  assert.match(html, /value="studio:abc1234:web_fetch" checked/);
+  assert.match(html, /web_fetch \(studio:abc1234:web_fetch\)/);
+  assert.match(html, /Fetch web pages/);
+  assert.match(html, /value="studio:def5678:web_search" /);
+  assert.doesNotMatch(html, /value="studio:def5678:web_search" checked/);
+  assert.match(html, /web_search \(studio:def5678:web_search\)/);
+  assert.match(html, />read_file</);
+});
+
+test("agentToolOptions handles custom or unregistered tools gracefully", () => {
+  const context = vm.createContext({
+    escapeHtml,
+    state: {
+      tools: [{ id: "studio:abc:web_fetch", description: "Fetch web" }],
+    },
+  });
+
+  const fnSource = studioSource.slice(
+    studioSource.indexOf("function agentToolOptions("),
+    studioSource.indexOf("function createSkillDialog(")
+  );
+  vm.runInContext(fnSource, context);
+
+  const html = context.agentToolOptions(["custom_tool"]);
+  assert.match(html, /value="custom_tool" checked/);
+  assert.match(html, /\(custom tool\)/);
+});
+
+test("filterSkillsList on agent-tools-list displays 'No tools match' message", () => {
+  const filterFn = studioSource.slice(
+    studioSource.indexOf("function filterSkillsList("),
+    studioSource.indexOf("function handleSkillsFilter(")
+  );
+  const context = vm.createContext({
+    String,
+    document: {
+      createElement: (tag) => ({
+        tagName: tag.toUpperCase(),
+        className: "",
+        style: {},
+        textContent: "",
+        hidden: false,
+      }),
+    },
+  });
+  vm.runInContext(filterFn, context);
+
+  let emptyNote = null;
+  const mockToolItem = {
+    hidden: false,
+    querySelector(sel) {
+      if (sel === ".skills-select-name") return { textContent: "web_fetch" };
+      if (sel === ".skills-select-desc") return { textContent: "Fetch web pages" };
+      if (sel === 'input[type="checkbox"]') return { value: "studio:123:web_fetch", checked: false };
+      return null;
+    },
+  };
+
+  const mockToolList = {
+    classList: {
+      contains: (cls) => cls === "agent-tools-list",
+    },
+    querySelectorAll(sel) {
+      return sel === ".skills-select-item" ? [mockToolItem] : [];
+    },
+    querySelector(sel) {
+      return sel === ".skills-filter-empty" ? emptyNote : null;
+    },
+    appendChild(node) {
+      emptyNote = node;
+    },
+  };
+
+  context.filterSkillsList(mockToolList, "nomatch");
+  assert.ok(emptyNote);
+  assert.equal(emptyNote.hidden, false);
+  assert.match(emptyNote.textContent, /No tools match "nomatch"/);
+});
+
+test("saveEditor collects multiple checked tool_ids into array on agent save", async () => {
+  const submitted = [];
+  const notifications = [];
+
+  const entriesList = [
+    ["name", "Web Agent"],
+    ["description", "Has web tools"],
+    ["provider", "codex"],
+    ["model", ""],
+    ["instructions", "Search and fetch."],
+    ["timeout_seconds", "600"],
+    ["guardrails_json", "{}"],
+  ];
+
+  const mockFormData = {
+    getAll: (k) => {
+      if (k === "skill_ids") return ["research-skill"];
+      if (k === "tool_ids") return ["studio:123:web_fetch", "studio:456:web_search"];
+      return [];
+    },
+    [Symbol.iterator]: function* () {
+      yield* entriesList;
+    },
+  };
+
+  const context = vm.createContext({
+    state: {
+      editor: { kind: "agent", identity: "web-agent" },
+    },
+    FormData: function () {
+      return mockFormData;
+    },
+    Object,
+    api: async (url, data) => {
+      submitted.push({ url, data });
+      return { id: "web-agent" };
+    },
+    refreshDefinitions: async () => {},
+    notify: (msg) => notifications.push(msg),
+    location: { hash: "" },
+    $: (id) => ({
+      disabled: false,
+      textContent: "",
+      close: () => {},
+    }),
+  });
+
+  const saveFn = studioSource.slice(
+    studioSource.indexOf("async function saveEditor("),
+    studioSource.indexOf("function showDetail(")
+  );
+  vm.runInContext(saveFn, context);
+
+  await context.saveEditor({
+    preventDefault: () => {},
+    target: {
+      querySelector: (sel) => (sel.includes('input[name="tool_ids"]') ? {} : null),
+    },
+  });
+
+  assert.equal(submitted.length, 1);
+  assert.equal(submitted[0].url, "/api/agents");
+  assert.deepEqual(submitted[0].data.tool_ids, [
+    "studio:123:web_fetch",
+    "studio:456:web_search",
+  ]);
+  assert.deepEqual(submitted[0].data.skill_ids, ["research-skill"]);
+});
+
+test("agent editor renders tool search filter input and tools checklist", () => {
+  const freshStudioSource = fs.readFileSync("nexus/studio_static/studio.js", "utf8");
+  assert.match(
+    freshStudioSource,
+    /<input type="search" class="skills-filter-input" placeholder="Filter tools…" aria-label="Filter tools">/
+  );
+  assert.match(
+    freshStudioSource,
+    /<div class="skills-select-list agent-tools-list" id="agent-tools-list">\$\{agentToolOptions\(\)\}<\/div>/
+  );
+});
+

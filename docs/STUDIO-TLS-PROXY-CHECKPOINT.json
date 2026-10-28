@@ -92,7 +92,7 @@
   },
   "source_sha256": {
     "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
-    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
     "nexus/core/studio_docker_route.py": "0845703a75bb6ab73c2c448f693769ca63797438e4d79bc6efed042f65f56868",
     "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
     "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",

@@ -106,11 +106,11 @@
   "owned_test_processes_stopped": true,
   "source_sha256": {
     "nexus/core/studio_desktop_parent.py": "3f649fb8a76a74ddfebebceef1987dbae89a0a5f9a171d4ef56e4087780a4b6a",
-    "nexus/cli.py": "22d280bd0ed74ec3ee59e5bd70b853a5ccd8fb032e973a5bb2f67de4b91fafd2",
-    "nexus/studio.py": "905cee90481c2df747d98e59c69c61138f9d856577e7cbab1994a7a9420e635b",
+    "nexus/cli.py": "b2f53583c840663471a60f8942ad08784519e01331bd5d8df2f17cade5c7357e",
+    "nexus/studio.py": "91d4420dae277f1a2b140fa003c723ab0a0700179bb3a695267de6cba76d4830",
     "examples/nexus-bot/src/studio_desktop_parent.py": "048da97b3a7d68da9af51ed76a17df4c7ef9ae59cbdc22029d6246fc6945821d",
     "tests/test_studio_desktop_parent.py": "ab82a35fedf664a7b57fba2dcb143ff397b8ddce92917707fff5f510faecc63f",
     "tests/studio_desktop_parent_acceptance.py": "fbc0d48677ba142c75c0d6e9d226f39bb7149724c79d1b3a08394899b2da85e9",
-    "postman/contracts/studio-desktop-readiness.md": "36f6b70979d0c93aed4155f27d213a510d65a5bf331a405401ffcc5d19d13585"
+    "postman/contracts/studio-desktop-readiness.md": "6fc640dd8b65652b486f5ea79743225c2c97f9ef939f4c99be0f96cac56ec67d"
   }
 }

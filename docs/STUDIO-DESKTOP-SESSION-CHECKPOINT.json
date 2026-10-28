@@ -37,7 +37,7 @@
       "failures": 0,
       "errors": 0,
       "skipped": 0,
-      "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/native-handshake.xml",
+      "report": "<temporary>/native-handshake.xml",
       "real_sidecar": "Real `python -m nexus.cli studio --desktop-launch-stdin` process verified by the compiled Rust probe; wrong workspace, another launch's credential and an unauthenticated Studio rejected; anonymous /api/bootstrap 401 without token; session cookie 200."
     },
     "simulation": {
@@ -74,7 +74,7 @@
       "errors": 0,
       "skipped": 0,
       "scope": "Every tests/test_*.py using make_studio_handler, serve_studio or nexus.cli, plus the completion audit.",
-      "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/http-regression.xml"
+      "report": "<temporary>/http-regression.xml"
     },
     "native_window_drill": {
       "platform": "macOS aarch64 development binary, real WKWebView, development sidecar wrapper",
@@ -102,17 +102,17 @@
   "real_account_requests_performed": false,
   "personal_vm_changed": false,
   "source_sha256": {
-    "nexus/core/studio_desktop.py": "3f6e34656e8b8ad5cca35ef376d621382bed70af3582f0ee91e679ef7d5826f1",
-    "nexus/studio.py": "3cbafd703f7c95afb8e2cf8e1175879944aab6afb305456b6f9c02084e4d6c5a",
-    "nexus/cli.py": "5d15a9ec180344d9a75032aee77e15a0c51ccfa7005ba541b075f14a30b0a1d5",
-    "apps/studio-desktop/src-tauri/src/backend.rs": "ddf723d16c004a999d73dda1d621d76f5f838a60fda6f5fe700c647f1f0317e3",
-    "apps/studio-desktop/src-tauri/src/main.rs": "1893ca3e73cfbdc5dfcedad69f745c99045acc73a3f53ceae45dea5831fca84a",
+    "nexus/core/studio_desktop.py": "989b6afbd06ddfe02c4b1c43767bd490872d97296b904d93ed772b8a247b7b91",
+    "nexus/studio.py": "91d4420dae277f1a2b140fa003c723ab0a0700179bb3a695267de6cba76d4830",
+    "nexus/cli.py": "b2f53583c840663471a60f8942ad08784519e01331bd5d8df2f17cade5c7357e",
+    "apps/studio-desktop/src-tauri/src/backend.rs": "fe7f223d64460e5b05a48eef7a26b1ee3fd33bea80fa12e3a0a92cc054f3f1b9",
+    "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
     "apps/studio-desktop/src-tauri/examples/backend_probe.rs": "556112f6c09f0c7443976753713afb7b3a1e0d5b8ea6ba09bafd06d07629c960",
-    "apps/studio-desktop/src-tauri/Cargo.toml": "aaff7564e7866c13f53c5739c9e0e26cf9e6619b2fd2897573846f551aba1372",
-    "apps/studio-desktop/ui/startup.js": "cb8c8379f44b32f1594ea7af94b728f32c3d7b02bac2ffd9c6adb6eb3bc9863a",
-    "tests/test_studio_desktop.py": "25680edb069d93c6f613c92b241995a2f600c6f3a7e295c28a7c2aecf262ee4d",
-    "tests/studio_desktop_native_acceptance.py": "b4439db003476a2b47c8057976b43e06c4f2a4a24a5ef2ea26b4bd756dbacc76",
-    "examples/nexus-bot/src/studio_desktop_readiness.py": "71861a6cb3bd16c76cc018089b1e266b4663fdd22cd7fae74cf5923ac41fc7ac",
+    "apps/studio-desktop/src-tauri/Cargo.toml": "4ea969778b14ec26628b598add6181dac9f36916a37695307acc6c92b3eb24f2",
+    "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
+    "tests/test_studio_desktop.py": "3b2e79d4cb89eb4d4d3e63b9202bbffd3d2936e1aec025ed808dbb1a3a614368",
+    "tests/studio_desktop_native_acceptance.py": "39ceb77d46717d6cf6aa5d31b4e556efebbabe911a716e758df330792636dcfa",
+    "examples/nexus-bot/src/studio_desktop_readiness.py": "cdc8e104f48921a3d514ee14cd33691cf79bd4bded840615bbcecbe3b76fddc6",
     "postman/mocks/studio-desktop-readiness/default.js": "ccb93645430ce4a248a730a01a376d1a586c5229d5f9ad741a66be852bd3a300"
   },
   "parent_lifetime_followup": "docs/STUDIO-DESKTOP-PARENT-CHECKPOINT.json"

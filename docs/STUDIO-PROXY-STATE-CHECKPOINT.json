@@ -110,16 +110,16 @@
   ],
   "source_sha256": {
     "nexus/core/studio_docker_proxy_state.py": "28d1ed25f6498c1a7ced5a6d7b1b799dd6c04bbe3b7f7fd0b07eb14cf5a951c8",
-    "nexus/core/studio_docker_proxy_policy.py": "d6a165822dc85da2f19dc35317c6870c92ac064d514757cf539a673dd0af9fc1",
-    "deploy/studio/docker_proxy.py": "bd3d2547867d204b85d4fa4e002626054fa17599daf44f2f9303aa077c18b289",
+    "nexus/core/studio_docker_proxy_policy.py": "68b19322fec6182b0d79f145a4bca74c55e5af1b73eab3ea0a5146bc517237ef",
+    "deploy/studio/docker_proxy.py": "8a186f0c251244073985ecb54086844862339a3bdd2ebd05ad82cec2e47b1308",
     "docker-compose.studio-proxy-state.yml": "18518969e00da2a99e90bf3bfd926b766ae7be89932627ebbb041bd544d2a473",
     "tests/test_studio_docker_proxy_state.py": "11ce6bf9559eb85a4056236622f9ea5ca951f741d39296e52439667dbc742b22",
     "tests/test_studio_docker_proxy.py": "c29ab098c49b42ef7552fc8e9e69296eb077f02bff4efb1326fa7be8eb1c1f25",
-    "tests/test_studio_docker_proxy_policy.py": "1b0c2cd6c5fb1c14b9714830feaa7a763127de46797bc1782621cd90cba554f6",
+    "tests/test_studio_docker_proxy_policy.py": "739a4d45bf80248126e25f79a34870ac9e184a5eaf54583cfb24d1aabba7f2e9",
     "tests/studio_proxy_recovery_acceptance.py": "d044ca7086bf86e1dfb517f4f73516e9ec3288a312dff4461b696d6f9da9128a",
     "examples/nexus-bot/src/studio_proxy_recovery.py": "407fddd500a1a75ab11ee8f4067655a1e8af3c5289aa2a5f489ced9c390f0787",
-    "postman/contracts/studio-docker-proxy.md": "47192e2815e63bc2f2e1f70810d7479cbfac13185913ad1cb94e734456dc3986",
-    "deploy/studio/README.md": "6cea3419c16820b148cdb2b8b7f39c05068dc0e5c563b0a89b2b68f6610837c7"
+    "postman/contracts/studio-docker-proxy.md": "4ab989db7f22c595cbd52766ddbcaecbe04b685fd6d7bac91f3117df8d7546d8",
+    "deploy/studio/README.md": "c05feebcddb157a22256163a011b36f13ca3ad480ee7147a2f5865a29f9ce687"
   },
   "user_workspace_changed": false,
   "vm_changed": false,

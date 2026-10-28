@@ -6,7 +6,7 @@
   "milestone_complete": false,
   "ready_for_friend_beta": true,
   "artifact": {
-    "path": "/Users/gabrielebertini/git/ghabs/nexus-arc/releases/Nexus-Studio-1.0.0-beta-full-20261026-apple-silicon.dmg",
+    "path": "releases/Nexus-Studio-1.0.0-beta-full-20261026-apple-silicon.dmg",
     "sha256": "58f1e5004ec19846082f26be0cef021adbc6f362e3507f2dadc8b11217831d12",
     "size_bytes": 420606500,
     "architecture": "arm64",
@@ -44,8 +44,8 @@
   "build_configuration": "/private/tmp/nexus-friend-build/tauri.friend.conf.json",
   "build_command": "CI=true npx --yes @tauri-apps/cli@2.12.4 build --config /private/tmp/nexus-friend-build/tauri.friend.conf.json --bundles app,dmg",
   "included": "Framework, public frontend assets, Python runtime and full selected SDKs. No sender workspace or credential files.",
-  "testing_notes": "/Users/gabrielebertini/git/ghabs/nexus-arc/releases/Nexus-Studio-Beta-Testing.md",
-  "checksum_file": "/Users/gabrielebertini/git/ghabs/nexus-arc/releases/SHA256SUMS.txt",
+  "testing_notes": "releases/Nexus-Studio-Beta-Testing.md",
+  "checksum_file": "releases/SHA256SUMS.txt",
   "pending": [
     "Developer ID signing/notarization and clean downloaded-quarantine acceptance on another physical Mac.",
     "Friend real provider/account setup; actual model, microphone/playback and external integration behavior.",

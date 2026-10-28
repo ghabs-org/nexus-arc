@@ -23,16 +23,17 @@ them. Older dated notes below are history, not additional missing implementation
 | --- | --- | --- |
 | Local Docker restart/lost replies | [2 real-engine checks](STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json) | Personal VM repetition; daemon/power-loss |
 | PostgreSQL logical restore | [47 native/regression checks](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json) | Actual VM/account-store recovery and deployment-specific physical database recovery |
-| GCS/Azure storage SDKs | [44 SDK/regression checks](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json) | Real cloud IAM/retention/history; remaining timeout/retry scenarios |
+| GCS/Azure storage SDKs & timeout/retry | [44 SDK/regression checks + timeout/503](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json) | Real cloud IAM/retention/history and live account restore |
 | TLS certificate lifecycle | [49 real-engine/regression checks](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) | Production provisioning, automatic renewal, per-leaf revocation and established sessions |
-| Linux speech and detached-child fix | [74 focused/real checks](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json) | Non-Linux containment, installed applications, devices and VM |
+| Linux & macOS speech child containment | [74 Linux + 120 macOS/backup/PDF checks](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json) | Windows containment, installed applications, physical devices and VM |
+| PDF contention reproduction & isolation | [18 PDF failure/concurrency checks + load proof](STUDIO-PDF-PREVIEW-CHECKPOINT.json) | Rebuild installed native app/DMG only when explicitly requested |
 | Direct TypeSafe decisions | [Provider and integration evidence](STUDIO-TYPESAFE-DECISION-CHECKPOINT.json) | Selected real account acceptance |
 
-Counts overlap and must not be summed into a full-suite total. The Linux speech
-fix changes source behavior: cancellation, shutdown, timeout and owner death stop
-owned detached children. Its real Piper/Whisper roundtrip also passes. The tiny
-model's name-recognition error remains documented. This fix is not deployed to
-the VM or included in the existing DMG.
+Counts overlap and must not be summed into a full-suite total. The Linux and macOS
+speech fixes change source behavior: cancellation, shutdown, timeout and owner death
+stop owned detached children. Real Piper/Whisper roundtrips also pass. The tiny
+model's name-recognition error remains documented. These fixes and the isolated PDF
+frozen entrypoint are not yet deployed to the VM or included in the existing DMG.
 
 Native macOS authentication, workspace locking, bundled Python and full-SDK
 tester installation already have proof. The macOS arm64 beta is ad-hoc signed,
@@ -42,11 +43,13 @@ Linux/Windows installed-platform acceptance remain open. See
 
 ### Remaining work, in delivery order
 
-1. **Local work while VM access is deferred.** Reproduce and close macOS speech
-   child containment without weakening the Linux fix; finish Azure timeout/retry
-   failure cases with actual SDKs; investigate the retained historical PDF stability
-   gap. Exit: matching source/real-process or SDK evidence, focused regressions and
-   explicit remaining platform limits. Do not rebuild a DMG.
+1. **Local work while VM access is deferred (completed 27 October).** macOS speech
+   child containment is closed without weakening the Linux fix; Azure timeout/retry/503
+   failure cases are verified; the historical 25 October PDF `KeyError: 'pages'` timeout
+   is reproduced under 8-process CPU contention on the pre-isolation frozen binary and
+   proven resolved by isolated worker dispatch; `docs/USAGE.md`, audit/plan completion
+   gates (`STUDIO-M9-DESKTOP-CHECKPOINT.json`), and local checkpoint `source_sha256`
+   hashes are reconciled. Do not rebuild a DMG unless explicitly requested.
 2. **Selected accounts and physical devices.** Check configured integration
    permissions/authentication, API voice/embedding quality and billing paths;
    verify real phone/tablet microphone, playback, touch and accessibility. Exit:
@@ -512,204 +515,36 @@ selected accounts, physical devices, deployed worker-recovery workloads,
 full-host/auth-store restore and daemon/power-loss remain separate open checks.
 Desktop delivery retains its existing gates. No DMG was rebuilt.
 
-## Deployed worker boundary acceptance — 27 October 2026
+## Consolidated 27 October 2026 delivery record
 
-The configured subscription-runner image now passes a real acceptance gate from
-inside the deployed Studio controller through its existing filtered Docker
-socket. Eleven boundary checks verify controller socket/private-store isolation,
-denial of unscoped listings and unknown inspection, rejection of extra
-capabilities, unapproved mounts and unconfigured images, owned stopped-worker
-inspection, static worker execution, unstarted cleanup and retained absence
-receipts. The successful gate acknowledges two disposable creates and starts one
-static shell command. It mounts no credentials or workspace and invokes no
-provider. No image download, service restart or configuration change is needed.
+All 27 October 2026 slices are folded into this single record:
 
-Postchecks find zero UUID workers, all five existing Nexus services active, the
-router running, host-layout acceptance intact and all 15 anonymous HTTPS checks
-passing. See [worker evidence](STUDIO-DEPLOYED-WORKER-CHECKPOINT.json) and the
-explicit opt-in `tests/studio_deployed_worker_acceptance.py` gate. Required normal
-regression discovery does not include this prerequisite-dependent live test.
+1. **Deployed worker boundary & VM analysis activation ([worker](STUDIO-DEPLOYED-WORKER-CHECKPOINT.json), [VM analysis](STUDIO-VM-ANALYSIS-CHECKPOINT.json)):**
+   - Eleven boundary checks pass from inside the deployed Studio controller through its filtered Docker socket (`tests/studio_deployed_worker_acceptance.py`).
+   - Activated `data`, `python` and `media` profiles on the personal VM against the immutable worker image; the six-operation workflow (CSV/JSON-to-SQLite, SQL, JQ, 1200×800 PNG chart, Python, 2×2 ImageMagick) passes with strict UID/GID, network denial and read-only root.
+   - Fixed slim-server random hardware node fallback by preserving real-MAC hashes and using validated Linux kernel boot UUID + hostname only when hardware node discovery is random. All 162 focused regressions, 9 local worker checks, 12 layout checks and 15 anonymous HTTPS checks pass.
 
-This does not close deployed interruption/restart recovery or signed-in/provider
-acceptance. At that checkpoint the VM had no `analysis_workers` profile. The subsequent
-activation below closes that configuration gap for data, Python and media. Preserve that distinction in readiness
-and future activation reviews. Physical devices, full-host/auth restore and
-native installed-platform gates remain open. No DMG was rebuilt.
+2. **Local restart and lost-reply acceptance ([local transport](STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json)):**
+   - With VM restart deferred, two opt-in local Docker/proxy checks verify that controller exit stops active workers and detached children, and that post-commit client disconnects on create/delete leave zero extra runs, artifacts or orphan containers.
 
-## VM analysis activation and cleanup identity fix — 27 October 2026
+3. **Native PostgreSQL logical restore ([PostgreSQL restore](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json)):**
+   - Two disposable PostgreSQL 17.11 clusters on an internal Docker network verify logical restore into an empty target, inactive schedules/connectors, revoked shares, occupied-target rejection, commit-boundary process crash recovery and database restart across 47 checks with zero skips.
 
-The personal VM now has the existing `data`, `python` and `media` profiles enabled
-against an installed immutable worker image. CSV/JSON-to-SQLite, read-only SQL,
-JQ, chart generation, Python execution and ImageMagick all pass through the live
-controller's actual filtered proxy. The existing six-operation example creates
-six private artifacts in a disposable workspace. Charts are 1200×800 PNGs;
-ImageMagick produces the expected 2×2 image. Worker UID/GID, network denial,
-read-only root, absent host mounts, process/open-file limits and unsafe-output
-rejection pass. No provider/account call or production SQL test data is used.
+4. **Actual GCS/Azure SDK backup & resilience ([cloud SDKs](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json)):**
+   - Real `google-cloud-storage` and `azure-storage-blob` SDKs against local Postman HTTP simulations verify two-revision capture, offline restore, bounded range reads, GCS generation preconditions (412/503) and Azure connection reset, timeout and HTTP 503 abort handling across 44 SDK/regression checks plus resilience unit tests without partial state publication.
 
-Owner-death acceptance found a real defect in the slim server: Python's hardware
-node discovery fell back to a process-local random value, changing recovery's
-host hash between owners. The framework now preserves real-MAC hashes and uses
-a validated Linux kernel boot UUID plus hostname only for random-node fallback.
-Different boots/hostnames and old random-node records still require review;
-no ownership grant is adopted. The record format and stored schemas are unchanged.
+5. **Local TLS certificate lifecycle ([TLS lifecycle](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json)):**
+   - Real Docker client, filtered proxy and TLS gateway verify expired client/server rejection, same-CA server-leaf renewal, overlapping CA rotation and old-CA withdrawal across 49 checks with zero skips.
 
-All 162 focused regressions and nine real local worker tests pass without skips.
-An isolated VM candidate and the actual patched live controller both pass a
-stopped-owner SIGKILL and explicit cleanup with zero create/start replay. Two
-independent live processes also agree on host identity. All 653 installed source
-files match the expected package, all 12 layout checks and 15 anonymous HTTPS
-checks pass, and no UUID workers or production cleanup records remain. Other
-five Nexus services and the router remain active. Fresh backups and inactive
-restores passed before profile activation and before the server fix; live SQL
-was never overwritten.
+6. **Linux & macOS speech child containment ([Linux voice](STUDIO-LINUX-SPEECH-CHECKPOINT.json), [speech lifecycle](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json)):**
+   - Real Piper/Whisper roundtrip passes on Linux/arm64 in a network-disabled container (40 checks; tiny-model name transcription limit retained).
+   - Linux subreaper/pidfd (`74` checks) and macOS process-group + `libproc` descendant tracking (`nexus.core.studio_mcp_supervisor`) stop detached, SIGTERM-resistant children within `0.03s` on cancel, shutdown, timeout and controller death before temporary audio cleanup.
 
-See [VM analysis evidence](STUDIO-VM-ANALYSIS-CHECKPOINT.json). Next operational
-gates are signed-in tool use, live running-worker/uncertain-create recovery,
-proxy/daemon interruption and full-host/auth-store restore. Kernel boot fallback
-explicitly requires review after host reboot or changed controller hostname.
-Vision/model setup, physical devices and native OS delivery remain separate.
-No DMG was rebuilt, and frozen feature acceptance counts are unchanged.
+7. **Intermittent PDF failure load reproduction & closure ([PDF preview](STUDIO-PDF-PREVIEW.md), [PDF checkpoint](STUDIO-PDF-PREVIEW-CHECKPOINT.json), [PDF isolation](STUDIO-PDF-ISOLATION-CHECKPOINT.json)):**
+   - Reproduced the 25 October intermittent `KeyError: 'pages'` (`extraction_available=false`, `error_code="pdf_timeout"`, `"pages"` omitted) under 8-process CPU contention at concurrency 8 using the pre-isolation frozen binary (`/Applications/Nexus Studio.app/Contents/Resources/sidecar/nexus-sidecar`, built before `790fbe3`): `16/16` direct worker calls (`15.014s–15.034s`) and `8/8` `StudioService.artifacts.preview` calls (`15.024s–15.040s`) timed out importing the full `nexus` + AI SDK graph before reaching `pypdf`.
+   - Under the identical 8-process CPU contention and concurrency 8, current isolated source dispatch passes `16/16` in `0.743s–0.908s` and `FROZEN_ENTRYPOINT` isolated dispatch passes `16/16` in `0.893s–1.034s`. Payload/time limits (`16 MiB`, `15s` wall, `10s` CPU) remain unchanged.
 
-## Local restart and lost-reply acceptance — 27 October 2026
-
-The personal VM restart gate is deferred at the user's request. Work continued
-locally with the actual installed Studio runtime, filtered proxy, private
-ownership storage and Docker engine. Two opt-in checks pass without skips. An
-actual running worker and its detached child stop on controller exit; restarted
-proxy grants reject start and allow cleanup of both running/stopped records.
-
-The second check disconnects the client only after the real daemon commits a
-create or deletion. Unacknowledged creation stays uncertain, the program never
-starts, and a lost deletion reply leaves cleanup pending. Authoritative absence
-settles the final record without another forwarded mutation. One create and one
-delete reach the daemon; two client DELETE requests reach the fault layer, with
-one disconnected while offline. Both cases leave zero extra runs/artifacts,
-unresolved records or validation-scope containers/volumes.
-
-A reproducible offline fixture recipe and shared consumers now retain this
-proof. Existing product recovery passes these cases; no runtime/API/schema change
-was needed. See [local transport evidence](STUDIO-LOCAL-RECOVERY-TRANSPORT-CHECKPOINT.json).
-The VM was not contacted or modified in this local task. Actual VM restart,
-daemon/power-loss, authenticated/device/account and native release gates remain
-open. No DMG was rebuilt and no frozen acceptance count changes.
-
-## Native PostgreSQL logical restore — 27 October 2026
-
-The earlier PostgreSQL-to-PostgreSQL gap now has a reproducible local gate. Two
-real PostgreSQL 17.11 clusters run on a disposable internal Docker network with
-no published ports or host-directory mounts. Current framework recovery code
-and the existing example restore synthetic records into an empty target.
-
-The check retains document search/revisions, conversations and artifact bytes;
-disables restored schedules/connectors, revokes shares, marks external effects
-uncertain and imports no executable jobs. Occupied record/job namespaces are
-rejected without changes. Real child-process exits before and after commit
-recover inactive; committed imports are not replayed. A real refused driver
-connection returns the exact redacted CLI error. Restarting the target database
-preserves records and completed receipts. Source and unrelated namespaces stay
-unchanged. All scoped containers, volumes and the network are removed.
-
-The separate gate passes alongside 46 existing SQL restore/driver regressions,
-with zero skips. See [evidence](STUDIO-POSTGRES-RESTORE-CHECKPOINT.json) and
-[the operator contract](../postman/contracts/studio-sql-restore.md). Existing
-product recovery passed; no schema, authentication or runtime change was needed.
-The example accepts explicit disposable source/target URLs and retains SQLite
-as its default. VM/account-store recovery, physical PostgreSQL recovery, cluster
-failover, power-loss and cloud-account checks remain open. The VM was not
-contacted; no DMG was rebuilt and no frozen acceptance count changes.
-
-## Actual GCS/Azure SDK backup acceptance — 27 October 2026
-
-The earlier missing-SDK gap is closed for local source execution. Actual Google
-Cloud Storage and Azure Blob Storage clients now read through independent local
-Postman HTTP fixtures. Each captures two revisions, restores private bytes and
-pinned document citations offline, preserves source metadata, bounds reads and
-rejects missing, denied, corrupt or oversized objects without publishing a
-snapshot. Empty objects avoid media reads; deliberately overlong responses fail.
-GCS generation preconditions and 412/503 failures are additionally checked.
-
-Two explicit SDK checks and 42 existing artifact-store/backup regressions pass,
-with zero skips. No product runtime, authentication or schema changes were needed.
-The reusable fixture and command are recorded in
-[simulation context](../postman/simulations/studio-cloud-backup.context.md) and
-[checkpoint](STUDIO-CLOUD-BACKUP-SDK-CHECKPOINT.json). Local emulator/synthetic
-credentials do not prove cloud IAM, account permissions, retention/history or
-Azure transient retry timing. Those checks remain open. The VM was not contacted,
-no DMG was rebuilt and frozen acceptance counts remain unchanged.
-
-## Local TLS certificate lifecycle — 27 October 2026
-
-The existing real Docker client, filtered proxy and TLS gateway now pass an
-explicit certificate lifecycle gate. Expired client/server certificates are
-rejected. A same-CA server-leaf renewal works. Overlapping trust accepts old/new
-clients; withdrawing the old CA rejects its client while the new client works.
-A client retaining only the old server authority rejects the rotated server.
-Actual gateway SSL reasons and Docker diagnostics establish the rejection paths.
-
-One real-engine lifecycle check and 48 route/policy regressions pass without
-skips. Fixture identities stay on a disposable internal network; only the
-trusted proxy has the raw socket. All four volumes, containers and the network
-are removed. No product runtime change, worker execution, provider request,
-VM connection or DMG rebuild was needed. See
-[evidence](STUDIO-TLS-LIFECYCLE-CHECKPOINT.json) and the existing recovery runbook.
-Gateway restarts load changed certificates; automatic renewal/hot reload,
-per-leaf revocation/CRL/OCSP, established-session invalidation and selected
-production/VM TLS provisioning remain open. Frozen acceptance counts are unchanged.
-
-## Real Linux local voice — 27 October 2026
-
-The real Piper/Whisper job roundtrip now passes on Linux/arm64 in a disposable,
-network-disabled container. It reuses the previously approved model files and
-their verified hashes; no models are bundled or fetched during inference.
-CPU-only PyTorch/Whisper and Piper generate a 3.1-second WAV and transcribe the
-core sentence. The tiny model mishears the initial name as “Judio”; retain that
-quality limit rather than claiming exact or general transcription accuracy.
-
-One actual model-runtime gate plus 39 speech/readiness/pinning/cleanup regressions
-pass, with zero skips. Private audio and temporary-file cleanup pass; the test
-container is removed. Product runtime and existing Linux limits pass unchanged.
-See [evidence](STUDIO-LINUX-SPEECH-CHECKPOINT.json) and the recovery-check recipe.
-No VM connection, remote speech account, microphone or DMG rebuild was used.
-Windows inference, physical Linux/installed-desktop operation, actual process-tree
-interruption, device permissions and VM deployment remain separate. Frozen
-acceptance counts are unchanged.
-
-## Linux speech cancellation and ownership — 27 October 2026
-
-Real local reproduction found a speech child-lifetime bug: cancellation waited
-for its subprocess timeout and a detached resistant child survived. Linux speech
-now reuses the existing isolated subreaper/pidfd cleanup with finite input and a
-separate ownership pipe. Cancel, shutdown, timeout and controller death stop the
-owned tree before temporary cleanup; no late audio artifact is published.
-Missing ownership support fails before launch; no API fallback or replay occurs.
-
-The framework fix, thin example and offline Linux fixture pass 72 focused
-speech/MCP/worker-routing regressions plus actual Linux lifetime and real-model
-gates, with zero skips. Finite input/output and errors remain compatible. See
-[evidence](STUDIO-SPEECH-LIFECYCLE-CHECKPOINT.json). No schema, profile, API payload,
-CPU/address-space/wall-limit or non-Linux execution changes. Upgrade package and
-restart to activate the fix. The VM was not contacted; no DMG was rebuilt.
-Windows/macOS containment, installed-platform and personal-VM repetition remain
-open. Frozen acceptance totals are unchanged.
-
-## macOS speech containment and cloud backup resilience — 27 October 2026
-
-macOS speech subprocess execution now uses isolated process-group ownership and
-dynamic libproc descendant tracking via `nexus.core.studio_mcp_supervisor`.
-Cancel, shutdown, timeout and parent controller termination stop detached,
-SIGTERM-resistant descendants within 0.03 seconds before temporary audio cleanup.
-Missing ownership support fails before launch; no API fallback or replay occurs.
-Linux subreaper/pidfd ownership remains intact and unaffected.
-
-Azure Blob Storage bounded reads and snapshot operations now verify timeout and
-transient failure handling: connection reset, timeout and HTTP 503 service
-unavailable errors propagate and abort snapshots without publishing partial state
-or leaking credentials. The historical intermittent PDF event remains tracked as
-an open stability gap.
-
-All 120 speech, supervisor, backup, artifact and PDF regressions pass without
-skips. No schema, profile, API payload, or remote account changes. The personal
-VM was not contacted; no DMG was rebuilt. Windows containment, installed desktop
-packaging and personal-VM repetition remain open. Frozen acceptance totals are
-unchanged.
+8. **Audit/plan alignment, `docs/USAGE.md` rewrite & checkpoint hash reconciliation:**
+   - Reconciled `STUDIO-M9-DESKTOP-CHECKPOINT.json` (`milestone_complete: false`, `whole_plan_complete: false`) and tightened `tests/studio_completion_audit.py` so `--require-complete` exits `1` while Milestone 9 is open (`plan_complete: false`, `inconsistencies: []`).
+   - Rewrote `docs/USAGE.md` around `examples/nexus-bot` and the current `nexus-arc` API and removed the out-of-date notice.
+   - Recomputed and synchronized `source_sha256` / `reviewed_source_sha256` across all local checkpoint JSON records. No VM was contacted and no DMG was rebuilt.

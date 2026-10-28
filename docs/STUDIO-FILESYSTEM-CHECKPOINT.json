@@ -94,9 +94,9 @@
   "cloud_publication": false,
   "source_sha256": {
     "nexus/core/studio_recipes.py": "0d25518cfe9de2d2bb7c1e96585d39ab006490389f2ec1087ad03accad41159d",
-    "nexus/core/studio_catalog_setup.py": "428a87784f01a9b6d79252b8ba9fdaf3c142dc24ef346341a1f592bb2294d030",
-    "nexus/studio_static/features.js": "36e0b70b7c98d7ee90a9b3515273cb611aebe4802f932e7b67fee3e5d8616654",
-    "nexus/studio_static/service-worker.js": "4cd26b83dd70f96b8bfd7f7859f3b7ef81265dd72da78cdb190fce183e857c50",
+    "nexus/core/studio_catalog_setup.py": "0acc0777c63e95bc43e29cfcdd2919b73122cfc8d8fbfab2a4ce7ece8eb3287b",
+    "nexus/studio_static/features.js": "248e1a0fd3aab41ad7bd0b14e00be909390764fc1d73c7c12b7e5f5e2ac11ff7",
+    "nexus/studio_static/service-worker.js": "9470f6c5f23a0e521cd85ad5fb923e833225895ea4bd996cd7e8cb7623ffd58d",
     "examples/nexus-bot/src/studio_filesystem.py": "4f0cdf1c0492ac8787c2eeaf56046775f6b48b2b9b877d4a618e03a98043711d",
     "tests/studio_filesystem_acceptance.py": "6e0f0643983e056369fee659cedd72a2cada50028d8900193ce4c259d877ca06",
     "tests/test_studio_catalog_setup.py": "b3f32ffe8a87e9c6eca3d8abdea94dc25712c7e6d9ebab018b43c271ac9a9d6b",

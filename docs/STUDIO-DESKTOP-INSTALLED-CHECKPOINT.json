@@ -1,119 +1,119 @@
 {
- "format": "nexus-studio-desktop-installed-checkpoint/v1",
- "date": "2026-10-25",
- "milestone": 9,
- "status": "partial-installed-macos-arm64-unsigned",
- "whole_milestone_complete": false,
- "whole_plan_complete": false,
- "scope": "One-folder backend layout and its integration into an installed, unsigned macOS arm64 Nexus Studio.app. Builds on the portable builder and SDK profile gate in STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json / STUDIO-DESKTOP-PROFILES-CHECKPOINT.json (other agent). Core profile only; not signed, not Linux/Windows.",
- "layout_measurements": {
-  "method": "Same PyInstaller 6.22.3 inputs; executable launched as the shell does (own process group, credential on stdin); stop line, EOF and group SIGKILL each measured once.",
-  "onefile": {
-   "processes": 2,
-   "backend_leads_group": false,
-   "ready_s": [
-    3.44,
-    2.93,
-    3.01
-   ],
-   "leaked_extraction_dirs_after_group_kill": 1
+  "format": "nexus-studio-desktop-installed-checkpoint/v1",
+  "date": "2026-10-25",
+  "milestone": 9,
+  "status": "partial-installed-macos-arm64-unsigned",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "One-folder backend layout and its integration into an installed, unsigned macOS arm64 Nexus Studio.app. Builds on the portable builder and SDK profile gate in STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json / STUDIO-DESKTOP-PROFILES-CHECKPOINT.json (other agent). Core profile only; not signed, not Linux/Windows.",
+  "layout_measurements": {
+    "method": "Same PyInstaller 6.22.3 inputs; executable launched as the shell does (own process group, credential on stdin); stop line, EOF and group SIGKILL each measured once.",
+    "onefile": {
+      "processes": 2,
+      "backend_leads_group": false,
+      "ready_s": [
+        3.44,
+        2.93,
+        3.01
+      ],
+      "leaked_extraction_dirs_after_group_kill": 1
+    },
+    "onedir": {
+      "processes": 1,
+      "backend_leads_group": true,
+      "ready_s_warm": [
+        0.39,
+        0.35
+      ],
+      "first_run_s": 2.97,
+      "leaked_extraction_dirs_after_group_kill": 0
+    },
+    "decision": "onedir"
   },
-  "onedir": {
-   "processes": 1,
-   "backend_leads_group": true,
-   "ready_s_warm": [
-    0.39,
-    0.35
-   ],
-   "first_run_s": 2.97,
-   "leaked_extraction_dirs_after_group_kill": 0
+  "implemented": [
+    "build_bundle builds --onedir into nexus-backend-<target>/ (executable nexus-sidecar + _internal/), staged with rollback to the previous folder; never replaces the tracked nexus-sidecar-<target> development wrapper file. Manifest nexus-desktop-bundle/v2 adds layout, file count, size and tree_sha256 (content hash; file links by content, directory aliases skipped) so an installed copy verifies. The other agent's profile self-checks are unchanged.",
+    "build_desktop.py writes tauri.bundle.conf.json next to the bundle: bundle.resources maps the folder to sidecar/ and bundle.externalBin is emptied, so releases never ship the development wrapper. npm run build passes it to tauri build --config.",
+    "The shell spawns resource_dir/sidecar/nexus-sidecar when present; only debug builds fall back to the externalBin development wrapper; a release without the bundle shows the local spawn error.",
+    "Build outputs under src-tauri/binaries are git-ignored; the relocated example copies the whole folder."
+  ],
+  "validation": {
+    "app_build": {
+      "command": "npx --yes @tauri-apps/cli@2.12.4 build --config <bundle>/tauri.bundle.conf.json --bundles app",
+      "size_mib": 57.9,
+      "contents_macos": [
+        "nexus-studio-desktop"
+      ],
+      "resources_sidecar": true,
+      "signature": "ad-hoc linker signature only"
+    },
+    "manifest": {
+      "tree_sha256": "e158c87c31bcd097a30f3c22724cdf963bc230f2c1dcf15196ff4c604c2ccdf7",
+      "file_count": 223,
+      "size_bytes": 35138202,
+      "installed_copy_matches": true
+    },
+    "relocated_acceptance": {
+      "suite": "tests/studio_desktop_bundle_acceptance.py",
+      "tests": 1,
+      "failures": 0,
+      "skipped": 0,
+      "report": "<temporary>/relocated.xml"
+    },
+    "suites": {
+      "tests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "<temporary>/desktop-suites.xml",
+      "files": [
+        "tests/test_studio_desktop.py",
+        "tests/test_studio_desktop_parent.py",
+        "tests/test_studio_desktop_bundle.py",
+        "tests/studio_desktop_parent_acceptance.py",
+        "tests/studio_desktop_native_acceptance.py",
+        "tests/test_studio_completion_audit.py"
+      ]
+    },
+    "rust": {
+      "tests": 10,
+      "passed": 10,
+      "clippy_warnings": 0
+    },
+    "installed_drills": {
+      "install": "ditto into <scratchpad>/Install Root/Applications/Nexus Studio.app (path with spaces, outside the repo)",
+      "environment": "env -i HOME USER TMPDIR PATH=/usr/bin:/bin, cwd /",
+      "observed": [
+        "Backend process is the bundled executable inside the installed app; one process leading its own group; listening 0.84–1.49 s after launch.",
+        "No open files under the source checkout for shell or backend; workspace lock held by the backend.",
+        "Backend alive 20 s later (any readiness, session or navigation failure stops it); ~70 client connections from the webview; anonymous /api/bootstrap 401.",
+        "User confirmed the full Studio UI and closed the window: shell and backend exited, lock free, no processes, no extraction folders.",
+        "SIGKILL and SIGTERM to the shell (final build): backend exited, lock free, no processes."
+      ],
+      "cleanup": "Drill-created Application Support, WebKit and Caches folders for com.nexusarc.studio removed after each run."
+    }
   },
-  "decision": "onedir"
- },
- "implemented": [
-  "build_bundle builds --onedir into nexus-backend-<target>/ (executable nexus-sidecar + _internal/), staged with rollback to the previous folder; never replaces the tracked nexus-sidecar-<target> development wrapper file. Manifest nexus-desktop-bundle/v2 adds layout, file count, size and tree_sha256 (content hash; file links by content, directory aliases skipped) so an installed copy verifies. The other agent's profile self-checks are unchanged.",
-  "build_desktop.py writes tauri.bundle.conf.json next to the bundle: bundle.resources maps the folder to sidecar/ and bundle.externalBin is emptied, so releases never ship the development wrapper. npm run build passes it to tauri build --config.",
-  "The shell spawns resource_dir/sidecar/nexus-sidecar when present; only debug builds fall back to the externalBin development wrapper; a release without the bundle shows the local spawn error.",
-  "Build outputs under src-tauri/binaries are git-ignored; the relocated example copies the whole folder."
- ],
- "validation": {
-  "app_build": {
-   "command": "npx --yes @tauri-apps/cli@2.12.4 build --config <bundle>/tauri.bundle.conf.json --bundles app",
-   "size_mib": 57.9,
-   "contents_macos": [
-    "nexus-studio-desktop"
-   ],
-   "resources_sidecar": true,
-   "signature": "ad-hoc linker signature only"
+  "known_limits": [
+    "Tauri's resource copy drops Python.framework directory aliases and dereferences its file links (~10 MB duplicated). Runtime unaffected; signing/notarization need a proper framework layout and a Developer ID (none available).",
+    "Core profile only; SDK-complete installed build not yet made.",
+    "No DMG, Linux AppImage/deb or Windows installer built; Windows/Linux resource paths and cleanup untested.",
+    "The window-close drill ran on the build before the bundle-folder rename and hash change; the final build was drilled with SIGKILL/SIGTERM only."
+  ],
+  "guide": "docs/STUDIO-DESKTOP-BUNDLE.md",
+  "related": [
+    "docs/STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json",
+    "docs/STUDIO-DESKTOP-PROFILES-CHECKPOINT.json",
+    "docs/STUDIO-DESKTOP-OWNERSHIP-CHECKPOINT.json"
+  ],
+  "real_account_requests_performed": false,
+  "source_sha256": {
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
+    "apps/studio-desktop/build_desktop.py": "a25d8a730a51efba5c69ca85a1f67c04c3d4efb4b375ef3b6cda6510a8c9356b",
+    "apps/studio-desktop/package.json": "df4a7e5ddd083ba8f14900b9f7a960986da8f67737cbce4627c687c95d077e65",
+    "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
+    "tests/test_studio_desktop_bundle.py": "e32e14d7fefd278179cc632310d76b5ca8aa7d6819068813fd508e09916062fe",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
+    ".gitignore": "4262c883f21634610e4f944b1d6bc51d948bfa0c7e083d47fe8258be3f800506"
   },
-  "manifest": {
-   "tree_sha256": "e158c87c31bcd097a30f3c22724cdf963bc230f2c1dcf15196ff4c604c2ccdf7",
-   "file_count": 223,
-   "size_bytes": 35138202,
-   "installed_copy_matches": true
-  },
-  "relocated_acceptance": {
-   "suite": "tests/studio_desktop_bundle_acceptance.py",
-   "tests": 1,
-   "failures": 0,
-   "skipped": 0,
-   "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/relocated.xml"
-  },
-  "suites": {
-   "tests": 53,
-   "failures": 0,
-   "errors": 0,
-   "skipped": 0,
-   "report": "/private/tmp/claude-501/-Users-gabrielebertini-git-ghabs/6b0be3a5-8f04-4935-a8ef-c36d2dc3af7c/scratchpad/desktop-suites.xml",
-   "files": [
-    "tests/test_studio_desktop.py",
-    "tests/test_studio_desktop_parent.py",
-    "tests/test_studio_desktop_bundle.py",
-    "tests/studio_desktop_parent_acceptance.py",
-    "tests/studio_desktop_native_acceptance.py",
-    "tests/test_studio_completion_audit.py"
-   ]
-  },
-  "rust": {
-   "tests": 10,
-   "passed": 10,
-   "clippy_warnings": 0
-  },
-  "installed_drills": {
-   "install": "ditto into <scratchpad>/Install Root/Applications/Nexus Studio.app (path with spaces, outside the repo)",
-   "environment": "env -i HOME USER TMPDIR PATH=/usr/bin:/bin, cwd /",
-   "observed": [
-    "Backend process is the bundled executable inside the installed app; one process leading its own group; listening 0.84\u20131.49 s after launch.",
-    "No open files under the source checkout for shell or backend; workspace lock held by the backend.",
-    "Backend alive 20 s later (any readiness, session or navigation failure stops it); ~70 client connections from the webview; anonymous /api/bootstrap 401.",
-    "User confirmed the full Studio UI and closed the window: shell and backend exited, lock free, no processes, no extraction folders.",
-    "SIGKILL and SIGTERM to the shell (final build): backend exited, lock free, no processes."
-   ],
-   "cleanup": "Drill-created Application Support, WebKit and Caches folders for com.nexusarc.studio removed after each run."
-  }
- },
- "known_limits": [
-  "Tauri's resource copy drops Python.framework directory aliases and dereferences its file links (~10 MB duplicated). Runtime unaffected; signing/notarization need a proper framework layout and a Developer ID (none available).",
-  "Core profile only; SDK-complete installed build not yet made.",
-  "No DMG, Linux AppImage/deb or Windows installer built; Windows/Linux resource paths and cleanup untested.",
-  "The window-close drill ran on the build before the bundle-folder rename and hash change; the final build was drilled with SIGKILL/SIGTERM only."
- ],
- "guide": "docs/STUDIO-DESKTOP-BUNDLE.md",
- "related": [
-  "docs/STUDIO-DESKTOP-BUNDLE-CHECKPOINT.json",
-  "docs/STUDIO-DESKTOP-PROFILES-CHECKPOINT.json",
-  "docs/STUDIO-DESKTOP-OWNERSHIP-CHECKPOINT.json"
- ],
- "real_account_requests_performed": false,
- "source_sha256": {
-  "nexus/core/studio_desktop_bundle.py": "e9b6fcc84c26baa37a5311238f64d568d0eb6ba3042e16e080eb3f4c56ce8cff",
-  "apps/studio-desktop/build_desktop.py": "173c929148eaca5b3224660267a6d56548ea3cedefc8445b4cd643ac858c54f7",
-  "apps/studio-desktop/package.json": "5a2fd587da6e2efa17c16c312d8c7f0b88e53b159028706f9a5646427302c991",
-  "apps/studio-desktop/src-tauri/src/main.rs": "446d23bfcc1f9c6680c2ebcba78d5ce7a8b007f267246fb758d6eb9fd41f3081",
-  "tests/test_studio_desktop_bundle.py": "e6a2e399e9f70b0bd40870d85335aa6d3993d762ebd0e9b1c1d99db4ef44b3de",
-  "examples/nexus-bot/src/studio_desktop_bundle.py": "0171388b3303626ff02bf4e1e3e9c530f0f835c32b02ef613c995523dd445740",
-  ".gitignore": "73fb7b23fadbd128d87f1434dbf1fefc98637933408414208783c6baa0d3f51c"
- },
- "correction": "STUDIO-DESKTOP-INSTALLED-CHECKPOINT.json said the flattened framework layout would not pass code signing; ad-hoc deep verification passes for it. The verified blocker for notarization is that --deep does not sign Mach-O files under Contents/Resources.",
- "superseded_by": "docs/STUDIO-DESKTOP-MACOS-RELEASE-CHECKPOINT.json"
+  "correction": "STUDIO-DESKTOP-INSTALLED-CHECKPOINT.json said the flattened framework layout would not pass code signing; ad-hoc deep verification passes for it. The verified blocker for notarization is that --deep does not sign Mach-O files under Contents/Resources.",
+  "superseded_by": "docs/STUDIO-DESKTOP-MACOS-RELEASE-CHECKPOINT.json"
 }

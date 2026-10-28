@@ -93,14 +93,14 @@
     "note": "Recorded checksum file retained; existing DMG files are absent from releases."
   },
   "source_sha256": {
-    "nexus/core/studio_container_recovery.py": "d114b8dbce566071e1261ebdeba8f43c07af01d794d43415dd3b3af8ea810589",
-    "nexus/core/studio_sandbox.py": "453b7ce61c03d41218d7bc0c892efa5d2934ea20ee7aab850ce1445548c2e4d2",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
     "nexus/core/studio_data_tools.py": "fa4c7576d08021a92d84727e4e06562240218b20a75c165221a4e682055006fa",
-    "nexus/core/studio_readiness.py": "52ad513c0720923258a8a59828323b9aeb3b7fd365ef2e589a9e460297dd65bf",
+    "nexus/core/studio_readiness.py": "9582b434e53ceaa74f1df5f0b8b75d0e8d6bddfbf74da36f3b4980d7af6804c5",
     "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
-    "tests/test_studio_container_recovery.py": "a61cc01201d68ab9f525b64f69f73d4747098c7c4cf06a0cd8c851ebac0bbca2",
+    "tests/test_studio_container_recovery.py": "e57f62a555a8032563b9e2ce85a2532fedc6b9e3116d93a704eec7f3a57929bd",
     "tests/studio_docker_lifecycle_acceptance.py": "dfa6f84da4a23cb188ef7f940508a9baa80e829c3fc819091ac5542a48ee0ab7",
-    "examples/nexus-bot/src/studio_docker_lifecycle.py": "ea10e919b50e399c006ad351be7dfc2c7323c7be2f790ae275ea0db0e5d221fc"
+    "examples/nexus-bot/src/studio_docker_lifecycle.py": "fdfc8599f3a6f060dc258b9778809b9ff1c26113a05b4f4226f21b1b5fe8c2bd"
   },
   "full_worker_follow_up": {
     "date": "2026-10-26",

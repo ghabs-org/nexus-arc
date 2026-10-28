@@ -62,11 +62,11 @@
   "required_warning": "One SQLAlchemy deprecation warning comes from constructing a mode=memory URI solely to verify that ephemeral restore targets are rejected; production connection behavior was not changed.",
   "source_sha256": {
     "nexus/core/studio_sql_restore.py": "6c806af57abc4afdd0123fda83c45fed4125192ff0061aef3a936ded5a6448de",
-    "nexus/core/studio_backup.py": "ecd9e41e77a98505d420c6457985bf582766767675207e919323fce2105a2bce",
-    "nexus/core/studio.py": "cfecae03ac63ee6e55bd0ef37c067841cfa22eab7878db82909e7a27dace8ecd",
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
+    "nexus/core/studio.py": "446b507bd42369742af5173708df2a6ab21183f506e7ca01458811a890937ea6",
     "tests/test_studio_sql_restore.py": "99ce4d8ea3cec482d68794db504ca748dfac2c9c431f42fd7eb015126440c8e2",
-    "examples/nexus-bot/src/studio_recovery.py": "9d06650f860216f2ac98d70a6cab7bbce770ede614ce940abc3c1327058761ff",
-    "docs/STUDIO-RECOVERY.md": "5dcbc846a459c6bc0d7bbd6447dbd7479148e593604192a6f03e9850e780402c"
+    "examples/nexus-bot/src/studio_recovery.py": "ffe29cbba869b8797e586277d8ede529d065811fc103445578598a81432a8d1d",
+    "docs/STUDIO-RECOVERY.md": "3f76e5a8bc877d328e0eaa7a9787c0d95d882442dbcf8f2a947e34ba2f4f958c"
   },
   "real_account_requests_performed": false,
   "user_studio_restarted": false,

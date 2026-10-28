@@ -126,14 +126,14 @@
     "nexus/core/studio_nuclia_attachments.py": "b16583f4a31355a2cc2de2af9cdbc48b039f3bf4cd6f4f650dfb4442e6a318a2",
     "nexus/core/studio_nuclia_documents.py": "bb7aa510250367c9a6751a75f05bcc7a56e0c7728e1fbeb8bc8a810af14c360d",
     "nexus/studio_static/content.js": "c3419471ac70da810b25163b919783cbd02ae6677e7613c028cb22ae8088f233",
-    "nexus/studio_static/studio.css": "d3bfaa2505dd6cfbf458f701b3216288d451ad8e782b02fbb7affabda534e764",
-    "postman/contracts/studio-nuclia.md": "52ed6eeff4ef80aeb5ab6d36fbb370852a984846a2aae444b7ab91963ff31252",
-    "postman/mocks/studio-nuclia/default.js": "2dc4709b5d489661efc8c26dea15990e5cf393b8f010d6755320c1ec19f82869",
+    "nexus/studio_static/studio.css": "dbf4605f75d83f24ca5a58082af859bf2563e9d1412241c30be8652f3c9a5ca3",
+    "postman/contracts/studio-nuclia.md": "05e478b83896950b3064d2ee0bc552166b30f214e87a8028cdc71bf29362448f",
+    "postman/mocks/studio-nuclia/default.js": "ae3d99e643e04eef8dd0c7ec528b0043b398601bb717bbead930b59ab43c832c",
     "tests/test_studio_nuclia_attachments.py": "0352a2084b412c7e36ea98cc910b01e814bf33c93a3c1f1d61cfcd4fd50e994c",
     "tests/studio_nuclia_attachments_acceptance.py": "f70bde91df42570a0473b608f387dca3230317e0aacad94996e154504df26a59",
     "tests/studio_original_document.test.cjs": "8356829a6fac199205e300bf8e2eb8ed8e55e6fab457ac513579ad4c19f81c4e",
     "examples/nexus-bot/src/studio_nuclia_attachments.py": "258864231b14fb8a128abc85c86765ef786c1d51390edd1f15ad675138d03422",
-    "docs/STUDIO-NUCLIA.md": "7061b86c61485b9e8fc6fc34fc875d68d4cbf35f3d83d244d9105a165e811d62"
+    "docs/STUDIO-NUCLIA.md": "5d6f9234055490e5ae68bef07807a5aa88637058b7e4ecc947238ca3b5741c70"
   },
   "real_account_requests_performed": false,
   "user_studio_restarted": false,

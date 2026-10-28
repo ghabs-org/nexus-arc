@@ -147,19 +147,19 @@
   },
   "native_app_launched": false,
   "source_sha256": {
-    "apps/studio-desktop/src-tauri/src/main.rs": "5fe5dcb3d408b03d9a8901cf5b521bf5315a173df79e80e104809a27515939d7",
-    "apps/studio-desktop/src-tauri/src/backend.rs": "4cecfca9b01eedb231a716f339f36bfcd42517c50c72e862df5f3314342c346f",
-    "apps/studio-desktop/src-tauri/examples/backend_probe.rs": "7614dffc1e37074ff2b4dfd16c5c2d028beb9e1979a387d41d6bf4b1eedfadb1",
-    "apps/studio-desktop/src-tauri/tauri.conf.json": "aecc0b2733e869af66f0e9560271edf0318efa1070761caebe4d01af37071977",
-    "apps/studio-desktop/ui/index.html": "0a609eaa7f2a325d104b560f5e3d636326dca5bcdc9e40c76d710343352f8c8f",
-    "apps/studio-desktop/ui/startup.js": "6188f878013f74126bb17b8ee8688a82ce76b6ad986c336b55b195d6a3cd4c0b",
+    "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
+    "apps/studio-desktop/src-tauri/src/backend.rs": "fe7f223d64460e5b05a48eef7a26b1ee3fd33bea80fa12e3a0a92cc054f3f1b9",
+    "apps/studio-desktop/src-tauri/examples/backend_probe.rs": "556112f6c09f0c7443976753713afb7b3a1e0d5b8ea6ba09bafd06d07629c960",
+    "apps/studio-desktop/src-tauri/tauri.conf.json": "9781e977a1d897df2b7bce459f59b94b7155323e6fd01491ee3fbf9059f6bcbe",
+    "apps/studio-desktop/ui/index.html": "82f458e52af4c37e54fe5badee61d588b18114b9f90141e6826809cac6c61905",
+    "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
     "apps/studio-desktop/ui/startup.css": "d635f9ca2a288cde66fca420725605c51a9708b3a5dacebe94b9dd5d210f0223",
-    "tests/studio_desktop_native_acceptance.py": "02aa5a06bf0babaa174310c59a732c106e6e97ff19c050671dede7419654b9c9",
-    "examples/nexus-bot/src/studio_desktop_readiness.py": "d311ed40f827313fd26f775fd6be7aff67090f40c8936dede62391c7f7fc2cf8",
-    "postman/contracts/studio-desktop-readiness.md": "d77c0000da6d993ebaf079373fdbbd834bc25afd68bf491ee1573cf60387cba4",
-    "postman/mocks/studio-desktop-readiness/default.js": "df3d7f9f599d960acc4f8461a5dbb876270947b1eafc9bcfe3ec845ebe0ab342",
+    "tests/studio_desktop_native_acceptance.py": "39ceb77d46717d6cf6aa5d31b4e556efebbabe911a716e758df330792636dcfa",
+    "examples/nexus-bot/src/studio_desktop_readiness.py": "cdc8e104f48921a3d514ee14cd33691cf79bd4bded840615bbcecbe3b76fddc6",
+    "postman/contracts/studio-desktop-readiness.md": "6fc640dd8b65652b486f5ea79743225c2c97f9ef939f4c99be0f96cac56ec67d",
+    "postman/mocks/studio-desktop-readiness/default.js": "ccb93645430ce4a248a730a01a376d1a586c5229d5f9ad741a66be852bd3a300",
     "postman/mocks/studio-desktop-readiness/config.yaml": "f498a6537cdde9c93baaca31db3a0078c828d01c41123f3ecde8ec42de59002b",
     "postman/simulations/studio-desktop-readiness.sim.yaml": "73c1a78387a714448475447a26218c40d2c3b0b26121fda2755acca0e54af114",
-    "postman/simulations/studio-desktop-readiness.context.md": "d45af8407b18b55c9d5af6ca0f4c9a5a4cf1cf8f85c5ddb1d85f185a0f23b990"
+    "postman/simulations/studio-desktop-readiness.context.md": "72147bc2c938626ab550dd19b194612e1ed71039412bd5d17247a795608616f7"
   }
 }

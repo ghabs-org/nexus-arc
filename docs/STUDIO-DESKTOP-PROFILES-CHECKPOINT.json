@@ -150,13 +150,13 @@
     "Authenticated startup, anonymous API denial, workspace agent YAML save, UI/vendor/favicon serving, frozen PDF worker and parent EOF shutdown pass."
   ],
   "source_sha256": {
-    "nexus/core/studio_desktop_profiles.py": "bfe9afc4c8ca3c9f145e5ceb0c0aaf6416084a160c683c0595103b5d015d597d",
-    "nexus/core/studio_desktop_bundle.py": "2ad0b035e3973fdd297cf5aab0e9c83554d078e27ab3bff39896128b20ed870a",
-    "nexus/core/studio_desktop_sidecar.py": "ccbb8553c9f16651fb1de438df42214e7018341efa88b5976778747a13e381b3",
-    "apps/studio-desktop/build_desktop.py": "173c929148eaca5b3224660267a6d56548ea3cedefc8445b4cd643ac858c54f7",
-    "examples/nexus-bot/src/studio_desktop_bundle.py": "bf30f00a7223417ff964085d17a9953d7a537daced7403ef0e3773736bc41cc3",
-    "tests/test_studio_desktop_bundle.py": "bfa2186bb6238c1e0c014bf5e83212c42d152ececa72b96610d9d964bdd6277b",
-    "tests/studio_desktop_bundle_acceptance.py": "608ac1c362ec020b256a799858ef64de8fd0b0f1b3d8b3fa2b9e07cd5d6a7933"
+    "nexus/core/studio_desktop_profiles.py": "7c65604a0d713bf579a3e912777e8e5f550fdc16b07a846c67ac9c172dfd6022",
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
+    "nexus/core/studio_desktop_sidecar.py": "e583151b55b486958f345c1dba506df98d2bba262d2521df26caccb1835f3f5f",
+    "apps/studio-desktop/build_desktop.py": "a25d8a730a51efba5c69ca85a1f67c04c3d4efb4b375ef3b6cda6510a8c9356b",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
+    "tests/test_studio_desktop_bundle.py": "e32e14d7fefd278179cc632310d76b5ca8aa7d6819068813fd508e09916062fe",
+    "tests/studio_desktop_bundle_acceptance.py": "07d1587e643563b3d5ff1560a22551270d9522d919f1d8840e003b614dd18a65"
   },
   "migration": "No persisted records changed. Core build profile remains compatible; connected profile is explicit. No dependency install or API-provider fallback occurs at runtime. One-folder layout changes were coordinated with the separate native lifecycle work.",
   "pending": [

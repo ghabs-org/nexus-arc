@@ -103,7 +103,7 @@
     "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
     "nexus/core/studio_state.py": "1d384e9249d5f832735cb09e7aa53319e6d377bf0df40768ad1c0e8c8e028112",
     "postman/contracts/studio-sql-restore.md": "7bd503160b0d9e87c4ca83dd162d538c845565bf6303deb9afd03fbf004915aa",
-    "docs/STUDIO-RECOVERY.md": "aab760a855522275765e68d16706d069d230256ec317d8a3afc2c94211937707"
+    "docs/STUDIO-RECOVERY.md": "3f76e5a8bc877d328e0eaa7a9787c0d95d882442dbcf8f2a947e34ba2f4f958c"
   },
   "vm_contacted": false,
   "vm_changed": false,

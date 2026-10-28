@@ -24,6 +24,9 @@ function renderLibrary(){
   $("library-import").hidden=library.kind!=="skills";
   const items=library.items.filter(item=>$("library-archived").checked||!item.archived);
   $("library-content").innerHTML=items.length?items.map(item=>`<article class="library-row"><div><h2>${escapeHtml(item.name)} ${item.archived?badge("Archived"):""}</h2><p>${escapeHtml(item.description||(item.data.backend?item.data.backend+" · "+item.data.model+" · "+(item.data.timeout_seconds||10)+"s":item.data.filename)||item.id)}</p><small>${escapeHtml(item.id)} · revision ${item.revision}${item.data.source?` · from ${escapeHtml(item.data.source.repository)}@${escapeHtml(item.data.source.commit.slice(0,7))}`:""}${library.kind==="artifacts"?` · ${Math.ceil(item.data.size/1024)} KiB`:""}</small></div><div class="library-actions">${typeof operationActions==="function"?operationActions(item):""}${!item.archived&&library.kind==="artifacts"?`<a class="button-link" href="/api/catalog/artifacts/${encodeURIComponent(item.id)}/download" download>Download</a><button class="secondary" data-artifact-preview="${escapeHtml(item.id)}">Preview</button>`:""}${!item.archived?`<button class="secondary" data-library-edit="${escapeHtml(item.id)}">Edit</button>`:""}${!item.archived&&library.kind==="toolsets"?`<button class="secondary" data-toolset-open="${escapeHtml(item.id)}">Use tools</button>`:""}<button class="secondary" data-library-history="${escapeHtml(item.id)}">History</button><button class="secondary" data-library-archive="${escapeHtml(item.id)}">${item.archived?"Restore":"Archive"}</button></div></article>`).join(""):library.kind==="connectors"?'<p class="integration-empty">No saved connections. HTTP GET and SQLite can be created here. Other built-ins are listed in Available integrations.</p>':`<div class="empty-state"><h2>No ${library.kind==="decisionmodels"?"decision models":library.kind} yet</h2><p>${escapeHtml(libraryDescriptions[library.kind])}</p></div>`;
+  if(typeof filterResourceCards==="function"&&$("library-search-input")?.value){
+    filterResourceCards("library-content","library-search-input",library?.kind||"items");
+  }
 }
 async function openLibraryEditor(id,template){
   const item=id?await api(`/api/catalog/${library.kind}/${encodeURIComponent(id)}`):null;
@@ -153,6 +156,7 @@ document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;
   try{
     if(button.dataset.libraryKind){
+      if($("library-search-input"))$("library-search-input").value="";
       const targetHash=libraryKindHash(button.dataset.libraryKind);
       if(location.hash===`#${targetHash}`||(button.dataset.libraryKind==="prompts"&&location.hash==="#library")){
         library.kind=button.dataset.libraryKind;

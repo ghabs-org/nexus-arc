@@ -72,7 +72,8 @@ Nexus ARC is where Jarvis gets safe, reusable access to authenticated systems.
 **Think of it as Temporal meets GitHub Actions for AI agents — with an emerging credentialed integration layer for real-world automation.**
 
 > 📖 **Documentation:**
-> - [Usage Guide & Examples](docs/USAGE.md) - how to use Nexus ARC in your project
+> - [Studio guide](docs/STUDIO.md) - setup, providers and execution boundaries
+> - [Usage Guide](docs/USAGE.md) - framework vs integration layer
 > - [AI authoring skills](docs/STUDIO-AUTHORING-SKILLS.md) - generate and install Studio guides for Codex and Claude Code
 > - [Architecture](docs/ARCHITECTURE.md) - current system split and historical evolution
 > - [Connectors & Credentials](docs/CONNECTORS.md) - where OAuth, token storage, and third-party integrations belong

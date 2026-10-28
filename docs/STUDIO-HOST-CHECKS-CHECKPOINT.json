@@ -112,13 +112,13 @@
   },
   "source_sha256": {
     "nexus/cli.py": "b2f53583c840663471a60f8942ad08784519e01331bd5d8df2f17cade5c7357e",
-    "nexus/core/studio_host_checks.py": "863f883b79f0d7c83c2c858ed0d6d1cadb01d3cbc699429520b7882056e2a884",
+    "nexus/core/studio_host_checks.py": "4a56d688751cf6f2dc8871aad9f7b0767f83f162fd8898be3f6048df1d870140",
     "nexus/core/studio_host_checks_cli.py": "6eaed78fb35c4e98049cbc9b582b92026541d95b489c58399a84c61d5dd38f8e",
     "examples/nexus-bot/src/studio_host_checks.py": "b2ecc08d2d5e381598157202c0ac168c87f2d7f1af0dad744fc54f232eed5046",
-    "tests/test_studio_host_checks.py": "d91a0ec33cf14e46d15a7675e07c3f75cd57d83e524d38b7765e6d72af191d86",
+    "tests/test_studio_host_checks.py": "2c5e27f042010f835c18846750c66de76b26d0a9c4d8c0069781a9cf8599d400",
     "tests/studio_host_probe_acceptance.py": "0073c5b4fda0a7741f3bb30a80ab19968e737069a4e586bb8e478ae19973f8ef",
     "tests/studio_linux_proxy_acceptance.py": "22998344bf3be739531969bf93befb23f881c5279c04d0a7b2d380dcba1ca3fb",
-    "postman/contracts/studio-host-check.md": "4b6bf82799bfa944c0ae84e58ec27e1f971bb993f6b97f3f9689a0c21beb715d"
+    "postman/contracts/studio-host-check.md": "fe64f4345774fd2791a54ae7181231c353f7a4f7ed66dd54c7689a58ed59b7fd"
   },
   "user_workspace_changed": false,
   "vm_changed": false,

@@ -5,7 +5,7 @@ autonomous agent systems and bots.
 
 ## Requirements
 
-- Python 3.14.3 or higher
+- Python 3.11 or higher
 
 ## Basic Installation
 
@@ -26,7 +26,7 @@ you need for your use case:
 # Add PostgreSQL storage backend support
 pip install nexus-arc[postgres]
 
-# Add Redis storage backend support
+# Add Redis-backed memory and rate limiting
 pip install nexus-arc[redis]
 
 # Add Slack integration
@@ -50,11 +50,11 @@ pip install "nexus-arc[postgres,redis,nexus-telegram-bot,nexus-discord-bot,opena
 Once installed, you can import and initialize the core components:
 
 ```python
-from nexus.core.workflow_engine import WorkflowEngine
+from nexus.adapters.storage.file import FileStorage
+from nexus.core import WorkflowEngine
 from nexus.core.events import EventBus
 
-bus = EventBus()
-engine = WorkflowEngine(bus)
+engine = WorkflowEngine(storage=FileStorage("./data"), event_bus=EventBus())
 ```
 
 For a comprehensive guide on building a bot using Nexus ARC, see the examples directory, such as

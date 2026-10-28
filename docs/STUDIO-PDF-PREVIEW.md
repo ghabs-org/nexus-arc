@@ -68,15 +68,36 @@ probe and runtime evidence is in `STUDIO-PDF-ISOLATION-CHECKPOINT.json`.
 
 ## Verification and limits
 
-`tests/test_studio_pdf_failures.py` checks controlled timeout, launch, signal, exit
-and malformed-output failures. Actual source workers verify damaged/encrypted PDFs
-and a missing optional dependency without exposing traceback details. The existing
-relocated desktop example now checks valid, damaged and encrypted PDFs through the
-authenticated preview endpoint, alongside startup, workspace writes and shutdown.
-See `STUDIO-PDF-PREVIEW-CHECKPOINT.json` for actual build and run evidence.
+`tests/test_studio_pdf_failures.py` checks controlled timeout, launch, signal, exit,
+malformed-output and concurrent mixed-document preview cases. Actual source workers
+verify damaged/encrypted PDFs and a missing optional dependency without exposing
+traceback details. The existing relocated desktop example now checks valid, damaged
+and encrypted PDFs through the authenticated preview endpoint, alongside startup,
+workspace writes and shutdown. See `STUDIO-PDF-PREVIEW-CHECKPOINT.json` for actual
+build and run evidence.
 
-A prior connected-bundle repeat lost PDF extraction metadata. Its original cause
-was not captured. These changes make a future failure identifiable; subsequent
-passing runs do not establish that the historical intermittent cause is fixed.
-Keep desktop stability acceptance open until any recurrence is diagnosed. No
-resource limit was increased to turn that failure into a pass.
+## Load and concurrency reproduction — 27 October 2026
+
+Controlled contention probes reproduced the exact historical failure signature (`pages`
+omitted from `preview` with `extraction_available: false` and `error_code: "pdf_timeout"`)
+without changing payload or timeout limits (16 MiB, 15s wall, 10s CPU):
+
+- **Pre-isolation frozen binary under concurrent CPU load:** The installed pre-isolation
+  macOS arm64 full-profile sidecar (`/Applications/Nexus Studio.app/Contents/Resources/sidecar/nexus-sidecar`,
+  built before `790fbe3`) passed 3 relocated HTTP runs (16 repetitions at concurrency 4
+  each = 48 authenticated previews) in 2.048–3.942s when uncontended, and 16/16 direct
+  previews at concurrency 8 in 3.647–3.802s. Under 8-process CPU contention matching
+  concurrent build activity, 16/16 direct workers at concurrency 8 and 8/8
+  `StudioService.artifacts.preview` calls exceeded the 15-second wall timeout
+  (`15.014–15.040s`), returning `extraction_available: false`, `error_code: "pdf_timeout"`,
+  and omitting `pages` because every pre-isolation worker bootstrapped the full `nexus`
+  and provider SDK package graph.
+- **Isolated source and `FROZEN_ENTRYPOINT` under identical contention:** Under the same
+  8-process CPU contention and concurrency 8, `StudioService.artifacts.preview` passed
+  16/16 multi-page previews in `0.743–0.908s`, and `FROZEN_ENTRYPOINT` isolated dispatch
+  passed 16/16 in `0.893–1.034s` (`32/32` at concurrency 8 in `0.253–0.507s` uncontended).
+
+This reproduces and explains the 25 October 55.43-second connected-bundle timeout under
+concurrent build load, and rules out `StudioService` lock contention or pipe leaks in
+isolated dispatch. Keep installed native app acceptance open until the next explicit
+release rebuild packages the isolated entrypoint. No resource limit was increased.

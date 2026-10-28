@@ -5,14 +5,18 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync('nexus/studio_static/quick-build.js','utf8');
 
-function fixture(fields=[],options=[]){
+function fixture(fields=[],options=[],skills=[]){
  const errors=[],requests=[];
  const builder={busy:false,id:'build',draft:{revision:2,status:'draft',proposal:{
    name:'Build',summary:'Summary',agents:[{id:'review',name:'Review',description:'Review evidence',
    instructions:'Old instructions',provider:'codex',model:'',max_model_calls:4,tool_ids:['text:wordcount']}],
    workflow:null,
  }}};
- const root={querySelectorAll(selector){return selector==='[data-build-field]'?fields:options;}};
+ const root={querySelectorAll(selector){
+   if(selector==='[data-build-field]')return fields;
+   if(selector==='[data-build-agent-skills]')return skills;
+   return options;
+ }};
  const context=vm.createContext({builder,structuredClone,Set,JSON,Number,Object,
    $:id=>id==='builder-proposal'?root:{hidden:false},
    buildError:error=>errors.push(error.message),builderBusy:value=>{builder.busy=value;},
@@ -68,4 +72,14 @@ test('agent skill selection assigns single skill resource ID and handles unassig
  const fEmpty=fixture([field('agents.0.skill_ids','')],[option('{"max_model_calls":2}')]);
  const resultEmpty=read(fEmpty.context);
  assert.deepEqual(resultEmpty.agents[0].skill_ids,[]);
+});
+
+test('quick build collects multiple checked skill_ids into agent.skill_ids',()=>{
+ const skillsContainer={dataset:{buildAgentSkills:'0'},querySelectorAll(sel){
+   return sel==='input[name="skill_ids"]:checked'?[{value:'brag'},{value:'code-review'},{value:'design-taste-frontend'}]:[];
+ }};
+ const f=fixture([],[option('{"max_model_calls":2}')],[skillsContainer]);
+ const result=read(f.context);
+ assert.deepEqual(result.agents[0].skill_ids,['brag','code-review','design-taste-frontend']);
+ assert.equal(result.agents[0].max_model_calls,2);
 });

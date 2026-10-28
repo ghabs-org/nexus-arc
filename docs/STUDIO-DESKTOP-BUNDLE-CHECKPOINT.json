@@ -62,11 +62,11 @@
   "example": "examples/nexus-bot/src/studio_desktop_bundle.py",
   "documentation": "docs/STUDIO-DESKTOP-BUNDLE.md",
   "source_sha256": {
-    "nexus/core/studio_desktop_bundle.py": "58aef33620565ad2e509ecaa95459494d7611e72e3e7c35fee89f6f2abdcffdf",
-    "nexus/core/studio_desktop_sidecar.py": "245f9c189375986cdf207fa573cf80a519d184a5594f2637c833ef490249555c",
-    "examples/nexus-bot/src/studio_desktop_bundle.py": "1e1f35fcefc739bdf0fe47b4229d56ef427c23b4ffe6fe99a37c8bbe9279c05f",
-    "tests/test_studio_desktop_bundle.py": "571358a67bd65995bd9253398bbe54f8cc7eb0008cb11831500a08345caf612b",
-    "tests/studio_desktop_bundle_acceptance.py": "3d676ee8d87980103a8d28a0e746d4639205c446e1384720929a8043fef00694"
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
+    "nexus/core/studio_desktop_sidecar.py": "e583151b55b486958f345c1dba506df98d2bba262d2521df26caccb1835f3f5f",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
+    "tests/test_studio_desktop_bundle.py": "e32e14d7fefd278179cc632310d76b5ca8aa7d6819068813fd508e09916062fe",
+    "tests/studio_desktop_bundle_acceptance.py": "07d1587e643563b3d5ff1560a22551270d9522d919f1d8840e003b614dd18a65"
   },
   "pending": [
     "Reviewed SDK-complete profile and actual invocation of each selected capability; current prototype includes pypdf but not optional provider/database/voice SDKs.",

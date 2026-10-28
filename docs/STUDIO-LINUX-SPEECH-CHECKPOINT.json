@@ -133,11 +133,11 @@
   "source_sha256": {
     "deploy/studio/recovery-checks/Dockerfile.local-speech": "384c90e3608b316515f8f5c2f223acf35130713d2ded92f4c90e9c27f1dbc0a6",
     "tests/studio_linux_speech_acceptance.py": "482a9bec2a737d9acc702fb275c3bf31142dddee360791a86a9818f6eecc4c0d",
-    "nexus/core/studio_speech.py": "e394f107f9bd8db3303f57822c4e81efb999c1d5d58e505668341d3aea9d6f79",
+    "nexus/core/studio_speech.py": "90bdde2aad39df6df87075656c95c5ada2ac215049bb82ba8f18eb52a1602e0a",
     "nexus/core/studio_speech_worker.py": "309cee9f8a04a05724ad5d826572033bcebef05a392239e32567c29407db8cf7",
     "examples/nexus-bot/src/studio_local_speech.py": "fa9b12f592c5d7163f37f47d60170196b6b9ca01cf64e97a17f8225cebdbe4a2",
-    "docs/STUDIO-SPEECH.md": "e0fe610bb97cf2c068c4f8012c8e235d2ea7b61646e8a22b7af4f543184cc4d2",
-    "postman/contracts/studio-speech.md": "92082eb30f59d64125bcc1f194f1fca399ee913d838f9a5a5a33e4a12a7a1522"
+    "docs/STUDIO-SPEECH.md": "d11e007140abfa0d5f709b81ac9f5f145100b8ec22e17584e13e31f04240d93a",
+    "postman/contracts/studio-speech.md": "ce11f0038244dd346e178483c78773ff11f9e0fa48e0bb0e3de9a36d6516b945"
   },
   "vm_contacted": false,
   "vm_changed": false,

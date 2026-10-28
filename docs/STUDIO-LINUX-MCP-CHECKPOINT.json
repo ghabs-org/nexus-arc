@@ -101,7 +101,7 @@
     "git_diff_check": "passed"
   },
   "source_sha256": {
-    "nexus/core/studio_mcp_supervisor.py": "1a055ad573b413f070a335d65750e773aaa81152212d8ce865419fbb73dfe1dd",
+    "nexus/core/studio_mcp_supervisor.py": "eeb88735e688153a19749ac47cd31b0091c30f05cb7fc94e8597fc9316f4d305",
     "nexus/tools/mcp_supervision.py": "0570de7598b75f1dee9f8128afa6570984143361ecd936601d9bc7b6fa3f43b5",
     "nexus/tools/mcp.py": "84a77f358efe9051510dbbcffbb899e2dc7e70466d03faaea067cc0ed4fe304f",
     "nexus/tools/mcp_sessions.py": "c48f32feb501693cc83578fe59cca5b725e6d637c72c7233e59b50cee3c34137",
@@ -109,7 +109,7 @@
     "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
     "examples/nexus-bot/src/studio_mcp_lifecycle.py": "93849681c061b9f9f91eab077169b1eb5ac42623b573db7103b590113b3b2b2c",
     "examples/nexus-bot/src/fixtures/mcp_lifecycle_server.py": "4f8b0a011b0151b54f495c5141b254c14dbc1150f2d1a5952dfc82cc0c6e9c63",
-    "tests/test_studio_mcp_supervision.py": "9000d458eabaa17e8cc73e4cd8e55c2774968fd65bbe3a1c87e5c738e958f9eb",
+    "tests/test_studio_mcp_supervision.py": "aaf550ceba4b3b2b18428fa7e508e541aa9065751830bd3114f3561634df9fe2",
     "tests/studio_linux_mcp_acceptance.py": "13f50e5b09d5a8b8ed9be1876f4a92824683687d2ff31bc3479679010d5839bd",
     "tests/fixtures/studio_mcp_escape.py": "d61803fdf5df3decec77f515df5abe846c943d3fd232a15f48a408956954f0c9",
     "deploy/studio/recovery-checks/Dockerfile.mcp-supervision": "1fd3577ccf0b77b5d76a17f46e37962f0252549c58e57a3504f8af97d04381d5",

@@ -110,10 +110,10 @@
   },
   "source_sha256": {
     "nexus/core/studio_workbench.py": "fda121525b1464286b2dc67d19ee22658e94ebbdd6533c52b58935808adfc363",
-    "nexus/core/studio_team.py": "a23cfd5955a18e53e8a54c8d4b7e7e7abc34dd59619e7e06a4e5fc734df6de16",
+    "nexus/core/studio_team.py": "0623740154c4ff039b566fd3f6519d4cc7d7a834c2a1f4a0691c06050b3ddba7",
     "nexus/core/studio_readiness.py": "9582b434e53ceaa74f1df5f0b8b75d0e8d6bddfbf74da36f3b4980d7af6804c5",
     "nexus/studio_static/workbench.js": "af18de2ebbed1655086b5029c982a3907416965c2fb989e4de92e8f90c5baca6",
-    "nexus/studio_static/index.html": "7ba42cd98c3db2648a8a96d838cd18990d281191b8d9bdb8244591e171264847",
+    "nexus/studio_static/index.html": "c8243eeb90b685d6695f362ea4e10b2def6e447f847aa5c333a8c6363af3b6da",
     "nexus/studio_static/studio.css": "dbf4605f75d83f24ca5a58082af859bf2563e9d1412241c30be8652f3c9a5ca3",
     "nexus/studio_static/service-worker.js": "9470f6c5f23a0e521cd85ad5fb923e833225895ea4bd996cd7e8cb7623ffd58d",
     "tests/test_studio_cleanup_action.py": "82971fc9afb72b1ac46829c122635e2a960daf1881cdda4f041c8a4eeb9cd4e5",

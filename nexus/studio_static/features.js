@@ -28,6 +28,9 @@ async function refreshFeatureViews(){
   const selected=$("chat-project").value;
   $("chat-project").innerHTML='<option value="">No project</option>'+projects.filter(p=>!p.archived).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");$("chat-project").value=selected;updateKnowledgeDisclosure();
   $("projects-content").innerHTML=projects.map(p=>`<article class="library-row"><div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(p.instructions)}</p><small>Revision ${p.revision}${p.archived?" · Archived":""}</small></div><div class="card-actions"><button data-project-open="${escapeHtml(p.id)}" ${p.archived?"disabled":""}>Open</button><button class="secondary" data-project-edit="${escapeHtml(p.id)}">Edit</button><button class="secondary" data-project-archive="${escapeHtml(p.id)}">${p.archived?"Restore":"Archive"}</button></div></article>`).join("")||empty("No knowledge projects","Create a project, add documents and ask questions grounded in your sources.");
+  if(typeof filterResourceCards==="function"&&$("projects-search-input")?.value){
+    filterResourceCards("projects-content","projects-search-input","projects");
+  }
   if(view()==="feedback")await refreshFeedbackView();
   if(view()==="sharing"){
     const sharing=await featureApi("sharing");

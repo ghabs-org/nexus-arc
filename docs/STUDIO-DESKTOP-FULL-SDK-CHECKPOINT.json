@@ -322,14 +322,14 @@
   "source_snapshot": "/var/folders/97/bdw79d815l76qp44vqt8lz2h0000gn/T/nexus-full-build-source-ihooa5tv",
   "reviewed_source_sha256": {
     "nexus/core/studio_desktop_profiles.py": "7c65604a0d713bf579a3e912777e8e5f550fdc16b07a846c67ac9c172dfd6022",
-    "nexus/core/studio_desktop_bundle.py": "8eec37ebefecc127b482faa4e7bca89694f0c4a224b6cace2370dce0160d6547",
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
     "apps/studio-desktop/build_desktop.py": "a25d8a730a51efba5c69ca85a1f67c04c3d4efb4b375ef3b6cda6510a8c9356b",
     "apps/studio-desktop/package.json": "df4a7e5ddd083ba8f14900b9f7a960986da8f67737cbce4627c687c95d077e65",
     "apps/studio-desktop/requirements/full-macos-arm64.txt": "7af037e31a7ac81d717661584351797d1f3731b921d5d4bf55ed225020383920",
     "pyproject.toml": "a94c1675512e02b55ee2ea2c7dd22d279a5475be1504d057906963a5583474fb",
-    "examples/nexus-bot/src/studio_desktop_bundle.py": "a52b36f1add0ede33eb6311a0287bc2ec564c20fbb048c6477b3c0451743d109",
-    "tests/test_studio_desktop_bundle.py": "02dfb71724265a06eb96fc427822492a38730ca09d23296d56457b0f7eab2951",
-    "tests/studio_desktop_bundle_acceptance.py": "7ec604d4cb4a55f22dc0e9a55a3e3745603140fa7d2ffa51253ad5dce1ba55ed"
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
+    "tests/test_studio_desktop_bundle.py": "e32e14d7fefd278179cc632310d76b5ca8aa7d6819068813fd508e09916062fe",
+    "tests/studio_desktop_bundle_acceptance.py": "07d1587e643563b3d5ff1560a22551270d9522d919f1d8840e003b614dd18a65"
   },
   "migration": "No persisted records or source worker command formats change. Profile reports gain offline_checks; build failures provide safe class-only SDK diagnostics. No credentials, model weights or workspace records are included.",
   "pending": [

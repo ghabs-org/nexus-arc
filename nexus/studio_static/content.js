@@ -10,6 +10,14 @@ function renderContent(node, text) {
     catch { link.removeAttribute("href"); }
     link.rel="noopener noreferrer"; link.target="_blank";
   });
+  node.querySelectorAll("table").forEach(table => {
+    if (!table.parentElement.classList.contains("table-container")) {
+      const wrap = document.createElement("div");
+      wrap.className = "table-container";
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    }
+  });
   node.querySelectorAll("pre").forEach(pre => {
     const button=document.createElement("button");button.type="button";button.className="secondary code-copy";button.textContent="Copy code";
     button.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(pre.querySelector("code")?.textContent||pre.textContent);button.textContent="Copied";}catch{button.textContent="Select code to copy";if(typeof notify==="function")notify("Copy unavailable; select the code instead.");}});

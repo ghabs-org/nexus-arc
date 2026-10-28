@@ -65,13 +65,15 @@ function renderAgents(){
   const selected=$("chat-agent").value;
   $("chat-agent").innerHTML=agentOptions(selected);
   if(selected)$("chat-agent").value=selected;
+  if($("agents-search-input")?.value)filterResourceCards("agents-content","agents-search-input","agents");
 }
 function renderWorkflows(){
   $("workflow-count").textContent=state.workflows.length;
   $("workflows-content").innerHTML=state.workflows.length?`<div class="resource-grid">${state.workflows.map(item=>{
     const doc=item.document||{},steps=doc.steps||doc.graph?.nodes||[];
-    return `<article class="resource-card"><div class="card-meta">${badge(item.error?"Invalid definition":doc.graph?"GRAPH WORKFLOW":"WORKFLOW",item.error?"failed":"")}<span>${steps.length} steps</span></div><h2>${escapeHtml(doc.metadata?.name||item.id)}</h2><p>${escapeHtml(item.error||doc.metadata?.description||(doc.graph?steps.slice(0,4).map(s=>s.name||s.kind||s.id).join(" · ")+(steps.length>4?` · ${steps.length-4} more`:""):steps.map(s=>s.agent_type).join(" → ")))}</p><div class="card-actions"><button data-run-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Run workflow</button><button class="secondary" data-schedule-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Schedule</button>${doc.graph?`<button class="secondary" data-edit-graph="${escapeHtml(item.id)}">Edit canvas</button>`:`<button class="secondary" data-edit-workflow="${escapeHtml(item.id)}">Edit</button>`}<button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="workflows">Versions</button><button class="secondary" data-workflow="${escapeHtml(item.id)}">View & validate</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="workflows">Delete</button></div></article>`;
+    return `<article class="resource-card"><div class="card-meta">${badge(item.error?"Invalid definition":doc.graph?"GRAPH WORKFLOW":"WORKFLOW",item.error?"failed":"")}<span>${steps.length} steps</span></div><h2>${escapeHtml(doc.metadata?.name||item.id)}</h2><p>${escapeHtml(item.error||doc.metadata?.description||(doc.graph?steps.slice(0,4).map(s=>s.name||s.kind||s.id).join(" · ")+(steps.length>4?` · ${steps.length-4} more`:""):steps.map(s=>s.agent_type).join(" → ")))}</p><div class="card-actions"><button data-run-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Run workflow</button><button class="secondary" data-workflow-history="${escapeHtml(item.id)}">History</button><button class="secondary" data-schedule-workflow="${escapeHtml(item.id)}" ${item.error?"disabled":""}>Schedule</button>${doc.graph?`<button class="secondary" data-edit-graph="${escapeHtml(item.id)}">Edit canvas</button>`:`<button class="secondary" data-edit-workflow="${escapeHtml(item.id)}">Edit</button>`}<button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="workflows">Versions</button><button class="secondary" data-workflow="${escapeHtml(item.id)}">View & validate</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="workflows">Delete</button></div></article>`;
   }).join("")}</div>`:empty("Connect your agents into a workflow","Define the handoffs between specialists. Each step can use its agent’s own provider and model.","create-workflow","Create a workflow");
+  if($("workflows-search-input")?.value)filterResourceCards("workflows-content","workflows-search-input","workflows");
 }
 // Default model suggestions per provider; model inputs stay free text.
 const MODEL_INPUTS='#chat-model,#builder-model,input[name="model"],input[data-build-field$=".model"]';
@@ -111,7 +113,7 @@ function skillOptions(selected="", extraSkills=[]){
   options+='<option value="__new__">+ New skill…</option>';
   return options;
 }
-function agentSkillOptions(selected=[], extraSkills=[]){
+function agentSkillOptions(selected=[], extraSkills=[], disabled=false){
   const allSkills=[...(state.skills||[])];
   for(const s of extraSkills){if(s&&!allSkills.some(item=>item.id===s.id))allSkills.push(s);}
   for(const id of selected){
@@ -124,8 +126,368 @@ function agentSkillOptions(selected=[], extraSkills=[]){
   }
   return allSkills.map(s=>{
     const isChecked=selected.includes(s.id)?"checked":"";
+    const isDisabled=disabled?"disabled":"";
     const label=s.name?`${s.name} (${s.id})`:s.id;
-    return `<label class="skills-select-item check-label"><input type="checkbox" name="skill_ids" value="${escapeHtml(s.id)}" ${isChecked}><div class="skills-select-meta"><span class="skills-select-name">${escapeHtml(label)}</span>${s.description?`<span class="skills-select-desc">${escapeHtml(s.description)}</span>`:""}</div></label>`;
+    return `<label class="skills-select-item check-label"><input type="checkbox" name="skill_ids" value="${escapeHtml(s.id)}" ${isChecked} ${isDisabled}><div class="skills-select-meta"><span class="skills-select-name">${escapeHtml(label)}</span>${s.description?`<span class="skills-select-desc">${escapeHtml(s.description)}</span>`:""}</div></label>`;
+  }).join("");
+}
+function filterSkillsList(listElement, query=""){
+  if(!listElement)return;
+  const q=String(query||"").trim().toLowerCase();
+  const items=listElement.querySelectorAll(".skills-select-item");
+  let visibleCount=0;
+  items.forEach(item=>{
+    const name=item.querySelector(".skills-select-name")?.textContent||"";
+    const desc=item.querySelector(".skills-select-desc")?.textContent||"";
+    const val=item.querySelector('input[type="checkbox"]')?.value||"";
+    const match=!q||name.toLowerCase().includes(q)||desc.toLowerCase().includes(q)||val.toLowerCase().includes(q);
+    item.hidden=!match;
+    if(match)visibleCount++;
+  });
+  let emptyNote=listElement.querySelector(".skills-filter-empty");
+  if(items.length>0&&visibleCount===0&&q){
+    if(!emptyNote){
+      emptyNote=document.createElement("p");
+      emptyNote.className="empty-note skills-filter-empty";
+      emptyNote.style.padding="8px";
+      emptyNote.style.fontSize="12px";
+      emptyNote.style.color="var(--muted)";
+      listElement.appendChild(emptyNote);
+    }
+    const isTool=listElement.classList?.contains?.("agent-tools-list");
+    emptyNote.textContent=`No ${isTool?"tools":"skills"} match "${query.trim()}".`;
+    emptyNote.hidden=false;
+  }else if(emptyNote){
+    emptyNote.hidden=true;
+  }
+}
+function handleSkillsFilter(event){
+  const filterInput=event.target?.closest?.(".skills-filter-input");
+  if(filterInput){
+    const container=filterInput.closest?.(".agent-skills-section")||filterInput.parentElement;
+    const list=container?.querySelector?.(".skills-select-list");
+    if(list){
+      filterSkillsList(list, filterInput.value);
+    }
+  }
+}
+if(typeof document!=="undefined"){
+  document.addEventListener("input", handleSkillsFilter);
+  document.addEventListener("search", handleSkillsFilter);
+}
+function filterResourceCards(containerId, inputId, itemName="items"){
+  const container=$(containerId), input=$(inputId);
+  if(!container||!input)return;
+  const q=String(input.value||"").trim().toLowerCase();
+  const items=container.querySelectorAll(".resource-card, .library-row, .activity-row");
+  let matchCount=0;
+  items.forEach(el=>{
+    const text=el.textContent.toLowerCase();
+    const match=!q||text.includes(q);
+    el.hidden=!match;
+    if(match)matchCount++;
+  });
+  container.querySelectorAll(".section-subheading").forEach(sh=>{
+    const nextGrid=sh.nextElementSibling;
+    if(nextGrid&&nextGrid.classList.contains("resource-grid")){
+      const anyVisible=[...nextGrid.querySelectorAll(".resource-card")].some(c=>!c.hidden);
+      sh.hidden=!anyVisible;
+      nextGrid.hidden=!anyVisible;
+    }
+  });
+  let emptyNote=container.querySelector(".page-search-empty");
+  if(items.length>0&&matchCount===0&&q){
+    if(!emptyNote){
+      emptyNote=document.createElement("p");
+      emptyNote.className="empty-note page-search-empty";
+      container.appendChild(emptyNote);
+    }
+    emptyNote.textContent=`No ${itemName} match "${input.value.trim()}".`;
+    emptyNote.hidden=false;
+  }else if(emptyNote){
+    emptyNote.hidden=true;
+  }
+}
+let activeSearchIndex=-1;
+function searchStudio(query=""){
+  const q=String(query||"").trim().toLowerCase();
+  const results={pages:[],agents:[],workflows:[],tools:[],skills:[],projects:[],sessions:[]};
+  const pagesList=[
+    {id:"chat", title:"Conversations", desc:"Interactive chat with agents and providers"},
+    {id:"quick-build", title:"Quick Build", desc:"Build multi-agent teams and workflows with AI"},
+    {id:"agents", title:"Agents", desc:"Specialist team members and instructions"},
+    {id:"workflows", title:"Workflows", desc:"Multi-step pipelines and canvas graphs"},
+    {id:"tools", title:"Tools", desc:"Registered workspace tools and actions"},
+    {id:"library", title:"Library", desc:"Prompts, skills, artifacts, connectors, and schedules"},
+    {id:"providers", title:"Providers & models", desc:"CLI coding agents and API model providers"},
+    {id:"inbox", title:"Approval inbox", desc:"Review gates, campaign drafts, and recoveries"},
+    {id:"activity", title:"Activity", desc:"Task history, outcomes, and progress"},
+    {id:"projects", title:"Knowledge projects", desc:"Instruction context and source documents"},
+    {id:"files", title:"Workspace files", desc:"Server files and private downloads"},
+    {id:"workbench", title:"Workspace tools", desc:"Memory, checkpoints, coordination, controls"},
+    {id:"workspace", title:"Workspace & event mesh", desc:"Queue health and runtime status"},
+    {id:"assistant", title:"Studio assistant", desc:"Platform help and guidance"},
+  ];
+  if(!q){
+    results.pages=pagesList.slice(0, 6);
+    return results;
+  }
+  results.pages=pagesList.filter(p=>p.title.toLowerCase().includes(q)||p.desc.toLowerCase().includes(q)||p.id.includes(q)).slice(0, 4);
+
+  const allAgents=[
+    {id:"general-assistant", name:"General assistant", desc:"Direct conversation with your selected provider", isBuiltin:true},
+    {id:"studio-assistant", name:"Studio assistant", desc:"Platform documentation and help", isBuiltin:true},
+    ...(state.agents||[]).map(a=>{
+      const spec=a.document?.spec||{}, meta=a.document?.metadata||{};
+      return {
+        id: a.id,
+        name: meta.name||a.id,
+        desc: meta.description||spec.purpose||"",
+        provider: spec.provider||"",
+        model: spec.model||"",
+        skills: (spec.skill_ids||[]).join(" ")
+      };
+    })
+  ];
+  results.agents=allAgents.filter(a=>(
+    a.name.toLowerCase().includes(q) ||
+    a.id.toLowerCase().includes(q) ||
+    a.desc.toLowerCase().includes(q) ||
+    (a.provider && a.provider.toLowerCase().includes(q)) ||
+    (a.skills && a.skills.toLowerCase().includes(q))
+  )).slice(0, 5);
+
+  results.workflows=(state.workflows||[]).map(w=>{
+    const doc=w.document||{}, meta=doc.metadata||{}, steps=doc.steps||doc.graph?.nodes||[];
+    const stepSummary=steps.map(s=>s.agent_type||s.name||s.id).join(" ");
+    return {
+      id: w.id,
+      name: meta.name||w.id,
+      desc: meta.description||stepSummary||"Workflow",
+      stepSummary
+    };
+  }).filter(w=>(
+    w.name.toLowerCase().includes(q) ||
+    w.id.toLowerCase().includes(q) ||
+    w.desc.toLowerCase().includes(q) ||
+    w.stepSummary.toLowerCase().includes(q)
+  )).slice(0, 5);
+
+  results.tools=(state.tools||[]).filter(t=>(
+    t.id.toLowerCase().includes(q) ||
+    (t.description && t.description.toLowerCase().includes(q)) ||
+    (t.category && t.category.toLowerCase().includes(q))
+  )).slice(0, 5);
+
+  results.skills=(state.skills||[]).filter(s=>(
+    s.id.toLowerCase().includes(q) ||
+    (s.name && s.name.toLowerCase().includes(q)) ||
+    (s.description && s.description.toLowerCase().includes(q))
+  )).slice(0, 5);
+
+  const projectsList=(state.knowledgeProjects||state.projects)||[];
+  results.projects=projectsList.filter(p=>(
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    p.id.toLowerCase().includes(q) ||
+    (p.instructions && p.instructions.toLowerCase().includes(q))
+  )).slice(0, 4);
+
+  results.sessions=(state.sessions||[]).filter(s=>(
+    (s.title && s.title.toLowerCase().includes(q)) ||
+    s.id.toLowerCase().includes(q)
+  )).slice(0, 4);
+
+  return results;
+}
+
+function renderGlobalSearchResults(results, query=""){
+  const resultsBox=$("global-search-results");
+  if(!resultsBox)return;
+  activeSearchIndex=-1;
+  const q=String(query||"").trim();
+  const totalCount=results.pages.length+results.agents.length+results.workflows.length+results.tools.length+results.skills.length+results.projects.length+results.sessions.length;
+  if(totalCount===0&&q){
+    resultsBox.innerHTML=`<div class="global-search-empty">No results found for "${escapeHtml(q)}".</div>`;
+    return;
+  }
+  let html="";
+  const appendSection=(title, items, kind, badgeType)=>{
+    if(!items.length)return;
+    html+=`<div class="global-search-group-title">${escapeHtml(title)}</div>`;
+    items.forEach(item=>{
+      html+=`<button type="button" class="global-search-item" data-search-kind="${kind}" data-search-id="${escapeHtml(item.id)}">${badge(badgeType)}<div class="global-search-item-meta"><span class="global-search-item-name">${escapeHtml(item.name||item.title||item.id)}</span>${item.desc?`<span class="global-search-item-desc">${escapeHtml(item.desc)}</span>`:""}</div></button>`;
+    });
+  };
+  appendSection("Pages", results.pages, "page", "PAGE");
+  appendSection("Agents", results.agents, "agent", "AGENT");
+  appendSection("Workflows", results.workflows, "workflow", "FLOW");
+  appendSection("Tools", results.tools, "tool", "TOOL");
+  appendSection("Skills", results.skills, "skill", "SKILL");
+  appendSection("Knowledge Projects", results.projects, "project", "PROJECT");
+  appendSection("Recent Conversations", results.sessions, "session", "CHAT");
+  resultsBox.innerHTML=html;
+}
+
+function openGlobalSearch(){
+  const menu=$("global-search-menu");
+  if(menu){
+    menu.hidden=false;
+    runGlobalSearch();
+  }
+}
+function closeGlobalSearch(){
+  const menu=$("global-search-menu");
+  if(menu)menu.hidden=true;
+  activeSearchIndex=-1;
+}
+function runGlobalSearch(){
+  const val=$("global-search-input")?.value||"";
+  const results=searchStudio(val);
+  renderGlobalSearchResults(results, val);
+}
+function handleGlobalSearchSelect(itemEl){
+  if(!itemEl)return;
+  const kind=itemEl.dataset.searchKind;
+  const id=itemEl.dataset.searchId;
+  closeGlobalSearch();
+  if(kind==="page"){
+    location.hash=id;
+  }else if(kind==="agent"){
+    if(id==="studio-assistant"){
+      location.hash="assistant";
+    }else if(id==="general-assistant"){
+      location.hash="chat";
+    }else{
+      location.hash="agents";
+      const searchInput=$("agents-search-input");
+      if(searchInput){
+        searchInput.value=id;
+        filterResourceCards("agents-content","agents-search-input","agents");
+      }
+    }
+  }else if(kind==="workflow"){
+    location.hash="workflows";
+    const searchInput=$("workflows-search-input");
+    if(searchInput){
+      searchInput.value=id;
+      filterResourceCards("workflows-content","workflows-search-input","workflows");
+    }
+  }else if(kind==="tool"){
+    location.hash="tools";
+    const searchInput=$("tools-search-input");
+    if(searchInput){
+      searchInput.value=id;
+      filterResourceCards("tools-content","tools-search-input","tools");
+    }
+  }else if(kind==="skill"){
+    location.hash="library/skills";
+    if(typeof library!=="undefined"){library.kind="skills";if(typeof renderLibrary==="function")renderLibrary();}
+    const searchInput=$("library-search-input");
+    if(searchInput){
+      searchInput.value=id;
+      filterResourceCards("library-content","library-search-input","skills");
+    }
+  }else if(kind==="project"){
+    location.hash="projects";
+    const searchInput=$("projects-search-input");
+    if(searchInput){
+      searchInput.value=id;
+      filterResourceCards("projects-content","projects-search-input","projects");
+    }
+  }else if(kind==="session"){
+    openSession(id);
+  }
+}
+if(typeof document!=="undefined"){
+  document.addEventListener("input", event=>{
+    const input=event.target;
+    if(input?.classList?.contains("page-search-input")){
+      const targetId=input.dataset.searchTarget;
+      const itemName=input.dataset.searchName||"items";
+      if(targetId)filterResourceCards(targetId, input.id, itemName);
+    }else if(input?.id==="global-search-input"){
+      runGlobalSearch();
+    }
+  });
+  document.addEventListener("search", event=>{
+    const input=event.target;
+    if(input?.classList?.contains("page-search-input")){
+      const targetId=input.dataset.searchTarget;
+      const itemName=input.dataset.searchName||"items";
+      if(targetId)filterResourceCards(targetId, input.id, itemName);
+    }else if(input?.id==="global-search-input"){
+      runGlobalSearch();
+    }
+  });
+  document.addEventListener("click", event=>{
+    const item=event.target.closest(".global-search-item");
+    if(item){
+      handleGlobalSearchSelect(item);
+      return;
+    }
+    if(!event.target.closest(".global-search-container")){
+      closeGlobalSearch();
+    }
+  });
+  $("global-search-input")?.addEventListener("focus", openGlobalSearch);
+  $("global-search-input")?.addEventListener("keydown", event=>{
+    const menu=$("global-search-menu");
+    if(menu&&!menu.hidden){
+      const items=[...menu.querySelectorAll(".global-search-item")];
+      if(event.key==="ArrowDown"){
+        event.preventDefault();
+        if(items.length){
+          activeSearchIndex=(activeSearchIndex+1)%items.length;
+          items.forEach((it,i)=>it.classList.toggle("active",i===activeSearchIndex));
+          items[activeSearchIndex]?.scrollIntoView({block:"nearest"});
+        }
+      }else if(event.key==="ArrowUp"){
+        event.preventDefault();
+        if(items.length){
+          activeSearchIndex=(activeSearchIndex-1+items.length)%items.length;
+          items.forEach((it,i)=>it.classList.toggle("active",i===activeSearchIndex));
+          items[activeSearchIndex]?.scrollIntoView({block:"nearest"});
+        }
+      }else if(event.key==="Enter"){
+        event.preventDefault();
+        if(items.length){
+          const selected=activeSearchIndex>=0?items[activeSearchIndex]:items[0];
+          if(selected)handleGlobalSearchSelect(selected);
+        }
+      }else if(event.key==="Escape"){
+        event.preventDefault();
+        closeGlobalSearch();
+        $("global-search-input")?.blur();
+      }
+    }
+  });
+  document.addEventListener("keydown", event=>{
+    if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){
+      event.preventDefault();
+      const input=$("global-search-input");
+      if(input){input.focus();input.select();openGlobalSearch();}
+    }else if(event.key==="/"&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!document.querySelector("dialog[open]")&&!/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)){
+      event.preventDefault();
+      const input=$("global-search-input");
+      if(input){input.focus();input.select();openGlobalSearch();}
+    }
+  });
+}
+function agentToolOptions(selected=[]){
+  const allTools=[...(state.tools||[])];
+  for(const id of selected){
+    if(id&&!allTools.some(t=>t.id===id)){
+      allTools.push({id,description:"(custom tool)"});
+    }
+  }
+  if(!allTools.length){
+    return '<p class="empty-note" style="padding:8px;font-size:12px;color:var(--muted)">No registered tools available in this workspace.</p>';
+  }
+  return allTools.map(t=>{
+    const isChecked=selected.includes(t.id)?"checked":"";
+    const action=t.id.includes(":")?t.id.split(":").slice(-1)[0]:t.id;
+    const label=action!==t.id?`${action} (${t.id})`:t.id;
+    return `<label class="skills-select-item check-label"><input type="checkbox" name="tool_ids" value="${escapeHtml(t.id)}" ${isChecked}><div class="skills-select-meta"><span class="skills-select-name">${escapeHtml(label)}</span>${t.description?`<span class="skills-select-desc">${escapeHtml(t.description)}</span>`:""}</div></label>`;
   }).join("");
 }
 function createSkillDialog(){
@@ -141,19 +503,20 @@ function createSkillDialog(){
     dialog.showModal();dialog.querySelector('input[name="name"]')?.focus();
   });
 }
-async function promptNewSkill(targetSelect=null, extraSkills=[]){
+async function promptNewSkill(targetSelect=null, extraSkills=[], targetList=null){
   const answer=await createSkillDialog();
   if(!answer){
     if(targetSelect&&targetSelect.value==="__new__")targetSelect.value=targetSelect.dataset.prevValue||"";
     return null;
   }
+  const agentList=targetList || (targetSelect?targetSelect.closest?.(".agent-skills-section")?.querySelector?.(".skills-select-list"):null) || (typeof $ === "function" ? $("agent-skills-list") : null);
   if(answer.importRequested){
     if(typeof importSkill==="function"){
       const imported=await importSkill();
       if(imported){
         const importedIds=imported.skills?.map(s=>s.id)||(imported.skill?[imported.skill.id]:[]);
         if(typeof loadSkills==="function")await loadSkills().catch(()=>{});
-        if(targetSelect&&importedIds.length){
+        if(targetSelect&&importedIds.length&&typeof document!=="undefined"){
           document.querySelectorAll(".agent-skill-select").forEach(sel=>{
             const val=sel===targetSelect?importedIds[0]:sel.value;
             sel.innerHTML=skillOptions(val,extraSkills);
@@ -162,11 +525,21 @@ async function promptNewSkill(targetSelect=null, extraSkills=[]){
           });
           targetSelect.dispatchEvent(new Event("change",{bubbles:true}));
         }
-        const agentList=$("agent-skills-list");
         if(agentList){
           const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
           importedIds.forEach(id=>{if(!checked.includes(id))checked.push(id);});
           agentList.innerHTML=agentSkillOptions(checked,extraSkills);
+          const filterInput=agentList.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+          if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(agentList,filterInput.value);
+        }
+        if(typeof document!=="undefined"){
+          document.querySelectorAll("#builder-proposal .skills-select-list").forEach(list=>{
+            if(list===agentList)return;
+            const checked=Array.from(list.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+            list.innerHTML=agentSkillOptions(checked,extraSkills);
+            const filterInput=list.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+            if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(list,filterInput.value);
+          });
         }
         return imported;
       }
@@ -182,7 +555,7 @@ async function promptNewSkill(targetSelect=null, extraSkills=[]){
     const payload={name:answer.name,description:answer.description||"",data:{content:answer.content||""}};
     const created=await api("/api/catalog/skills",payload);
     await loadSkills();
-    if(targetSelect){
+    if(targetSelect&&typeof document!=="undefined"){
       document.querySelectorAll(".agent-skill-select").forEach(sel=>{
         const val=sel===targetSelect?created.id:sel.value;
         sel.innerHTML=skillOptions(val,extraSkills);
@@ -191,11 +564,21 @@ async function promptNewSkill(targetSelect=null, extraSkills=[]){
       });
       targetSelect.dispatchEvent(new Event("change",{bubbles:true}));
     }
-    const agentList=$("agent-skills-list");
     if(agentList){
       const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
       if(!checked.includes(created.id))checked.push(created.id);
       agentList.innerHTML=agentSkillOptions(checked,extraSkills);
+      const filterInput=agentList.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+      if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(agentList,filterInput.value);
+    }
+    if(typeof document!=="undefined"){
+      document.querySelectorAll("#builder-proposal .skills-select-list").forEach(list=>{
+        if(list===agentList)return;
+        const checked=Array.from(list.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+        list.innerHTML=agentSkillOptions(checked,extraSkills);
+        const filterInput=list.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+        if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(list,filterInput.value);
+      });
     }
     notify("Skill created and assigned.");
     return created;
@@ -241,17 +624,35 @@ document.addEventListener("change",event=>{
     linkModelInputs();
   }
 });
+async function openSession(sessionId){
+  if(state.busy){notify("Let the current conversation finish first.");return;}
+  const session=await api(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  state.sessionId=session.id;
+  if($("chat-project"))$("chat-project").value=session.knowledge_project_id||"";
+  if(typeof updateKnowledgeDisclosure==="function")updateKnowledgeDisclosure();
+  $("messages")?.replaceChildren();
+  (session.messages||[]).forEach(m=>{
+    const node=addMessage(m.role,m.content,providerName(m.provider||""),m.run_id,m.citations||[],m.structured_content||[],m.retrieval_notice);
+    if(m.status==="failed")node.classList.add("error");
+  });
+  if($("chat-agent"))$("chat-agent").value=session.studio_assistant?"studio-assistant":(session.agent_id||"");
+  if($("chat-provider"))$("chat-provider").value=session.provider||"codex";
+  if($("chat-model"))$("chat-model").value=session.model||"";
+  if($("chat-effort"))$("chat-effort").value=session.effort||"";
+  location.hash="chat";
+}
 document.addEventListener("click",async event=>{
   const btn=event.target.closest(".new-skill-btn");
   if(btn){
     event.preventDefault();
     const targetId=btn.dataset.skillTarget;
     const select=targetId?$(targetId):btn.closest(".agent-skill-field,label,div")?.querySelector(".agent-skill-select");
+    const agentList=btn.closest(".agent-skills-section")?.querySelector(".skills-select-list") || $("agent-skills-list");
     let extraSkills=[];
     if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
       extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
     }
-    await promptNewSkill(select,extraSkills);
+    await promptNewSkill(select,extraSkills,agentList);
   }
   const importBtn=event.target.closest(".import-skill-btn");
   if(importBtn){
@@ -261,11 +662,26 @@ document.addEventListener("click",async event=>{
       if(imported){
         const importedIds=imported.skills?.map(s=>s.id)||(imported.skill?[imported.skill.id]:[]);
         if(typeof loadSkills==="function")await loadSkills().catch(()=>{});
-        const agentList=$("agent-skills-list");
+        let extraSkills=[];
+        if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
+          extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
+        }
+        const agentList=importBtn.closest(".agent-skills-section")?.querySelector(".skills-select-list") || $("agent-skills-list");
         if(agentList){
           const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
           importedIds.forEach(id=>{if(!checked.includes(id))checked.push(id);});
-          agentList.innerHTML=agentSkillOptions(checked);
+          agentList.innerHTML=agentSkillOptions(checked,extraSkills);
+          const filterInput=agentList.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+          if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(agentList,filterInput.value);
+        }
+        if(typeof document!=="undefined"){
+          document.querySelectorAll("#builder-proposal .skills-select-list").forEach(list=>{
+            if(list===agentList)return;
+            const checked=Array.from(list.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+            list.innerHTML=agentSkillOptions(checked,extraSkills);
+            const filterInput=list.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+            if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(list,filterInput.value);
+          });
         }
       }
     }
@@ -274,11 +690,16 @@ document.addEventListener("click",async event=>{
 window.addEventListener("studio-resource-saved",event=>{
   if(event.detail?.kind==="skills"){
     loadSkills().then(()=>{
-      const agentList=$("agent-skills-list");
-      if(agentList){
-        const checked=Array.from(agentList.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
-        agentList.innerHTML=agentSkillOptions(checked);
+      let extraSkills=[];
+      if(typeof builder!=="undefined"&&builder?.draft?.proposal?.resources){
+        extraSkills=builder.draft.proposal.resources.filter(r=>r.kind==="skills");
       }
+      document.querySelectorAll(".skills-select-list").forEach(list=>{
+        const checked=Array.from(list.querySelectorAll('input[name="skill_ids"]:checked'),b=>b.value);
+        list.innerHTML=agentSkillOptions(checked,extraSkills);
+        const filterInput=list.closest?.(".agent-skills-section")?.querySelector?.(".skills-filter-input");
+        if(filterInput?.value&&typeof filterSkillsList==="function")filterSkillsList(list,filterInput.value);
+      });
     }).catch(()=>{});
   }
 });
@@ -289,13 +710,32 @@ function renderProviders(){
 }
 function renderTools(){
   $("tools-content").innerHTML=state.tools.length?`<div class="resource-grid">${state.tools.map(t=>`<article class="resource-card"><div class="card-meta">${badge(t.category||"TOOL")}</div><h2 class="tool-name">${escapeHtml(t.id)}</h2><p>${escapeHtml(t.description||"Registered Nexus tool")}</p><div class="card-actions"><button class="secondary" data-tool="${escapeHtml(t.id)}">Run tool</button></div></article>`).join("")}</div>`:empty("No tools registered","Register tools with the Nexus tool registry to make them available here.");
+  if($("tools-search-input")?.value)filterResourceCards("tools-content","tools-search-input","tools");
 }
 function renderSessions(){
   $("session-count").textContent=state.sessions.length;
   $("recent-sessions").innerHTML=state.sessions.length?state.sessions.slice(0,12).map(s=>`<button class="recent" data-session="${escapeHtml(s.id)}">${escapeHtml(s.title)}</button>`).join(""):'<span class="recent empty">Your conversations will appear here.</span>';
 }
 function renderRuns(){
-  $("activity-content").innerHTML=state.runs.length?state.runs.map(r=>`<article class="activity-row"><div class="activity-copy"><h2>${escapeHtml(r.task)}</h2><p>${escapeHtml(r.kind)} · ${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}</p></div>${badge(r.status,r.status)}<button class="secondary" data-run="${escapeHtml(r.id)}">Details</button></article>`).join(""):empty("A clear record of the work","Conversations, workflow runs, and tool results appear here as you use the workspace.");
+  const filter=state.activityFilter||"all";
+  const allRuns=state.runs||[];
+  const runs=allRuns.filter(r=>{
+    if(filter==="all")return true;
+    if(filter==="workflow")return r.kind==="workflow";
+    if(filter==="build")return r.kind==="build";
+    if(filter==="chat")return r.kind==="chat";
+    if(filter==="tool")return r.kind==="tool";
+    return true;
+  });
+  const emptyMessages={
+    all:"Conversations, workflow runs, and tool results appear here as you use the workspace.",
+    workflow:"Runs of your saved workflows will appear here.",
+    build:"Runs creating or revising multi-agent teams will appear here.",
+    chat:"Direct conversations with agents will appear here.",
+    tool:"Standalone tool executions will appear here."
+  };
+  $("activity-content").innerHTML=runs.length?runs.map(r=>`<article class="activity-row"><div class="activity-copy"><h2>${escapeHtml(r.task)}</h2><p>${escapeHtml(r.kind)} · ${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}</p></div>${badge(r.status,r.status)}<button class="secondary" data-run="${escapeHtml(r.id)}">Details</button></article>`).join(""):empty("No matching activity",emptyMessages[filter]||"No items found for this filter.");
+  if($("activity-search-input")?.value)filterResourceCards("activity-content","activity-search-input","activity");
 }
 async function refreshDefinitions(){const [agents,workflows]=await Promise.all([api("/api/agents"),api("/api/workflows")]);state.agents=agents.items;state.workflows=workflows.items;renderAgents();renderWorkflows();}
 async function refreshSessions(){state.sessions=(await api("/api/sessions")).items;renderSessions();}
@@ -368,12 +808,17 @@ async function sendMessage(event){
 }
 function inputField(name,label,value="",type="text"){return `<label>${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}" ${["name","task"].includes(name)?"required":""}></label>`;}
 async function openEditor(kind,identity){
-  if(kind==="agent"||kind==="agent-edit")await loadSkills().catch(()=>{});
+  if(kind==="agent"||kind==="agent-edit"){
+    await Promise.all([
+      loadSkills().catch(()=>{}),
+      api("/api/tools").then(data=>{state.tools=data.items;}).catch(()=>{})
+    ]);
+  }
   state.editor={kind,identity};$("editor-error").textContent="";
   const fields=$("editor-fields");
   if(kind==="agent"||kind==="agent-edit"){
     $("editor-kicker").textContent="NEW SPECIALIST";$("editor-title").textContent="Create an agent";$("editor-save").textContent="Create agent";
-    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+inputField("tool_ids","Allowed tool names (optional, comma separated)")+`<div class="agent-skills-section"><div class="skills-select-header"><label>Skills (optional)</label><div class="skills-select-actions"><button type="button" class="secondary new-skill-btn">+ New skill…</button><button type="button" class="secondary import-skill-btn">Import skill…</button></div></div><div class="skills-select-list agent-skills-list" id="agent-skills-list">${agentSkillOptions()}</div></div>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
+    fields.innerHTML=inputField("name","Name")+inputField("description","Description")+`<div class="form-grid"><label>Provider<select name="provider">${providerOptions()}</select></label>${inputField("model","Model (optional)","")}<label>Effort<select name="effort">${effortOptions()}</select></label></div><label>Instructions<textarea name="instructions" rows="5" placeholder="What should this agent do, and how should it work?" required></textarea></label>`+`<div class="agent-skills-section"><div class="skills-select-header"><label>Tools (optional)</label></div><input type="search" class="skills-filter-input" placeholder="Filter tools…" aria-label="Filter tools"><div class="skills-select-list agent-tools-list" id="agent-tools-list">${agentToolOptions()}</div></div>`+`<div class="agent-skills-section"><div class="skills-select-header"><label>Skills (optional)</label><div class="skills-select-actions"><button type="button" class="secondary new-skill-btn">+ New skill…</button><button type="button" class="secondary import-skill-btn">Import skill…</button></div></div><input type="search" class="skills-filter-input" placeholder="Filter skills…" aria-label="Filter skills"><div class="skills-select-list agent-skills-list" id="agent-skills-list">${agentSkillOptions()}</div></div>`+inputField("timeout_seconds","Timeout in seconds",600,"number")+`<details><summary>Output guardrails</summary><label>Optional guardrail settings (JSON)<textarea name="guardrails_json" rows="4">{}</textarea></label><p>Use max_output_chars and forbidden_phrases. Guarded responses are checked before display, so streaming is disabled for this agent.</p></details>`;
   }else if(kind==="workflow"||kind==="workflow-edit"){
     if(!state.agents.some(a=>a.document)){notify("Create an agent before building a workflow.");location.hash="agents";return;}
     const isEdit=kind==="workflow-edit";
@@ -395,12 +840,18 @@ async function openEditor(kind,identity){
     const item=state.agents.find(item=>item.id===identity),doc=item.document,spec=doc.spec||{};
     state.editor.revision=item.revision;
     $("editor-title").textContent="Edit agent";$("editor-save").textContent="Save changes";
-    const values={name:doc.metadata?.name||identity,description:doc.metadata?.description||"",provider:spec.provider,model:spec.model||"",effort:spec.effort||"",instructions:spec.purpose||"",timeout_seconds:spec.timeout_seconds||600,tool_ids:(spec.tool_ids||[]).join(", "),guardrails_json:JSON.stringify(spec.guardrails||{},null,2)};
+    const values={name:doc.metadata?.name||identity,description:doc.metadata?.description||"",provider:spec.provider,model:spec.model||"",effort:spec.effort||"",instructions:spec.purpose||"",timeout_seconds:spec.timeout_seconds||600,guardrails_json:JSON.stringify(spec.guardrails||{},null,2)};
     for(const [name,value] of Object.entries(values)){const field=fields.querySelector(`[name="${name}"]`);if(field)field.value=value;}
     const currentSkills=spec.skill_ids||[];
+    fields.querySelectorAll(".skills-filter-input").forEach(i=>{i.value="";});
     const skillsList=fields.querySelector("#agent-skills-list");
     if(skillsList){
       skillsList.innerHTML=agentSkillOptions(currentSkills);
+    }
+    const currentTools=spec.tool_ids||[];
+    const toolsList=fields.querySelector("#agent-tools-list");
+    if(toolsList){
+      toolsList.innerHTML=agentToolOptions(currentTools);
     }
     const agentType=document.createElement("input");agentType.type="hidden";agentType.name="agent_type";agentType.value=spec.agent_type||identity;fields.appendChild(agentType);
   }
@@ -439,6 +890,12 @@ async function saveEditor(event){
       if(data.guardrails_json&&data.guardrails_json.trim()!=="{}")data.guardrails=JSON.parse(data.guardrails_json);
       delete data.guardrails_json;
       data.skill_ids=new FormData(event.target).getAll("skill_ids").filter(id=>id&&id!=="__new__");
+      const checkedTools=new FormData(event.target).getAll("tool_ids").filter(Boolean);
+      if(checkedTools.length>0||event.target?.querySelector?.('input[name="tool_ids"][type="checkbox"]')){
+        data.tool_ids=checkedTools;
+      }else if(typeof data.tool_ids==="string"){
+        data.tool_ids=data.tool_ids?data.tool_ids.split(",").map(t=>t.trim()).filter(Boolean):[];
+      }
       if(kind==="agent-edit"){data.revision=state.editor.revision;await api(`/api/agents/${encodeURIComponent(identity)}/update`,data);}else await api("/api/agents",data);
       $("editor").close();await refreshDefinitions();location.hash="agents";notify(kind==="agent-edit"?"Agent updated.":"Agent created.");
     }
@@ -455,7 +912,7 @@ async function saveEditor(event){
       $("editor").close();await refreshDefinitions();location.hash="workflows";notify(kind==="workflow-edit"?"Workflow updated.":"Workflow created.");
     }else{
       const payload=kind==="tool"?{kind:"tool",tool:identity,args:JSON.parse(data.args),kwargs:JSON.parse(data.kwargs)}:{kind:"workflow",workflow_id:identity,task:data.task,...(data.workflow_input_json?.trim()?{workflow_input:JSON.parse(data.workflow_input_json)}:{}),...(data.provider?{provider:data.provider}:{})};
-      const run=await api("/api/runs",payload);$("editor").close();location.hash="activity";showRun(run);pollRun(run.id,updateRunDetail).then(()=>refreshRuns()).catch(error=>{updateRunDetail(error.run||{id:run.id,error:error.message,status:"failed"});refreshRuns();});
+      const run=await api("/api/runs",payload);$("editor").close();showRun(run);pollRun(run.id,updateRunDetail).then(()=>refreshRuns()).catch(error=>{updateRunDetail(error.run||{id:run.id,error:error.message,status:"failed"});refreshRuns();});
     }
   }catch(error){$("editor-error").textContent=error.message;}
   finally{$("editor-save").disabled=false;}
@@ -478,9 +935,65 @@ function cleanupRunStatus(run){
   return status+(run.workflow_warnings?.length?`<p role="status">${run.workflow_warnings.length} cleanup warning(s). Review execution history before starting another run.</p><ul>${run.workflow_warnings.map(w=>`<li>${escapeHtml(String(w.node_id).split("/").at(-1))}: ${escapeHtml(reasons[w.error_type]||"Step could not finish; review its recorded effects.")}</li>`).join("")}</ul>`:"");
 }
 function updateRunDetail(run){if(!$("run-output")||run.id!==state.detailRunId)return;$("run-status").innerHTML=badge(run.status,run.status)+waitingRunActions(run)+cleanupRunStatus(run);renderContent($("run-output"),run.output||run.error||(run.status==="waiting"?"Waiting for your response.":["completed","cancelled"].includes(run.status)?"No text output.":"Working…"));if(!$("run-trace-button"))$("run-output").insertAdjacentHTML("afterend",`<button class="secondary" id="run-trace-button" data-run-trace="${escapeHtml(run.id)}">Inspect execution trace</button>`);}
+function toggleDetailMaximized(force){
+  const dialog=$("detail");
+  if(!dialog)return;
+  const isMax=typeof force==="boolean"?force:!dialog.classList.contains("maximized");
+  dialog.classList.toggle("maximized",isMax);
+  const expandBtn=$("detail-toggle-expand");
+  const footerBtn=$("detail-expand-btn");
+  if(expandBtn){
+    expandBtn.setAttribute("aria-label",isMax?"Exit full view":"Full view");
+    expandBtn.setAttribute("title",isMax?"Exit full view (F)":"Full view (F)");
+    expandBtn.innerHTML=isMax
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+  }
+  if(footerBtn)footerBtn.textContent=isMax?"Exit full view":"Full view";
+}
+$("detail")?.addEventListener("cancel",event=>{
+  if($("detail")?.classList?.contains("maximized")){
+    event.preventDefault();
+    toggleDetailMaximized(false);
+  }
+});
+$("detail")?.addEventListener("close",()=>toggleDetailMaximized(false));
+let dialogClickStartedOutside=false;
+const registerDialogDown=event=>{
+  const d=event.target;
+  if(d&&d.tagName==="DIALOG"&&d.open){
+    const rect=d.getBoundingClientRect();
+    dialogClickStartedOutside=(
+      event.clientX<rect.left||event.clientX>rect.right||
+      event.clientY<rect.top||event.clientY>rect.bottom
+    );
+  }else{
+    dialogClickStartedOutside=false;
+  }
+};
+document.addEventListener("pointerdown",registerDialogDown);
+document.addEventListener("mousedown",registerDialogDown);
 document.addEventListener("click",async event=>{
+  const targetDialog=event.target;
+  if(targetDialog&&targetDialog.tagName==="DIALOG"&&targetDialog.open&&dialogClickStartedOutside){
+    const rect=targetDialog.getBoundingClientRect();
+    const isOutside=(
+      event.clientX<rect.left||event.clientX>rect.right||
+      event.clientY<rect.top||event.clientY>rect.bottom
+    );
+    if(isOutside){
+      dialogClickStartedOutside=false;
+      const cancelEvt=new Event("cancel",{cancelable:true});
+      if(targetDialog.dispatchEvent(cancelEvt)){
+        targetDialog.close();
+      }
+      return;
+    }
+  }
+  dialogClickStartedOutside=false;
   const button=event.target.closest("button");if(!button)return;
   try{
+    if(button.id==="detail-toggle-expand"||button.id==="detail-expand-btn"){toggleDetailMaximized();return;}
     if(button.classList.contains("close-dialog"))button.closest("dialog").close();
     if(button.dataset.editAgent)openEditor("agent-edit",button.dataset.editAgent);
     if(button.dataset.editWorkflow)openEditor("workflow-edit",button.dataset.editWorkflow);
@@ -511,7 +1024,7 @@ document.addEventListener("click",async event=>{
     }
     if(button.dataset.prompt){$("chat-task").value=button.dataset.prompt;$("chat-task").focus();}
     if(button.dataset.agent !== undefined){if(state.busy){notify("Let the current conversation finish first.");return;}newChat();$("chat-agent").value=button.dataset.agent;selectAgent();}
-    if(button.dataset.session){if(state.busy){notify("Let the current conversation finish first.");return;}const session=await api(`/api/sessions/${encodeURIComponent(button.dataset.session)}`);state.sessionId=session.id;$("chat-project").value=session.knowledge_project_id||"";if(typeof updateKnowledgeDisclosure==="function")updateKnowledgeDisclosure();$("messages").replaceChildren();session.messages.forEach(m=>{const node=addMessage(m.role,m.content,providerName(m.provider||""),m.run_id,m.citations||[],m.structured_content||[],m.retrieval_notice);if(m.status==="failed")node.classList.add("error");});$("chat-agent").value=session.studio_assistant?"studio-assistant":(session.agent_id||"");$("chat-provider").value=session.provider||"codex";$("chat-model").value=session.model||"";if($("chat-effort"))$("chat-effort").value=session.effort||"";location.hash="chat";}
+    if(button.dataset.session){await openSession(button.dataset.session);}
     if(button.dataset.definition){const item=state[button.dataset.kind].find(a=>a.id===button.dataset.definition);showDetail(item.document.metadata?.name||item.id,`<p>${escapeHtml(item.document.metadata?.description||"")}</p><pre>${escapeHtml(item.document.spec?.purpose||JSON.stringify(item.document,null,2))}</pre>`);}
     if(button.dataset.provider){
       const provider=state.providers.find(p=>p.id===button.dataset.provider);
@@ -525,6 +1038,57 @@ document.addEventListener("click",async event=>{
       showDetail(provider.name,`<p class="callout">${calloutText}</p><pre>${escapeHtml(provider.setup)}</pre><p class="card-meta">Account authorization and usage limits are verified by the provider when you run a task.</p>`);
     }
     if(button.dataset.workflow){const item=state.workflows.find(w=>w.id===button.dataset.workflow);const validation=await api(`/api/workflows/${encodeURIComponent(item.id)}/validate`);showDetail(item.document?.metadata?.name||item.id,`${badge(validation.valid?"Valid workflow":"Needs attention",validation.valid?"ready":"failed")}${(item.document?.steps||[]).map((s,i)=>`<div class="flow-step"><b>${i+1}</b><div>${escapeHtml(s.name||s.id)}<small>${escapeHtml(s.agent_type)}</small></div></div>`).join("")}<pre>${escapeHtml([...validation.errors,...validation.warnings,...validation.flow].join("\n"))}</pre>`);}
+    if(button.dataset.workflowHistory){
+      const wfId=button.dataset.workflowHistory;
+      const item=(state.workflows||[]).find(w=>w.id===wfId);
+      const name=item?.document?.metadata?.name||wfId;
+      const wfRuns=(state.runs||[]).filter(r=>r.kind==="workflow"&&(r.workflow_id===wfId||r.workflow_snapshot?.id===wfId));
+      const content=wfRuns.length?`
+        <div class="card-actions" style="margin-bottom:14px">
+          <button data-run-workflow="${escapeHtml(wfId)}">Run workflow</button>
+          <button class="secondary" data-filter-activity-workflow="${escapeHtml(wfId)}">Filter in Activity</button>
+        </div>
+        <div class="workflow-history-list">
+          ${wfRuns.map(r=>`
+            <article class="workflow-history-row">
+              <div class="workflow-history-info">
+                <strong>${escapeHtml(r.task||"Workflow execution")}</strong>
+                <small>${escapeHtml(providerName(r.provider))} · ${escapeHtml(new Date(r.created_at).toLocaleString())}${r.step?" · "+escapeHtml(r.step):""}</small>
+              </div>
+              <div class="workflow-history-actions">
+                ${badge(r.status,r.status)}
+                <button class="secondary" data-run="${escapeHtml(r.id)}">Details</button>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      `:`
+        <p>No runs recorded yet for this workflow.</p>
+        <div class="card-actions" style="margin-top:16px">
+          <button data-run-workflow="${escapeHtml(wfId)}">Run workflow now</button>
+          <button class="secondary" data-filter-activity-workflow="${escapeHtml(wfId)}">View in Activity</button>
+        </div>
+      `;
+      showDetail(`${name} · Run history`,content);
+      return;
+    }
+    if(button.dataset.filterActivityWorkflow){
+      const wfId=button.dataset.filterActivityWorkflow;
+      $("detail")?.close();
+      location.hash="activity";
+      state.activityFilter="workflow";
+      document.querySelectorAll(".activity-filter-pill").forEach(p=>p.classList.toggle("active",p.dataset.activityFilter==="workflow"));
+      const searchInput=$("activity-search-input");
+      if(searchInput)searchInput.value=wfId;
+      renderRuns();
+      return;
+    }
+    if(button.dataset.activityFilter){
+      state.activityFilter=button.dataset.activityFilter;
+      document.querySelectorAll(".activity-filter-pill").forEach(p=>p.classList.toggle("active",p.dataset.activityFilter===state.activityFilter));
+      renderRuns();
+      return;
+    }
     if(button.dataset.runWorkflow)openEditor("workflow-run",button.dataset.runWorkflow);
     if(button.dataset.scheduleWorkflow){
       const wfId=button.dataset.scheduleWorkflow;
@@ -552,7 +1116,10 @@ document.addEventListener("click",async event=>{
 });
 $("new-chat").addEventListener("click",newChat);$("chat-form").addEventListener("submit",sendMessage);$("editor-form").addEventListener("submit",saveEditor);$("chat-agent").addEventListener("change",selectAgent);
 $("chat-task").addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&(event.ctrlKey||event.metaKey||matchMedia("(pointer: fine)").matches)){event.preventDefault();$("chat-form").requestSubmit();}});
-document.addEventListener("keydown",event=>{if(event.key.toLowerCase()==="n"&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!document.querySelector("dialog[open]")&&!/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))newChat();});
+document.addEventListener("keydown",event=>{
+  if(event.key.toLowerCase()==="n"&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!document.querySelector("dialog[open]")&&!/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))newChat();
+  if(event.key.toLowerCase()==="f"&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&$("detail")?.open&&!/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)){event.preventDefault();toggleDetailMaximized();}
+});
 window.addEventListener("hashchange",showView);
 async function bootstrap(){
   if(bootstrapInFlight)return;bootstrapInFlight=true;clearTimeout(bootstrapRetryTimer);

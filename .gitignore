@@ -51,7 +51,9 @@ Thumbs.db
 target/
 **/src-tauri/target/
 **/src-tauri/gen/
-# Bundled desktop backend outputs (build_desktop.py); the dev wrapper files stay tracked
+# Bundled desktop backend outputs and dev wrappers (build_desktop.py; wrappers embed a local Python path)
+apps/studio-desktop/src-tauri/binaries/nexus-sidecar
+apps/studio-desktop/src-tauri/binaries/nexus-sidecar-*
 apps/studio-desktop/src-tauri/binaries/nexus-backend-*/
 apps/studio-desktop/src-tauri/binaries/*.manifest.json
 apps/studio-desktop/src-tauri/binaries/tauri.bundle.conf.json

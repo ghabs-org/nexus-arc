@@ -103,15 +103,15 @@
   "source_sha256": {
     "nexus/core/studio_docker_route.py": "0845703a75bb6ab73c2c448f693769ca63797438e4d79bc6efed042f65f56868",
     "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
-    "nexus/core/studio_container_recovery.py": "1b790d0c415550033629bd121c3b3e5ac8cbf0a26039e292e71a990917587adc",
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
     "tests/test_studio_docker_route.py": "b0f2cde0750e1f36f305d294cb1fdaa2b38abe2b8dbf128be7dfc918a5e2a2c5",
     "tests/test_studio_sandbox.py": "70c7528bbdf9597a2d00a27d8601dbd08f07c6bfe1d905d1080ef6893091690a",
-    "tests/test_studio_container_recovery.py": "32dfa4a22a09ae84bc6b1e5bdb274be32b1529d89ade67d4c543d6007fe2746d",
+    "tests/test_studio_container_recovery.py": "e57f62a555a8032563b9e2ce85a2532fedc6b9e3116d93a704eec7f3a57929bd",
     "tests/studio_docker_route_acceptance.py": "897466c6d7da21a0e9e0bba931ab26803c4b20b530cd0182504f5b6fd4cb3e19",
     "examples/nexus-bot/src/studio_docker_route.py": "4dc185993f7a9ba1cc418d668c372314c7ee02f98a9b3cd3431107996123ad9d",
     "tests/studio_docker_lifecycle_acceptance.py": "dfa6f84da4a23cb188ef7f940508a9baa80e829c3fc819091ac5542a48ee0ab7",
     "tests/studio_data_worker_acceptance.py": "249d953a28846e227f38c8af9bb084acbea664d76907aa9d940b4ab7ffa7e718",
-    "postman/contracts/studio-analysis-lifecycle.md": "96851837760dbf0e9a3d5490b9876edb69f1d40995a8e572bea29d8ec29409ce",
+    "postman/contracts/studio-analysis-lifecycle.md": "e39f41fa7d605d2371f7dff324c239f410fb25dc02d5553eef341bf79ccc11b9",
     "docs/STUDIO-DOCKER-SHUTDOWN.md": "8295fb8b48032a658ea230dd58635c13f5f415d8ef31c5bc4629b480b1379874"
   },
   "user_workspace_changed": false,
