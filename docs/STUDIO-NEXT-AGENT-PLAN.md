@@ -41,7 +41,38 @@ Exact artifact-version navigation still needs inspection. These are separate
 comparison candidates, not changes to the frozen inventory. No VM work, paid
 provider invocation or DMG build occurred. Full-plan completion remains false.
 
-### Current repository review and authorized desktop candidate — 29 October 2026
+### Signed macOS release verified — 29 October 2026
+
+Nexus Studio 1.0.2 full-SDK Apple Silicon delivery is now Developer ID signed,
+notarized and stapled. Apple accepted both app and DMG submissions. The
+DMG-installed copy passes signature integrity, ticket validation and Gatekeeper.
+Five signed runtime checks and five signed-DMG-installed checks pass; the final
+source regression gate passes 78 checks, and native tests pass 15. There are no
+failures or skips in these gates; counts overlap and are not a whole-plan total.
+
+Live hardened-runtime testing found LLVM/Numba requires executable memory.
+Only the Python sidecar receives that entitlement; library validation stays
+on and the native shell receives no exception. The release pipeline now checks
+all 44 SDK imports under the signed runtime before submitting to Apple.
+
+An actual native updater install exposed AppleDouble metadata in the producer's
+tarball. The producer now excludes it and validates a single app root. Repacking
+and re-signing the updater did not change the accepted app or DMG. An isolated
+fixture verifies invalid-signature rejection without app changes, installation
+of the actual notarized archive, Gatekeeper/ticket preservation, startup, exact
+previous-app rollback and inactive workspace restore. Its prior version uses
+synthetic older metadata on current candidate code; real old-release migration
+and a native-menu click-through against a published feed remain separate.
+
+The authorized current release batch is packaged in releases/. Public feed
+publication is not performed. Future DMG rebuilds still require an explicit
+request; VM work remains deferred. See
+[signed release evidence](STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json).
+The earlier candidate section below is historical and superseded. Full-plan and
+milestone 9 completion remain false because other platforms/devices/accounts
+and release-distribution acceptance remain open.
+
+### Historical candidate preparation — 29 October 2026
 
 The user explicitly authorized a new macOS desktop build plus signing,
 notarization and verified updates. This authorizes the current release batch;
@@ -95,8 +126,8 @@ model's name-recognition error remains documented. These fixes and the isolated 
 frozen entrypoint are not yet deployed to the VM or included in the existing DMG.
 
 Native macOS authentication, workspace locking, bundled Python and full-SDK
-tester installation already have proof. The macOS arm64 beta is ad-hoc signed,
-not notarized; latest source fixes are not packaged. Final desktop release and
+tester installation already have proof. The older macOS arm64 beta is ad-hoc signed. The current 1.0.2 full-SDK
+release is Developer ID signed, notarized and includes the recent source fixes. Final desktop release and
 Linux/Windows installed-platform acceptance remain open. See
 [tester evidence](STUDIO-DESKTOP-FRIEND-DMG-CHECKPOINT.json).
 

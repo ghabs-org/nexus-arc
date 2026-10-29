@@ -5,6 +5,7 @@ import plistlib
 import runpy
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -188,3 +189,26 @@ def test_full_profile_generated_config_advertises_native_sdk_minimum(tmp_path, m
     assert script["main"]() == 0
     config = json.loads((output / "tauri.bundle.conf.json").read_text())
     assert config["bundle"]["macOS"] == {"signingIdentity": "-", "minimumSystemVersion": "14.0"}
+
+
+@pytest.mark.parametrize("extra_root", [None, "._Nexus Studio.app", "../escape"])
+def test_update_archive_has_one_root_and_excludes_macos_metadata(tmp_path, monkeypatch, extra_root):
+    app = application(tmp_path)
+    destination = tmp_path / "update.tar.gz"
+
+    def tar(command):
+        assert "--no-mac-metadata" in command
+        with tarfile.open(destination, "w:gz") as archive:
+            archive.add(app, arcname=app.name)
+            if extra_root:
+                info = tarfile.TarInfo(extra_root)
+                archive.addfile(info)
+
+    monkeypatch.setattr(release, "_run", tar)
+    if extra_root:
+        with pytest.raises(ValueError, match="one application root"):
+            release.build_update_archive(app, destination)
+    else:
+        release.build_update_archive(app, destination)
+    with pytest.raises(ValueError, match="new updater archive"):
+        release.build_update_archive(app, destination)

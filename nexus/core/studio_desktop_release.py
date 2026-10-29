@@ -7,6 +7,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 
@@ -182,6 +183,39 @@ def notarize(path, profile):
     return {"id": result["id"], "status": result["status"]}
 
 
+def build_update_archive(application, destination):
+    """Use Tauri's single app-root layout without macOS AppleDouble entries."""
+    application = Path(application).resolve(strict=True)
+    destination = Path(destination).absolute()
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("Choose a new updater archive path")
+    _run(
+        [
+            "/usr/bin/tar",
+            "--no-mac-metadata",
+            "-czf",
+            str(destination),
+            "-C",
+            str(application.parent),
+            application.name,
+        ]
+    )
+    with tarfile.open(destination, "r|gz") as archive:
+        count = 0
+        for member in archive:
+            path = Path(member.name)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or not path.parts
+                or path.parts[0] != application.name
+            ):
+                raise ValueError("Updater archive must contain exactly one application root")
+            count += 1
+        if not count:
+            raise ValueError("Updater archive is empty")
+
+
 def release_macos(application, output, identity, profile, updater_key, tauri_cli, notes=None):
     """Produce a notarized DMG and version-bound updater archive; never publish."""
     application = Path(application).resolve(strict=True)
@@ -239,7 +273,7 @@ def release_macos(application, output, identity, profile, updater_key, tauri_cli
     _run(["/usr/bin/xcrun", "stapler", "validate", str(dmg)])
     _run(["/usr/bin/hdiutil", "verify", str(dmg)])
     update = output / f"Nexus-Studio-{version}-aarch64.app.tar.gz"
-    _run(["/usr/bin/tar", "-czf", str(update), "-C", str(output), app.name])
+    build_update_archive(app, update)
     _run(
         [
             "node",

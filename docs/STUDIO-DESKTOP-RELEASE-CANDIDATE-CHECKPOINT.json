@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-signed-release-candidate/v1",
   "date": "2026-10-29",
-  "status": "developer-id-signing-and-notarization-in-progress",
+  "status": "historical-candidate-superseded-by-signed-release",
   "whole_plan_complete": false,
   "whole_milestone_complete": false,
   "dmg_build_explicitly_authorized": true,
@@ -101,17 +101,17 @@
     "notarization_profile_ready": true,
     "user_setup_in_progress": false,
     "notarization_attempted_by_agent": true,
-    "developer_id_signing_claimed": false,
-    "notarization_credentials_validated_by_owner": true
+    "developer_id_signing_claimed": true,
+    "notarization_credentials_validated_by_owner": true,
+    "app_and_dmg_notarization_accepted": true
   },
   "remaining": [
-    "Install a Developer ID Application certificate with its private key.",
-    "Run inside-out Developer ID signing, accepted app/DMG notarization and stapling, then recheck signed installed runtime.",
-    "Publish an explicitly selected signed release/feed and perform an installed two-release update/rollback drill.",
-    "Other physical devices, installed Linux/Windows and Windows signing remain separate."
+    "See current signed release checkpoint for distribution and cross-platform boundaries."
   ],
   "vm_contacted": false,
   "vm_changed": false,
   "published": false,
-  "counts_overlap": "Source/frozen/installed groups have different scopes and overlapping behaviors; not a whole-plan test total."
+  "counts_overlap": "Source/frozen/installed groups have different scopes and overlapping behaviors; not a whole-plan test total.",
+  "superseded_by": "STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json",
+  "artifact_is_historical_beta": true
 }

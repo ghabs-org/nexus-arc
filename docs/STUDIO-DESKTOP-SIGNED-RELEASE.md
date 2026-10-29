@@ -99,3 +99,17 @@ that native release acceptance is pending. Cross-platform installers, Windows
 signing, live feed publication and an installed two-release update/rollback drill
 remain separate gates. Cryptographic fixture tests are not substitutes for those
 checks. [Official updater documentation](https://v2.tauri.app/plugin/updater/).
+
+## Verified local release — 29 October 2026
+
+Version 1.0.2 now has accepted app and DMG notarization, stapled tickets and a
+passing Gatekeeper assessment on the DMG-installed copy. The Python host uses
+only the executable-memory entitlement needed by LLVM; the native shell remains
+without it and library validation stays enabled.
+
+The updater producer excludes AppleDouble metadata and checks every archive entry
+has the one app root expected by Tauri. This was verified through an actual local
+install and rollback of the signed archive, with workspace snapshot recovery.
+The previous-version fixture is synthetic; it is not a real schema migration or
+a test of the published feed. Current hashes and bounds are in the
+[signed release checkpoint](STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json).

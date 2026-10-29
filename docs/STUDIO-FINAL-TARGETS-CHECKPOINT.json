@@ -97,17 +97,17 @@
     {
       "id": 5,
       "target": "Installed desktop release",
-      "status": "macos-candidate-built-apple-identity-and-profile-setup-pending",
+      "status": "macos-signed-notarized-local-install-update-rollback-verified",
       "remaining": [
-        "Install a Developer ID Application identity and working notarization profile.",
-        "Sign and notarize current candidate, then repeat signed installed acceptance.",
-        "Publish selected release/feed and verify installed update/rollback.",
-        "Installed Linux/Windows acceptance, Windows signing and another physical Mac."
+        "Publish selected signed release/feed and verify native-menu flow against it.",
+        "Another physical Mac; actual old-release/schema migration compatibility.",
+        "Installed Linux/Windows acceptance and Windows signing."
       ],
       "dmg_rebuild_authorized": true,
-      "local_signing_identity_check": "Full Keychain access finds development/distribution identities but still no Developer ID Application identity; initial restricted identity probe was not authoritative.",
+      "local_signing_identity_check": "Developer ID Application identity for team CFV8SVV467 used successfully; private key stayed in Keychain.",
       "authorization_scope": "Explicit user request on 29 October 2026 for this release batch only; no standing authorization for later DMGs.",
-      "current_candidate": "STUDIO-DESKTOP-RELEASE-CANDIDATE-CHECKPOINT.json"
+      "current_candidate": "STUDIO-DESKTOP-RELEASE-CANDIDATE-CHECKPOINT.json",
+      "current_release": "STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json"
     },
     {
       "id": 6,

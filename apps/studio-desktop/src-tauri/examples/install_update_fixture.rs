@@ -46,8 +46,8 @@ fn install() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
-    if install().is_err() {
-        eprintln!("Disposable update installation failed.");
+    if let Err(error) = install() {
+        eprintln!("Disposable update installation failed: {error}");
         std::process::exit(1);
     }
     println!("Verified update installed only into the disposable fixture.");
