@@ -880,3 +880,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
   body.print-run .run-step{break-inside:auto}
   body.print-run .run-step-heading{break-after:avoid}
 }
+
+.evaluation-file-list,.evaluation-file-sources{min-width:0;overflow-wrap:anywhere}
+
+.snapshot-files{padding:16px;overflow-wrap:anywhere}.snapshot-files button{margin:4px;max-width:100%;white-space:normal}

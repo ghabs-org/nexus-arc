@@ -152,6 +152,7 @@ class StudioPortableConfiguration:
                 "toolsets",
                 "connectors",
                 "nuclia",
+                "operations",
             },
             "/bindings",
         )
@@ -164,6 +165,7 @@ class StudioPortableConfiguration:
             "toolsets",
             "connectors",
             "nuclia",
+            "operations",
         ):
             values = self.bindings.get(group, {})
             if not isinstance(values, dict):
@@ -176,7 +178,15 @@ class StudioPortableConfiguration:
                 continue
             for name, binding in values.items():
                 path = "/bindings/" + group + "/" + str(name)[:100]
-                if group == "nuclia":
+                if group == "operations":
+                    binding = self.fields(binding, {"operation_id", "input"}, path)
+                    values[name] = binding
+                    if (not isinstance(binding.get("operation_id"), str)
+                        or not 1 <= len(binding["operation_id"]) <= 200
+                        or not isinstance(binding.get("input"), str)
+                        or binding.get("input") not in {"body", "parameters"}):
+                        self.issue(path, "invalid_operation_binding", "Choose an operation ID and body or parameters input mode")
+                elif group == "nuclia":
                     binding = self.fields(
                         binding,
                         {
@@ -315,6 +325,7 @@ class StudioPortableConfiguration:
                 "outputModes",
                 "skills",
                 "toolsets",
+                "skillRefs",
                 "deploy",
                 "additionalConfigurations",
             }
@@ -361,6 +372,34 @@ class StudioPortableConfiguration:
                 extra.get("tools", []), path + "/additionalConfigurations/tools", references
             )
             settings = agent_settings(self, extra, path + "/additionalConfigurations")
+            if "skillRefs" in source:
+                aliases = source["skillRefs"]
+                if not isinstance(aliases, list) or len(aliases) > 20:
+                    self.issue(
+                        path + "/skillRefs",
+                        "invalid_skills",
+                        "Use up to twenty explicitly bound skill aliases",
+                    )
+                else:
+                    selected = list(dict.fromkeys(settings.get("skill_ids", [])))
+                    for index, alias in enumerate(aliases):
+                        where = path + "/skillRefs/" + str(index)
+                        if not isinstance(alias, str) or not 1 <= len(alias) <= 200:
+                            self.issue(
+                                where, "invalid_skill_reference",
+                                "Skill references must be alias strings of 1–200 characters",
+                            )
+                            continue
+                        target = resource_binding(self, "skills", alias, "skills", where)
+                        if target and target not in selected:
+                            selected.append(target)
+                    if len(selected) > 20:
+                        self.issue(
+                            path + "/skillRefs", "invalid_skills",
+                            "Combined skill references must contain at most twenty distinct resources",
+                        )
+                    if selected:
+                        settings["skill_ids"] = selected
             card = declarative_card(self, source, path)
             if card:
                 settings["agent_card"] = card
@@ -457,6 +496,8 @@ class StudioPortableConfiguration:
                 "agent_name",
                 "workflow_name",
                 "tool_name",
+                "connector",
+                "tool",
                 "instruction",
             },
             where,
@@ -524,6 +565,17 @@ class StudioPortableConfiguration:
                 ),
                 "",
             )
+        elif kind == "tool" and ("connector" in node or "tool" in node):
+            from nexus.core.studio_interop_connectors import connector_node
+
+            if "tool_name" in node:
+                self.issue(where, "ambiguous_tool", "Choose either builtin tool_name or connector/tool")
+            mapped = self.attempt(where, lambda: connector_node(self, node, where), {})
+            mode = mapped.pop("_input_mode", "parameters")
+            item.update(mapped)
+            item.setdefault("arguments", {})[mode] = item.pop("input")
+        elif kind == "approval":
+            pass
         elif kind == "tool":
             target = (
                 self.bindings.get("tools", {}).get(node.get("tool_name"))
@@ -709,6 +761,7 @@ class StudioPortableConfiguration:
                         "agent_card",
                     }
                     or doc["spec"].get("timeout_seconds") != 600
+                    or (declarative and isinstance(spec, dict) and "skillRefs" in spec)
                 ):
                     doc["metadata"]["interop_agent_source"] = {
                         "declarative": declarative,
@@ -738,6 +791,9 @@ class StudioPortableConfiguration:
                     doc["metadata"]["interop_workflow_description"] = spec["description"]
                 if doc["graph"].get("mapping_language") == "interop-template/v1":
                     doc["metadata"]["interop_workflow_source"] = copy.deepcopy(spec)
+                    resources = {group: copy.deepcopy(self.bindings[group]) for group in ("toolsets", "connectors", "operations") if self.bindings.get(group)}
+                    if resources:
+                        doc["metadata"]["interop_resource_bindings"] = resources
                     decision = spec.get("decision", {})
                     alias = decision.get("model_alias") if isinstance(decision, dict) else None
                     if isinstance(alias, str) and alias in self.bindings.get("decisions", {}):
@@ -910,6 +966,7 @@ class StudioPortableConfiguration:
                     "interop_workflow_source",
                     "interop_decision_bindings",
                     "interop_agent_source",
+                    "interop_resource_bindings",
                 },
                 path + "/metadata",
             )
@@ -1042,6 +1099,17 @@ class StudioPortableConfiguration:
                     )
                 else:
                     out["spec"] = {"appConfig": copy.deepcopy(source)}
+                    resource_bindings = self.fields(meta.get("interop_resource_bindings", {}), {"toolsets", "connectors", "operations"}, path + "/metadata/interop_resource_bindings")
+                    for group, aliases in resource_bindings.items():
+                        if not isinstance(aliases, dict):
+                            self.issue(path, "invalid_binding", "Resource bindings must be alias objects")
+                            continue
+                        for alias, binding in aliases.items():
+                            current = bindings.setdefault(group, {}).get(alias)
+                            if current is not None and current != binding:
+                                self.issue(path, "ambiguous_binding", "Resource aliases require consistent bindings")
+                            else:
+                                bindings[group][alias] = copy.deepcopy(binding)
                     decision_bindings = meta.get("interop_decision_bindings", {})
                     if not isinstance(decision_bindings, dict):
                         self.issue(

@@ -643,7 +643,13 @@ class StudioOperations:
                     node_name=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
                     status="continued" if active_resume else "running",
                 )
+                from nexus.core.studio_evaluation_files import input_text, provenance
+
+                files = payload.get("_evaluation_files", [{}] * len(target["cases"]))[index]
+                task_input = input_text(case["input"], files.get("input_files", []))
+                grading_case = {**case, "input": task_input, "_reference_files": files.get("reference_files", [])}
                 entry = {
+                    **({"file_sources": provenance(files)} if files else {}),
                     "variant": variant["name"],
                     "variant_index": variant_index + 1,
                     "case": index + 1,
@@ -678,13 +684,13 @@ class StudioOperations:
                             {
                                 **request,
                                 "workflow_id": target["target_id"],
-                                "task": case["input"],
+                                "task": task_input,
                                 "_evaluation_case": checkpoint,
                             },
                         )
                     else:
                         result = await self.studio._invoke(
-                            {**request, "agent_id": target["target_id"]}, case["input"], run_id
+                            {**request, "agent_id": target["target_id"]}, task_input, run_id
                         )
                         output = result.output
                     lowered = output.casefold()
@@ -707,7 +713,7 @@ class StudioOperations:
 
                     checks.extend(
                         await additional_checks(
-                            self.studio, case, output, run_id, payload.get("requester_nexus_id")
+                            self.studio, grading_case, output, run_id, payload.get("requester_nexus_id")
                         )
                     )
                     entry.update(

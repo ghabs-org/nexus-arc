@@ -926,6 +926,8 @@ class StudioService:
             "speech",
         }:
             raise ValueError("Unknown run kind")
+        if kind == "design":
+            self.designer.prepare(payload)
         if kind == "evaluation":
             self.operations.evaluation_request(payload)
             payload["task"] = "Evaluate " + payload["suite_snapshot"]["name"]

@@ -39,3 +39,9 @@ test('authorization or transport failure produces no export and reenables its bu
   assert.equal(downloads,0);
   assert.equal(button.disabled,false);
 });
+
+test('report file provenance distinguishes roles and escapes metadata without file text',async()=>{
+ const scope=vm.createContext({escapeHtml});vm.runInContext(functions,scope);
+ const result=scope.evaluationFileSources({file_sources:{input_files:[{id:'source',revision:2,filename:'<script>input.txt',sha256:'digest'}],reference_files:[{id:'expected',revision:3,filename:'reference.txt',sha256:'other',text:'DO_NOT_RENDER'}]}});
+ assert.match(result,/Input/);assert.match(result,/Grading reference/);assert.match(result,/revision 3/);assert.match(result,/&lt;script&gt;/);assert.doesNotMatch(result,/<script>|DO_NOT_RENDER/);
+});

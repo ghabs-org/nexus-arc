@@ -1,5 +1,123 @@
 # Nexus Studio — next-agent delivery plan
 
+### Reviewed OpenAPI connector/tool bundle conversion — 29 October 2026
+
+Implemented explicit `connector`/`tool` node mappings to existing selected OpenAPI
+operations through `bindings.connectors` and `bindings.operations`. Input mapping
+selects body or parameters explicitly. Saved method metadata chooses read/invoke;
+writes require authored direct approval gates and cannot gain automatic retries.
+Workflow-level toolsets use existing resource bindings plus explicit builtin tool
+aliases. Source-preserving export retains consistent resource bindings.
+
+A complete local reviewed bundle covers skill-bound agent, local toolset, connector
+read, approval and write. 215 focused regressions passed with zero failures/skips;
+the final ten connector checks also pass after the JSON-body profile was tightened.
+Real HTTP through a local Postman simulation confirmed zero conversion/plan/apply
+requests, one read before approval, then one approved write without repeating the
+read or model. The 503 variant also received one write only and retained an
+unresolved effect receipt. Both simulation traces were inspected. No live provider,
+VM, release publication or DMG was used.
+
+This closes the bounded OpenAPI bundle-conversion slice, not every connector import
+format or unmodified upstream parity. MCP/other node protocols, mixed required
+parameters+body, external deployment and non-JSON bodies remain explicitly outside
+the profile. Next comparison task: dataset CSV sibling-file and evaluator-template
+import, without automatic server-path access.
+See [usage](STUDIO-CONNECTOR-NODE-IMPORT.md) and
+[evidence](STUDIO-CONNECTOR-NODE-IMPORT-CHECKPOINT.json). Whole-plan stays open.
+
+
+### Explicit declarative skill references — 29 October 2026
+
+Implemented `spec.skillRefs` through existing owner-only configuration conversion.
+Aliases require `bindings.skills` mappings to existing unarchived Nexus skills.
+Routing capability descriptions stay separate from knowledge instructions. The
+ordered union with older knowledge references is deduplicated and bounded to
+twenty distinct skills. Conversion never fetches files/URLs, creates plans, calls
+providers or activates resources. Source-preserving export includes empty lists.
+External deployment flags remain explicit rejection diagnostics.
+
+Validation: 146 focused conversion/capability/workflow/policy regressions passed,
+zero failures/skips. Coverage includes native review/apply, execution with a
+synthetic provider, queued skill-context pinning, owner-only HTTP access, malformed
+input, archived/missing bindings and roundtrip. The thin example and affected
+lint/contract/whitespace checks pass. No VM, live provider or DMG was used.
+
+This closes only the bounded skill-reference import slice. Current connector-node
+syntax, workflow-level toolset conversion and a complete reviewed bundle fixture
+remain next. No dynamic external skill-loading or search-tool parity is claimed.
+See [usage](STUDIO-SKILL-REFERENCE-IMPORT.md) and
+[evidence](STUDIO-SKILL-REFERENCE-IMPORT-CHECKPOINT.json). Whole-plan stays open.
+
+
+### Private snapshot continuation and Activity revision audit — 29 October 2026
+
+Implemented authenticated continuation of private/public snapshots into a new
+recipient-owned conversation. Only message text and explicitly included exact
+file bytes transfer. Source ACLs, bearer tokens, source session/run IDs, agent
+settings and project permissions do not transfer. Copies start no provider run;
+file attachment remains explicit. Current grants/expiry are rechecked and UUID
+request IDs make explicit retries idempotent. Filesystem interruptions can leave
+private file copies reused on retry; the new session is published last.
+
+The Activity audit confirmed captured-revision preview already exists and passes
+replacement/archival tests. Legacy events without recorded revision now explicitly
+label their current-version fallback. No historical version is invented.
+
+Validation: 48 focused Python checks and 19 browser-logic checks passed, zero
+failures/skips. The browser verified recipient continuation, automatic opening of
+the new chat and pinned private-file preview. Synthetic HTTP tests prove that only
+an explicit later chat run uses copied history; file bytes are not sent automatically.
+The local example and affected lint/syntax/whitespace checks pass. No VM, real
+provider, external publication or DMG rebuild occurred. Whole-plan stays open.
+See [usage](STUDIO-SNAPSHOT-CONTINUATION.md) and
+[evidence](STUDIO-SNAPSHOT-CONTINUATION-CHECKPOINT.json).
+
+
+### Evaluation input and grading-reference files — 29 October 2026
+
+Implemented optional pinned input/reference artifact roles in dataset and suite
+case editors. Existing document extraction and private job services are reused.
+Current and historical artifact access are checked before queuing; bounded copied
+text and digests retain exact revisions after edits or archival. Only input text
+reaches the target; reference text reaches an explicitly configured judge. Reports
+show source roles/revisions/digests. No original multimodal file input is added.
+
+Validation: 183 focused Python checks and 26 browser-logic checks passed, zero
+failures/skips. A disposable browser verified separate role selection and excluded
+a foreign artifact. Tests cover agent/workflow separation, historical/current
+ownership, forged snapshot rejection, invalid/bounded files, Office extraction,
+import/save preservation and serialized queue snapshots. The thin example passes.
+The existing unrelated B904 at studio_operations.py:83 remains unchanged; other
+affected lint checks pass. No live provider, VM or DMG was used.
+
+This closes the bounded evaluation file-role comparison slice. Next local slice:
+continue a shared snapshot into a new private conversation, checking authorization
+at copy time and preserving source artifact revision access.
+See [usage](STUDIO-EVALUATION-FILES.md) and
+[evidence](STUDIO-EVALUATION-FILES-CHECKPOINT.json). Whole-plan completion stays false.
+
+
+### Inline AI dataset drafting — 29 October 2026
+
+Implemented in dataset and evaluation editors through the existing designer job
+service. Users select provider/model/count, review generated JSON, then explicitly
+append or replace cases and save separately. Unsaved cases survive generation;
+append preserves existing controls and rejects duplicate inputs or totals above
+100. Invalid output, failed jobs, closed dialogs and stale validation responses
+cannot replace cases. Builder/CSRF and private-run checks apply, including direct
+run submissions. Dataset generation does not include workspace resource names.
+
+Validation: 117 focused Python regressions and 23 browser-logic checks passed,
+zero failures/skips. A real browser against a disposable synthetic-provider
+Studio verified generation, JSON review and appending five cases while preserving
+an unsaved case. The thin example passes. No paid provider, VM or DMG was used.
+This closes the inline drafting comparison slice, not whole-plan delivery.
+Next local slice: pinned evaluation input and grading-reference file roles.
+See [usage](STUDIO-DATASET-DRAFTING.md) and
+[evidence](STUDIO-DATASET-DRAFTING-CHECKPOINT.json).
+
+
 **Distribution rule — user request, 26 October 2026:** rebuild or create a DMG
 only after an explicit user request. Routine implementation must leave existing
 DMGs and their recorded checksums unchanged.

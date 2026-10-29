@@ -125,6 +125,9 @@ def prepare(studio, payload):
             "Experiment exceeds the 400 case-execution limit; reduce cases, variants or repetitions"
         )
     payload["suite_snapshot"] = copy.deepcopy(suite)
+    from nexus.core.studio_evaluation_files import pin_files
+
+    pin_files(studio, payload)
     if suite["data"]["target_kind"] == "workflow":
         with studio.lock:
             payload["workflow_snapshot"] = studio.definition(

@@ -47,3 +47,9 @@ test("recorded participant graph follows replay state without inventing ordering
   const {context}=fixture();context.data={graph:{nodes:[{id:"run",kind:"run",name:"Run"},{id:"invoke",kind:"invocation",name:"Assistant"}],edges:[{source:"run",target:"invoke",relationship:"run-membership"}],relationship_note:"Membership, not order."},states:{invoke:"completed"},timeline:[{id:"start",sequence:1,kind:"invocation",graph_node_id:"invoke",status:"running"},{id:"end",sequence:2,kind:"invocation",graph_node_id:"invoke",status:"completed"}]};
   const box=vm.runInContext("executionGraph(data,1)",context),svg=box.children[0],nodes=svg.children.filter(node=>node.tagName==="g");assert.equal(nodes[1].children.at(-1).textContent,"running");assert.equal(svg.children[0].getAttribute("stroke-dasharray"),"4 4");assert.equal(box.children[1].textContent,"Membership, not order.");
 });
+
+test('legacy artifacts without captured revision explicitly label the current-version fallback',async()=>{
+ const {render,root,calls}=fixture();render(data([{id:'artifact',sequence:1,kind:'artifact',status:'available',artifact_id:'legacy-file'}]));
+ const button=root.children[4].children[0].children[0].children.find(node=>node.textContent==='View current artifact (revision not recorded)');
+ assert.ok(button);await button.onclick();assert.deepEqual(calls,['/api/catalog/artifacts/legacy-file/preview']);
+});

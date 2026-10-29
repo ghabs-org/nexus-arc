@@ -636,6 +636,16 @@ async function openSession(sessionId){
     if(m.status==="failed")node.classList.add("error");
     if(session.studio_assistant&&m.role==="assistant"&&m.run_id&&typeof renderWorkspaceProposals==="function")renderWorkspaceProposals(node,m.run_id);
   });
+  if(session.snapshot_artifacts?.length){
+    const files=document.createElement("aside");files.className="snapshot-files";
+    const note=document.createElement("p");note.textContent="Private copied files. Preview here or attach them explicitly from Library → Artifacts. They are not sent to AI automatically.";files.append(note);
+    for(const ref of session.snapshot_artifacts){
+      const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent=ref.filename+" · revision "+ref.revision;
+      button.onclick=async()=>{try{const preview=await api(`/api/catalog/artifacts/${encodeURIComponent(ref.id)}/preview?revision=${ref.revision}`);showDetail("Copied file","");$("detail-content").replaceChildren(previewContent(preview));}catch(error){notify(error.message);}};
+      files.append(button);
+    }
+    $("messages").append(files);
+  }
   if($("chat-agent"))$("chat-agent").value=session.studio_assistant?"studio-assistant":(session.agent_id||"");
   if($("chat-provider"))$("chat-provider").value=session.provider||"codex";
   if($("chat-model"))$("chat-model").value=session.model||"";
@@ -1206,7 +1216,7 @@ async function bootstrap(){
   if(bootstrapInFlight)return;bootstrapInFlight=true;clearTimeout(bootstrapRetryTimer);
   try{const data=await api("/api/bootstrap");if(state.user&&data.user?.nexus_id!==state.user.nexus_id){location.reload();return;}bootstrapFailures=0;state.workspacePath=data.workspace.path;disconnectedRuns.delete("bootstrap");state.accountUrl=data.account_url;state.token=data.token;state.mode=data.mode;state.user=data.user;state.providers=data.providers;$("team-login").hidden=true;connectionStatus();$("send-message").disabled=false;
     if(data.mode==="team"){$("deployment-mode").textContent="TEAM";$("runtime-label").textContent=`${data.user.nexus_id} · ${data.user.role}`;$("composer-hint").textContent="Uses your Nexus provider configuration";$("view-providers").querySelector(".callout").textContent="Providers use your existing Nexus account setup. Shared Codex and Claude Code runs use isolated prompt-only containers. Complete provider setup through Nexus login.";}
-    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills(),loadDecisionModels(),loadKnowledgeProjects()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
+    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills(),loadDecisionModels(),loadKnowledgeProjects()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;const continued=location.hash.match(/^#chat\/([a-f0-9]{32})$/);if(continued)await openSession(continued[1]);restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
   catch(error){if(error.retryable&&$("team-login").hidden)disconnectedRuns.add("bootstrap");else disconnectedRuns.delete("bootstrap");connectionStatus();if($("team-login").hidden)notify(`Could not load the workspace: ${error.message}`);$("send-message").disabled=true;if(error.retryable&&$("team-login").hidden)bootstrapRetryTimer=setTimeout(bootstrap,Math.min(15000,1000*2**Math.min(bootstrapFailures++,4)));}
   finally{bootstrapInFlight=false;}
 }

@@ -6,7 +6,7 @@ from nexus.core.studio_interop_conditions import parse_condition
 from nexus.core.studio_interop_mappings import normalize_indices, source_ref
 from nexus.core.studio_interop_values import LANGUAGE, import_value
 
-BASIC = {"agent", "tool", "workflow"}
+BASIC = {"agent", "tool", "workflow", "approval"}
 COMMON = {
     "id",
     "type",
@@ -20,7 +20,8 @@ COMMON = {
 }
 SPECIFIC = {
     "agent": {"agent_name", "instruction"},
-    "tool": {"tool_name"},
+    "tool": {"tool_name", "connector", "tool"},
+    "approval": set(),
     "workflow": {"workflow_name"},
     "map": {
         "node",
@@ -52,11 +53,16 @@ SPECIFIC = {
 def needs_compatibility(source):
     if not isinstance(source, dict):
         return False
+    if "toolsets" in source:
+        return True
     nodes = source.get("nodes", [])
     if isinstance(nodes, list) and any(
         isinstance(n, dict)
         and (
             n.get("type") in ("map", "loop", "switch", "decision")
+            or "connector" in n
+            or "tool" in n
+            or n.get("type") == "approval"
             or "when" in n
             or "retry_strategy" in n
             or "instruction" in n
@@ -216,7 +222,11 @@ class InteropWorkflowCompiler:
             projected["input"] = {}
             node = self.bridge.workflow_node(projected, path, self.source, self.tools)
             mapped = self.value(source.get("input", "{{workflow.input}}"), scope, path + "/input")
-            node["kwargs" if kind == "tool" else "input"] = mapped
+            if node.get("kind") == "integration":
+                mode = next(key for key in node["arguments"] if key != "operation_id")
+                node["arguments"][mode] = mapped
+            else:
+                node["kwargs" if kind == "tool" else "input"] = mapped
         else:
             node = {"id": identity, "name": identity, "kind": kind}
             if "depends_on" in source:
@@ -549,6 +559,7 @@ class InteropWorkflowCompiler:
                 "on_exit",
                 "decision",
                 "tools",
+                "toolsets",
             },
             path,
         )
@@ -607,7 +618,9 @@ class InteropWorkflowCompiler:
                     if k in {"timeout_seconds", "max_state_bytes", "max_images", "max_image_bytes"}
                 },
             }
-        self.tools = self.bridge.tools(source.get("tools", []), path + "/tools")
+        from nexus.core.studio_interop_connectors import workflow_tools
+
+        self.tools = workflow_tools(self.bridge, source, path)
         nodes = source.get("nodes", [])
         if not isinstance(nodes, list) or not 1 <= len(nodes) <= 40:
             self.issue(path + "/nodes", "invalid_nodes", "Use 1–40 source nodes")

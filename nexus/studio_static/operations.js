@@ -5,7 +5,34 @@ function targetField(data={}){
 }
 function localDate(value){const date=value?new Date(value):new Date(Date.now()+60000);return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);}
 function caseFields(item={}){
-  return `<div class="evaluation-case"><div class="step-heading"><span>TEST CASE</span><button type="button" class="secondary" data-remove-case>Remove</button></div><label>Task input<textarea class="case-input" required>${escapeHtml(item.input||"")}</textarea></label><label>Output must contain (one phrase per line)<textarea class="case-contains" rows="2">${escapeHtml((item.contains||[]).join("\n"))}</textarea></label><label>Output must exclude (one phrase per line)<textarea class="case-excludes" rows="2">${escapeHtml((item.excludes||[]).join("\n"))}</textarea></label><input type="hidden" class="case-context-source" value="${escapeHtml(JSON.stringify(item.context_source||{}))}"><details><summary>Structured checks and optional AI judge</summary><label>Reference passages (JSON list, optional)<textarea class="case-contexts" rows="4">${escapeHtml(JSON.stringify(item.contexts||[],null,2))}</textarea></label><label>Structured checks (JSON list)<textarea class="case-checks" rows="4">${escapeHtml(JSON.stringify(item.checks||[],null,2))}</textarea></label><label>AI judge settings (JSON object, optional)<textarea class="case-judge" rows="4">${escapeHtml(JSON.stringify(item.judge||{},null,2))}</textarea></label><p class="workspace-scope">Checks support exact output, JSON values and numeric ranges. A judge needs provider, rubric and threshold; its model calls consume your account usage. Reference passages are copied data, never instructions. A judge receives them through the provider you select. Judge scores are estimates.</p></details></div>`;
+  return `<div class="evaluation-case"><div class="step-heading"><span>TEST CASE</span><button type="button" class="secondary" data-remove-case>Remove</button></div><label>Task input<textarea class="case-input" required>${escapeHtml(item.input||"")}</textarea></label><label>Output must contain (one phrase per line)<textarea class="case-contains" rows="2">${escapeHtml((item.contains||[]).join("\n"))}</textarea></label><label>Output must exclude (one phrase per line)<textarea class="case-excludes" rows="2">${escapeHtml((item.excludes||[]).join("\n"))}</textarea></label>${caseFileFields(item,"input_files")}${caseFileFields(item,"reference_files")}<input type="hidden" class="case-context-source" value="${escapeHtml(JSON.stringify(item.context_source||{}))}"><details><summary>Structured checks and optional AI judge</summary><label>Reference passages (JSON list, optional)<textarea class="case-contexts" rows="4">${escapeHtml(JSON.stringify(item.contexts||[],null,2))}</textarea></label><label>Structured checks (JSON list)<textarea class="case-checks" rows="4">${escapeHtml(JSON.stringify(item.checks||[],null,2))}</textarea></label><label>AI judge settings (JSON object, optional)<textarea class="case-judge" rows="4">${escapeHtml(JSON.stringify(item.judge||{},null,2))}</textarea></label><p class="workspace-scope">Checks support exact output, JSON values and numeric ranges. A judge needs provider, rubric and threshold; its model calls consume your account usage. Reference passages are copied data, never instructions. A judge receives them through the provider you select. Judge scores are estimates.</p></details></div>`;
+}
+function caseFileFields(item,role){
+  const files=item[role]||[],label=role==="input_files"?"Input files":"Grading-reference files";
+  return `<details><summary>${label} · ${files.length} selected</summary><p>${role==="input_files"?"Extracted text goes to the target agent or workflow.":"Extracted text goes only to the AI judge. Configure a judge below."} Choose UTF-8 text, PDF or Office files from Library → Artifacts. Each file supports up to 16000 extracted characters.</p><input type="hidden" class="case-${role}" value="${escapeHtml(JSON.stringify(files))}"><p class="case-${role}-list evaluation-file-list">${escapeHtml(files.map(file=>`${file.id} · revision ${file.revision}`).join("; ")||"No files selected")}</p><button type="button" class="secondary" data-case-file-role="${role}">Choose ${role==="input_files"?"input":"reference"} file</button><button type="button" class="secondary" data-clear-case-files="${role}">Clear files</button></details>`;
+}
+async function chooseEvaluationFile(button){
+  const row=button.closest(".evaluation-case"),role=button.dataset.caseFileRole,field=row.querySelector(`.case-${role}`);
+  button.disabled=true;
+  try{
+    const items=(await api("/api/catalog/artifacts")).items.filter(item=>!item.archived);
+    if(!row.isConnected||!$("library-editor").open)return;
+    if(!items.length)throw new Error("Upload a file in Library → Artifacts first, then choose it here.");
+    const form=await fieldsDialog("Choose a pinned file",`<p>The exact revision will be used. File access is checked when you run the evaluation. Saved datasets do not grant access to private files.</p><label>File revision<select name="file">${items.map(item=>`<option value="${escapeHtml(JSON.stringify({id:item.id,revision:item.revision}))}">${escapeHtml(item.data.filename||item.name)} · revision ${item.revision}</option>`).join("")}</select></label>`,"Add file");
+    if(!form||!row.isConnected||!$("library-editor").open)return;
+    const ref=JSON.parse(form.get("file")),files=JSON.parse(field.value||"[]");
+    if(files.length>=5)throw new Error("Choose at most five files per role.");
+    if(files.some(file=>file.id===ref.id&&file.revision===ref.revision))throw new Error("This file revision is already selected.");
+    files.push(ref);field.value=JSON.stringify(files);
+    row.querySelector(`.case-${role}-list`).textContent=files.map(file=>`${file.id} · revision ${file.revision}`).join("; ");
+    field.closest("details").querySelector("summary").textContent=`${role==="input_files"?"Input files":"Grading-reference files"} · ${files.length} selected`;
+  }catch(error){if(row.isConnected)$("library-form-error").textContent=error.message;}
+  finally{if(button.isConnected)button.disabled=false;}
+}
+function clearEvaluationFiles(button){
+  const row=button.closest(".evaluation-case"),role=button.dataset.clearCaseFiles;
+  row.querySelector(`.case-${role}`).value="[]";row.querySelector(`.case-${role}-list`).textContent="No files selected";
+  button.closest("details").querySelector("summary").textContent=`${role==="input_files"?"Input files":"Grading-reference files"} · 0 selected`;
 }
 function evaluatorFields(data){
   return `<p class="workspace-scope">Shared with this workspace. Saving never invokes AI. Only explicitly running an evaluation sends task, answer and reference passages to this provider.</p><label>Judge provider<select name="provider">${providerOptions(data.provider||"codex")}</select></label>`+inputField("model","Judge model (optional)",data.model||"")+`<label>Grading instructions<textarea name="rubric" rows="5" required>${escapeHtml(data.rubric||"")}</textarea></label><label>Pass threshold (0–1)<input name="threshold" type="number" min="0" max="1" step="any" value="${data.threshold??0.7}" required></label><label>Choice scores (optional, one label = score per line)<textarea name="choices" rows="4" placeholder="Supported = 1&#10;Partial = 0.5&#10;Unsupported = 0">${escapeHtml(Object.entries(data.choices||{}).map(([label,score])=>`${label} = ${score}`).join("\n"))}</textarea></label><p class="callout">Leave choices empty for a numeric score. With choices, only configured labels are accepted; their saved scores determine the grade. Judging consumes the selected account's usage. Model grades are estimates.</p>`;
@@ -50,7 +77,46 @@ function evaluationDatasetFields(data){
   const suite=library.kind==="evaluations";
   if(suite)queueMicrotask(loadEvaluationDatasetChoices);
   queueMicrotask(loadEvaluatorChoices);
-  return (suite?targetField(data):'<p class="workspace-scope">Shared with this workspace. Saving cases never runs an evaluation.</p>')+`<div id="evaluation-cases">${(data.cases||[{}]).map(caseFields).join("")}</div><button type="button" class="secondary" id="evaluation-add-case">+ Add test case</button>${suite?'<details><summary>Use a saved dataset</summary><label>Workspace dataset<select id="evaluation-saved-dataset"><option value="">Loading datasets…</option></select></label><button type="button" class="secondary" id="evaluation-use-dataset" disabled>Replace cases from dataset</button><p>Copies the selected revision into this draft. Later dataset edits never change your suite.</p></details>':""}<details><summary>Import cases from a file</summary><label>CSV, YAML or JSON cases file (up to 900 KiB)<input type="file" id="evaluation-dataset" accept=".csv,.yaml,.yml,.json,text/csv,application/json,application/yaml"></label><button type="button" class="secondary" id="evaluation-import">Replace draft cases from file</button><p>CSV supports input and expected columns. JSON and YAML support case arrays or a version 1 dataset. All cases are validated before replacement. Nothing executes until you run a saved suite.</p></details>${savedEvaluatorFields()}<p id="evaluation-dataset-status" class="workspace-scope" role="status"></p><p class="callout">Checks compare phrases without case sensitivity. Each case needs a phrase check, structured assertion or explicitly configured rubric judge.</p>`;
+  return (suite?targetField(data):'<p class="workspace-scope">Shared with this workspace. Saving cases never runs an evaluation.</p>')+`<div id="evaluation-cases">${(data.cases||[{}]).map(caseFields).join("")}</div><button type="button" class="secondary" id="evaluation-add-case">+ Add test case</button>${suite?'<details><summary>Use a saved dataset</summary><label>Workspace dataset<select id="evaluation-saved-dataset"><option value="">Loading datasets…</option></select></label><button type="button" class="secondary" id="evaluation-use-dataset" disabled>Replace cases from dataset</button><p>Copies the selected revision into this draft. Later dataset edits never change your suite.</p></details>':""}<details><summary>Import cases from a file</summary><label>CSV, YAML or JSON cases file (up to 900 KiB)<input type="file" id="evaluation-dataset" accept=".csv,.yaml,.yml,.json,text/csv,application/json,application/yaml"></label><button type="button" class="secondary" id="evaluation-import">Replace draft cases from file</button><p>CSV supports input and expected columns. JSON and YAML support case arrays or a version 1 dataset. All cases are validated before replacement. Nothing executes until you run a saved suite.</p></details>${datasetDraftFields()}${savedEvaluatorFields()}<p id="evaluation-dataset-status" class="workspace-scope" role="status"></p><p class="callout">Checks compare phrases without case sensitivity. Each case needs a phrase check, structured assertion or explicitly configured rubric judge.</p>`;
+}
+function datasetDraftFields(){
+  return `<details><summary>Draft cases with AI</summary><p>Describe the behavior and expected answers. Only this request goes to the selected provider; account usage applies. Existing cases stay unchanged until you apply the draft.</p><label>What should these cases test?<textarea id="dataset-draft-task" rows="4" maxlength="16000" placeholder="For example: test a support agent that must refuse refund requests after 30 days."></textarea></label><div class="form-grid"><label>Provider<select id="dataset-draft-provider">${providerOptions("codex")}</select></label><label>Model (optional)<input id="dataset-draft-model" maxlength="200" placeholder="Provider default"></label><label>Number of cases<input id="dataset-draft-count" type="number" min="1" max="100" step="1" value="5"></label></div><button type="button" class="secondary" id="dataset-draft-generate">Generate draft cases</button><p id="dataset-draft-status" role="status" aria-live="polite"></p><div id="dataset-draft-review" hidden><label>Review generated dataset JSON<textarea id="dataset-draft-preview" rows="10"></textarea></label><div class="form-grid"><button type="button" class="secondary" id="dataset-draft-append">Append reviewed cases</button><button type="button" class="secondary" id="dataset-draft-replace">Replace all cases</button></div><p>Review expected answers carefully. AI-generated checks can be wrong. Applying changes only this editor; save separately.</p></div></details>`;
+}
+async function generateDatasetDraft(button){
+  const root=$("evaluation-cases"),status=$("dataset-draft-status"),preview=$("dataset-draft-preview"),review=$("dataset-draft-review");
+  const active=()=>root.isConnected&&$("library-editor").open;
+  button.disabled=true;$("library-form-error").textContent="";
+  try{
+    const task=$("dataset-draft-task").value.trim(),count=Number($("dataset-draft-count").value);
+    if(!task||task.length>16000||!Number.isInteger(count)||count<1||count>100)throw new Error("Describe the cases and choose a count from 1 to 100.");
+    status.textContent="Generating draft cases… You can keep editing your current cases.";
+    const run=await api("/api/studio/design",{design_kind:"dataset",task,case_count:count,provider:$("dataset-draft-provider").value,model:$("dataset-draft-model").value.trim()});
+    const completed=await pollRun(run.id);
+    if(!active()||!preview.isConnected)return;
+    if(completed.status!=="completed"||!completed.design_proposal)throw new Error("No completed draft is available. Inspect the run in Activity.");
+    preview.value=JSON.stringify(completed.design_proposal.data,null,2);review.hidden=false;
+    status.textContent="Draft ready. Review, then append or replace cases. Existing edits are unchanged.";
+  }catch(error){if(active()){$("library-form-error").textContent=error.message;status.textContent="Draft generation failed. Existing cases are unchanged.";}}
+  finally{if(button.isConnected)button.disabled=false;}
+}
+async function applyDatasetDraft(button,append){
+  const root=$("evaluation-cases"),preview=$("dataset-draft-preview"),content=preview.value;
+  const active=()=>root.isConnected&&$("library-editor").open;
+  button.disabled=true;$("library-form-error").textContent="";
+  try{
+    const generated=await api("/api/studio/datasets/parse",{format:"json",content});
+    if(!active()||!preview.isConnected||preview.value!==content)return;
+    if(append){
+      const current=Array.from(root.querySelectorAll(".case-input")).map(field=>field.value.trim().toLocaleLowerCase());
+      const incoming=generated.cases.map(item=>item.input.trim().toLocaleLowerCase());
+      if(current.length+incoming.length>100)throw new Error("Appending would exceed 100 cases. Remove cases or replace instead.");
+      if(incoming.some((value,index)=>current.includes(value)||incoming.indexOf(value)!==index))throw new Error("Duplicate case inputs found. Edit the generated JSON before appending.");
+      root.insertAdjacentHTML("beforeend",generated.cases.map(caseFields).join(""));
+    }else root.innerHTML=generated.cases.map(caseFields).join("");
+    $("dataset-draft-review").hidden=true;
+    $("evaluation-dataset-status").textContent=`${generated.cases.length} reviewed cases ${append?"appended":"applied"}. Save to keep them. No evaluation has run.`;
+  }catch(error){if(active())$("library-form-error").textContent=error.message;}
+  finally{if(button.isConnected)button.disabled=false;}
 }
 async function loadEvaluationDatasetChoices(){
   const select=$("evaluation-saved-dataset"),button=$("evaluation-use-dataset");if(!select)return;
@@ -140,7 +206,7 @@ function operationFormData(form){
   if(library.kind==="externalagents")return {url:form.get("external_url"),protocol_version:form.get("protocol_version"),token_env:form.get("external_token_env"),card_path:form.get("external_card_path"),streaming:form.has("external_streaming"),enabled:form.has("enabled"),allow_private:form.has("allow_private")};
   if(library.kind==="models")return {provider:form.get("provider"),model:form.get("model"),...(form.get("effort")?{effort:form.get("effort")}:{})};
   if(library.kind==="decisionmodels")return {backend:form.get("backend"),model:form.get("model")?.trim()||"",timeout_seconds:Number(form.get("timeout_seconds")||10)};
-  if(["evaluations","datasets"].includes(library.kind))return {...(library.kind==="evaluations"?{target_kind,target_id}:{kind:"dataset",version:1}),cases:[...document.querySelectorAll(".evaluation-case")].map(row=>({input:row.querySelector(".case-input").value,contains:row.querySelector(".case-contains").value.split("\n").map(s=>s.trim()).filter(Boolean),excludes:row.querySelector(".case-excludes").value.split("\n").map(s=>s.trim()).filter(Boolean),checks:JSON.parse(row.querySelector(".case-checks").value||"[]"),...(row.querySelector(".case-contexts").value.trim()!=="[]"||row.querySelector(".case-context-source").value!=="{}"?{contexts:JSON.parse(row.querySelector(".case-contexts").value||"[]")} : {}),...(row.querySelector(".case-context-source").value!=="{}"?{context_source:JSON.parse(row.querySelector(".case-context-source").value)}:{}),...(row.querySelector(".case-judge").value.trim()!=="{}"?{judge:JSON.parse(row.querySelector(".case-judge").value)}:{})}))};
+  if(["evaluations","datasets"].includes(library.kind))return {...(library.kind==="evaluations"?{target_kind,target_id}:{kind:"dataset",version:1}),cases:[...document.querySelectorAll(".evaluation-case")].map(row=>({input:row.querySelector(".case-input").value,...Object.fromEntries(["input_files","reference_files"].map(role=>[role,JSON.parse(row.querySelector(`.case-${role}`)?.value||"[]")]).filter(([,files])=>files.length)),contains:row.querySelector(".case-contains").value.split("\n").map(s=>s.trim()).filter(Boolean),excludes:row.querySelector(".case-excludes").value.split("\n").map(s=>s.trim()).filter(Boolean),checks:JSON.parse(row.querySelector(".case-checks").value||"[]"),...(row.querySelector(".case-contexts").value.trim()!=="[]"||row.querySelector(".case-context-source").value!=="{}"?{contexts:JSON.parse(row.querySelector(".case-contexts").value||"[]")} : {}),...(row.querySelector(".case-context-source").value!=="{}"?{context_source:JSON.parse(row.querySelector(".case-context-source").value)}:{}),...(row.querySelector(".case-judge").value.trim()!=="{}"?{judge:JSON.parse(row.querySelector(".case-judge").value)}:{})}))};
   if(library.kind==="schedules"){
     const rawTask=form.get("task")?.trim()||"";
     const wfInputRaw=form.get("workflow_input_json")?.trim();
@@ -187,7 +253,11 @@ function variantFields(index,data={},removable=false){return `<div class="experi
 
 async function showEvaluationReport(id){
   const report=await api(`/api/evaluation-reports/${encodeURIComponent(id)}`);
-  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${evaluationFileSources(result)}${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+}
+function evaluationFileSources(result){
+  const sources=result.file_sources||{};
+  return Object.keys(sources).length?`<details class="evaluation-file-sources"><summary>Pinned file sources</summary>${["input_files","reference_files"].map(role=>(sources[role]||[]).map(file=>`<p><strong>${role==="input_files"?"Input":"Grading reference"}</strong> · ${escapeHtml(file.filename)} · revision ${escapeHtml(file.revision)}<br><small>${escapeHtml(file.id)} · SHA-256 ${escapeHtml(file.sha256)}</small></p>`).join("")).join("")}</details>`:"";
 }
 async function exportEvaluationReport(button){
   button.disabled=true;
@@ -199,6 +269,8 @@ async function exportEvaluationReport(button){
 document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;
   try{
+    if(button.dataset.caseFileRole)await chooseEvaluationFile(button);
+    if(button.dataset.clearCaseFiles)clearEvaluationFiles(button);
     if(button.dataset.evaluationReportExport)await exportEvaluationReport(button);
     if(button.dataset.savedExperimentRun)await runEvaluation(null,null,button.dataset.savedExperimentRun);
     if(button.dataset.experimentExport){const item=await api(`/api/catalog/experiments/${encodeURIComponent(button.dataset.experimentExport)}`);downloadJson(`${item.id}.json`,item.data);}
@@ -208,6 +280,9 @@ document.addEventListener("click",async event=>{
     if(button.hasAttribute("data-remove-case"))button.closest(".evaluation-case").remove();
     if(button.id==="evaluation-apply-evaluator")await applySavedEvaluator(button);
     if(button.dataset.evaluatorExport){const item=await api(`/api/catalog/evaluators/${encodeURIComponent(button.dataset.evaluatorExport)}`);downloadJson(`${item.id}.json`,item.data);}
+    if(button.id==="dataset-draft-generate")await generateDatasetDraft(button);
+    if(button.id==="dataset-draft-append")await applyDatasetDraft(button,true);
+    if(button.id==="dataset-draft-replace")await applyDatasetDraft(button,false);
     if(button.id==="evaluation-import")await importEvaluationDataset(button);
     if(button.id==="evaluation-use-dataset")await copySavedEvaluationDataset(button);
     if(button.dataset.datasetExport){const item=await api(`/api/catalog/datasets/${encodeURIComponent(button.dataset.datasetExport)}`);downloadJson(`${item.id}.json`,item.data);}

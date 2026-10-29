@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus Studio external configuration conversion
-  version: 1.11.0
-  description: Non-executing owner-only conversion. Imports use existing native validate/plan/apply after review; no external deployment or secret expansion. Declarative agent skills map to routing capabilities, distinct from additionalConfigurations.skills knowledge bundles. Missing capability IDs get stable content-derived local IDs; original source remains unchanged on export. Dedicated toolsets require explicit existing-resource bindings. Transport modes and execution permissions are never expanded by descriptive metadata. One exit-handler template may serve multiple outcome phases; always runs first, followed by the matching outcome phase, each with its own durable checkpoint. Routed handler roots compile their bounded branches and joins into a scoped graph; acknowledged child results are published by source node ID, and pruned branches clear earlier-phase values. Existing distinct-handler checkpoint paths remain unchanged. Shared loop controllers keep isolated iteration receipts and pinned initial values. Concurrent controllers start independently; dependent controllers inherit the last declared maximal completed upstream controller. Joined aliases use the same dependency-first, declaration-order rule, independent of wall-clock finish order. Alias readers must join all concurrent writers. Mixed map/loop ownership rejects before saving. Older completed-loop checkpoints reconstruct per-controller body receipts from acknowledged final iteration outputs; incomplete evidence fails without replay.
+  version: 1.13.0
+  description: Non-executing owner-only conversion. Imports use existing native validate/plan/apply after review; no external deployment or secret expansion. Declarative agent skills map to routing capabilities, distinct from additionalConfigurations.skills knowledge bundles. Missing capability IDs get stable content-derived local IDs; original source remains unchanged on export. Declarative skillRefs accepts up to twenty skill aliases explicitly mapped through bindings.skills to existing unarchived knowledge bundles. Routing skills remain separate. The ordered union with additionalConfigurations.skills is deduplicated and limited to twenty resources; conversion never reads a referenced path or URL. Dedicated toolsets require explicit existing-resource bindings. Transport modes and execution permissions are never expanded by descriptive metadata. One exit-handler template may serve multiple outcome phases; always runs first, followed by the matching outcome phase, each with its own durable checkpoint. Routed handler roots compile their bounded branches and joins into a scoped graph; acknowledged child results are published by source node ID, and pruned branches clear earlier-phase values. Existing distinct-handler checkpoint paths remain unchanged. Shared loop controllers keep isolated iteration receipts and pinned initial values. Concurrent controllers start independently; dependent controllers inherit the last declared maximal completed upstream controller. Joined aliases use the same dependency-first, declaration-order rule, independent of wall-clock finish order. Alias readers must join all concurrent writers. Mixed map/loop ownership rejects before saving. Older completed-loop checkpoints reconstruct per-controller body receipts from acknowledged final iteration outputs; incomplete evidence fails without replay.
 paths:
   /api/studio/configuration/interop/convert:
     post:
@@ -53,6 +53,19 @@ components:
         models: {type: object, additionalProperties: {$ref: '#/components/schemas/Provider'}}
         agents: {type: object, additionalProperties: {$ref: '#/components/schemas/Provider'}}
         tools: {type: object, additionalProperties: {type: string}}
+        skills: {type: object, additionalProperties: {type: string}}
+        toolsets: {type: object, additionalProperties: {type: string}}
+        connectors: {type: object, additionalProperties: {type: string}}
+        operations:
+          type: object
+          description: Explicit connectorAlias/toolAlias mappings; no credential or endpoint import.
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            required: [operation_id, input]
+            properties:
+              operation_id: {type: string, minLength: 1, maxLength: 200}
+              input: {type: string, enum: [body, parameters]}
         decisions: {type: object, additionalProperties: {$ref: '#/components/schemas/DecisionBinding'}}
         nuclia: {type: object, additionalProperties: {$ref: '#/components/schemas/NucliaBinding'}}
     NucliaBinding:
@@ -119,3 +132,14 @@ components:
 # unresolved or unfinished source fails before model invocation, even if an older
 # phase left a value. Intentionally pruned sources omit the entire image entry.
 # Restart reconstructs acknowledgement from existing scoped checkpoint receipts.
+
+# Connector-node extension: type:tool with connector/tool aliases maps only to an
+# existing selected OpenAPI operation. bindings.connectors resolves the connector;
+# bindings.operations["connectorAlias/toolAlias"] fixes operation_id and whether
+# mapped node input supplies body or parameters. Native method metadata determines
+# read versus invoke; writes require an authored direct type:approval predecessor.
+# No gate, enabled action, operation or retry permission is inferred or installed.
+# Workflow-level toolsets require bindings.toolsets; builtin tool_name still needs
+# bindings.tools and membership in a declared tools/toolset collection. Conversion
+# remains non-executing, owner-only and source-preserving. Combined required body
+# and required parameters need manual native adaptation in this bounded profile.

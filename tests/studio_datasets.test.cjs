@@ -8,7 +8,7 @@ const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<
 function setup(api){
  const elements=new Map(['evaluation-cases','evaluation-dataset-status','evaluation-dataset','library-form-error','evaluation-saved-dataset','evaluation-use-dataset'].map(id=>[id,{innerHTML:'ORIGINAL_CASES',textContent:'',isConnected:true,disabled:false,value:'policy'}]));
  const button={isConnected:true,disabled:false};
- const scope=vm.createContext({escapeHtml,api,$:id=>elements.get(id),library:{kind:'datasets'},targetField:()=>'<select name="target"></select>',queueMicrotask:()=>{}});
+ const scope=vm.createContext({escapeHtml,api,$:id=>elements.get(id),library:{kind:'datasets'},providerOptions:()=>'<option value="codex">Codex</option>',targetField:()=>'<select name="target"></select>',queueMicrotask:()=>{}});
  vm.runInContext(helpers,scope);return {scope,elements,button};
 }
 test('dataset editor reuses case controls and explains shared, non-executing imports',()=>{
@@ -57,4 +57,59 @@ test('datasets save canonical cases without an evaluation target',()=>{
  const output=scope.operationFormData(new Map());
  assert.equal(output.kind,'dataset');assert.equal(output.version,1);assert.equal(output.target_id,undefined);
  assert.equal(output.cases[0].contexts[0],'Source');
+});
+
+function draftSetup(api){
+ const fixture=setup(api),{scope,elements}=fixture;
+ elements.set("library-editor",{open:true});
+ for(const [id,value] of Object.entries({'dataset-draft-task':'Refund rules','dataset-draft-count':'2','dataset-draft-provider':'codex','dataset-draft-model':'chosen','dataset-draft-preview':'{"cases":[]}','dataset-draft-status':'','dataset-draft-review':''}))elements.set(id,{value,textContent:'',hidden:true,isConnected:true});
+ return fixture;
+}
+test('AI draft generation preserves edits, uses chosen provider and requires explicit apply',async()=>{
+ const calls=[];const {scope,elements,button}=draftSetup(async(path,data)=>{calls.push({path,data});return {id:'draft-run'};});
+ scope.pollRun=async()=>({status:'completed',design_proposal:{data:{cases:[{input:'<script>',contains:['No']}]}}});
+ await scope.generateDatasetDraft(button);
+ assert.equal(calls[0].path,'/api/studio/design');assert.equal(calls[0].data.design_kind,'dataset');assert.equal(calls[0].data.case_count,2);
+ assert.equal(calls[0].data.model,'chosen');assert.equal(elements.get('evaluation-cases').innerHTML,'ORIGINAL_CASES');
+ assert.equal(elements.get('dataset-draft-review').hidden,false);assert.match(elements.get('dataset-draft-preview').value,/<script>/);assert.equal(button.disabled,false);
+});
+test('failed or late generation preserves cases and prior reviewed JSON',async()=>{
+ const failed=draftSetup(async()=>({id:'run'}));failed.scope.pollRun=async()=>{throw new Error('Provider failed');};
+ await failed.scope.generateDatasetDraft(failed.button);
+ assert.match(failed.elements.get('library-form-error').textContent,/Provider failed/);assert.equal(failed.elements.get('evaluation-cases').innerHTML,'ORIGINAL_CASES');
+ const late=draftSetup(async()=>({id:'run'}));late.scope.pollRun=async()=>{late.elements.get('evaluation-cases').isConnected=false;return {status:'completed',design_proposal:{data:{cases:[]}}};};
+ await late.scope.generateDatasetDraft(late.button);assert.equal(late.elements.get('dataset-draft-review').hidden,true);
+});
+test('append retains existing DOM edits and rejects duplicates before changing cases',async()=>{
+ const {scope,elements,button}=draftSetup(async()=>({cases:[{input:'New case',contains:['Yes']}]}));
+ const root=elements.get('evaluation-cases'),insertions=[];
+ root.querySelectorAll=()=>[{value:'Existing unsaved case'}];root.insertAdjacentHTML=(position,html)=>insertions.push({position,html});
+ await scope.applyDatasetDraft(button,true);
+ assert.equal(root.innerHTML,'ORIGINAL_CASES');assert.equal(insertions.length,1);assert.match(insertions[0].html,/New case/);
+ assert.match(elements.get('evaluation-dataset-status').textContent,/Save to keep/);
+ root.querySelectorAll=()=>[{value:' NEW CASE '}];await scope.applyDatasetDraft(button,true);
+ assert.equal(insertions.length,1);assert.match(elements.get('library-form-error').textContent,/Duplicate/);
+});
+test('edited invalid review and stale validation responses cannot replace draft cases',async()=>{
+ const invalid=draftSetup(async()=>{throw new Error('Unsupported check');});
+ await invalid.scope.applyDatasetDraft(invalid.button,false);
+ assert.equal(invalid.elements.get('evaluation-cases').innerHTML,'ORIGINAL_CASES');
+ let complete;const late=draftSetup(()=>new Promise(resolve=>{complete=resolve;}));
+ const pending=late.scope.applyDatasetDraft(late.button,false);late.elements.get('dataset-draft-preview').value='changed during validation';
+ complete({cases:[{input:'Old response',contains:['No']}]});await pending;
+ assert.equal(late.elements.get('evaluation-cases').innerHTML,'ORIGINAL_CASES');
+});
+test('explicit replacement escapes generated input and does not save or run',async()=>{
+ const calls=[];const {scope,elements,button}=draftSetup(async(path,data)=>{calls.push({path,data});return {cases:[{input:'<script>bad()</script>',contains:['Safe']}]};});
+ await scope.applyDatasetDraft(button,false);
+ assert.equal(calls.length,1);assert.equal(calls[0].path,'/api/studio/datasets/parse');
+ assert.match(elements.get('evaluation-cases').innerHTML,/&lt;script&gt;/);assert.doesNotMatch(elements.get('evaluation-cases').innerHTML,/<script>/);
+});
+
+test('closing a still-connected dialog ignores late generation',async()=>{
+ const fixture=draftSetup(async()=>({id:'run'}));
+ fixture.scope.pollRun=async()=>{fixture.elements.get('library-editor').open=false;return {status:'completed',design_proposal:{data:{cases:[]}}};};
+ await fixture.scope.generateDatasetDraft(fixture.button);
+ assert.equal(fixture.elements.get('dataset-draft-review').hidden,true);
+ assert.equal(fixture.elements.get('evaluation-cases').innerHTML,'ORIGINAL_CASES');
 });

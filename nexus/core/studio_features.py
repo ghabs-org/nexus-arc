@@ -296,6 +296,10 @@ class StudioFeatures:
             return 201, studio.collaboration.promote(data, actor)
         if parts == ["sharing"]:
             return 200, studio.collaboration.configure(data, actor)
+        if parts == ["shares", "continue"]:
+            from nexus.core.studio_snapshot_continuation import continue_snapshot
+
+            return 201, continue_snapshot(studio, data, actor)
         if parts == ["shares"]:
             return 201, studio.collaboration.share(data, actor)
         if len(parts) == 3 and parts[0] == "shares" and parts[2] == "revoke":
@@ -303,8 +307,8 @@ class StudioFeatures:
         if parts == ["design"]:
             if studio.team:
                 studio.team.authorize(actor, "/api/catalog/prompts")
-            if data.get("design_kind") not in {"prompt", "schedule"}:
-                raise ValueError("Choose prompt or schedule design")
+            if data.get("design_kind") not in {"prompt", "schedule", "dataset"}:
+                raise ValueError("Choose prompt, schedule or dataset design")
             if (
                 not isinstance(data.get("conversation", ""), str)
                 or len(data.get("conversation", "")) > 16000

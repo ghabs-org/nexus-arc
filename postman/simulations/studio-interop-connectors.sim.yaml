@@ -1,0 +1,5 @@
+simulation: studio-interop-connectors
+routing: path
+mocks:
+  - routeKey: service
+    path: ../mocks/studio-interop-connectors/config.yaml

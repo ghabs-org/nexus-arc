@@ -21,14 +21,14 @@ function setup() {
       click() { downloads.push({href: this.href, filename: this.download}); }
     };
   }
-  for (const id of ['shared-title','shared-status','shared-messages']) elements.set(id, node());
+  for (const id of ['shared-title','shared-status','shared-messages','shared-continue','shared-copy-note']) elements.set(id, node());
   const document = {
     hidden: false, getElementById: id => elements.get(id), createElement: node,
     addEventListener: (event, callback) => listeners.set(event, callback)
   };
   const context = vm.createContext({
     document, window: {addEventListener: (event, callback) => listeners.set(event, callback)},
-    location: {hash: '#private/first'}, AbortController, Blob, Uint8Array,
+    location: {hash: '#private/first',assign:url=>downloads.push({navigation:url})}, crypto:{randomUUID:()=> '12345678-1234-4234-8234-123456789abc'}, AbortController, Blob, Uint8Array,
     Date: class extends Date {static now() {return now;}},
     URL: {createObjectURL: () => 'blob:synthetic', revokeObjectURL() {}},
     atob: value => Buffer.from(value, 'base64').toString('binary'),
@@ -128,4 +128,31 @@ test('returning from background or browser cache rechecks access using GET', asy
   view.listeners.get('pageshow')({persisted: true});
   assert.equal(view.requests.length, 3);
   view.requests[2].resolve(response({}, 404));
+});
+
+
+test('explicit continuation uses fresh auth and CSRF, then opens only the private session',async()=>{
+ const view=setup(),load=view.context.loadSharedSnapshot();view.requests[0].resolve(response(share()));await load;
+ const button=view.elements.get('shared-continue');assert.equal(button.hidden,false);
+ const copy=button.onclick();assert.equal(view.requests[1].path,'/api/bootstrap');assert.equal(view.requests[1].options.credentials,'same-origin');
+ view.requests[1].resolve(response({token:'csrf'}));await new Promise(resolve=>setImmediate(resolve));
+ const post=view.requests[2];assert.equal(post.path,'/api/studio/shares/continue');assert.equal(post.options.method,'POST');assert.equal(post.options.headers['X-Nexus-Studio-Token'],'csrf');
+ assert.deepEqual(JSON.parse(post.options.body),{snapshot:'first',visibility:'private',request_id:'12345678-1234-4234-8234-123456789abc'});
+ post.resolve(response({session_id:'new-private'}));await copy;
+ assert.deepEqual(view.downloads,[{navigation:'/#chat/new-private'}]);
+});
+test('anonymous continuation does not submit and changed links invalidate pending auth',async()=>{
+ const view=setup(),load=view.context.loadSharedSnapshot();view.requests[0].resolve(response(share()));await load;
+ const copy=view.elements.get('shared-continue').onclick();view.requests[1].resolve(response({},401));await copy;
+ assert.equal(view.requests.length,2);assert.match(view.elements.get('shared-status').textContent,/Sign in/);
+ const late=view.elements.get('shared-continue').onclick();view.context.clearSharedSnapshot('Closed');view.requests[2].resolve(response({token:'late'}));await late;
+ assert.equal(view.requests.length,3);assert.equal(view.elements.get('shared-continue').hidden,true);
+});
+test('failed copy is not replayed automatically; explicit retry retains request ID',async()=>{
+ const view=setup(),load=view.context.loadSharedSnapshot();view.requests[0].resolve(response(share()));await load;
+ const first=view.elements.get('shared-continue').onclick();view.requests[1].resolve(response({token:'csrf'}));await new Promise(resolve=>setImmediate(resolve));view.requests[2].resolve(response({},500));await first;
+ assert.equal(view.requests.length,3);assert.equal(view.downloads.length,0);
+ const second=view.elements.get('shared-continue').onclick();view.requests[3].resolve(response({token:'new-csrf'}));await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(JSON.parse(view.requests[2].options.body).request_id,JSON.parse(view.requests[4].options.body).request_id);
+ view.requests[4].resolve(response({session_id:'same-session'}));await second;
 });

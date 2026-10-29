@@ -28,3 +28,27 @@ test('reference context renders as escaped editable data',()=>{
   assert.ok(!rendered.includes('<script>'));
   assert.ok(rendered.includes('case-context-source'));
 });
+
+test('case editor preserves distinct file roles through save and dataset copies',()=>{
+ const fields={'.case-input':'Task','.case-contains':'Approved','.case-excludes':'','.case-checks':'[]','.case-judge':'{"provider":"codex","rubric":"Compare"}', '.case-contexts':'[]','.case-context-source':'{}','.case-input_files':'[{"id":"input","revision":2}]','.case-reference_files':'[{"id":"expected","revision":3}]'};
+ const scope=vm.createContext({library:{kind:'evaluations'},document:{querySelectorAll:()=>[{querySelector:key=>({value:fields[key]})}]}});
+ vm.runInContext(source.slice(source.indexOf('function operationFormData('),source.indexOf('function operationActions(')),scope);
+ scope.form=new Map([['target','agent:reviewer']]);
+ const result=JSON.parse(JSON.stringify(vm.runInContext('operationFormData(form)',scope)));
+ assert.deepEqual(result.cases[0].input_files,[{id:'input',revision:2}]);assert.deepEqual(result.cases[0].reference_files,[{id:'expected',revision:3}]);
+ const rendering=vm.createContext({escapeHtml});vm.runInContext(source.slice(source.indexOf('function caseFields('),source.indexOf('function operationFields(')),rendering);
+ rendering.item={...result.cases[0],reference_files:[{id:'<script>unsafe</script>',revision:3}]};
+ const html=vm.runInContext('caseFields(item)',rendering);
+ assert.match(html,/Input files · 1 selected/);assert.match(html,/Grading-reference files · 1 selected/);assert.match(html,/goes only to the AI judge/);assert.doesNotMatch(html,/<script>/);
+});
+
+test('file chooser pins selected revision without saving a resource or reading bytes',async()=>{
+ const calls=[],fields={value:'[]'},summary={textContent:''},list={textContent:''};
+ const dialog={open:true},row={isConnected:true,querySelector:selector=>selector.endsWith('-list')?list:fields};
+ fields.closest=()=>({querySelector:()=>summary});
+ const button={dataset:{caseFileRole:'input_files'},closest:()=>row,isConnected:true,disabled:false};
+ const scope=vm.createContext({escapeHtml,$:id=>id==='library-editor'?dialog:{textContent:''},api:async(path)=>{calls.push(path);return {items:[{id:'source',revision:4,data:{filename:'source.txt'}}]};},fieldsDialog:async()=>new Map([['file','{"id":"source","revision":4}']])});
+ vm.runInContext(source.slice(source.indexOf('function caseFields('),source.indexOf('function operationFields(')),scope);
+ await scope.chooseEvaluationFile(button);
+ assert.deepEqual(calls,['/api/catalog/artifacts']);assert.deepEqual(JSON.parse(fields.value),[{id:'source',revision:4}]);assert.match(summary.textContent,/1 selected/);assert.equal(button.disabled,false);
+});

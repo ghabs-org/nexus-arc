@@ -3,6 +3,9 @@
 let snapshotGeneration=0,snapshotController=null,snapshotExpiryTimer=null;
 function clearSharedSnapshot(message){
   snapshotGeneration++;
+  const copy=document.getElementById("shared-continue"),note=document.getElementById("shared-copy-note");
+  if(copy){copy.hidden=true;copy.onclick=null;copy.disabled=false;}
+  if(note)note.hidden=true;
   snapshotController?.abort();
   clearTimeout(snapshotExpiryTimer);
   document.getElementById("shared-title").textContent="Shared conversation";
@@ -67,6 +70,33 @@ async function loadSharedSnapshot(){
       body.className="message-body";
       renderContent(body,message.content);
       article.append(heading,body);root.append(article);
+    }
+    const copy=document.getElementById("shared-continue"),note=document.getElementById("shared-copy-note");
+    if(copy){
+      copy.hidden=false;if(note)note.hidden=false;
+      let requestId=null;
+      copy.onclick=async()=>{
+        if(!current()||copy.disabled)return;
+        copy.disabled=true;
+        try{
+          const auth=await fetch("/api/bootstrap",{credentials:"same-origin",cache:"no-store",signal});
+          if(!current())return;
+          if(!auth.ok)throw new Error("Sign in to Studio, then reopen this snapshot to continue privately.");
+          const bootstrap=await auth.json();
+          if(!current())return;
+          requestId ||= crypto.randomUUID();
+          const response=await fetch("/api/studio/shares/continue",{
+            method:"POST",credentials:"same-origin",cache:"no-store",signal,
+            headers:{"Content-Type":"application/json","X-Nexus-Studio-Token":bootstrap.token},
+            body:JSON.stringify({snapshot:parts[1],visibility:parts[0],request_id:requestId})
+          });
+          if(!current())return;
+          if(!response.ok)throw new Error("Could not copy snapshot. Check sign-in, access, expiry and file availability.");
+          const result=await response.json();
+          if(current())location.assign("/#chat/"+encodeURIComponent(result.session_id));
+        }catch(error){if(current()&&error.name!=="AbortError")status.textContent=error.message;}
+        finally{if(current())copy.disabled=false;}
+      };
     }
     expire();
   }catch(error){

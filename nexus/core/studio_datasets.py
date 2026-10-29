@@ -10,7 +10,7 @@ from nexus.core.studio_evaluations import validate_case
 from nexus.core.studio_interop_configuration import PortableConfigurationLoader
 
 DATASET_LIMIT = 900 * 1024
-CASE_FIELDS = {"input", "contains", "excludes", "checks", "judge", "contexts", "context_source"}
+CASE_FIELDS = {"input", "contains", "excludes", "checks", "judge", "contexts", "context_source", "input_files", "reference_files"}
 
 
 def unique_object(pairs):
@@ -74,7 +74,7 @@ def validate_dataset(value):
 def read_csv(content):
     reader = csv.reader(io.StringIO(content, newline=""), strict=True)
     headers = next(reader, [])
-    allowed = {"input", "expected", "contains", "excludes", "contexts", "checks", "judge"}
+    allowed = {"input", "expected", "contains", "excludes", "contexts", "checks", "judge", "input_files", "reference_files"}
     if (
         "input" not in headers
         or len(headers) < 2

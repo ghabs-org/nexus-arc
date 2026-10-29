@@ -1,0 +1,16 @@
+context:
+  ownership: Synthetic repository-owned OpenAPI service, not a real helpdesk provider.
+  purpose: Exercise converted read/agent/approval/write workflow through actual HTTP.
+  assumptions:
+    - GET lookup returns JSON evidence and increments reads.
+    - POST record accepts a JSON reply and increments writes once per received request.
+    - A reply of fail returns 503 after receipt; it does not prove the write had no effect.
+    - GET stats reports request counters without modifying them.
+    - Unmodeled operations return 501.
+  acceptance:
+    - Conversion and plan/apply produce zero requests.
+    - Waiting for approval has one lookup and zero writes.
+    - Approval continues to exactly one write without repeating lookup or agent execution.
+  unverified:
+    - Real provider identity, billing and endpoint behavior.
+    - External connector specification import and live credentials.
