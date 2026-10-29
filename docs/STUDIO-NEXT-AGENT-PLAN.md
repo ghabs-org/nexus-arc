@@ -41,6 +41,41 @@ Exact artifact-version navigation still needs inspection. These are separate
 comparison candidates, not changes to the frozen inventory. No VM work, paid
 provider invocation or DMG build occurred. Full-plan completion remains false.
 
+### Current repository review and authorized desktop candidate — 29 October 2026
+
+The user explicitly authorized a new macOS desktop build plus signing,
+notarization and verified updates. This authorizes the current release batch;
+future DMG rebuilds still require another explicit request. VM work stays deferred.
+
+The complete current public reference tree contains 59 files and no Go runtime
+source. Thirty fetched text files match their Git blob hashes. Five read-only
+conversion probes against actual agent/workflow examples show explicit activation
+requirements, unsupported current skill/connector syntax and missing dependency
+bindings. No resources were applied and no provider ran. The comparison is
+kept in local-only documentation.
+
+Packaged a full-SDK Apple Silicon 1.0.2 candidate with recent source fixes. Its
+DMG passes integrity checks; the installed backend matches the build manifest.
+Seven frozen and seven installed runtime checks pass. The final affected source
+gate passes 71 checks; native ownership/updater tests pass 15, all without skips.
+The real candidate archive verifies against the production pinned update key;
+tampered bytes and signed-version substitution fail. A real frozen backup drill
+verifies workspace snapshot, retained previous app signature and lock release.
+All 211 inspected native files declare macOS 14.0 or earlier; this is deployment
+metadata, not execution on every supported macOS version.
+
+Native Workspace → Check for Updates uses the official verifier, requires
+confirmation, verifies bytes before stopping the server, and backs up workspace
+and previous app before installation. No webview updater permission or automatic
+check is added. No release/feed was published and no installed two-release update
+was performed. The current artifact remains ad-hoc signed, not notarized.
+
+A Developer ID Application certificate and a working notarization Keychain
+profile are owner setup prerequisites. Never request secret values in chat. Once prerequisites are ready, finish the signed release consumer and
+repeat signed installed checks. See [release instructions](STUDIO-DESKTOP-SIGNED-RELEASE.md)
+and [candidate evidence](STUDIO-DESKTOP-RELEASE-CANDIDATE-CHECKPOINT.json).
+Full-plan and milestone 9 completion remain false.
+
 ### Recently completed
 
 | Slice | Current evidence | Remaining boundary |

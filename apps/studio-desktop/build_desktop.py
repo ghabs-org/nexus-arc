@@ -7,14 +7,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-from pathlib import Path
-import shutil
 import stat
-import sys
-
-
 import subprocess
+import sys
+from pathlib import Path
 
 
 def get_target_triple() -> str:
@@ -27,6 +23,7 @@ def get_target_triple() -> str:
     except Exception:
         pass
     import platform
+
     machine = platform.machine().lower()
     system = platform.system().lower()
     if system == "darwin":
@@ -75,9 +72,20 @@ def verify_frontend_assets(repo_root: Path) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Package Nexus Studio desktop shell")
     parser.add_argument("--sidecar-only", action="store_true", help="Stage only the sidecar runner")
-    parser.add_argument("--development-wrapper", action="store_true", help="Explicit source-checkout wrapper; never a standalone distribution")
-    parser.add_argument("--output", type=Path, help="Explicit staging directory for the bundled executable")
-    parser.add_argument("--profile", choices=["core", "connected", "full"], default="core", help="Required offline SDK import gate")
+    parser.add_argument(
+        "--development-wrapper",
+        action="store_true",
+        help="Explicit source-checkout wrapper; never a standalone distribution",
+    )
+    parser.add_argument(
+        "--output", type=Path, help="Explicit staging directory for the bundled executable"
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["core", "connected", "full"],
+        default="core",
+        help="Required offline SDK import gate",
+    )
     args = parser.parse_args()
     if args.development_wrapper and args.profile != "core":
         parser.error("Dependency profiles require a bundled build; omit --development-wrapper")
@@ -106,6 +114,9 @@ def main() -> int:
             # Ad-hoc until a Developer ID exists: a quarantined unsigned app opens as
             # "damaged" on Apple Silicon, an ad-hoc one can be allowed in Settings.
             bundle["macOS"] = {"signingIdentity": "-"}
+            if args.profile == "full":
+                # The pinned full SDK includes native libraries requiring macOS 14.
+                bundle["macOS"]["minimumSystemVersion"] = "14.0"
         release.write_text(json.dumps({"bundle": bundle}, indent=2) + "\n")
         print(f"Tauri release configuration: {release}")
 

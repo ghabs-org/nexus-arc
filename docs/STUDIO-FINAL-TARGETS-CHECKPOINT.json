@@ -97,14 +97,17 @@
     {
       "id": 5,
       "target": "Installed desktop release",
-      "status": "milestone-9-last",
+      "status": "macos-candidate-built-apple-identity-and-profile-setup-pending",
       "remaining": [
-        "Installed Linux/Windows acceptance",
-        "Another physical Mac",
-        "Signing/notarization and verified updates"
+        "Install a Developer ID Application identity and working notarization profile.",
+        "Sign and notarize current candidate, then repeat signed installed acceptance.",
+        "Publish selected release/feed and verify installed update/rollback.",
+        "Installed Linux/Windows acceptance, Windows signing and another physical Mac."
       ],
-      "dmg_rebuild_authorized": false,
-      "local_signing_identity_check": "0 valid macOS code-signing identities found on this Mac; no key or certificate was exported."
+      "dmg_rebuild_authorized": true,
+      "local_signing_identity_check": "Full Keychain access finds development/distribution identities but still no Developer ID Application identity; initial restricted identity probe was not authoritative.",
+      "authorization_scope": "Explicit user request on 29 October 2026 for this release batch only; no standing authorization for later DMGs.",
+      "current_candidate": "STUDIO-DESKTOP-RELEASE-CANDIDATE-CHECKPOINT.json"
     },
     {
       "id": 6,

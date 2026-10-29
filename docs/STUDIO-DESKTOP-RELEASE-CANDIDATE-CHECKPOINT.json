@@ -1,0 +1,117 @@
+{
+  "format": "nexus-studio-signed-release-candidate/v1",
+  "date": "2026-10-29",
+  "status": "developer-id-signing-and-notarization-in-progress",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "dmg_build_explicitly_authorized": true,
+  "artifact": {
+    "path": "releases/Nexus-Studio-1.0.2-beta-full-20261029-apple-silicon.dmg",
+    "sha256": "65fe1659a790b03ebbdf8c6efa839c1096fa1a26ea11d4b4712d0bdc74bc425f",
+    "size_bytes": 422089305,
+    "architecture": "arm64",
+    "minimum_macos": "14.0",
+    "version": "1.0.2",
+    "profile": "full",
+    "signing": "ad-hoc candidate; Developer ID and notarization pending",
+    "installed_backend_tree_matches_build_manifest": true,
+    "backend_tree_sha256": "e1c646e45997feee232d3ae2a969a73a12ed87fc83c4ccccbdd2a445da6829b3"
+  },
+  "validation": {
+    "source_regressions": {
+      "tests": 71,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "eb973429b62439c72170a2ecac7e1d32b05fd9ccf97a4e8052de2a77e8ecce46"
+    },
+    "frozen_runtime": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "21f5714dc18d0420e0df6eee99b541a97aff4010f78c24e165d5043cc0937912"
+    },
+    "dmg_installed_runtime": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "ba6de412deb5d79a85c72db425a2447288d7c768c1c28c5176f9b4034c314cc1"
+    }
+  },
+  "native_tests": {
+    "tests": 15,
+    "failures": 0,
+    "ignored": 0,
+    "report_sha256": "2fa32d8f9a916abe92122871905b903b7be44e09375bd40b9cd04d1fc94a2c56"
+  },
+  "lint": {
+    "python": "passed",
+    "rust_clippy_tests_examples": "passed",
+    "report_sha256": "4c3badd3b898d9f899a6bb2edff2f284441806f8b3d3e0aa8054db8446a7b700"
+  },
+  "actual_candidate_signature": {
+    "production_pinned_key": true,
+    "actual_candidate_archive": true,
+    "archive_bytes": 422359968,
+    "valid_signature_accepted": true,
+    "tampered_payload_rejected": true,
+    "signed_version_substitution_rejected": true,
+    "original_archive_restored_and_reverified": true,
+    "network_used": false,
+    "update_installed": false,
+    "apple_notarization_claimed": false
+  },
+  "actual_frozen_backup": {
+    "frozen_backup_consumer": true,
+    "snapshot_verified": true,
+    "agent_definition_retained": true,
+    "previous_app_signature_integrity": true,
+    "lock_released": true,
+    "backup_removed_after_test": true,
+    "accounts_used": false
+  },
+  "minimum_os": {
+    "native_files": 211,
+    "highest_declared_minimum": "14.0",
+    "advertised_minimum": "14.0",
+    "scope": "Mach-O deployment metadata only; not execution on every supported macOS version."
+  },
+  "source_sha256": {
+    "apps/studio-desktop/build_desktop.py": "3eb89ac3a726800b0177873a7d12e6b3cbea2f227e72ae7ed2b66356dfb4d306",
+    "apps/studio-desktop/release_macos.py": "7bcef0e3f1fa8991d4355e49ed00e575790a8d8326917ab3339531497efafa81",
+    "apps/studio-desktop/src-tauri/Cargo.toml": "9bd33ec8543e632e20a37fd8d03fc11bc973e84bbdc51b193b761ee66a40b0a5",
+    "apps/studio-desktop/src-tauri/Cargo.lock": "ad0615d2a62b9e94adb1bff9733191cdfbfc6c2c98872bb30eab71d122726529",
+    "apps/studio-desktop/src-tauri/src/main.rs": "e37e25a30695230a85ef291968772a3819f2b6164fd58d48786047ca12ce0175",
+    "apps/studio-desktop/src-tauri/src/updates.rs": "a7e1f507670c1245fdf660e3f249d5aa60ae5d33bedc02a788343101a945482e",
+    "apps/studio-desktop/src-tauri/tauri.conf.json": "e015165739596e39744ce29e45f98c56e1a1d8f708972eaadfad9cb214624285",
+    "apps/studio-desktop/src-tauri/examples/verify_release.rs": "c2506259023cbd213efe094205afef23cf0b1a9ff6ae60fb3887565f8e0cf28a",
+    "nexus/core/studio_desktop_release.py": "b360e62cc6f1ef30f765c508550e801caf7ea14fd7281d7b6cd4cca145ee152d",
+    "nexus/core/studio_desktop_cli.py": "bcb68ba57dadfadf88c681d9973e0271de338b3226f0cccc5064b3da56e7e63e",
+    "tests/test_studio_desktop_release.py": "c3428aa68cee4dbd68ef866768421cacd13ef3783100ab21ca7df2559fcb5778",
+    "examples/nexus-bot/src/studio_desktop_release.py": "c2eb9b909fe430653c2a1d5c0fb3c448ea5fc6b3bb892dcc68e3341b6fba5852"
+  },
+  "packaging_note": "Frozen runtime/native inputs matched current source when built. The subsequent packaging-script-only change makes the full-profile macOS 14 override automatic; the candidate already used that exact override. Offline verifier example was built after packaging and is not a product runtime input.",
+  "release_documentation": "STUDIO-DESKTOP-SIGNED-RELEASE.md",
+  "repository_review": "STUDIO-REFERENCE-REPOSITORY-REVIEW.md",
+  "private_update_key": "Stored outside Git in owner-only local release-signing directory; public half embedded. No key contents exported to evidence.",
+  "apple_status": {
+    "developer_id_application_identity_available": true,
+    "notarization_profile_ready": true,
+    "user_setup_in_progress": false,
+    "notarization_attempted_by_agent": true,
+    "developer_id_signing_claimed": false,
+    "notarization_credentials_validated_by_owner": true
+  },
+  "remaining": [
+    "Install a Developer ID Application certificate with its private key.",
+    "Run inside-out Developer ID signing, accepted app/DMG notarization and stapling, then recheck signed installed runtime.",
+    "Publish an explicitly selected signed release/feed and perform an installed two-release update/rollback drill.",
+    "Other physical devices, installed Linux/Windows and Windows signing remain separate."
+  ],
+  "vm_contacted": false,
+  "vm_changed": false,
+  "published": false,
+  "counts_overlap": "Source/frozen/installed groups have different scopes and overlapping behaviors; not a whole-plan test total."
+}

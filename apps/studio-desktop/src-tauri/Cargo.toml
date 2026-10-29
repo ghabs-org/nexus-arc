@@ -1,6 +1,6 @@
 [package]
 name = "nexus-studio-desktop"
-version = "1.0.0"
+version = "1.0.2"
 description = "Nexus Studio Desktop Shell"
 authors = ["Nexus ARC Team"]
 license = "Apache-2.0"
@@ -15,7 +15,12 @@ tauri-plugin-shell = "2.0"
 tauri-plugin-process = "2.0"
 tauri-plugin-single-instance = "2.0"
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 ring = "0.17"
+
+[dev-dependencies]
+tauri = { version = "2.0", features = ["test"] }
+base64 = "0.22"

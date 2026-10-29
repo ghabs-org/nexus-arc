@@ -1,6 +1,6 @@
 {
   "name": "@nexus-arc/studio-desktop",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Nexus Studio standalone desktop application shell (Tauri 2)",
   "private": true,
   "scripts": {

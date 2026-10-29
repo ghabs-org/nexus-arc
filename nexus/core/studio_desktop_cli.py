@@ -9,15 +9,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import sys
 import webbrowser
+from pathlib import Path
+from typing import Any
 
 from nexus.core.studio_desktop import (
     DesktopBackendRunner,
     WorkspaceLock,
     check_desktop_prerequisites,
-    get_desktop_dirs,
     import_workspace,
     is_process_alive,
 )
@@ -27,6 +27,24 @@ def desktop_command(args: argparse.Namespace) -> int:
     """CLI driver for `nexus desktop`."""
     subcommand = getattr(args, "desktop_subcommand", "status")
     workspace_dir = Path(getattr(args, "dir", ".")).resolve()
+
+    if subcommand == "prepare-update":
+        from nexus.core.studio_desktop_release import prepare_update
+
+        try:
+            result = prepare_update(workspace_dir, args.output, args.application)
+        except (ValueError, OSError):
+            print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": "Update backup failed; application and workspace were not replaced.",
+                    }
+                )
+            )
+            return 1
+        print(json.dumps(result))
+        return 0
 
     if subcommand == "preflight":
         audit = check_desktop_prerequisites()
@@ -55,7 +73,9 @@ def desktop_command(args: argparse.Namespace) -> int:
             print(json.dumps(result, indent=2))
         else:
             if locked and info:
-                print(f"Workspace '{workspace_dir.name}' is RUNNING (PID {info.get('pid')}, port {info.get('port')})")
+                print(
+                    f"Workspace '{workspace_dir.name}' is RUNNING (PID {info.get('pid')}, port {info.get('port')})"
+                )
             else:
                 print(f"Workspace '{workspace_dir.name}' is STOPPED (not locked)")
         return 0
@@ -70,6 +90,7 @@ def desktop_command(args: argparse.Namespace) -> int:
         if pid and is_process_alive(pid):
             try:
                 import signal
+
                 os.kill(pid, signal.SIGTERM)
                 print(f"Stopped Nexus Studio process (PID {pid}).")
             except OSError as exc:
@@ -84,11 +105,15 @@ def desktop_command(args: argparse.Namespace) -> int:
             print("Error: --from argument is required for workspace import", file=sys.stderr)
             return 1
         try:
-            res = import_workspace(source, workspace_dir, backup_first=not getattr(args, "no_backup", False))
+            res = import_workspace(
+                source, workspace_dir, backup_first=not getattr(args, "no_backup", False)
+            )
             if getattr(args, "json_output", False):
                 print(json.dumps(res, indent=2))
             else:
-                print(f"Imported workspace from {res['source']} to {res['target']} ({res['copied_items']} items)")
+                print(
+                    f"Imported workspace from {res['source']} to {res['target']} ({res['copied_items']} items)"
+                )
                 if res.get("backup"):
                     print(f"Created pre-import backup at {res['backup']}")
             return 0
@@ -105,14 +130,16 @@ def desktop_command(args: argparse.Namespace) -> int:
         res = runner.start()
         if not res["success"]:
             if res.get("already_running"):
-                print(f"Studio already running on workspace (PID {res.get('pid')}, port {res.get('port')})")
+                print(
+                    f"Studio already running on workspace (PID {res.get('pid')}, port {res.get('port')})"
+                )
                 if not getattr(args, "no_browser", False):
                     webbrowser.open(f"http://127.0.0.1:{res.get('port')}")
                 return 0
             print(f"Launch failed: {res.get('error')}", file=sys.stderr)
             return 1
 
-        print(f"Nexus Studio Desktop backend launched:")
+        print("Nexus Studio Desktop backend launched:")
         print(f"  URL: {res['url']}")
         print(f"  PID: {res['pid']}")
         print(f"  Workspace: {res['workspace']}")
@@ -124,6 +151,7 @@ def desktop_command(args: argparse.Namespace) -> int:
         try:
             while runner.process and runner.process.poll() is None:
                 import time
+
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\nShutting down desktop backend...")
@@ -136,17 +164,29 @@ def desktop_command(args: argparse.Namespace) -> int:
 
 def add_parser(subparsers: Any) -> Any:
     """Register `desktop` subcommand parser on `nexus` CLI."""
-    parser = subparsers.add_parser("desktop", help="Manage Nexus Studio standalone desktop application")
+    parser = subparsers.add_parser(
+        "desktop", help="Manage Nexus Studio standalone desktop application"
+    )
     desktop_subs = parser.add_subparsers(dest="desktop_subcommand")
+    update = desktop_subs.add_parser(
+        "prepare-update", help="Back up a stopped workspace and current macOS app"
+    )
+    update.add_argument("--dir", required=True)
+    update.add_argument("--output", required=True)
+    update.add_argument("--application", required=True)
 
     # preflight
-    pre_p = desktop_subs.add_parser("preflight", help="Check system prerequisites for desktop execution")
+    pre_p = desktop_subs.add_parser(
+        "preflight", help="Check system prerequisites for desktop execution"
+    )
     pre_p.add_argument("--json", action="store_true", dest="json_output", help="Output JSON result")
 
     # status
     stat_p = desktop_subs.add_parser("status", help="Inspect workspace instance lock and status")
     stat_p.add_argument("--dir", default=".", help="Workspace directory")
-    stat_p.add_argument("--json", action="store_true", dest="json_output", help="Output JSON result")
+    stat_p.add_argument(
+        "--json", action="store_true", dest="json_output", help="Output JSON result"
+    )
 
     # stop
     stop_p = desktop_subs.add_parser("stop", help="Stop running desktop backend for workspace")
@@ -160,9 +200,13 @@ def add_parser(subparsers: Any) -> Any:
     imp_p.add_argument("--json", action="store_true", dest="json_output", help="Output JSON result")
 
     # launch
-    launch_p = desktop_subs.add_parser("launch", help="Launch desktop backend and local webview/browser")
+    launch_p = desktop_subs.add_parser(
+        "launch", help="Launch desktop backend and local webview/browser"
+    )
     launch_p.add_argument("--dir", default=".", help="Workspace directory")
     launch_p.add_argument("--port", type=int, default=0, help="Explicit port (default: auto)")
-    launch_p.add_argument("--no-browser", action="store_true", help="Do not open local browser automatically")
+    launch_p.add_argument(
+        "--no-browser", action="store_true", help="Do not open local browser automatically"
+    )
 
     return parser

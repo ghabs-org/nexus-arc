@@ -6,6 +6,7 @@
 //! The Workspace menu opens, imports or reveals a workspace by switching backends.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod backend;
+mod updates;
 use backend::{BackendOwner, ManagedChild, SavedWorkspace};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -52,6 +53,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -78,6 +80,7 @@ fn main() {
                 "workspace-open" => open_workspace(&app),
                 "workspace-import" => import_workspace(&app),
                 "workspace-reveal" => reveal_workspace(&app),
+                "studio-update" => updates::check(&app),
                 _ => (),
             });
         })
@@ -131,6 +134,14 @@ fn workspace_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             )?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "workspace-reveal", reveal, true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(
+                app,
+                "studio-update",
+                "Check for Updates…",
+                true,
+                None::<&str>,
+            )?,
         ],
     )?;
     let menu = Menu::default(app)?;
