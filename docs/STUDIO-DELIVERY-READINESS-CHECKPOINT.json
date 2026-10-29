@@ -1,7 +1,7 @@
 {
   "format": "nexus-studio-delivery-readiness/v1",
   "date": "2026-10-29",
-  "status": "local-macos-mcp-crash-fixed-vm-work-deferred",
+  "status": "local-evaluation-release-gate-verified-external-gates-open",
   "whole_plan_complete": false,
   "audit_scope": "Recorded-claim consistency only, not fresh acceptance execution or a completion percentage.",
   "audit": {
@@ -69,7 +69,8 @@
     "docs/STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json": "f37f185f1c63f77e39731b4c3acdbccaeec5e3e0b330ccb5df96f1484732ebb9",
     "docs/STUDIO-PRIVATE-CONNECTION-CHECKPOINT.json": "47f09cd027c3ff0acdf60c2fe684f723f99c6cf1456e15199d23673aa247e489",
     "docs/STUDIO-RECOVERED-HOST-PREPARATION-CHECKPOINT.json": "d840c4152bb7d0d064b926482d9e9d61b44b5de87a6aa8ccd8784e8e294e1d2f",
-    "docs/STUDIO-LOCAL-MCP-CRASH-CHECKPOINT.json": "df8010012d2af207aa360d26413479ed1f4ffc1dd6193e70297c3e793a3cd5a7"
+    "docs/STUDIO-LOCAL-MCP-CRASH-CHECKPOINT.json": "df8010012d2af207aa360d26413479ed1f4ffc1dd6193e70297c3e793a3cd5a7",
+    "docs/STUDIO-EVALUATION-GATE-CHECKPOINT.json": "8480f1ced0c132b323818c21c6f79780d87eb07fbe42f9952f3f6936d7289e89"
   },
   "current_live_slices": [
     "Windows Server x64 source lifecycle on Python 3.11 and 3.13.",
@@ -84,7 +85,8 @@
     "Independent Mac: authenticated encrypted VM snapshot transfer, 723 file hashes, two restored PostgreSQL databases, recovered-key canary and restored policy authorization; private bundle verified and disposable resources removed.",
     "Personal VM: browser-owned existing session passes two private GETs, JSON response type and no-store caching through deployed HTTPS. Three-asset diagnostic update deployed, 226 frontend checks passed.",
     "Recovered-host preparation: actual auth app imports in no-network test image; frozen snapshot converts 1,420 SQL records and retains 18 agents/4 workflows with 40 job records not re-enqueued. No application starts; test resources removed.",
-    "Native macOS source: one-shot/persistent MCP server groups stop after owner SIGKILL. Four real native example cases and six restricted local Linux compatibility cases pass."
+    "Native macOS source: one-shot/persistent MCP server groups stop after owner SIGKILL. Four real native example cases and six restricted local Linux compatibility cases pass.",
+    "Local evaluation report gate: actual synthetic-provider Studio report consumed by CLI/example, no task replay; browser download logic and scoped HTTP report regressions verified."
   ],
   "environment_availability": {
     "other_known_integration_credential_references_in_current_environment": [],
@@ -116,7 +118,7 @@
       "remaining": "User must explicitly request any new DMG. Source runtime CI is not installed-app acceptance."
     }
   ],
-  "current_turn": "User explicitly deferred all VM work. Reproduced/fixed macOS source MCP stdio-group orphaning after backend SIGKILL; verified native examples, local Linux compatibility and affected regressions. No VM/installed app/DMG contact or build.",
+  "current_turn": "Added private report export and offline per-variant evaluation gate; 73 Python and 29 browser-logic checks passed without skips. Bounded reference comparison recorded; no VM, paid provider, installed-app or DMG work.",
   "history_note": "Earlier GitHub and Windows checks retain their exact source hashes, reports and boundaries; the current audit promotes no new runtime/device/live capability.",
   "vm_resume": {
     "date": "2026-10-28",
@@ -130,5 +132,6 @@
     "signed_in_ui_verified": true
   },
   "final_target_execution": "STUDIO-FINAL-TARGETS-CHECKPOINT.json",
-  "vm_work_deferred_by_user_2026_10_29": true
+  "vm_work_deferred_by_user_2026_10_29": true,
+  "local_evaluation_gate": "STUDIO-EVALUATION-GATE-CHECKPOINT.json"
 }

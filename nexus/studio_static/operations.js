@@ -187,11 +187,19 @@ function variantFields(index,data={},removable=false){return `<div class="experi
 
 async function showEvaluationReport(id){
   const report=await api(`/api/evaluation-reports/${encodeURIComponent(id)}`);
-  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+}
+async function exportEvaluationReport(button){
+  button.disabled=true;
+  try{
+    const report=await api(`/api/evaluation-reports/${encodeURIComponent(button.dataset.evaluationReportExport)}`);
+    downloadJson("evaluation-report.json",report);
+  }finally{if(button.isConnected)button.disabled=false;}
 }
 document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;
   try{
+    if(button.dataset.evaluationReportExport)await exportEvaluationReport(button);
     if(button.dataset.savedExperimentRun)await runEvaluation(null,null,button.dataset.savedExperimentRun);
     if(button.dataset.experimentExport){const item=await api(`/api/catalog/experiments/${encodeURIComponent(button.dataset.experimentExport)}`);downloadJson(`${item.id}.json`,item.data);}
     if(button.id==="saved-experiment-add-variant"){const root=$("saved-experiment-variants");if(root.children.length>=4)throw new Error("Maximum four variants.");root.insertAdjacentHTML("beforeend",variantFields(root.children.length+1,{},true));updateExperimentEstimate();}

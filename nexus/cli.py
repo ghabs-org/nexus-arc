@@ -10,14 +10,16 @@ def build_parser():
     parser = argparse.ArgumentParser(prog="nexus", description="Nexus ARC CLI")
     subparsers = parser.add_subparsers(dest="command")
     from nexus.core.studio_authoring_skills import add_parser as add_authoring_parser
-    from nexus.core.studio_toolset_cli import add_parser as add_toolset_parser
     from nexus.core.studio_desktop_cli import add_parser as add_desktop_parser
+    from nexus.core.studio_evaluation_gate import add_parser as add_evaluation_parser
     from nexus.core.studio_host_checks_cli import add_parser as add_host_check_parser
+    from nexus.core.studio_toolset_cli import add_parser as add_toolset_parser
 
     add_authoring_parser(subparsers)
     add_toolset_parser(subparsers)
     add_desktop_parser(subparsers)
     add_host_check_parser(subparsers)
+    add_evaluation_parser(subparsers)
     chat_parser = subparsers.add_parser(
         "chat", help="Chat through an authenticated Studio workspace"
     )
@@ -194,6 +196,13 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    if args.command == "eval":
+        from nexus.core.studio_evaluation_gate import evaluation_command
+
+        code = evaluation_command(args)
+        if code:
+            parser.exit(code)
+        return
     if args.command == "studio-host-check":
         from nexus.core.studio_host_checks_cli import host_check_command
 

@@ -17,6 +17,30 @@ percentage. Milestones 10–12 also have scoped local delivery. Preserve their
 implementations and verify the remaining target environments rather than rebuilding
 them. Older dated notes below are history, not additional missing implementations.
 
+### Offline evaluation release gate — 29 October 2026
+
+Completed a local follow-up: report viewers now offer an explicit private JSON
+export, and `nexus eval check-report` recomputes pass rates per variant without
+running providers or changing a release. Missing cases, duplicate slots,
+nonterminal execution and provider/judge errors cannot pass. An override can
+strengthen but never lower the saved threshold. Exit codes distinguish pass,
+rejection/blocked evidence and invalid input. Reports are bounded to eight MiB;
+CLI summaries omit inputs, answers and provider error strings.
+
+The final affected gate passed 73 Python checks and 29 browser-logic checks with
+zero failures or skips. A real local Studio experiment with a synthetic provider
+feeds both CLI and thin example. Existing HTTP authorization and continuation
+regressions pass. This does not prove report authenticity or real-device UI.
+See [usage](STUDIO-EVALUATION-GATE.md) and
+[evidence](STUDIO-EVALUATION-GATE-CHECKPOINT.json).
+
+The [bounded reference comparison](STUDIO-REFERENCE-DELTA-REVIEW.md) records what
+already exists and the next product slices: dedicated inline AI dataset drafting,
+separate evaluation input/reference file roles, and shared-snapshot continuation.
+Exact artifact-version navigation still needs inspection. These are separate
+comparison candidates, not changes to the frozen inventory. No VM work, paid
+provider invocation or DMG build occurred. Full-plan completion remains false.
+
 ### Recently completed
 
 | Slice | Current evidence | Remaining boundary |
