@@ -29,7 +29,7 @@
     },
     "lifecycle": {
       "releases": {
-        "previous": "1.0.0 core DMG sha256 c739dafc0c8c3873…",
+        "previous": "1.0.0 core DMG sha256 c739dafc0c8c3873\u2026",
         "next": "1.0.1 core DMG sha256 1161532ed7f826159065c8e7395ab1c75aae6944a2651e08b86e0923e6feff7c"
       },
       "results": [
@@ -58,7 +58,7 @@
     }
   },
   "remaining": [
-    "Stubborn (EOF-ignoring) stdio MCP servers after a backend crash; would need SDK support or a verified process ledger.",
+    "Installed-beta validation of stubborn (EOF-ignoring) stdio MCP cleanup after a backend crash. The source fix passed native macOS checks on 2026-10-29; existing desktop artifacts were not rebuilt.",
     "Workspace chooser/import flow in the native app; pre-import backup restore via the normal recovery flow from the app.",
     "Real schema migrations with pre-upgrade backup (current release has only schema 1).",
     "Developer ID signing/notarization, signature-verified updates, Linux/Windows."
@@ -71,5 +71,6 @@
     "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
     "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
     "tests/test_studio_desktop.py": "3b2e79d4cb89eb4d4d3e63b9202bbffd3d2936e1aec025ed808dbb1a3a614368"
-  }
+  },
+  "source_macos_crash_followup": "STUDIO-LOCAL-MCP-CRASH-CHECKPOINT.json"
 }

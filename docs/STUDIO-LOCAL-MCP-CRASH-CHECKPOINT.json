@@ -1,0 +1,178 @@
+{
+  "format": "nexus-studio-macos-mcp-crash/v1",
+  "date": "2026-10-29",
+  "status": "source-fixed-native-and-linux-compatibility-verified",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "scope": "Source-runtime macOS MCP stdio server and same-group child cleanup after backend SIGKILL, both one-shot and persistent sessions. No VM, installed application, signing or DMG work.",
+  "reproduced_before_fix": {
+    "tests": 2,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0,
+    "observed": "Both real SDK modes left the synthetic server/child alive after owner SIGKILL; fixture cleanup removed only acknowledged test groups.",
+    "report_sha256": "8a658dae5da300cafc0441b7e6f9619c3e5989cc98499081f92bc8146a0e7093"
+  },
+  "implementation": [
+    "Supported macOS stdio sessions now use the existing trusted private supervisor dispatch. It forwards raw protocol bytes and observes owner stdin independently of server cooperation.",
+    "The macOS server receives a new private session/group. Cleanup signals a still-owned direct-child group once before reaping; after reaping it only observes. Cached/reused process identities are not chased.",
+    "A reaped natural-exit leader with a surviving group remains unconfirmed rather than grounds for signalling unknown processes. Unsupported supervision retains SDK behavior with an explicit macOS warning.",
+    "Linux subreaper/pidfd selection and cleanup stay unchanged. Selected environment remains in SDK parameters, not supervisor arguments. No replay/retry or persistent-state format change."
+  ],
+  "validation": {
+    "required": {
+      "tests": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "5e9fa2b447cfa78fb3032886539e4b0be6a3349f0c12c8d74c4ca745c7d608a9"
+    },
+    "final_portable_guards": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "f3b495d503f890993332b80b5bd5a92f57b98c720fd2526bfa1902058ef2571f"
+    },
+    "bridge_gateway_oauth_compatibility": {
+      "tests": 68,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "162df1dac4e078ad26b3d2b300db836b9cff29e44efb30a153bac37358cca65d"
+    },
+    "native_example_cases": [
+      {
+        "mode": "close",
+        "persistent": false,
+        "detached": false,
+        "server_stopped": true,
+        "child_stopped": true,
+        "caller_settled": true,
+        "invocations": 1,
+        "close_seconds": 0.014,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "owner-crash",
+        "persistent": false,
+        "owner_sigkill": true,
+        "server_stopped": true,
+        "child_stopped": true,
+        "unrelated_process_alive": true,
+        "invocations": 1,
+        "escaped_daemon_containment_tested": false,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "close",
+        "persistent": true,
+        "detached": false,
+        "server_stopped": true,
+        "child_stopped": true,
+        "caller_settled": true,
+        "invocations": 1,
+        "close_seconds": 0.013,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "owner-crash",
+        "persistent": true,
+        "owner_sigkill": true,
+        "server_stopped": true,
+        "child_stopped": true,
+        "unrelated_process_alive": true,
+        "invocations": 1,
+        "escaped_daemon_containment_tested": false,
+        "external_accounts_used": false
+      }
+    ],
+    "local_linux_example_cases": [
+      {
+        "mode": "close",
+        "persistent": false,
+        "detached": false,
+        "server_stopped": true,
+        "child_stopped": true,
+        "caller_settled": true,
+        "invocations": 1,
+        "close_seconds": 0.028,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "close",
+        "persistent": false,
+        "detached": true,
+        "server_stopped": true,
+        "child_stopped": true,
+        "caller_settled": true,
+        "invocations": 1,
+        "close_seconds": 0.016,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "owner-crash",
+        "persistent": false,
+        "owner_sigkill": true,
+        "server_stopped": true,
+        "child_stopped": true,
+        "unrelated_process_alive": true,
+        "invocations": 1,
+        "escaped_daemon_containment_tested": false,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "close",
+        "persistent": true,
+        "detached": false,
+        "server_stopped": true,
+        "child_stopped": true,
+        "caller_settled": true,
+        "invocations": 1,
+        "close_seconds": 0.026,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "close",
+        "persistent": true,
+        "detached": true,
+        "server_stopped": true,
+        "child_stopped": true,
+        "caller_settled": true,
+        "invocations": 1,
+        "close_seconds": 0.022,
+        "external_accounts_used": false
+      },
+      {
+        "mode": "owner-crash",
+        "persistent": true,
+        "owner_sigkill": true,
+        "server_stopped": true,
+        "child_stopped": true,
+        "unrelated_process_alive": true,
+        "invocations": 1,
+        "escaped_daemon_containment_tested": false,
+        "external_accounts_used": false
+      }
+    ],
+    "lint": "Changed files pass with two explicit per-file exclusions for unchanged B904/C405 baseline findings in pre-existing speech/probe code; repository lint configuration unchanged.",
+    "counts_overlap": "Required/guard suites overlap; do not add them into a unique aggregate total."
+  },
+  "source_sha256": {
+    "nexus/core/studio_mcp_supervisor.py": "efff8d17ac31b5b260ed9debfc318c352de9622bafc087837fe2bfedfb7ad59f",
+    "nexus/tools/mcp_supervision.py": "ea1163cf9657ca2c3e9fbf5834e363abd011d6d3e1252b33bb6707dc6ed626bc",
+    "examples/nexus-bot/src/studio_mcp_lifecycle.py": "cd6241a8e9c6e5786edc559a76c1c9645336ac20cb23cc72759d9bebe0a62ed8",
+    "tests/test_studio_mcp_supervision.py": "b9e49cf035f82170f15b691450297f9981cfad13f45f35f0e3f01f6e61e568c2",
+    "tests/studio_macos_mcp_acceptance.py": "030301508da24b3c39e22af853c2cdbd4f869fb9efa55e627d750b9b000fe1dc"
+  },
+  "example": "examples/nexus-bot/src/studio_mcp_lifecycle.py --owner-crash [--persistent]",
+  "limits": [
+    "No escaped/double-forked macOS daemon containment claim. Linux detached-child compatibility has separate actual proof.",
+    "Direct supervisor SIGKILL and hostile-code containment remain separate.",
+    "Existing beta/installed applications were not rebuilt; source proof is not installed-app acceptance."
+  ],
+  "vm_contacted": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false
+}

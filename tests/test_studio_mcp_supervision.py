@@ -142,3 +142,41 @@ def test_frozen_supervisor_file_dispatch_does_not_import_studio(tmp_path, monkey
     )
     exec(FROZEN_ENTRYPOINT, {"__file__": str(tmp_path / "entry.py")})
     assert capsys.readouterr().out.strip() == "isolated-supervisor-dispatch"
+
+
+def test_macos_availability_uses_private_owner_probe(monkeypatch):
+    monkeypatch.setattr(mcp_supervision.sys, "platform", "darwin")
+    monkeypatch.setattr(supervisor, "_configure", lambda: lambda *_: 0)
+    assert mcp_supervision.available() is (os.name == "posix")
+
+    def unavailable():
+        raise OSError("private platform detail")
+
+    monkeypatch.setattr(supervisor, "_configure", unavailable)
+    assert not mcp_supervision.available()
+
+
+def test_reaped_macos_leader_never_receives_a_cleanup_signal(monkeypatch):
+    process = SimpleNamespace(pid=123, poll=lambda: 0)
+    signals = []
+
+    def observe(pid, value):
+        signals.append((pid, value))
+        raise PermissionError
+
+    monkeypatch.setattr(supervisor.os, "killpg", observe, raising=False)
+    assert supervisor._cleanup_mcp_group(process) is False
+    assert signals == [(123, 0)]
+
+
+def test_macos_group_is_signalled_once_before_reaping_then_only_observed(monkeypatch):
+    monkeypatch.setattr(supervisor.signal, "SIGKILL", 9, raising=False)
+    process = SimpleNamespace(pid=123, poll=lambda: None, wait=lambda **_: 0)
+    signals = []
+    clock = iter([0, 2])
+    monkeypatch.setattr(supervisor.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(
+        supervisor.os, "killpg", lambda pid, value: signals.append((pid, value)), raising=False
+    )
+    assert supervisor._cleanup_mcp_group(process) is False
+    assert signals == [(123, supervisor.signal.SIGKILL), (123, 0)]

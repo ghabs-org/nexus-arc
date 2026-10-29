@@ -425,6 +425,36 @@ verify actual ingress state, prepare isolated backends/routing and review exact
 OAuth callback registration before fresh user-driven login. Whole-plan completion
 remains false. Milestone 9 stays last; no DMG was rebuilt.
 
+### VM work deferred; native macOS MCP crash cleanup — 29 October 2026
+
+The user explicitly requested no further VM work. No remote host, DNS, ingress or
+Tailscale operation occurred in this slice. Milestone 9 stays last; no installed
+application or DMG was rebuilt.
+
+A remaining local runtime gap was reproduced: both one-shot and persistent MCP
+servers and their SIGTERM-resistant same-group children survived backend SIGKILL.
+Supported macOS stdio launches now use the existing private ownership supervisor
+and raw-byte relay. The server owns a separate group; cleanup signals that group
+once while its direct-child identity is still owned. After reaping, cleanup only
+observes, avoiding signals to a possibly reused identity. Natural exit with an
+unconfirmed surviving group reports uncertainty rather than chasing PIDs. Selected
+environment, trusted frozen dispatch, Linux subreaper/pidfd behavior and protocol
+payloads are preserved; no automatic replay or persisted schema changes.
+
+The two native failure cases now pass. The affected 41-check gate, final 15 guard
+checks and 68 bridge/gateway/OAuth regressions pass without skips; these suites
+overlap and are not a unique summed total. Four thin-example cases pass on native
+macOS (normal close and owner crash in both modes), and six real SDK compatibility
+cases pass in restricted local Linux containers, including detached close. All
+invocations occur once and unrelated sentinels survive. No credentials, external
+account or host mount enters the Linux fixture. Two unchanged baseline lint
+findings are excluded only for the existing supervisor file; global lint settings
+are untouched. [Scoped evidence](STUDIO-LOCAL-MCP-CRASH-CHECKPOINT.json).
+
+This closes source macOS MCP stdio-group owner-crash cleanup. It does not certify
+escaped/double-forked macOS daemons, direct supervisor SIGKILL, hostile-code
+containment or the older installed beta. Those boundaries remain explicit.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech

@@ -1,4 +1,4 @@
-"""Isolated Linux stdio owner. Standard library only; never imports Studio/SDKs.
+"""Isolated POSIX stdio owner. Standard library only; never imports Studio/SDKs.
 
 The process owns one MCP child tree. It does not scan other processes or share
 subreaper state with the application, its worker threads or other MCP sessions.
@@ -142,13 +142,41 @@ def _cleanup(children_path, *, seconds=1.0):
     return False
 
 
+def _cleanup_mcp_group(process, *, seconds=1.0):
+    """Signal one still-owned child group once; never chase cached/reused PIDs."""
+    if process.poll() is None:
+        # A live direct child, or its unreaped exit, keeps this identity owned
+        # until wait(). A fresh session makes its PID the private group ID.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            return False
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
+        # After reaping the leader, only observe. A reused identity must never
+        # receive another signal. Natural exit with surviving children is also
+        # unconfirmed rather than grounds for signalling an unowned group.
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.005)
+
+
 def supervise(command):
     children_path = _configure()
-    if not isinstance(children_path, Path):
-        raise OSError("Linux supervision unavailable")
-    # Fail before starting the server if the required own-child view is hidden.
-    with children_path.open("rb") as stream:
-        stream.read(1)
+    if isinstance(children_path, Path):
+        # Fail before starting the server if the required own-child view is hidden.
+        with children_path.open("rb") as stream:
+            stream.read(1)
     stopping = False
 
     def stop(*_):
@@ -164,7 +192,13 @@ def supervise(command):
     )
     if stopping or owner_gone:
         return 0
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, bufsize=0, close_fds=True)
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        bufsize=0,
+        close_fds=True,
+        start_new_session=sys.platform == "darwin",
+    )
     pending = bytearray()
     result = 0
     try:
@@ -202,7 +236,11 @@ def supervise(command):
     except (BrokenPipeError, ConnectionError):
         result = 1
     finally:
-        confirmed = _cleanup(children_path)
+        confirmed = (
+            _cleanup(children_path)
+            if isinstance(children_path, Path)
+            else _cleanup_mcp_group(process)
+        )
         process.stdin.close()
         if not confirmed:
             print("MCP descendant cleanup remains unconfirmed.", file=sys.stderr, flush=True)
@@ -230,7 +268,11 @@ def main():
             else (
                 "Local speech supervision could not initialize or launch the worker."
                 if speech
-                else "Linux MCP supervision could not initialize or launch the server."
+                else (
+                    "Linux MCP supervision could not initialize or launch the server."
+                    if sys.platform == "linux"
+                    else "Local MCP supervision could not initialize or launch the server."
+                )
             ),
             file=sys.stderr,
         )

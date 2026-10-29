@@ -1,4 +1,4 @@
-"""Select per-session Linux ownership without changing MCP configuration."""
+"""Select per-session POSIX ownership without changing MCP configuration."""
 
 import logging
 import os
@@ -10,6 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 def available():
+    if sys.platform == "darwin":
+        try:
+            from nexus.core.studio_mcp_supervisor import _configure
+
+            return os.name == "posix" and callable(_configure())
+        except OSError:
+            return False
     if (
         sys.platform != "linux"
         or not hasattr(os, "pidfd_open")
@@ -34,6 +41,10 @@ def supervised_command(command, args):
         if sys.platform == "linux":
             logger.warning(
                 "Linux MCP detached-process supervision unavailable; using SDK process-group cleanup only."
+            )
+        elif sys.platform == "darwin":
+            logger.warning(
+                "macOS MCP owner supervision unavailable; using SDK process-group cleanup only."
             )
         return command, list(args or [])
     from nexus.core.studio_desktop_sidecar import worker_command

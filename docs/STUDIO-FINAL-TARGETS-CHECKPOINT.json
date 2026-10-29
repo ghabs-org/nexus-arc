@@ -114,5 +114,7 @@
     }
   ],
   "maintenance_review_sha256": "525a9ec0f84317f65c8057cbb11a605d5d46c758cc0113827cb8d210575c8e1a",
-  "next_user_prerequisite": "Reconnect Tailscale on the Mac to resume VM ingress work. DNS resolves. Local auth/runtime conversion is verified; real browser/OAuth and other external release gates remain open."
+  "next_user_prerequisite": "VM work is deferred by explicit user request. Continue independent local work; installed desktop/signing, real devices and selected accounts remain separate. No DMG rebuild inferred.",
+  "vm_work_deferred_by_user": true,
+  "local_mcp_crash_fix": "STUDIO-LOCAL-MCP-CRASH-CHECKPOINT.json"
 }
