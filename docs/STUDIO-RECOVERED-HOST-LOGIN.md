@@ -1,15 +1,19 @@
 # Recovered-host browser login acceptance
 
-Status: prepared, not executed. Independent selected-service data/key recovery
-already passed on the owner-approved Mac. A real browser/OAuth login needs a
-separate HTTPS test hostname and a compatible registered provider callback.
-The current live Studio address must continue serving its existing instance.
+Status: local data conversion and auth runtime preparation verified; fresh
+recovered-host browser/OAuth login is not executed. The owner-added DNS record now
+resolves to the existing private ingress. Certificate coverage was checked earlier.
+A host-specific maintenance guard attempt failed readiness and rolled back. Its
+corrected direct-network probe could not run because Tailscale on the Mac stopped
+and SSH timed out. No persistent recovery route is installed.
 
-The owner supplied a candidate test hostname. Read-only preflight found no DNS
-record. Existing Nginx/Tailscale ingress and certificate coverage are suitable; a
-DNS-only CNAME to that ingress, distinct restored UI/auth routes and provider
-callback review remain prerequisites. Exact addresses/configuration stay in the
-private operator review. No DNS or ingress change has been applied.
+Locally, the actual auth application imports with its pinned dependencies and its
+normal login/callback routes present. The frozen snapshot also passes conversion
+through framework backup/SQL-restore APIs: 1,420 records, 18 agents and 4 workflows
+restore into a new SQL namespace; all 40 saved job records stay out of the
+executable queue. No application starts during this check. Private plaintext and
+test containers/volumes are removed after verification. See
+[preparation evidence](STUDIO-RECOVERED-HOST-PREPARATION-CHECKPOINT.json).
 
 ## Required inputs
 
@@ -22,7 +26,11 @@ private operator review. No DNS or ingress change has been applied.
   `/auth/github/callback` (or the selected supported provider callback).
 - Provider callback registration compatible with the test origin. Review the
   existing provider setup before changing it; preserve the production client's
-  settings. A separate test OAuth client may be required. Enter any credential
+  settings. GitHub supports additional exact callback URLs; if the chosen callback is not
+  already accepted, review adding it while retaining the production callback.
+  Do not enable broader wildcard matching merely for this test. See
+  [GitHub callback documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#redirect-urls).
+  A separate test OAuth client is another option. Enter any credential
   only into its approved private configuration, never chat or Git.
 
 ## Isolate before starting applications

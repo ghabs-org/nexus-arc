@@ -28,8 +28,8 @@
       "prepared_login_procedure": "STUDIO-RECOVERED-HOST-LOGIN.md",
       "recovered_host_preflight": {
         "candidate_supplied_by_user": true,
-        "dns_record_exists": false,
-        "anonymous_https_resolves": false,
+        "dns_record_exists": true,
+        "anonymous_https_resolves": true,
         "existing_origin_certificate_covers_candidate": true,
         "ingress": "Nginx over Tailscale",
         "dns_provider": "Cloudflare",
@@ -38,8 +38,13 @@
         "dns_or_ingress_changed": false,
         "isolated_ui_and_auth_routing_prepared": false,
         "provider_callback_review_pending": true,
-        "private_operator_review_sha256": "74b42beb3dbddb60bbcf851f28e911295637304a5e173ef152d60ac59bba41fc"
-      }
+        "private_operator_review_sha256": "74b42beb3dbddb60bbcf851f28e911295637304a5e173ef152d60ac59bba41fc",
+        "persistent_isolated_route_installed": false,
+        "vm_connection": "Tailscale stopped; SSH timeout",
+        "local_auth_runtime_prepared": true,
+        "inactive_sql_restore_verified": true
+      },
+      "preparation_checkpoint": "STUDIO-RECOVERED-HOST-PREPARATION-CHECKPOINT.json"
     },
     {
       "id": 2,
@@ -109,5 +114,5 @@
     }
   ],
   "maintenance_review_sha256": "525a9ec0f84317f65c8057cbb11a605d5d46c758cc0113827cb8d210575c8e1a",
-  "next_user_prerequisite": "Owner-proposed recovery hostname preflight completed; DNS-only CNAME is missing. Distinct restored UI/auth routing and compatible OAuth callback are required next. Physical-device, API-account and final installed signing prerequisites remain open."
+  "next_user_prerequisite": "Reconnect Tailscale on the Mac to resume VM ingress work. DNS resolves. Local auth/runtime conversion is verified; real browser/OAuth and other external release gates remain open."
 }

@@ -398,6 +398,33 @@ restored UI/auth routing and compatible provider callback are needed next.
 Physical-device, unavailable API-account and installed/signing gates remain open.
 Milestone 9 stays last. No DMG was rebuilt.
 
+### Recovery-host DNS and inactive runtime preparation — 29 October 2026
+
+The owner added the selected DNS record; its CNAME now resolves to the existing
+private ingress. A host-specific maintenance guard was attempted, failed its
+readiness check and rolled back. Before the corrected direct-network probe could
+run, the Mac's Tailscale application stopped and SSH timed out. No persistent
+recovery route or fresh browser/OAuth login is accepted. The user was asked to
+reconnect Tailscale; source production services were not restarted by this attempt.
+
+Independent local work continued. A disposable image from the archived runtime
+plus pinned public Flask/Gunicorn/Socket.IO dependencies imports the actual auth
+application with normal login/callback routes; no real credentials enter its image
+and no HTTP listener starts. The frozen copy also passes the framework's actual
+backup/SQL-restore conversion into a new empty namespace: 1,420 records, 18 agents,
+4 workflows, and zero executable jobs. All 40 saved job records remain unqueued.
+No explicit catalog activation flags were present in this dataset; positive
+active-resource inactivation retains separate fixture evidence. New local staging
+permission failures were diagnosed with synthetic data and corrected only in the
+disposable init helper; runtime remains non-root/no-network. Temporary plaintext,
+containers and test volumes were removed after success.
+
+See [preparation evidence](STUDIO-RECOVERED-HOST-PREPARATION-CHECKPOINT.json) and
+[login procedure](STUDIO-RECOVERED-HOST-LOGIN.md). Reconnect the private network,
+verify actual ingress state, prepare isolated backends/routing and review exact
+OAuth callback registration before fresh user-driven login. Whole-plan completion
+remains false. Milestone 9 stays last; no DMG was rebuilt.
+
 ### Remaining work, in delivery order
 
 1. **Local work while VM access is deferred (completed 27 October).** macOS speech

@@ -62,12 +62,13 @@
     "docs/STUDIO-GITHUB-LIVE-READS-CHECKPOINT.json": "4e2c8f7535e98285654be00c1518224b0bf589f48814ca1d103b2f77a6338c89",
     "docs/STUDIO-DEPLOYED-RESTART-CHECKPOINT.json": "dedf2e30eadf8e98bc19cd87847f9e4450907d7b89685d0879543b11f487dc6a",
     "docs/STUDIO-ACCOUNT-RESTORE-CHECKPOINT.json": "b1ef97dd515847b91335ef23895dcb15ef8259490e03215642482b0632377473",
-    "docs/STUDIO-FINAL-TARGETS-CHECKPOINT.json": "98d967701da957518dac195f2866999b39e5a35366058f9e2062c555c5ad887c",
+    "docs/STUDIO-FINAL-TARGETS-CHECKPOINT.json": "ed9d0ca392546ab254b73837726df5bd2b489cd5c887ad4d5940c9fe1856e809",
     "docs/STUDIO-VM-GITHUB-CHECKPOINT.json": "149d9196cfb39eae82e200a248a3ddc9826a34104f9c654581959e178dfb7d13",
     "docs/STUDIO-COORDINATED-RESTORE-CHECKPOINT.json": "76d0be3d5c5931a47150b4383a28069dbbd66e602647ef4d91236e1ac62e35bb",
     "docs/STUDIO-FRONTEND-DEPLOYMENT-CHECKPOINT.json": "3cd579dc50eac3cdb887108b33003734713155372bcde04e88577345013d9434",
     "docs/STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json": "f37f185f1c63f77e39731b4c3acdbccaeec5e3e0b330ccb5df96f1484732ebb9",
-    "docs/STUDIO-PRIVATE-CONNECTION-CHECKPOINT.json": "47f09cd027c3ff0acdf60c2fe684f723f99c6cf1456e15199d23673aa247e489"
+    "docs/STUDIO-PRIVATE-CONNECTION-CHECKPOINT.json": "47f09cd027c3ff0acdf60c2fe684f723f99c6cf1456e15199d23673aa247e489",
+    "docs/STUDIO-RECOVERED-HOST-PREPARATION-CHECKPOINT.json": "d840c4152bb7d0d064b926482d9e9d61b44b5de87a6aa8ccd8784e8e294e1d2f"
   },
   "current_live_slices": [
     "Windows Server x64 source lifecycle on Python 3.11 and 3.13.",
@@ -80,7 +81,8 @@
     "Coordinated VM snapshot: 723 files, two PostgreSQL databases, opaque key configuration and four images; inactive restore, synthetic key canary and isolated authorization verified.",
     "Tested two-asset login fix deployed; signed-in Codex subscription task returned exact acceptance marker with Low effort and no tools.",
     "Independent Mac: authenticated encrypted VM snapshot transfer, 723 file hashes, two restored PostgreSQL databases, recovered-key canary and restored policy authorization; private bundle verified and disposable resources removed.",
-    "Personal VM: browser-owned existing session passes two private GETs, JSON response type and no-store caching through deployed HTTPS. Three-asset diagnostic update deployed, 226 frontend checks passed."
+    "Personal VM: browser-owned existing session passes two private GETs, JSON response type and no-store caching through deployed HTTPS. Three-asset diagnostic update deployed, 226 frontend checks passed.",
+    "Recovered-host preparation: actual auth app imports in no-network test image; frozen snapshot converts 1,420 SQL records and retains 18 agents/4 workflows with 40 job records not re-enqueued. No application starts; test resources removed."
   ],
   "environment_availability": {
     "other_known_integration_credential_references_in_current_environment": [],
@@ -90,8 +92,8 @@
     {
       "target": "Personal VM",
       "state": "independent-recovery-authenticated-task-and-private-headers-verified",
-      "needed": "Create the chosen DNS-only recovery CNAME, prepare distinct isolated UI/auth routing and review provider callback registration.",
-      "remaining": "Recovered-host browser/OAuth, OS/ingress provisioning and daemon/power-loss remain separate. Authenticated private response headers are now live-verified without extracting session material."
+      "needed": "Reconnect Tailscale to resume distinct recovered-host UI/auth routing, then verify provider callback and fresh browser login.",
+      "remaining": "DNS is now verified. Ingress guard attempt rolled back; corrected attempt never ran because SSH timed out. Local data/runtime preparation passed. Browser/OAuth and OS/daemon/power-loss remain open."
     },
     {
       "target": "Physical phone/tablet",
@@ -112,7 +114,7 @@
       "remaining": "User must explicitly request any new DMG. Source runtime CI is not installed-app acceptance."
     }
   ],
-  "current_turn": "Implemented/deployed browser-owned diagnostics; live signed-in access and private response headers verified without reading session material or bodies. Owner proposed recovery hostname; DNS missing, existing ingress/certificate suitable, no matching DNS plugin found. Prepared private DNS/routing review; no DNS/ingress/auth changes or DMG.",
+  "current_turn": "Verified user-added DNS. Prepared real auth runtime and semantically inactive SQL restore locally. One host-specific Nginx maintenance-guard readiness attempt failed and rolled back; Tailscale then became unavailable and corrected remote execution never started. User reconnect requested. No successful recovered-host login or DMG claim.",
   "history_note": "Earlier GitHub and Windows checks retain their exact source hashes, reports and boundaries; the current audit promotes no new runtime/device/live capability.",
   "vm_resume": {
     "date": "2026-10-28",
