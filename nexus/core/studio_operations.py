@@ -607,155 +607,210 @@ class StudioOperations:
                 experiment_revision=experiment["revision"],
                 experiment_name=experiment["name"],
             )
+        if settings.get("evaluators"):
+            report.update(
+                evaluators=[{key: item[key] for key in ("id", "revision", "name")} for item in settings["evaluators"]],
+                primaryEvaluatorId=settings["primaryEvaluatorId"],
+                evaluatorPolicy=settings["evaluatorPolicy"],
+            )
         report["evaluation_status"] = "running"
         self.studio._write(report_path, report)
         self.studio._update_run(run_id, evaluation_report_id=run_id)
-        for variant_index, variant in enumerate(payload["variants"]):
-            for index, repetition, case in (
-                (index, repetition, case)
-                for index, case in enumerate(target["cases"])
-                for repetition in range(repeats)
-            ):
-                ordinal = (variant_index * len(target["cases"]) + index) * repeats + repetition
-                if ordinal < len(report["results"]):
-                    continue
-                checkpoint = f"{run_id}-{variant_index}-{index}" + (
-                    f"-repeat-{repetition}" if repeats > 1 else ""
-                )
-                active_resume = resume_mode if progress["checkpoint_id"] == checkpoint else None
-                progress["checkpoint_id"] = checkpoint
-                self.studio._write(progress_path, progress)
-                started = time.monotonic()
-                self.studio._update_run(
-                    run_id,
-                    step=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
-                    evaluation_case={
-                        "variant": variant["name"],
-                        "case": index + 1,
-                        "repetition": repetition + 1,
-                        "runs_per_example": repeats,
-                    },
-                )
-                self.studio.execution.record(
-                    run_id,
-                    "evaluation-case",
-                    node_id=checkpoint,
-                    node_name=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
-                    status="continued" if active_resume else "running",
-                )
-                from nexus.core.studio_evaluation_files import input_text, provenance
+        workers = settings.get("workers", 1)
+        report["max_workers"] = workers
 
-                files = payload.get("_evaluation_files", [{}] * len(target["cases"]))[index]
-                task_input = input_text(case["input"], files.get("input_files", []))
-                grading_case = {**case, "input": task_input, "_reference_files": files.get("reference_files", [])}
-                entry = {
-                    **({"file_sources": provenance(files)} if files else {}),
+        async def execute_case(variant_index, index, repetition, case, checkpoint, active_resume=None):
+            variant = payload["variants"][variant_index]
+            started = time.monotonic()
+            self.studio._update_run(
+                run_id,
+                step=(
+                    f"Parallel evaluation · {report['total']}/{report['expected_total']} recorded · {workers} worker limit"
+                    if workers > 1
+                    else f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}"
+                ),
+                evaluation_case={
                     "variant": variant["name"],
-                    "variant_index": variant_index + 1,
                     "case": index + 1,
                     "repetition": repetition + 1,
-                    "input": case["input"],
-                }
-                request = {
-                    key: variant[key] for key in ("provider", "model", "effort") if variant.get(key)
-                }
-                request["requester_nexus_id"] = payload.get("requester_nexus_id")
-                request.update(
-                    {
-                        key: deepcopy(payload[key])
-                        for key in (
-                            "agent_snapshots",
-                            "workflow_snapshot",
-                            "workflow_snapshots",
-                            "_workflow_limits",
-                            "_media_profile_revisions",
-                        )
-                        if key in payload
-                    }
-                )
-                if active_resume:
-                    request[active_resume] = True
-                # A continuation authorizes only this case, never a later repetition.
-                resume_mode = None
-                try:
-                    if target["target_kind"] == "workflow":
-                        output = await self.studio._workflow(
-                            run_id,
-                            {
-                                **request,
-                                "workflow_id": target["target_id"],
-                                "task": task_input,
-                                "_evaluation_case": checkpoint,
-                            },
-                        )
-                    else:
-                        result = await self.studio._invoke(
-                            {**request, "agent_id": target["target_id"]}, task_input, run_id
-                        )
-                        output = result.output
-                    lowered = output.casefold()
-                    checks = [
-                        {
-                            "type": "contains",
-                            "phrase": phrase,
-                            "passed": phrase.casefold() in lowered,
-                        }
-                        for phrase in case["contains"]
-                    ] + [
-                        {
-                            "type": "excludes",
-                            "phrase": phrase,
-                            "passed": phrase.casefold() not in lowered,
-                        }
-                        for phrase in case["excludes"]
-                    ]
-                    from nexus.core.studio_evaluations import additional_checks
+                    "runs_per_example": repeats,
+                },
+            )
+            self.studio.execution.record(
+                run_id,
+                "evaluation-case",
+                node_id=checkpoint,
+                node_name=f"{variant['name']} · case {index + 1} · repetition {repetition + 1}/{repeats}",
+                status="continued" if active_resume else "running",
+            )
+            from nexus.core.studio_evaluation_files import input_text, provenance
 
+            files = payload.get("_evaluation_files", [{}] * len(target["cases"]))[index]
+            task_input = input_text(case["input"], files.get("input_files", []))
+            grading_case = {**case, "input": task_input, "_reference_files": files.get("reference_files", [])}
+            entry = {
+                **({"file_sources": provenance(files)} if files else {}),
+                "variant": variant["name"],
+                "variant_index": variant_index + 1,
+                "case": index + 1,
+                "repetition": repetition + 1,
+                "input": case["input"],
+            }
+            request = {
+                key: variant[key] for key in ("provider", "model", "effort") if variant.get(key)
+            }
+            request["requester_nexus_id"] = payload.get("requester_nexus_id")
+            request.update(
+                {
+                    key: deepcopy(payload[key])
+                    for key in (
+                        "agent_snapshots",
+                        "workflow_snapshot",
+                        "workflow_snapshots",
+                        "_workflow_limits",
+                        "_media_profile_revisions",
+                    )
+                    if key in payload
+                }
+            )
+            if active_resume:
+                request[active_resume] = True
+            try:
+                if target["target_kind"] == "workflow":
+                    output = await self.studio._workflow(
+                        run_id,
+                        {
+                            **request,
+                            "workflow_id": target["target_id"],
+                            "task": task_input,
+                            "_evaluation_case": checkpoint,
+                        },
+                    )
+                else:
+                    result = await self.studio._invoke(
+                        {**request, "agent_id": target["target_id"]}, task_input, run_id
+                    )
+                    output = result.output
+                lowered = output.casefold()
+                checks = [
+                    {
+                        "type": "contains",
+                        "phrase": phrase,
+                        "passed": phrase.casefold() in lowered,
+                    }
+                    for phrase in case["contains"]
+                ] + [
+                    {
+                        "type": "excludes",
+                        "phrase": phrase,
+                        "passed": phrase.casefold() not in lowered,
+                    }
+                    for phrase in case["excludes"]
+                ]
+                from nexus.core.studio_evaluations import additional_checks
+
+                if settings.get("evaluators"):
+                    from nexus.core.studio_experiment_judges import grade
+
+                    base_checks = list(checks)
+
+                    def save_grading(graded, evaluators):
+                        report["updated_at"] = datetime.now(UTC).isoformat()
+                        report.setdefault("pending_grading", {})[checkpoint] = deepcopy({
+                            **entry, "output": output, "checks": [*base_checks, *graded],
+                            "evaluators": evaluators,
+                        })
+                        summarize(report)
+                        self.studio._write(report_path, report)
+
+                    graded, evaluators = await grade(self.studio, grading_case, output, run_id,
+                                                     payload.get("requester_nexus_id"), settings["evaluators"], save_grading)
+                    checks.extend(graded)
+                    entry["evaluators"] = evaluators
+                    if any(item.get("error") for item in evaluators):
+                        entry["error"] = "Evaluation stopped after evaluator error; inspect individual grading results"
+                else:
                     checks.extend(
                         await additional_checks(
                             self.studio, grading_case, output, run_id, payload.get("requester_nexus_id")
                         )
                     )
-                    entry.update(
-                        output=output,
-                        checks=checks,
-                        passed=all(check["passed"] for check in checks),
-                    )
-                except StudioPausedError:
-                    import uuid
+                entry.update(
+                    output=output,
+                    checks=checks,
+                    passed=not entry.get("error") and all(check["passed"] for check in checks),
+                )
+            except StudioPausedError:
+                import uuid
 
-                    report.update(
-                        evaluation_status="waiting",
-                        updated_at=datetime.now(UTC).isoformat(),
-                    )
-                    summarize(report)
-                    self.studio._write(report_path, report)
-                    self.studio._update_run(run_id, evaluation_checkpoint=uuid.uuid4().hex)
-                    raise
-                except Exception as exc:
-                    entry.update(output="", checks=[], passed=False, error=str(exc))
-                entry["duration_seconds"] = round(time.monotonic() - started, 3)
-                report["results"].append(entry)
                 report.update(
+                    evaluation_status="waiting",
                     updated_at=datetime.now(UTC).isoformat(),
-                    passed=sum(r["passed"] for r in report["results"]),
-                    total=len(report["results"]),
                 )
                 summarize(report)
-                if entry.get("error"):
-                    report["evaluation_status"] = "error"
-                self.studio._write(self.studio._path("evaluation-reports", run_id), report)
-                self.studio.execution.record(
-                    run_id,
-                    "evaluation-case",
-                    node_id=checkpoint,
-                    status="failed" if entry.get("error") else "completed",
-                )
-                if entry.get("error"):
-                    self.studio._update_run(run_id, evaluation_report_id=run_id)
-                    raise RuntimeError(
-                        "Evaluation stopped after provider/runtime error: " + entry["error"]
+                self.studio._write(report_path, report)
+                self.studio._update_run(run_id, evaluation_checkpoint=uuid.uuid4().hex)
+                raise
+            except Exception as exc:
+                entry.update(output="", checks=[], passed=False, error=str(exc))
+            entry["duration_seconds"] = round(time.monotonic() - started, 3)
+            return entry
+
+        def record_entry(entry, checkpoint):
+            report.get("pending_grading", {}).pop(checkpoint, None)
+            report["results"].append(entry)
+            report["results"].sort(
+                key=lambda item: (item["variant_index"], item["case"], item["repetition"])
+            )
+            report.update(
+                updated_at=datetime.now(UTC).isoformat(),
+                passed=sum(r["passed"] for r in report["results"]),
+                total=len(report["results"]),
+            )
+            summarize(report)
+            if entry.get("error"):
+                report["evaluation_status"] = "error"
+            self.studio._write(self.studio._path("evaluation-reports", run_id), report)
+            self.studio.execution.record(
+                run_id,
+                "evaluation-case",
+                node_id=checkpoint,
+                status="failed" if entry.get("error") else "completed",
+            )
+
+        if workers > 1:
+            from nexus.core.studio_evaluation_workers import execute_parallel
+
+            await execute_parallel(
+                self.studio, run_id, payload, report, progress, execute_case, record_entry
+            )
+        else:
+            for variant_index in range(len(payload["variants"])):
+                for index, repetition, case in (
+                    (index, repetition, case)
+                    for index, case in enumerate(target["cases"])
+                    for repetition in range(repeats)
+                ):
+                    ordinal = (variant_index * len(target["cases"]) + index) * repeats + repetition
+                    if ordinal < len(report["results"]):
+                        continue
+                    checkpoint = f"{run_id}-{variant_index}-{index}" + (
+                        f"-repeat-{repetition}" if repeats > 1 else ""
                     )
+                    active_resume = resume_mode if progress["checkpoint_id"] == checkpoint else None
+                    progress["checkpoint_id"] = checkpoint
+                    self.studio._write(progress_path, progress)
+                    # A continuation authorizes only this case, never a later repetition.
+                    resume_mode = None
+                    entry = await execute_case(
+                        variant_index, index, repetition, case, checkpoint, active_resume
+                    )
+                    record_entry(entry, checkpoint)
+                    if entry.get("error"):
+                        self.studio._update_run(run_id, evaluation_report_id=run_id)
+                        raise RuntimeError(
+                            "Evaluation stopped after provider/runtime error: " + entry["error"]
+                        )
         scores = [
             check["score"]
             for entry in report["results"]

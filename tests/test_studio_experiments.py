@@ -110,7 +110,8 @@ def test_repeats_run_in_order_with_independent_variant_thresholds(app):
     )
 
 
-def test_weak_variant_cannot_hide_behind_aggregate_pass_rate(app):
+@pytest.mark.parametrize("workers", [1, 2])
+def test_weak_variant_cannot_hide_behind_aggregate_pass_rate(app, workers):
     studio, _ = app
     calls = []
 
@@ -130,6 +131,7 @@ def test_weak_variant_cannot_hide_behind_aggregate_pass_rate(app):
         studio,
         suite(studio),
         passThreshold=0.5,
+        maxWorkers=workers,
         variants=[{"name": "Strong"}, {"name": "Weak", "model": "weak"}],
     )
     run = done(studio, studio.start_run({"kind": "evaluation", "experiment_id": saved["id"]}))

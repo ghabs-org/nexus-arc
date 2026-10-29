@@ -6,6 +6,13 @@ import math
 from nexus.core.studio_catalog import _text
 
 MAX_EXECUTIONS = 400
+MAX_WORKERS = 4
+
+
+def validate_workers(value):
+    if type(value) is not int or not 1 <= value <= MAX_WORKERS:
+        raise ValueError("maxWorkers must be an integer from 1 to 4")
+    return value
 
 
 def validate_variants(variants, *, unique=False):
@@ -49,6 +56,10 @@ def validate_experiment(data):
             "runsPerExample",
             "passThreshold",
             "variants",
+            "maxWorkers",
+            "evaluators",
+            "primaryEvaluatorId",
+            "evaluatorPolicy",
         }
         or data.get("kind", "experiment") != "experiment"
         or type(data.get("version", 1)) is not int
@@ -73,6 +84,8 @@ def validate_experiment(data):
         or not 0 <= threshold <= 1
     ):
         raise ValueError("passThreshold must be a finite number from 0 to 1")
+    from nexus.core.studio_experiment_judges import validate_selection
+
     return {
         "kind": "experiment",
         "version": 1,
@@ -81,6 +94,8 @@ def validate_experiment(data):
         "runsPerExample": repeats,
         "passThreshold": threshold,
         "variants": validate_variants(data.get("variants"), unique=True),
+        "maxWorkers": validate_workers(data.get("maxWorkers", 1)),
+        **validate_selection(data),
     }
 
 
@@ -90,7 +105,7 @@ def prepare(studio, payload):
     payload.pop("resume_yaml", None)
     payload.pop("workflow_snapshot", None)
     payload.pop("workflow_snapshots", None)
-    payload["_experiment_settings"] = {"repeats": 1, "threshold": 1, "enforce": False}
+    payload["_experiment_settings"] = {"repeats": 1, "threshold": 1, "enforce": False, "workers": 1}
     if payload.get("experiment_id"):
         if "evaluation_id" in payload or "variants" in payload:
             raise ValueError("Named experiments cannot override their suite or variants")
@@ -109,7 +124,19 @@ def prepare(studio, payload):
             "repeats": settings["runsPerExample"],
             "threshold": settings["passThreshold"],
             "enforce": True,
+            "workers": settings["maxWorkers"],
+            **{
+                key: copy.deepcopy(settings[key])
+                for key in ("evaluators", "primaryEvaluatorId", "evaluatorPolicy")
+                if key in settings
+            },
         }
+        if settings.get("evaluators"):
+            from nexus.core.studio_evaluations import validate_case
+
+            for case in suite["data"]["cases"]:
+                for evaluator in settings["evaluators"]:
+                    validate_case({**case, "judge": evaluator["judge"]})
     else:
         suite = studio.catalog.get("evaluations", payload.get("evaluation_id"))
         payload["variants"] = validate_variants(
@@ -125,6 +152,10 @@ def prepare(studio, payload):
             "Experiment exceeds the 400 case-execution limit; reduce cases, variants or repetitions"
         )
     payload["suite_snapshot"] = copy.deepcopy(suite)
+    if payload["_experiment_settings"]["workers"] > 1 and suite["data"]["target_kind"] != "agent":
+        raise ValueError(
+            "Parallel experiments require an agent target; workflow suites require maxWorkers: 1"
+        )
     from nexus.core.studio_evaluation_files import pin_files
 
     pin_files(studio, payload)
@@ -175,6 +206,8 @@ def validate_continuation(studio, run_id, checkpoint):
 
 
 def summarize(report, *, complete=False):
+    from nexus.core.studio_experiment_judges import summarize_evaluators
+
     variants = []
     expected = report["expected_total"] // len(report["variants"])
     complete = bool(
@@ -206,3 +239,4 @@ def summarize(report, *, complete=False):
     )
     if complete:
         report["evaluation_status"] = "passed" if report["acceptance"] else "failed"
+    summarize_evaluators(report)

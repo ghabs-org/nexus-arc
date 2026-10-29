@@ -40,6 +40,14 @@ test('archival, failures and stale editor responses never replace judges',async(
 });
 test('report renders choice labels and invalid response errors as escaped text',async()=>{
  let rendered;const context=vm.createContext({experimentReportSummary:()=>'',escapeHtml,badge:()=>'',api:async()=>({name:'Report',passed:0,total:1,results:[{variant:'A',case:1,passed:false,input:'Review',output:'Answer',checks:[{type:'choice_judge',phrase:'Evidence',passed:false,choice:'<unsafe>',error:'<invalid>'}]}]}),showDetail:(name,html)=>{rendered=html;}});
+ vm.runInContext(source.slice(source.indexOf('function experimentEvaluatorReport('),source.indexOf('function operationFields(')),context);
  vm.runInContext(source.slice(source.indexOf('async function showEvaluationReport('),source.indexOf('document.addEventListener("click",async event=>{',source.indexOf('async function showEvaluationReport('))),context);
  await context.showEvaluationReport('report');assert.match(rendered,/choice &lt;unsafe&gt;/);assert.match(rendered,/&lt;invalid&gt;/);assert.doesNotMatch(rendered,/<unsafe>|<invalid>/);
+});
+
+test('evaluator template survives editing and copying without an AI call',async()=>{
+ const {context,judges}=setup(async()=>({name:'Template',revision:1,data:{provider:'codex',rubric:'Grade',prompt_template:'Compare {{ Prompt }} with {{ Response }}'}}));
+ const form=new Map([['provider','codex'],['rubric','Grade'],['threshold','0.7'],['prompt_template','Compare {{ Prompt }} with {{ Response }}']]);
+ assert.equal(context.evaluatorFormData(form).prompt_template,form.get('prompt_template'));
+ await context.applySavedEvaluator({isConnected:true});assert.equal(JSON.parse(judges[0].value).prompt_template,form.get('prompt_template'));
 });

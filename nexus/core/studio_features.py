@@ -197,6 +197,20 @@ class StudioFeatures:
             return 200, action(parts[1], data, actor)
         if len(parts) == 3 and parts[0] == "integrations" and parts[2] == "configure":
             return 201, studio.recipes.configure(parts[1], data, actor)
+        if parts == ["configuration", "experiments", "convert"]:
+            request = {key: value for key, value in data.items() if key not in {"requester_nexus_id", "_role"}}
+            return 200, studio.configuration.convert_experiment(request, actor)
+        if parts in (["configuration", "experiments", "export"], ["configuration", "experiments", "handoff", "convert"]):
+            request = {key: value for key, value in data.items() if key not in {"requester_nexus_id", "_role"}}
+            action = studio.configuration.export_experiment if parts[-1] == "export" else studio.configuration.convert_experiment_handoff
+            return 200, action(request, actor)
+        if parts == ["configuration", "evaluations", "convert"]:
+            request = {key: value for key, value in data.items() if key not in {"requester_nexus_id", "_role"}}
+            return 200, studio.configuration.convert_evaluations(request, actor)
+        if parts in (["configuration", "evaluations", "export"], ["configuration", "evaluations", "handoff", "convert"]):
+            request = {key: value for key, value in data.items() if key not in {"requester_nexus_id", "_role"}}
+            action = studio.configuration.export_evaluations if parts[-1] == "export" else studio.configuration.convert_evaluation_handoff
+            return 200, action(request, actor)
         if parts == ["configuration", "interop", "convert"]:
             request = {
                 key: value

@@ -1,0 +1,9 @@
+kind: experiment
+name: Status regression
+spec:
+  datasetId: source-status-cases
+  targetAgent: source-status-agent
+  evaluatorIds: [source-status-judge]
+  primaryEvaluatorId: source-status-judge
+  runsPerExample: 2
+  maxWorkers: 1

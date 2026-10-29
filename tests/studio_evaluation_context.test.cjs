@@ -52,3 +52,10 @@ test('file chooser pins selected revision without saving a resource or reading b
  await scope.chooseEvaluationFile(button);
  assert.deepEqual(calls,['/api/catalog/artifacts']);assert.deepEqual(JSON.parse(fields.value),[{id:'source',revision:4}]);assert.match(summary.textContent,/1 selected/);assert.equal(button.disabled,false);
 });
+
+test('expected judge response remains separate from target input when editing',()=>{
+ const fields={'.case-input':'Public question','.case-expected-response':'SECRET_REFERENCE','.case-contains':'','.case-excludes':'','.case-checks':'[]','.case-judge':'{"provider":"codex","rubric":"Compare"}', '.case-contexts':'[]','.case-context-source':'{}'};
+ const scope=vm.createContext({library:{kind:'datasets'},document:{querySelectorAll:()=>[{querySelector:key=>({value:fields[key]})}]}});
+ vm.runInContext(source.slice(source.indexOf('function operationFormData('),source.indexOf('function operationActions(')),scope);
+ const result=scope.operationFormData(new Map());assert.equal(result.cases[0].expected_response,'SECRET_REFERENCE');assert.equal(result.cases[0].input,'Public question');
+});

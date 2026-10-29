@@ -1,0 +1,4 @@
+kind: dataset
+name: Status cases
+spec:
+  examples_file: status.csv

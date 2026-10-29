@@ -1203,6 +1203,11 @@ class StudioService:
                 self.speech.cleanup()
 
     async def _invoke(self, payload: dict, task: str, run_id: str, history: list | None = None):
+        from nexus.core.studio_evaluation_workers import current_evaluation_slot
+
+        evaluation_slot = current_evaluation_slot.get()
+        if evaluation_slot:
+            payload = {**payload, "parent_id": evaluation_slot}
         if payload.get("knowledge_snapshot"):
             actor = (
                 {
@@ -1304,7 +1309,7 @@ class StudioService:
                 metadata={**content_metadata, "worker_tools": worker_tools},
                 timeout=int(agent.get("timeout_seconds") or 600),
             )
-            stream = getattr(provider, "execute_agent_streaming", None)
+            stream = None if evaluation_slot else getattr(provider, "execute_agent_streaming", None)
             if agent.get("tool_ids"):
                 from nexus.core.studio_agent_settings import call_limit
                 from nexus.core.studio_tool_loop import execute_with_tools

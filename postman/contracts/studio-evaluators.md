@@ -52,3 +52,13 @@ Existing inline judges, datasets, run routes and report fields remain readable.
 Native configuration validate/plan/apply/export and Quick Build use the same
 catalog validators. Additive storage needs no migration. Named repeated
 experiments remain separate planned work.
+
+Optional `prompt_template` supports bounded one-pass `Prompt`, `Expected Response`
+and `Response` variables with double-brace delimiters. Each may appear at most once;
+expressions, includes and unknown variables reject. Template text is limited to
+16000 characters and rendered data to 128 KiB. Values are inserted as untrusted
+JSON strings; the existing JSON score/choice response contract remains mandatory.
+Copying a template requiring `Expected Response` requires every affected case to
+contain a nonempty `expected_response` (up to 16000 UTF-8 bytes). That reference
+answer reaches only the judge, never the target. Existing non-template evaluators
+retain their original prompt and validation behavior.

@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "multiple-copied-experiment-evaluators",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "contract": "Optional 1-4 copied evaluators with explicit primaryEvaluatorId and evaluatorPolicy: all; source aliases bind exact current revisions; legacy singular import remains supported.",
+  "validation": {
+    "python": {
+      "passed": 311,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_experiment_evaluators.py",
+        "tests/test_studio_experiment_workers.py",
+        "tests/test_studio_experiments.py",
+        "tests/test_studio_experiment_import.py",
+        "tests/test_studio_experiment_continuation.py",
+        "tests/test_studio_evaluation_import.py",
+        "tests/test_studio_evaluation_gate.py",
+        "tests/test_studio_evaluation_files.py",
+        "tests/test_studio_retrieval_evidence.py",
+        "tests/test_studio_resources.py",
+        "tests/test_studio_durable.py",
+        "tests/test_studio_execution.py",
+        "tests/test_studio_evaluators.py",
+        "tests/test_studio_datasets.py"
+      ]
+    },
+    "interface_logic": {
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_experiment_evaluators.test.cjs",
+        "tests/studio_experiments.test.cjs",
+        "tests/studio_experiment_import.test.cjs",
+        "tests/studio_evaluation_import.test.cjs",
+        "tests/studio_datasets.test.cjs",
+        "tests/studio_evaluators.test.cjs",
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/studio_evaluation_gate.test.cjs"
+      ]
+    },
+    "example": "Two answers passed two copied judges: six injected synthetic invocations with no external model calls.",
+    "static": "Focused new/affected Python lint, new-file format, JavaScript syntax and diff whitespace pass; the existing studio_operations.py:83 B904 is unchanged.",
+    "browser": "Pending; no attempt to bypass the prior localhost permission denial.",
+    "live_provider": "Not used. Real provider grading quality, billing and concurrency remain account-dependent."
+  },
+  "guarantees": [
+    "One target invocation per case/repetition/variant; selected judges reuse the same answer",
+    "Every selected evaluator and existing deterministic check must pass the case",
+    "Primary identity labels reports without overriding other judge failures",
+    "Reference data reaches graders only and template requirements validate before queueing",
+    "Copied settings remain independent of later source edits and forged incoming settings",
+    "Import requires complete exact revision bindings and rejects duplicate native evaluators",
+    "Native review, save and export preserve copies without starting runs",
+    "Grading progress persists target answer and completed grades across file/SQL cancellation/restart",
+    "Interrupted grading follows the existing whole-slot dispatch receipt and cannot automatically replay",
+    "Invalid/failed grading retains prior evidence and cannot pass through a zero threshold",
+    "Target failure invokes no graders and produces blocked partial evidence rather than a missing-grader validation error",
+    "Offline gating checks manifest, primary identity, grader completeness and flat/nested score consistency",
+    "Existing inline-judge experiments, reports and workflow approval continuation remain compatible"
+  ],
+  "limits": [
+    "Only explicit all-evaluator acceptance is supported",
+    "Evaluator copies are reviewed configuration, not cryptographic proof of provenance",
+    "Workflow experiments still require one worker",
+    "External-format experiment export remains pending",
+    "Visual browser, physical-device and live-provider acceptance remain pending"
+  ],
+  "migration": "Additive optional experiment/report fields; no persisted-state migration. Older runtimes need an update before reading evaluator-set configurations.",
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "release_published": false,
+  "next": "Reviewed external-format experiment export with diagnostics for nonrepresentable native settings."
+}

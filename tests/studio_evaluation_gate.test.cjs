@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync('nexus/studio_static/operations.js','utf8');
-const functions=source.slice(source.indexOf('async function showEvaluationReport('),source.indexOf('document.addEventListener("click",async event=>{',source.indexOf('async function showEvaluationReport(')));
+const functions=source.slice(source.indexOf('function experimentEvaluatorReport('),source.indexOf('function operationFields('))+source.slice(source.indexOf('async function showEvaluationReport('),source.indexOf('document.addEventListener("click",async event=>{',source.indexOf('async function showEvaluationReport(')));
 const escapeHtml=value=>String(value??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 test('report viewer exposes an explicit private export without downloading on open',async()=>{

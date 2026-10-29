@@ -11,6 +11,7 @@ function setup(api){
 test('saved editor explains pinned revisions, independent thresholds and execution limits',()=>{
  const {context}=setup();const html=context.savedExperimentFields({runsPerExample:3,passThreshold:0.5});
  assert.match(html,/Suite edits require reviewing/);assert.match(html,/Every variant must meet/);assert.match(html,/Saving never executes/);assert.match(html,/name="runsPerExample"/);
+ assert.match(html,/name="maxWorkers" min="1" max="4"/);assert.match(html,/workflow experiments require one worker/);
 });
 test('editing an old pin never silently selects a newer suite revision',async()=>{
  const view=setup(async()=>({items:[{id:'suite',name:'<unsafe>',revision:2,data:{cases:[{}]}}]}));
@@ -21,12 +22,12 @@ test('editing an old pin never silently selects a newer suite revision',async()=
 test('saved form preserves reviewed suite, repeat count, threshold and variant settings',()=>{
  const view=setup();const fields={'.variant-name':'Baseline','.variant-provider':'codex','.variant-model':'model','.variant-effort':'high'};
  view.root.querySelectorAll=()=>[{querySelector:key=>({value:fields[key]})}];
- const data=view.context.savedExperimentFormData(new Map([['suite','["suite",2]'],['runsPerExample','3'],['passThreshold','0.5']]));
- assert.equal(data.kind,'experiment');assert.equal(data.evaluation_revision,2);assert.equal(data.runsPerExample,3);assert.equal(data.passThreshold,0.5);assert.equal(data.variants[0].effort,'high');
+ const data=view.context.savedExperimentFormData(new Map([['suite','["suite",2]'],['runsPerExample','3'],['passThreshold','0.5'],['maxWorkers','4']]));
+ assert.equal(data.kind,'experiment');assert.equal(data.evaluation_revision,2);assert.equal(data.runsPerExample,3);assert.equal(data.passThreshold,0.5);assert.equal(data.maxWorkers,4);assert.equal(data.variants[0].effort,'high');
 });
 test('report distinguishes complete threshold rejection from partial execution',()=>{
  const {context}=setup();const report={experiment_id:'experiment',experiment_revision:1,expected_total:4,total:4,pass_threshold:0.5,complete:true,acceptance:false,variant_results:[{name:'<Weak>',passed:0,expected_total:2,accepted:false}]};
- const rejected=context.experimentReportSummary(report);assert.match(rejected,/not met by every variant/);assert.match(rejected,/&lt;Weak&gt;/);assert.doesNotMatch(rejected,/Incomplete/);
+ const rejected=context.experimentReportSummary({...report,max_workers:4});assert.match(rejected,/not met by every variant/);assert.match(rejected,/&lt;Weak&gt;/);assert.match(rejected,/4 workers/);assert.doesNotMatch(rejected,/Incomplete/);
  const partial=context.experimentReportSummary({...report,complete:false,acceptance:null,total:1});assert.match(partial,/No acceptance result/);assert.doesNotMatch(partial,/Below threshold/);
  assert.equal(context.experimentReportSummary({}), '');
 });

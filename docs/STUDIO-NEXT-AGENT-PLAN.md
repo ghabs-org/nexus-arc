@@ -1,5 +1,222 @@
 # Nexus Studio — next-agent delivery plan
 
+### Coverage and delivery reconciliation — 29 October 2026
+
+Current decision: the frozen inventory retains 135 locally accepted flags,
+including 27 supported catalog entries and four explicit exclusions. Milestones
+5 and 6 have scoped local acceptance. This does not mean 135 live-verified
+features or a completed delivery plan. Desktop milestone 9 remains open and last.
+
+[Reconciliation](STUDIO-COVERAGE-RECONCILIATION.md) and its
+[per-requirement/catalog evidence record](STUDIO-COVERAGE-RECONCILIATION.json)
+supersede stale next-step prose below. Earlier catalog/desktop/import notes remain
+history; do not rebuild completed workers, evaluator sets, imports, exports or
+Apple signing. The signed 1.0.2 Mac release exists locally but does not contain
+all later source work. No new DMG, publication or VM operation is authorized.
+
+The focused record/source-map/catalog suite passes 16 tests, zero failures/skips.
+Aggregate consistency passes; requiring complete delivery correctly exits 1.
+Evidence references and local release bytes are checked separately. This is an
+audit of records and paths, not a fresh behavioral run of all integrations.
+
+Remaining priorities: recent controls' visual/mobile/keyboard acceptance; selected
+real accounts and physical recording/playback/install checks; recovered-host
+browser/OAuth and host disaster recovery when VM work is resumed; then another
+Mac, installed Linux/Windows, Windows signing, genuine old-release/schema upgrade
+and explicitly authorized desktop packaging/distribution. Public release/feed
+publication remains withheld by user choice. No existing access denial was
+retried or bypassed. Whole-plan stays open. If acceptance environments remain
+unavailable, offline before/after evaluation comparison is a separate local
+extension, not another missing frozen feature.
+
+### Reviewed dataset/CSV/evaluator package export — 29 October 2026
+
+Implemented owner-only export of the bounded CSV/template profile as dataset
+YAML, evaluator YAML, CSV and a self-contained native handoff. Complete prompt and
+reference text, choice scores, template, provider/model binding, threshold and
+metadata survive native reimport into a fresh workspace without source resources.
+Sequence numbers are explicitly regenerated as 1..N; case order is preserved.
+
+Exact current revisions and conversion preflight prevent lossy files. Extra case
+checks, context/provenance/file roles, differing judges, arbitrary rubrics,
+numeric-only graders, custom IDs and size/metadata limits return path/code
+diagnostics with no partial export. Native JSON remains available for these
+features. Managed credentials and artifacts are never read. Export and conversion
+create no plan, resource or run. Review/plan/apply remains explicit.
+
+Studio adds Export dataset + judge and Import evaluation handoff to the owner
+library controls. Prepared files download only after separate preview clicks.
+Library actions wrap across available widths. Handoff parsing and file download
+now reuse the existing experiment infrastructure. Empty descriptions remain empty;
+absent descriptions retain the existing import default. Existing native records
+need no migration, and earlier experiment handoffs retain their format.
+
+Validation: 410 broad Python regressions and 59 interface-logic checks pass, zero
+failures/skips. The final 31-case package gate also passes, including two added
+size/metadata boundary cases; its coverage overlaps the broad run. Both thin
+examples pass. A synthetic evaluation confirms expected answers remain judge-only.
+Focused lint/format, JavaScript syntax and whitespace checks pass. Visual browser,
+physical-device and live-provider acceptance remain pending. No VM, DMG rebuild
+or release publication occurred.
+
+See [usage](STUDIO-EVALUATION-EXPORT.md) and
+[evidence](STUDIO-EVALUATION-EXPORT-CHECKPOINT.json). This closes the bounded
+dataset/evaluator export slice, not complete agent/workflow deployment portability.
+Whole-plan stays open. Next: reconcile the frozen coverage record with these
+deliveries and identify remaining acceptance gaps before adding another feature.
+
+### Reviewed experiment declaration export and handoff — 29 October 2026
+
+Implemented owner-only, revision-checked reference export with two reviewed files:
+external experiment YAML and a versioned native handoff JSON companion. Native
+thresholds, variants, primary/all-evaluator behavior and exact dependency pins
+survive reimport. The declaration alone is explicitly insufficient. No resources,
+documents, grader instructions, credentials, runs or schedules are embedded.
+
+Export validates the pinned suite, explicitly selected matching dataset, current
+agent and copied evaluator revisions/settings. Unsupported workflows, inline-only
+judges, stale resources, mismatched cases and nonportable custom experiment IDs
+produce path/code diagnostics with no partial export. Native JSON remains intact.
+Export and handoff conversion save no state, read no artifact bytes and invoke
+no provider. Strict JSON/digest checks detect corruption without claiming author
+authentication or granting access. Source identity remains descriptive only.
+
+Studio now offers owner-visible Export declaration, separate preview/download
+actions and Import handoff. Reimport shares the existing conversion review,
+native save-plan review and explicit apply flow. It creates an independent suite
+and preserves previous suites; saving starts no AI. The existing thin import
+example now verifies a full declaration/handoff round-trip without running.
+Focused regression includes a reviewed apply followed by synthetic execution
+retaining variant, repeat, worker, threshold and judge behavior.
+
+Validation: 381 Python and 54 interface-logic checks pass, zero failures/skips.
+The thin example, affected lint, JavaScript syntax and whitespace checks pass.
+
+See [usage](STUDIO-EXPERIMENT-EXPORT.md) and
+[evidence](STUDIO-EXPERIMENT-EXPORT-CHECKPOINT.json). Visual browser and live-provider
+acceptance remain pending. No VM, DMG rebuild or release publication occurred.
+Whole-plan stays open. Next: reviewed dataset/evaluator declaration package export,
+with strict representability checks, before claiming self-contained portability.
+
+### Multiple copied experiment evaluators — 29 October 2026
+
+Implemented 1–4 independent evaluator copies, explicit primary identity and an
+explicit native all-evaluator policy. Each target executes once; selected judges
+grade the same answer sequentially within its worker. All selected judges and
+existing checks must pass the case. The primary label cannot hide another judge's
+failure. Existing experiments without evaluator sets retain inline case judges.
+
+The editor preserves saved copies, offers current catalog choices and requires a
+selected primary. Declaration import maps every evaluator alias to an exact
+saved revision, preserving the legacy singular binding. Conversion reports the
+all-evaluator acceptance adaptation before review/save. Native configuration
+validate/plan/apply/export retain complete copied settings. Source edits and
+forged queue settings cannot replace them.
+
+Reports retain individual checks, pass counts, scores and primary labels.
+Answers and completed grades persist after each judge; cancellation preserves
+unfinished grading without replaying targets. Invalid/runtime grading errors
+retain prior evidence and cannot pass through a zero experiment threshold.
+Offline gating rejects missing, duplicated or contradictory grader evidence.
+Workflow approval continuation remains single-worker and keeps the selected set.
+
+Validation: 311 Python and 48 interface-logic checks pass, zero failures/skips.
+The thin example passes two target answers through two judges using six synthetic
+invocations. Focused new-file lint/format, JavaScript syntax and whitespace checks
+pass; the existing operations.py:83 B904 remains outside this change. Visual
+browser and account-dependent provider acceptance remain pending. No VM update,
+DMG rebuild or release publication occurred.
+
+See [usage](STUDIO-EXPERIMENT-EVALUATORS.md) and
+[evidence](STUDIO-EXPERIMENT-EVALUATORS-CHECKPOINT.json). Whole-plan stays open.
+Next comparison slice: reviewed external-format experiment export, with explicit
+diagnostics for native settings that cannot be represented losslessly. Alternative
+evaluator acceptance policies and parallel workflow pause controls remain limits.
+
+### Bounded parallel agent experiments — 29 October 2026
+
+Added native maxWorkers (integer 1–4, default 1) to saved experiments, queue-time
+snapshots, the editor and declaration import. Workers own complete target/judge
+pairs; report results stay canonically ordered despite out-of-order completion.
+Case-linked invocation traces remain available without concurrent providers
+overwriting the parent's text stream. No new scheduler or authorization service
+was introduced. File and SQL jobs use the existing parent execution lifecycle.
+
+Durable dispatch receipts precede provider calls. Completed results survive
+shutdown/restart. Cancellation drains owned task cleanup; runtime failures stop
+new dispatch and retain in-flight outcomes. Interrupted or failed dispatched
+slots cannot automatically replay, including on accidental executor reentry.
+A fresh experiment run is an explicit new execution. Saved-source edits and
+forged request settings cannot expand the pinned worker count.
+
+Parallelism supports agent targets. Workflow-target experiments explicitly require
+one worker until their pause controls can address concurrent cases. Multiple
+evaluators and external-format experiment export remain pending. The full plan
+is not complete. Next comparison slice: explicitly reviewed multi-evaluator
+configuration and aggregation, retaining primary evaluator identity and results.
+
+See [usage](STUDIO-EXPERIMENT-WORKERS.md) and
+[acceptance record](STUDIO-EXPERIMENT-WORKERS-CHECKPOINT.json). 219 Python and 42
+interface-logic checks pass with zero failures/skips. Both thin examples pass.
+The existing operations.py:83 B904 lint warning is unchanged from HEAD; other
+focused lint, JavaScript syntax and whitespace checks pass. No VM, live model,
+DMG rebuild or release publication occurred. Visual browser acceptance remains
+pending; the prior localhost permission denial was not retried or bypassed.
+
+### Reviewed experiment-definition import — 29 October 2026
+
+Implemented owner-only experiment YAML/JSON conversion with explicit saved
+dataset, evaluator and agent revision bindings. The importer creates a native
+draft containing a fresh independent suite and an experiment pinned to that
+suite at revision 1. Case checks, expected responses, file references and context
+survive copying; only judge settings are replaced by the selected evaluator.
+Conversion, native plan review and explicit saving start no AI run.
+
+Experiment Lab now offers Import experiment, separate conversion/save reviews,
+an explicit native pass-rate threshold and source-preserving error editing.
+The profile accepts one primary evaluator and integer maxWorkers: 1. Parallel
+workers, multiple evaluators, unknown fields and stale bindings reject before
+save. Native repeat/variant limits and the 400-execution budget remain enforced.
+Reimport preserves earlier suites and uses existing experiment revision history.
+
+167 focused Python regressions, 34 interface-logic checks, the thin framework example
+and affected lint/syntax checks pass without live providers. The disposable
+browser acceptance attempt was blocked by the local-origin permission gate;
+visual browser acceptance remains pending. No VM work or DMG rebuild occurred.
+See [usage](STUDIO-EXPERIMENT-DEFINITION-IMPORT.md) and
+[evidence](STUDIO-EXPERIMENT-DEFINITION-IMPORT-CHECKPOINT.json).
+
+This closes the bounded single-worker experiment-import slice. Whole-plan stays
+open. Next: native bounded experiment worker concurrency, including cancellation,
+recovery and no replay of completed effects, before accepting maxWorkers > 1.
+Multi-evaluator aggregation and external-format export remain separate work.
+
+### Explicit evaluation-package import — 29 October 2026
+
+Implemented owner-only conversion of explicitly supplied dataset/evaluator
+YAML/JSON and a named CSV into native draft resources. No server-folder discovery,
+URL fetching or automatic provider selection occurs. CSV sequence IDs, row order,
+references, source digest and fixed-template variables are validated. Templates
+render once as untrusted JSON data; expected answers reach only the judge.
+Native choice parsing/thresholds remain explicit reviewed adaptations.
+
+Studio now offers Import dataset + judge from Datasets/Evaluators, with file
+selection, conversion review, save-plan review and explicit save. Case/evaluator
+editors preserve expected answers/templates. Existing resources without these
+optional fields retain their behavior. 200 focused Python checks and 31 browser-
+logic checks passed, zero failures/skips. A disposable browser imported three
+synthetic files, reviewed both resources and saved two cases plus a judge without
+running AI. The local example and affected lint/syntax checks pass.
+
+This closes the bounded dataset-file/evaluator-template import slice. It does not
+add experiment/maxWorkers conversion or external-format resource export. Next
+comparison work is explicit experiment definition import, with unsupported worker
+concurrency remaining a diagnostic until native semantics are implemented.
+No VM, live provider or DMG rebuild occurred. Whole-plan stays open.
+See [usage](STUDIO-EVALUATION-PACKAGE-IMPORT.md) and
+[evidence](STUDIO-EVALUATION-PACKAGE-IMPORT-CHECKPOINT.json).
+
+
 ### Reviewed OpenAPI connector/tool bundle conversion — 29 October 2026
 
 Implemented explicit `connector`/`tool` node mappings to existing selected OpenAPI

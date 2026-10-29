@@ -67,6 +67,46 @@ class StudioConfiguration:
             "resources": resources,
         }
 
+    def convert_experiment(self, data, actor):
+        self.authorize(actor)
+        from nexus.core.studio_experiment_import import convert_experiment
+
+        return convert_experiment(self.studio, data)
+
+    def export_experiment(self, data, actor):
+        self.authorize(actor)
+        from nexus.core.studio_experiment_export import export_experiment
+
+        return export_experiment(self.studio, data)
+
+    def convert_experiment_handoff(self, data, actor):
+        self.authorize(actor)
+        from nexus.core.studio_experiment_export import convert_handoff
+
+        return convert_handoff(self.studio, data)
+
+    def convert_evaluations(self, data, actor):
+        self.authorize(actor)
+        from nexus.core.studio_evaluation_import import convert_package
+
+        report = convert_package(data)
+        report["document"] = self.normalize(report["document"])
+        return report
+
+    def export_evaluations(self, data, actor):
+        self.authorize(actor)
+        from nexus.core.studio_evaluation_export import export_package
+
+        return export_package(self.studio, data)
+
+    def convert_evaluation_handoff(self, data, actor):
+        self.authorize(actor)
+        from nexus.core.studio_evaluation_export import convert_handoff
+
+        report = convert_handoff(data)
+        report["document"] = self.normalize(report["document"])
+        return report
+
     def convert_interop(self, data, actor):
         from nexus.core.studio_interop_configuration import StudioPortableConfiguration
 

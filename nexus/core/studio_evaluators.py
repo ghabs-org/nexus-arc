@@ -7,7 +7,7 @@ def validate_evaluator(data):
     if (
         not isinstance(data, dict)
         or set(data)
-        - {"kind", "version", "type", "provider", "model", "rubric", "threshold", "choices"}
+        - {"kind", "version", "type", "provider", "model", "rubric", "threshold", "choices", "prompt_template"}
         or data.get("kind", "evaluator") != "evaluator"
         or type(data.get("version", 1)) is not int
         or data.get("version", 1) != 1

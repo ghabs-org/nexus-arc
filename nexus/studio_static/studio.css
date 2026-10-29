@@ -884,3 +884,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:15px;height
 .evaluation-file-list,.evaluation-file-sources{min-width:0;overflow-wrap:anywhere}
 
 .snapshot-files{padding:16px;overflow-wrap:anywhere}.snapshot-files button{margin:4px;max-width:100%;white-space:normal}
+
+#view-library>.section-heading{flex-wrap:wrap;justify-content:flex-start}
+#view-library>.section-heading>div:first-child{flex:1 0 100%;min-width:0}
+#view-library>.section-heading>button{max-width:100%;white-space:normal}

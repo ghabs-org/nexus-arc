@@ -22,6 +22,9 @@ def check_report(report, *, threshold=None):
     """Recompute every variant; incomplete or errored evidence never passes."""
     if not isinstance(report, dict):
         raise ValueError("Choose a Studio evaluation report object")
+    from nexus.core.studio_experiment_judges import check_evidence, report_manifest
+
+    manifest = report_manifest(report)
     variants = report.get("variants")
     if (
         not isinstance(variants, list)
@@ -76,6 +79,7 @@ def check_report(report, *, threshold=None):
             raise ValueError("Result checks must have boolean outcomes")
         if any(check.get("error") for check in checks):
             errors = True
+        errors = check_evidence(manifest, entry) or errors
         if entry.get("error"):
             errors = True
             if entry["passed"]:

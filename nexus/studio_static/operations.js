@@ -5,7 +5,7 @@ function targetField(data={}){
 }
 function localDate(value){const date=value?new Date(value):new Date(Date.now()+60000);return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);}
 function caseFields(item={}){
-  return `<div class="evaluation-case"><div class="step-heading"><span>TEST CASE</span><button type="button" class="secondary" data-remove-case>Remove</button></div><label>Task input<textarea class="case-input" required>${escapeHtml(item.input||"")}</textarea></label><label>Output must contain (one phrase per line)<textarea class="case-contains" rows="2">${escapeHtml((item.contains||[]).join("\n"))}</textarea></label><label>Output must exclude (one phrase per line)<textarea class="case-excludes" rows="2">${escapeHtml((item.excludes||[]).join("\n"))}</textarea></label>${caseFileFields(item,"input_files")}${caseFileFields(item,"reference_files")}<input type="hidden" class="case-context-source" value="${escapeHtml(JSON.stringify(item.context_source||{}))}"><details><summary>Structured checks and optional AI judge</summary><label>Reference passages (JSON list, optional)<textarea class="case-contexts" rows="4">${escapeHtml(JSON.stringify(item.contexts||[],null,2))}</textarea></label><label>Structured checks (JSON list)<textarea class="case-checks" rows="4">${escapeHtml(JSON.stringify(item.checks||[],null,2))}</textarea></label><label>AI judge settings (JSON object, optional)<textarea class="case-judge" rows="4">${escapeHtml(JSON.stringify(item.judge||{},null,2))}</textarea></label><p class="workspace-scope">Checks support exact output, JSON values and numeric ranges. A judge needs provider, rubric and threshold; its model calls consume your account usage. Reference passages are copied data, never instructions. A judge receives them through the provider you select. Judge scores are estimates.</p></details></div>`;
+  return `<div class="evaluation-case"><div class="step-heading"><span>TEST CASE</span><button type="button" class="secondary" data-remove-case>Remove</button></div><label>Task input<textarea class="case-input" required>${escapeHtml(item.input||"")}</textarea></label><label>Output must contain (one phrase per line)<textarea class="case-contains" rows="2">${escapeHtml((item.contains||[]).join("\n"))}</textarea></label><label>Output must exclude (one phrase per line)<textarea class="case-excludes" rows="2">${escapeHtml((item.excludes||[]).join("\n"))}</textarea></label>${caseFileFields(item,"input_files")}${caseFileFields(item,"reference_files")}<input type="hidden" class="case-context-source" value="${escapeHtml(JSON.stringify(item.context_source||{}))}"><details><summary>Structured checks and optional AI judge</summary><label>Expected response for judge (optional)<textarea class="case-expected-response" rows="3">${escapeHtml(item.expected_response||"")}</textarea></label><label>Reference passages (JSON list, optional)<textarea class="case-contexts" rows="4">${escapeHtml(JSON.stringify(item.contexts||[],null,2))}</textarea></label><label>Structured checks (JSON list)<textarea class="case-checks" rows="4">${escapeHtml(JSON.stringify(item.checks||[],null,2))}</textarea></label><label>AI judge settings (JSON object, optional)<textarea class="case-judge" rows="4">${escapeHtml(JSON.stringify(item.judge||{},null,2))}</textarea></label><p class="workspace-scope">Checks support exact output, JSON values and numeric ranges. A judge needs provider, rubric and threshold; its model calls consume your account usage. Reference passages are copied data, never instructions. A judge receives them through the provider you select. Judge scores are estimates.</p></details></div>`;
 }
 function caseFileFields(item,role){
   const files=item[role]||[],label=role==="input_files"?"Input files":"Grading-reference files";
@@ -35,7 +35,7 @@ function clearEvaluationFiles(button){
   button.closest("details").querySelector("summary").textContent=`${role==="input_files"?"Input files":"Grading-reference files"} · 0 selected`;
 }
 function evaluatorFields(data){
-  return `<p class="workspace-scope">Shared with this workspace. Saving never invokes AI. Only explicitly running an evaluation sends task, answer and reference passages to this provider.</p><label>Judge provider<select name="provider">${providerOptions(data.provider||"codex")}</select></label>`+inputField("model","Judge model (optional)",data.model||"")+`<label>Grading instructions<textarea name="rubric" rows="5" required>${escapeHtml(data.rubric||"")}</textarea></label><label>Pass threshold (0–1)<input name="threshold" type="number" min="0" max="1" step="any" value="${data.threshold??0.7}" required></label><label>Choice scores (optional, one label = score per line)<textarea name="choices" rows="4" placeholder="Supported = 1&#10;Partial = 0.5&#10;Unsupported = 0">${escapeHtml(Object.entries(data.choices||{}).map(([label,score])=>`${label} = ${score}`).join("\n"))}</textarea></label><p class="callout">Leave choices empty for a numeric score. With choices, only configured labels are accepted; their saved scores determine the grade. Judging consumes the selected account's usage. Model grades are estimates.</p>`;
+  return `<p class="workspace-scope">Shared with this workspace. Saving never invokes AI. Only explicitly running an evaluation sends task, answer and reference passages to this provider.</p><label>Judge provider<select name="provider">${providerOptions(data.provider||"codex")}</select></label>`+inputField("model","Judge model (optional)",data.model||"")+`<label>Grading instructions<textarea name="rubric" rows="5" required>${escapeHtml(data.rubric||"")}</textarea></label><label>Judge template (optional)<textarea name="prompt_template" rows="5">${escapeHtml(data.prompt_template||"")}</textarea></label><p>Supported template variables: {{ Prompt }}, {{ Expected Response }}, {{ Response }}. Values are inserted as untrusted JSON strings.</p><label>Pass threshold (0–1)<input name="threshold" type="number" min="0" max="1" step="any" value="${data.threshold??0.7}" required></label><label>Choice scores (optional, one label = score per line)<textarea name="choices" rows="4" placeholder="Supported = 1&#10;Partial = 0.5&#10;Unsupported = 0">${escapeHtml(Object.entries(data.choices||{}).map(([label,score])=>`${label} = ${score}`).join("\n"))}</textarea></label><p class="callout">Leave choices empty for a numeric score. With choices, only configured labels are accepted; their saved scores determine the grade. Judging consumes the selected account's usage. Model grades are estimates.</p>`;
 }
 function evaluatorFormData(form){
   const choices=Object.create(null);
@@ -44,7 +44,7 @@ function evaluatorFormData(form){
     if(split<1||!label||!number||Object.hasOwn(choices,label)||!Number.isFinite(score)||score<0||score>1)throw new Error("Use unique labels with scores from 0 to 1: Supported = 1");
     choices[label]=score;
   }
-  return {kind:"evaluator",version:1,type:"llm_judge",provider:form.get("provider"),model:form.get("model")||"",rubric:form.get("rubric"),threshold:Number(form.get("threshold")),...(Object.keys(choices).length?{choices}:{})};
+  return {kind:"evaluator",version:1,type:"llm_judge",provider:form.get("provider"),model:form.get("model")||"",rubric:form.get("rubric"),threshold:Number(form.get("threshold")),...(Object.keys(choices).length?{choices}:{}),...(String(form.get("prompt_template")||"").trim()?{prompt_template:form.get("prompt_template")}:{} )};
 }
 function savedEvaluatorFields(){
   return '<details><summary>Apply a saved evaluator</summary><label>Workspace evaluator<select id="evaluation-saved-evaluator"><option value="">Loading evaluators…</option></select></label><button type="button" class="secondary" id="evaluation-apply-evaluator" disabled>Replace AI judges in all draft cases</button><p>Copies the selected grading instructions and provider into each current case. Existing phrase checks and reference passages stay intact. Review before saving; judging uses account usage only when the suite runs.</p><p id="evaluation-evaluator-status" class="workspace-scope" role="status"></p></details>';
@@ -67,7 +67,7 @@ async function applySavedEvaluator(button){
     if(!root.isConnected||select.value!==id)return;
     if(item.archived)throw new Error("Evaluator was archived. Restore it before copying.");
     const judges=root.querySelectorAll(".case-judge");if(!judges.length)throw new Error("Add at least one case first.");
-    const judge=Object.fromEntries(Object.entries(item.data).filter(([key])=>["provider","model","rubric","threshold","choices"].includes(key)));
+    const judge=Object.fromEntries(Object.entries(item.data).filter(([key])=>["provider","model","rubric","threshold","choices","prompt_template"].includes(key)));
     judges.forEach(field=>{field.value=JSON.stringify(judge,null,2);});
     status.textContent=`Copied ${item.name}, revision ${item.revision}, into ${judges.length} draft case${judges.length===1?"":"s"}. Review and save; no AI was called.`;
   }catch(error){if(root.isConnected)$("library-form-error").textContent=error.message;}
@@ -154,8 +154,8 @@ async function copySavedEvaluationDataset(button){
   finally{if(button.isConnected)button.disabled=!select.value;}
 }
 function savedExperimentFields(data){
-  queueMicrotask(()=>loadExperimentSuites(data));
-  return '<label>Pinned evaluation suite<select name="suite" id="saved-experiment-suite" required><option value="">Loading suites…</option></select></label>'+`<p>Suite edits require reviewing and updating this pinned revision before a new run.</p><div class="form-grid"><label>Runs per case<input type="number" name="runsPerExample" min="1" max="20" step="1" value="${data.runsPerExample??1}" required></label><label>Minimum pass rate per variant (0–1)<input type="number" name="passThreshold" min="0" max="1" step="any" value="${data.passThreshold??1}" required></label></div><div id="saved-experiment-variants">${(data.variants||[{name:"Baseline"}]).map((variant,index)=>variantFields(index+1,variant,true)).join("")}</div><button type="button" class="secondary" id="saved-experiment-add-variant">+ Add variant</button><p id="saved-experiment-estimate" role="status" class="workspace-scope"></p><p class="callout">Every variant must meet the threshold independently. Each repetition is a fresh execution and can invoke workflow tools or external changes. Approval and input steps pause the current case. Review each repetition in Activity before continuing. Judges and workflow steps can add provider calls. Saving never executes; running uses your selected accounts.</p>`;
+  queueMicrotask(()=>{loadExperimentSuites(data);loadExperimentEvaluators(data);});
+  return '<label>Pinned evaluation suite<select name="suite" id="saved-experiment-suite" required><option value="">Loading suites…</option></select></label>'+`<p>Suite edits require reviewing and updating this pinned revision before a new run.</p><div class="form-grid"><label>Runs per case<input type="number" name="runsPerExample" min="1" max="20" step="1" value="${data.runsPerExample??1}" required></label><label>Minimum pass rate per variant (0–1)<input type="number" name="passThreshold" min="0" max="1" step="any" value="${data.passThreshold??1}" required></label><label>Parallel workers<input type="number" name="maxWorkers" min="1" max="4" step="1" value="${data.maxWorkers??1}" required></label></div><div id="saved-experiment-variants">${(data.variants||[{name:"Baseline"}]).map((variant,index)=>variantFields(index+1,variant,true)).join("")}</div><button type="button" class="secondary" id="saved-experiment-add-variant">+ Add variant</button>${experimentEvaluatorFields(data)}<p id="saved-experiment-estimate" role="status" class="workspace-scope"></p><p class="callout">Every variant must meet the threshold independently. Agent experiments support 1–4 workers; workflow experiments require one worker so each paused case can be reviewed. Each repetition is a fresh execution and can invoke workflow tools or external changes. Approval and input steps pause the current case. Review each repetition in Activity before continuing. Judges and workflow steps can add provider calls. Saving never executes; running uses your selected accounts.</p>`;
 }
 async function loadExperimentSuites(data){
   const select=$("saved-experiment-suite");if(!select)return;
@@ -175,11 +175,48 @@ function updateExperimentEstimate(){
 }
 function savedExperimentFormData(form){
   const [evaluation_id,evaluation_revision]=JSON.parse(form.get("suite")||"[]");
-  return {kind:"experiment",version:1,evaluation_id,evaluation_revision,runsPerExample:Number(form.get("runsPerExample")),passThreshold:Number(form.get("passThreshold")),variants:[...$("saved-experiment-variants").querySelectorAll(".experiment-variant")].map(row=>({name:row.querySelector(".variant-name").value,provider:row.querySelector(".variant-provider").value,model:row.querySelector(".variant-model").value,...(row.querySelector(".variant-effort").value?{effort:row.querySelector(".variant-effort").value}:{})}))};
+  return {kind:"experiment",version:1,evaluation_id,evaluation_revision,runsPerExample:Number(form.get("runsPerExample")),passThreshold:Number(form.get("passThreshold")),maxWorkers:Number(form.get("maxWorkers")||1),...experimentEvaluatorFormData(form),variants:[...$("saved-experiment-variants").querySelectorAll(".experiment-variant")].map(row=>({name:row.querySelector(".variant-name").value,provider:row.querySelector(".variant-provider").value,model:row.querySelector(".variant-model").value,...(row.querySelector(".variant-effort").value?{effort:row.querySelector(".variant-effort").value}:{})}))};
 }
 function experimentReportSummary(report){
   if(!report.experiment_id)return "";
-  return `<p class="callout">${report.complete?(report.acceptance?"Pass threshold met by every variant.":"Pass threshold not met by every variant."):"Incomplete experiment. No acceptance result."} ${report.total||0}/${report.expected_total} case executions recorded · minimum ${Number(report.pass_threshold)*100}% per variant · experiment revision ${report.experiment_revision}.</p>${report.variant_results?.length?`<ul>${report.variant_results.map(item=>`<li>${escapeHtml(item.name)}: ${item.passed}/${item.expected_total} passed${report.complete?` · ${item.accepted?"Accepted":"Below threshold"}`:" · incomplete"}</li>`).join("")}</ul>`:""}`;
+  return `<p class="callout">${report.complete?(report.acceptance?"Pass threshold met by every variant.":"Pass threshold not met by every variant."):"Incomplete experiment. No acceptance result."} ${report.total||0}/${report.expected_total} case executions recorded · ${report.max_workers||1} worker${report.max_workers===1||!report.max_workers?"":"s"} · minimum ${Number(report.pass_threshold)*100}% per variant · experiment revision ${report.experiment_revision}.</p>${report.variant_results?.length?`<ul>${report.variant_results.map(item=>`<li>${escapeHtml(item.name)}: ${item.passed}/${item.expected_total} passed${report.complete?` · ${item.accepted?"Accepted":"Below threshold"}`:" · incomplete"}</li>`).join("")}</ul>`:""}`;
+}
+function evaluatorCopy(record){return {id:record.id,revision:record.revision,name:record.name,judge:Object.fromEntries(Object.entries(record.data).filter(([key])=>!["kind","version","type"].includes(key)))};}
+function experimentEvaluatorFields(data){
+  const copies=data.evaluators||[];
+  return `<fieldset id="experiment-evaluators"><legend>Experiment evaluators</legend><p>Choose up to four saved judge copies, or leave all empty to retain each case's existing judge. Selected copies replace case judges. Every selected evaluator must pass each case. The primary evaluator labels results only. Each judge adds model usage when running.</p>${Array.from({length:4},(_,i)=>{const copy=copies[i];return `<label>Evaluator ${i+1}<select class="experiment-evaluator-choice"><option value="">Not selected</option>${copy?`<option selected value="${escapeHtml(JSON.stringify(copy))}">${escapeHtml(copy.name)} · copied revision ${copy.revision}</option>`:""}</select></label>`;}).join("")}<label>Primary evaluator<select name="primaryEvaluatorId" id="experiment-primary-evaluator" ${copies.length?"required":""}><option value="">Choose a selected evaluator</option>${copies.map(copy=>`<option value="${escapeHtml(copy.id)}" ${copy.id===data.primaryEvaluatorId?"selected":""}>${escapeHtml(copy.name)}</option>`).join("")}</select></label><p id="experiment-evaluator-status" role="status"></p></fieldset>`;
+}
+async function loadExperimentEvaluators(data){
+  const root=$("experiment-evaluators");if(!root)return;
+  try{
+    const records=(await api("/api/catalog/evaluators")).items.filter(item=>!item.archived),choices=records.map(evaluatorCopy);
+    if(!root.isConnected)return;
+    for(const select of root.querySelectorAll(".experiment-evaluator-choice")){
+      const current=select.value,values=choices.map(copy=>JSON.stringify(copy));
+      if(current&&!values.includes(current))values.unshift(current);
+      select.innerHTML='<option value="">Not selected</option>'+values.map(value=>{const copy=JSON.parse(value);return `<option value="${escapeHtml(value)}">${escapeHtml(copy.name)} · copied revision ${copy.revision}</option>`;}).join("");select.value=current;
+    }
+  }catch(error){if(root.isConnected)$("experiment-evaluator-status").textContent="Saved copies retained. Evaluator catalog unavailable: "+error.message;}
+}
+function syncExperimentPrimary(){
+  const root=$("experiment-evaluators"),primary=$("experiment-primary-evaluator");if(!root||!primary)return;
+  const current=primary.value,copies=[...root.querySelectorAll(".experiment-evaluator-choice")].filter(select=>select.value).map(select=>JSON.parse(select.value));
+  primary.innerHTML='<option value="">Choose a selected evaluator</option>'+copies.map(copy=>`<option value="${escapeHtml(copy.id)}">${escapeHtml(copy.name)}</option>`).join("");primary.value=current;primary.required=!!copies.length;
+}
+function experimentEvaluatorFormData(form){
+  const evaluators=[...($("experiment-evaluators")?.querySelectorAll(".experiment-evaluator-choice")||[])].filter(select=>select.value).map(select=>JSON.parse(select.value));
+  if(!evaluators.length)return {};
+  if(new Set(evaluators.map(item=>item.id)).size!==evaluators.length)throw new Error("Choose distinct evaluators.");
+  const primaryEvaluatorId=form.get("primaryEvaluatorId");if(!evaluators.some(item=>item.id===primaryEvaluatorId))throw new Error("Choose a primary evaluator from the selected copies.");
+  return {evaluators,primaryEvaluatorId,evaluatorPolicy:"all"};
+}
+function experimentEvaluatorReport(report,result=null){
+  if(!report.evaluators?.length)return "";
+  const items=result?.evaluators||report.evaluator_summaries||[];
+  return `<p class="workspace-scope">All selected evaluators must pass. Primary evaluator: ${escapeHtml(report.evaluators.find(item=>item.id===report.primaryEvaluatorId)?.name||report.primaryEvaluatorId)}.</p><ul>${items.map(item=>`<li><strong>${escapeHtml(item.name)}</strong> · revision ${item.revision}${item.id===report.primaryEvaluatorId?" · primary":""} · ${result?(item.passed?"Passed":"Failed"):`${item.passed}/${item.expected_total} passed · ${item.total} graded`}${item.mean_score!=null?` · mean score ${Number(item.mean_score).toFixed(3)}`:""}${item.error?` · ${escapeHtml(item.error)}`:""}</li>`).join("")}</ul>`;
+}
+function experimentPendingGrades(report){
+  return Object.values(report.pending_grading||{}).map(item=>`<details class="report-case"><summary>Unfinished grading · ${escapeHtml(item.variant)} · case ${item.case} · repetition ${item.repetition}</summary><p>Partial evidence only. The dispatched target and judge attempts will not replay automatically.</p>${experimentEvaluatorReport(report,item)}<pre>${escapeHtml(item.output)}</pre></details>`).join("");
 }
 function operationFields(item){
   const data=item?.data||{};
@@ -206,7 +243,7 @@ function operationFormData(form){
   if(library.kind==="externalagents")return {url:form.get("external_url"),protocol_version:form.get("protocol_version"),token_env:form.get("external_token_env"),card_path:form.get("external_card_path"),streaming:form.has("external_streaming"),enabled:form.has("enabled"),allow_private:form.has("allow_private")};
   if(library.kind==="models")return {provider:form.get("provider"),model:form.get("model"),...(form.get("effort")?{effort:form.get("effort")}:{})};
   if(library.kind==="decisionmodels")return {backend:form.get("backend"),model:form.get("model")?.trim()||"",timeout_seconds:Number(form.get("timeout_seconds")||10)};
-  if(["evaluations","datasets"].includes(library.kind))return {...(library.kind==="evaluations"?{target_kind,target_id}:{kind:"dataset",version:1}),cases:[...document.querySelectorAll(".evaluation-case")].map(row=>({input:row.querySelector(".case-input").value,...Object.fromEntries(["input_files","reference_files"].map(role=>[role,JSON.parse(row.querySelector(`.case-${role}`)?.value||"[]")]).filter(([,files])=>files.length)),contains:row.querySelector(".case-contains").value.split("\n").map(s=>s.trim()).filter(Boolean),excludes:row.querySelector(".case-excludes").value.split("\n").map(s=>s.trim()).filter(Boolean),checks:JSON.parse(row.querySelector(".case-checks").value||"[]"),...(row.querySelector(".case-contexts").value.trim()!=="[]"||row.querySelector(".case-context-source").value!=="{}"?{contexts:JSON.parse(row.querySelector(".case-contexts").value||"[]")} : {}),...(row.querySelector(".case-context-source").value!=="{}"?{context_source:JSON.parse(row.querySelector(".case-context-source").value)}:{}),...(row.querySelector(".case-judge").value.trim()!=="{}"?{judge:JSON.parse(row.querySelector(".case-judge").value)}:{})}))};
+  if(["evaluations","datasets"].includes(library.kind))return {...(library.kind==="evaluations"?{target_kind,target_id}:{kind:"dataset",version:1}),cases:[...document.querySelectorAll(".evaluation-case")].map(row=>({input:row.querySelector(".case-input").value,...(row.querySelector(".case-expected-response")?.value?{expected_response:row.querySelector(".case-expected-response").value}:{}),...Object.fromEntries(["input_files","reference_files"].map(role=>[role,JSON.parse(row.querySelector(`.case-${role}`)?.value||"[]")]).filter(([,files])=>files.length)),contains:row.querySelector(".case-contains").value.split("\n").map(s=>s.trim()).filter(Boolean),excludes:row.querySelector(".case-excludes").value.split("\n").map(s=>s.trim()).filter(Boolean),checks:JSON.parse(row.querySelector(".case-checks").value||"[]"),...(row.querySelector(".case-contexts").value.trim()!=="[]"||row.querySelector(".case-context-source").value!=="{}"?{contexts:JSON.parse(row.querySelector(".case-contexts").value||"[]")} : {}),...(row.querySelector(".case-context-source").value!=="{}"?{context_source:JSON.parse(row.querySelector(".case-context-source").value)}:{}),...(row.querySelector(".case-judge").value.trim()!=="{}"?{judge:JSON.parse(row.querySelector(".case-judge").value)}:{})}))};
   if(library.kind==="schedules"){
     const rawTask=form.get("task")?.trim()||"";
     const wfInputRaw=form.get("workflow_input_json")?.trim();
@@ -221,7 +258,7 @@ function operationFormData(form){
 function operationActions(item){
   if(item.archived)return "";
   if(library.kind==="externalagents")return `${badge(item.data.enabled?"Enabled":"Disabled",item.data.enabled?"ready":"")}<button class="secondary" data-external-discover="${escapeHtml(item.id)}" ${item.data.enabled?"":"disabled"}>Inspect capabilities</button><button data-external-run="${escapeHtml(item.id)}" ${item.data.enabled?"":"disabled"}>Run task</button>`;
-  if(library.kind==="experiments")return `<button data-saved-experiment-run="${escapeHtml(item.id)}">Run experiment</button><button class="secondary" data-experiment-export="${escapeHtml(item.id)}">Export JSON</button>`;
+  if(library.kind==="experiments")return `<button data-saved-experiment-run="${escapeHtml(item.id)}">Run experiment</button><button class="secondary" data-experiment-export="${escapeHtml(item.id)}">Export JSON</button>${state.mode!=="team"||state.user?.role==="owner"?`<button class="secondary" data-experiment-declaration-export="${escapeHtml(item.id)}">Export declaration</button>`:""}`;
   if(library.kind==="evaluators")return `<button class="secondary" data-evaluator-export="${escapeHtml(item.id)}">Export JSON</button>`;
   if(library.kind==="datasets")return `<button class="secondary" data-dataset-export="${escapeHtml(item.id)}">Export JSON</button>`;
   if(library.kind==="evaluations")return `<button data-evaluate="${escapeHtml(item.id)}">Run checks</button><button class="secondary" data-experiment="${escapeHtml(item.id)}">Experiment Lab</button>`;
@@ -253,7 +290,7 @@ function variantFields(index,data={},removable=false){return `<div class="experi
 
 async function showEvaluationReport(id){
   const report=await api(`/api/evaluation-reports/${encodeURIComponent(id)}`);
-  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${evaluationFileSources(result)}${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}${experimentEvaluatorReport(report)}${experimentPendingGrades(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${evaluationFileSources(result)}${experimentEvaluatorReport(report,result)}${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}${check.evaluator_id?` · ${escapeHtml(check.evaluator_id)}`:""}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
 }
 function evaluationFileSources(result){
   const sources=result.file_sources||{};
@@ -273,6 +310,7 @@ document.addEventListener("click",async event=>{
     if(button.dataset.clearCaseFiles)clearEvaluationFiles(button);
     if(button.dataset.evaluationReportExport)await exportEvaluationReport(button);
     if(button.dataset.savedExperimentRun)await runEvaluation(null,null,button.dataset.savedExperimentRun);
+    if(button.dataset.experimentDeclarationExport)await exportExperimentDeclaration(button.dataset.experimentDeclarationExport);
     if(button.dataset.experimentExport){const item=await api(`/api/catalog/experiments/${encodeURIComponent(button.dataset.experimentExport)}`);downloadJson(`${item.id}.json`,item.data);}
     if(button.id==="saved-experiment-add-variant"){const root=$("saved-experiment-variants");if(root.children.length>=4)throw new Error("Maximum four variants.");root.insertAdjacentHTML("beforeend",variantFields(root.children.length+1,{},true));updateExperimentEstimate();}
     if(button.hasAttribute("data-remove-experiment-variant")){const root=$("saved-experiment-variants");if(root.children.length<=1)throw new Error("Keep at least one variant.");button.closest(".experiment-variant").remove();updateExperimentEstimate();}
@@ -359,6 +397,117 @@ function updateScheduleTargetFields(){
 }
 document.addEventListener("change",event=>{if((event.target.id==="operation-target"||event.target.name==="target")&&typeof library!=="undefined"&&library.kind==="schedules")updateScheduleTargetFields();});
 
-document.addEventListener("input",event=>{if(event.target.name==="runsPerExample")updateExperimentEstimate();});
+document.addEventListener("input",event=>{if(["runsPerExample","maxWorkers"].includes(event.target.name))updateExperimentEstimate();});
 
 document.addEventListener("change",event=>{if(event.target.id==="saved-experiment-suite")updateExperimentEstimate();});
+
+async function importEvaluationPackage(){
+  const form=await fieldsDialog("Import dataset and judge template",`<p>Select both resource definitions and the exact CSV they reference. Saved datasets and judges are shared with this workspace. No server-folder search or AI call occurs.</p><label>Dataset YAML or JSON<input type="file" name="dataset" accept=".yaml,.yml,.json" required></label><label>Evaluator YAML or JSON<input type="file" name="evaluator" accept=".yaml,.yml,.json" required></label><label>Referenced CSV<input type="file" name="examples" accept=".csv,text/csv" required></label><label>Evaluator model alias<input name="alias" required maxlength="200" value="general"></label><label>Judge provider<select name="provider">${providerOptions("codex")}</select></label><label>Judge model (optional)<input name="model" maxlength="200"></label><label>Pass threshold (0–1)<input name="threshold" type="number" min="0" max="1" step="any" value="0.7" required></label><p>Expected responses go only to the selected judge when you explicitly run a saved evaluation. Account usage applies then. Conversion does not run or save anything.</p>`,"Convert for review");
+  if(!form)return;
+  const dataset=form.get("dataset"),evaluator=form.get("evaluator"),examples=form.get("examples"),files=[dataset,evaluator,examples];
+  if(files.some(file=>!file||!file.size||file.size>900*1024)||files.reduce((sum,file)=>sum+file.size,0)>2*1024*1024)throw new Error("Choose three nonempty files, each up to 900 KiB and no more than 2 MiB together.");
+  const [datasetText,evaluatorText,csvText]=await Promise.all(files.map(file=>file.text()));
+  const report=await featureApi("configuration/evaluations/convert",{dataset:datasetText,evaluator:evaluatorText,files:{[examples.name]:csvText},binding:{alias:form.get("alias"),provider:form.get("provider"),model:form.get("model")||""},threshold:Number(form.get("threshold"))});
+  reviewEvaluationImport(report);
+}
+function reviewEvaluationImport(report){
+  showDetail("Review imported evaluation resources",`${report.handoff_source?"<p>Imported from a self-contained handoff. Source IDs are descriptive; no source resources were fetched.</p>":""}${report.evaluator?`<p>Judge provider: ${escapeHtml(report.evaluator.provider)} · model: ${escapeHtml(report.evaluator.model||"provider default")} · threshold: ${report.evaluator.threshold}. Account usage applies only when running a later evaluation.</p>`:""}<p>${report.dataset.cases.length} cases and one reusable judge were converted. No suite or model run was created.</p><ul>${report.adaptations.map(change=>`<li>${escapeHtml(change)}</li>`).join("")}</ul><p>File ${escapeHtml(report.source.filename)} · SHA-256 ${escapeHtml(report.source.sha256)}</p><details><summary>Native draft resources</summary><pre>${escapeHtml(JSON.stringify(report.document,null,2))}</pre></details><button id="evaluation-package-plan">Review save changes</button>`);
+  $("evaluation-package-plan").onclick=async()=>{
+    try{
+      const plan=await featureApi("configuration/plan",{document:report.document});
+      showDetail("Save reviewed dataset and judge",`<p>Review additions or updates below. Saving creates no evaluation suite and runs no AI.</p><ul>${plan.changes.map(item=>`<li>${escapeHtml(item.action)} · ${escapeHtml(item.resource)}</li>`).join("")}</ul><details><summary>Reviewed resources</summary><pre>${escapeHtml(JSON.stringify(plan.document,null,2))}</pre></details><button id="evaluation-package-apply">Save reviewed resources</button>`);
+      $("evaluation-package-apply").onclick=async()=>{const button=$("evaluation-package-apply");button.disabled=true;try{await featureApi("configuration/apply",{plan_id:plan.id,digest:plan.digest});$("detail").close();await refreshLibrary();notify("Dataset and judge saved. Copy cases into a suite and review before running.");}catch(error){notify(error.message);}finally{if(button.isConnected)button.disabled=false;}};
+    }catch(error){notify(error.message);}
+  };
+}
+window.addEventListener("studio-ready",()=>{
+  let button=$("evaluation-package-import");
+  if(!button){button=document.createElement("button");button.id="evaluation-package-import";button.type="button";button.className="secondary";button.textContent="Import dataset + judge";$("library-create").after(button);button.onclick=()=>importEvaluationPackage().catch(error=>notify(error.message));}
+  let exporter=$("evaluation-package-export"),handoff=$("evaluation-handoff-import");
+  if(!exporter){exporter=document.createElement("button");exporter.id="evaluation-package-export";exporter.type="button";exporter.className="secondary";exporter.textContent="Export dataset + judge";button.after(exporter);exporter.onclick=()=>exportEvaluationPackage().catch(error=>notify(error.message));}
+  if(!handoff){handoff=document.createElement("button");handoff.id="evaluation-handoff-import";handoff.type="button";handoff.className="secondary";handoff.textContent="Import evaluation handoff";exporter.after(handoff);handoff.onclick=()=>importEvaluationHandoff().catch(error=>notify(error.message));}
+  const sync=()=>{button.hidden=!["datasets","evaluators"].includes(library.kind)||(state.mode==="team"&&state.user?.role!=="owner");exporter.hidden=handoff.hidden=button.hidden;};
+  sync();new MutationObserver(sync).observe($("library-heading"),{childList:true});
+});
+
+async function importExperimentDefinition(draft={}){
+  const [datasets,evaluators]=await Promise.all([api("/api/catalog/datasets"),api("/api/catalog/evaluators")]);
+  const agents=state.agents.filter(item=>item.document),options=(items,selected)=>'<option value="">Choose an exact revision</option>'+items.filter(item=>!item.archived).map(item=>{const value=JSON.stringify({id:item.id,revision:item.revision});return `<option value="${escapeHtml(value)}" ${value===selected?"selected":""}>${escapeHtml(item.name||item.document?.metadata?.name||item.id)} · ${escapeHtml(item.revision)}</option>`;}).join("");
+  if(!datasets.items.length||!evaluators.items.length||!agents.length)throw new Error("Save a dataset, evaluator and target agent before importing an experiment.");
+  const sample="kind: experiment\nname: Imported regression\nspec:\n  datasetId: source-dataset\n  targetAgent: source-agent\n  evaluatorIds: [source-judge]\n  primaryEvaluatorId: source-judge\n  runsPerExample: 1\n  maxWorkers: 1\n";
+  const multiFields=`<details><summary>Bind multiple evaluators</summary><p>Enter every evaluator alias exactly as declared in evaluatorIds. All selected judges must pass; primaryEvaluatorId labels results. Leave this section empty for a single evaluator.</p><label>Alias for the judge selected above<input name="evaluatorAlias" maxlength="200" value="${escapeHtml(draft.evaluatorAlias||"")}"></label>${[2,3,4].map(i=>`<div class="form-grid"><label>Evaluator ${i} alias<input name="evaluatorAlias${i}" maxlength="200" value="${escapeHtml(draft['evaluatorAlias'+i]||"")}"></label><label>Evaluator ${i} saved revision<select name="evaluator${i}">${options(evaluators.items,draft['evaluator'+i])}</select></label></div>`).join("")}</details>`;
+  const form=await fieldsDialog("Import an experiment definition",`<p>Paste YAML or JSON, then explicitly map its dataset, primary judge and agent to saved native resources. This importer supports 1–4 agent workers and 1–4 evaluators. Worker counts are never silently reduced.</p><label>Experiment YAML or JSON<textarea name="source" rows="10" required maxlength="1048576">${escapeHtml(draft.source??sample)}</textarea></label><label>Dataset used for datasetId<select name="dataset" required>${options(datasets.items,draft.dataset)}</select></label><label>Judge used for a single-evaluator source<select name="evaluator" required>${options(evaluators.items,draft.evaluator)}</select></label>${multiFields}<label>Agent used for targetAgent<select name="target" required>${options(agents,draft.target)}</select></label><label>Minimum pass rate (0–1)<input name="threshold" type="number" min="0" max="1" step="any" value="${escapeHtml(draft.threshold??1)}" required></label><p>Cases and judge settings are copied into a fresh suite. Sources stay unchanged. Target provider settings are pinned when you explicitly run the saved experiment; account usage applies then. Conversion and saving run no AI.</p>`,"Convert for review");
+  if(!form)return;
+  const saved=Object.fromEntries(["source","dataset","evaluator","target","threshold","evaluatorAlias",...[2,3,4].flatMap(i=>["evaluatorAlias"+i,"evaluator"+i])].map(key=>[key,form.get(key)]));
+  let report;
+  try{
+    const entries=[{alias:saved.evaluatorAlias,value:saved.evaluator},...[2,3,4].map(i=>({alias:saved["evaluatorAlias"+i],value:saved["evaluator"+i]}))];
+    let selected={evaluator:JSON.parse(saved.evaluator)};
+    if(entries.some((entry,i)=>entry.alias||(i>0&&entry.value))){
+      const active=entries.filter((entry,i)=>i===0||entry.alias||entry.value);
+      if(active.some(entry=>!entry.alias?.trim()||!entry.value)||new Set(active.map(entry=>entry.alias)).size!==active.length)throw new Error("Supply a unique source alias and saved revision for every evaluator binding.");
+      selected={evaluators:Object.fromEntries(active.map(entry=>[entry.alias,JSON.parse(entry.value)]))};
+    }
+    report=await featureApi("configuration/experiments/convert",{experiment:saved.source,bindings:{dataset:JSON.parse(saved.dataset),...selected,target:JSON.parse(saved.target)},pass_threshold:Number(saved.threshold)});
+  }catch(error){showDetail("Experiment import needs changes",`<p role="alert">${escapeHtml(error.message)}</p><p>No resources or plan were saved.</p><button id="experiment-import-edit">Edit import</button>`);$("experiment-import-edit").onclick=()=>importExperimentDefinition(saved).catch(error=>notify(error.message));return;}
+  reviewExperimentImport(report);
+}
+function reviewExperimentImport(report){
+  showDetail("Review imported experiment",`${report.handoff_source?`<p>Handoff source: ${escapeHtml(report.handoff_source.experiment_id)} · revision ${report.handoff_source.revision}. Source identity is descriptive; current dependency pins were validated.</p>`:""}<p>${report.planned_executions} planned target executions. Judges may add model calls. Nothing has run.</p><ul>${report.adaptations.map(item=>`<li>${escapeHtml(item)}</li>`).join("")}</ul><details><summary>Source bindings and native draft</summary><pre>${escapeHtml(JSON.stringify({source:report.source,document:report.document},null,2))}</pre></details><button id="experiment-import-plan">Review save changes</button>`);
+  $("experiment-import-plan").onclick=async()=>{try{
+    const plan=await featureApi("configuration/plan",{document:report.document});
+    showDetail("Save reviewed experiment",`<p>Save the new suite and experiment without starting a run. Dataset and evaluator sources remain independent.</p><ul>${plan.changes.map(item=>`<li>${escapeHtml(item.action)} · ${escapeHtml(item.resource)}</li>`).join("")}</ul><details><summary>Reviewed resources</summary><pre>${escapeHtml(JSON.stringify(plan.document,null,2))}</pre></details><button id="experiment-import-apply">Save reviewed experiment</button>`);
+    $("experiment-import-apply").onclick=async()=>{const button=$("experiment-import-apply");button.disabled=true;try{await featureApi("configuration/apply",{plan_id:plan.id,digest:plan.digest});$("detail").close();await refreshLibrary();notify("Experiment and independent suite saved. Review settings before explicitly running.");}catch(error){notify(error.message);}finally{if(button.isConnected)button.disabled=false;}};
+  }catch(error){notify(error.message);}};
+}
+window.addEventListener("studio-ready",()=>{
+  let button=$("experiment-definition-import");
+  if(!button){button=document.createElement("button");button.id="experiment-definition-import";button.type="button";button.className="secondary";button.textContent="Import experiment";$("library-create").after(button);button.onclick=()=>importExperimentDefinition().catch(error=>notify(error.message));}
+  let handoff=$("experiment-handoff-import");
+  if(!handoff){handoff=document.createElement("button");handoff.id="experiment-handoff-import";handoff.type="button";handoff.className="secondary";handoff.textContent="Import handoff";button.after(handoff);handoff.onclick=()=>importExperimentHandoff().catch(error=>notify(error.message));}
+  const sync=()=>{button.hidden=library.kind!=="experiments"||(state.mode==="team"&&state.user?.role!=="owner");handoff.hidden=button.hidden;};
+  sync();new MutationObserver(sync).observe($("library-heading"),{childList:true});
+});
+
+document.addEventListener("change",event=>{if(event.target.classList?.contains("experiment-evaluator-choice"))syncExperimentPrimary();});
+
+async function exportExperimentDeclaration(id){
+  const [item,datasets]=await Promise.all([api(`/api/catalog/experiments/${encodeURIComponent(id)}`),api("/api/catalog/datasets")]);
+  const choices=datasets.items.filter(record=>!record.archived);
+  if(!choices.length)throw new Error("Save a dataset matching this experiment's cases before declaration export. Native JSON export remains available.");
+  const form=await fieldsDialog("Export experiment declaration",`<p>Choose a saved dataset with the same ordered cases, checks, references and file roles. Export validates current evaluator copies, suite and target revisions. It reads no file bytes and runs no AI.</p><label>Matching dataset revision<select name="dataset" required><option value="">Choose an exact revision</option>${choices.map(record=>`<option value="${escapeHtml(JSON.stringify({id:record.id,revision:record.revision}))}">${escapeHtml(record.name)} · revision ${record.revision}</option>`).join("")}</select></label><p>The declaration needs its companion handoff to retain native thresholds, variants and dependency pins. Dependencies remain references. Review before downloading; keep configuration files private.</p>`,"Prepare export for review");
+  if(!form)return;
+  const report=await featureApi("configuration/experiments/export",{experiment_id:item.id,revision:item.revision,dataset:JSON.parse(form.get("dataset"))});
+  if(!report.valid){showDetail("Declaration export needs changes",`<p>No export files were produced. Native JSON/configuration export remains available.</p><ul>${report.diagnostics.map(issue=>`<li>${escapeHtml(issue.path)} · ${escapeHtml(issue.code)}: ${escapeHtml(issue.message)}</li>`).join("")}</ul>`);return;}
+  showDetail("Review experiment export",`<p>Prepared reference files for ${escapeHtml(report.source.experiment_id)}, revision ${report.source.revision}. Nothing has been downloaded, saved or run.</p><ul>${report.notes.map(note=>`<li>${escapeHtml(note)}</li>`).join("")}</ul>${report.files.map((file,index)=>`<details><summary>${escapeHtml(file.filename)}</summary><pre>${escapeHtml(file.content)}</pre></details><button id="experiment-file-download-${index}" type="button" class="secondary">Download ${escapeHtml(file.filename)}</button>`).join("")}`);
+  report.files.forEach((file,index)=>{$(`experiment-file-download-${index}`).onclick=()=>downloadConfigurationFile(file);});
+}
+function downloadConfigurationFile(file){
+  const url=URL.createObjectURL(new Blob([file.content],{type:file.media_type})),link=document.createElement("a");link.href=url;link.download=file.filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function importExperimentHandoff(){
+  const form=await fieldsDialog("Import experiment handoff",'<p>Select the companion JSON from a reviewed declaration export. Exact dependency revisions must already exist here. Source identity grants no access. Conversion starts no plan, save or AI run.</p><label>Experiment handoff JSON<input type="file" name="handoff" accept=".json,application/json" required></label>',"Convert for review");
+  if(!form)return;
+  const file=form.get("handoff");
+  if(!file||!file.size||file.size>2*1024*1024)throw new Error("Choose a nonempty experiment handoff JSON file up to two MiB.");
+  const report=await featureApi("configuration/experiments/handoff/convert",{handoff:await file.text()});
+  reviewExperimentImport(report);
+}
+
+async function exportEvaluationPackage(){
+  const [datasets,evaluators]=await Promise.all([api("/api/catalog/datasets"),api("/api/catalog/evaluators")]);
+  const options=items=>'<option value="">Choose an exact revision</option>'+items.filter(item=>!item.archived).map(item=>`<option value="${escapeHtml(JSON.stringify({id:item.id,revision:item.revision}))}">${escapeHtml(item.name)} · revision ${item.revision}</option>`).join("");
+  const form=await fieldsDialog("Export dataset and judge",`<p>Choose a dataset and its matching template/choice judge. Unsupported case fields or different judge settings produce diagnostics. Export runs no AI and reads no artifacts.</p><label>Dataset revision<select name="dataset" required>${options(datasets.items)}</select></label><label>Evaluator revision<select name="evaluator" required>${options(evaluators.items)}</select></label><label>External model alias<input name="model_alias" value="general" maxlength="200" required></label><p>Files include full prompts, expected answers and judge instructions. Review before downloading and keep them private. The companion preserves native provider, model and threshold settings; managed credentials are never read.</p>`,"Prepare export for review");
+  if(!form)return;
+  const report=await featureApi("configuration/evaluations/export",{dataset:JSON.parse(form.get("dataset")),evaluator:JSON.parse(form.get("evaluator")),model_alias:form.get("model_alias")});
+  if(!report.valid){showDetail("Evaluation export needs changes",`<p>No export files were produced. Native JSON/configuration export remains available.</p><ul>${report.diagnostics.map(issue=>`<li>${escapeHtml(issue.path)} · ${escapeHtml(issue.code)}: ${escapeHtml(issue.message)}</li>`).join("")}</ul>`);return;}
+  showDetail("Review dataset and judge export",`<p>Nothing has been downloaded, saved or run. Judge: ${escapeHtml(report.binding.provider)} · model ${escapeHtml(report.binding.model||"provider default")} · threshold ${report.threshold}.</p><ul>${report.notes.map(note=>`<li>${escapeHtml(note)}</li>`).join("")}</ul>${report.files.map((file,index)=>`<details><summary>${escapeHtml(file.filename)}</summary><pre>${escapeHtml(file.content)}</pre></details><button id="evaluation-file-download-${index}" type="button" class="secondary">Download ${escapeHtml(file.filename)}</button>`).join("")}`);
+  report.files.forEach((file,index)=>{$(`evaluation-file-download-${index}`).onclick=()=>downloadConfigurationFile(file);});
+}
+async function importEvaluationHandoff(){
+  const form=await fieldsDialog("Import evaluation handoff",'<p>Select the self-contained JSON companion. Prompts, references and judge settings are included. Conversion validates the file without fetching source resources, saving a plan or running AI. Review provider settings before saving.</p><label>Evaluation handoff JSON<input type="file" name="handoff" accept=".json,application/json" required></label>',"Convert for review");
+  if(!form)return;
+  const file=form.get("handoff");if(!file||!file.size||file.size>2*1024*1024)throw new Error("Choose a nonempty evaluation handoff JSON file up to two MiB.");
+  const report=await featureApi("configuration/evaluations/handoff/convert",{handoff:await file.text()});
+  reviewEvaluationImport(report);
+}
