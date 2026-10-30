@@ -170,13 +170,15 @@ focus/accent vocabulary at lines 14 and 24. Attachment image glyphs use purple
 at lines 163/183. Existing shadows include raw black RGBA values. Radii and
 z-index values are spread across overrides without a documented role scale.
 Multiple radius values are not automatically wrong; their component roles need
-one explicit policy.
+one explicit policy. Shared buttons also lack a common pressed state; explicit
+`:active` feedback is currently limited to selected guide/dropzone treatments.
 
 Define roles for control/panel/dialog/pill radii, semantic versus decorative
 color, border strength, elevation and layers. Apply tokens in small behavior-
 preserving passes. Document any meaningful category-color exception. Do not
 flatten semantic success/error colors into one accent, rewrite the framework,
-or normalize all component geometry to one radius.
+or normalize all component geometry to one radius. Add shared pressed feedback
+without introducing perpetual animation or shifting focused controls.
 
 ### DT-09: Long dash separators remain in interface literals
 

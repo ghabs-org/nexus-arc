@@ -1,0 +1,752 @@
+{
+  "format": "nexus-studio-design-guideline-audit/v1",
+  "date": "2026-10-30",
+  "alignment": "not-fully-aligned",
+  "whole_plan_complete": false,
+  "scope": "First-party Studio source and native startup; no browser-rendered, physical-device or Lighthouse acceptance",
+  "skill": {
+    "name": "design-taste-frontend",
+    "path": "/Users/gabrielebertini/.agents/skills/design-taste-frontend/SKILL.md",
+    "sha256": "aa194351b246b8b4799099d4ed7b033d29eab6e6e3d58d8d2172978be7b3ec89",
+    "product_scope_exception": "Skill explicitly excludes dashboards/data tables/multi-step product UI; common consistency, accessibility, responsiveness and preservation principles applied."
+  },
+  "design_read": {
+    "mode": "redesign-preserve",
+    "foundation": "Existing native CSS Studio component system; no framework rewrite",
+    "DESIGN_VARIANCE": 3,
+    "MOTION_INTENSITY": 2,
+    "VISUAL_DENSITY": 5
+  },
+  "source_head": "236a9c43d16e7d74953b719f80cf30ee6c990b3a",
+  "includes_uncommitted_source": true,
+  "source_files": {
+    "apps/studio-desktop/ui/index.html": {
+      "sha256": "82f458e52af4c37e54fe5badee61d588b18114b9f90141e6826809cac6c61905",
+      "size_bytes": 672
+    },
+    "apps/studio-desktop/ui/startup.css": {
+      "sha256": "d635f9ca2a288cde66fca420725605c51a9708b3a5dacebe94b9dd5d210f0223",
+      "size_bytes": 754
+    },
+    "apps/studio-desktop/ui/startup.js": {
+      "sha256": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
+      "size_bytes": 1435
+    },
+    "nexus/studio_static/artifact-viewer.js": {
+      "sha256": "5627495af0d9f871c5aeb0efffaa139653197ed606c31231202f19c2ab7d4c83",
+      "size_bytes": 1506
+    },
+    "nexus/studio_static/artifact.html": {
+      "sha256": "740bfb074d3ac4b1443d5f3cde4d4dd920e225e797a3c3dfc001d4082e730763",
+      "size_bytes": 692
+    },
+    "nexus/studio_static/content.js": {
+      "sha256": "de5d09eb5adb26f3494ea59cc011ebbd86f28b5bce8b192da7f94a20075f4597",
+      "size_bytes": 14699
+    },
+    "nexus/studio_static/conversation-content.js": {
+      "sha256": "67c2d321c92bfd66b491059388397b832e8a0b56cdc4ccabf37c1256e0b8e347",
+      "size_bytes": 2522
+    },
+    "nexus/studio_static/experience.js": {
+      "sha256": "0451aa9fa9a91abf3e86c88ab129cf2a9d88345ca586a8418db070633c6961da",
+      "size_bytes": 52524
+    },
+    "nexus/studio_static/features.js": {
+      "sha256": "bb6edd8afeb69d5179f547790b89efe58c90c4d52d3632c1cd268419a466e451",
+      "size_bytes": 109978
+    },
+    "nexus/studio_static/graph.js": {
+      "sha256": "dd4ec25ae225177e04047d34c3d768f7baa042b765b37021caa43b2ea8ebcb42",
+      "size_bytes": 25306
+    },
+    "nexus/studio_static/index.html": {
+      "sha256": "cf7c2e1100974da5d354aefa9783fd73515d0b26895194322204015007cb1b11",
+      "size_bytes": 52988
+    },
+    "nexus/studio_static/integrations.js": {
+      "sha256": "5f06d0c63c8b55003bae632b54b24f57b5b75cd178a1a5a6409cf24d90a46d27",
+      "size_bytes": 5289
+    },
+    "nexus/studio_static/library.js": {
+      "sha256": "6691c2df7a10775a21a0875c50fc7b53258f5ae03ea88c6816f6263a3e1acecb",
+      "size_bytes": 23335
+    },
+    "nexus/studio_static/manifest.webmanifest": {
+      "sha256": "5631a5b308733286ca87891cc673952e22c43228681ab96dbbf4c41000d8522f",
+      "size_bytes": 467
+    },
+    "nexus/studio_static/operations.js": {
+      "sha256": "d8206ddea545d0ec855f0c67d55b390ea04195f5844f84241bbeeb6bdbcae3d1",
+      "size_bytes": 91579
+    },
+    "nexus/studio_static/quick-build.js": {
+      "sha256": "d1919a351ae718309f2ba3ec0525b91d3d78b50dadd4f65ddfbbb5d8752017a1",
+      "size_bytes": 28125
+    },
+    "nexus/studio_static/service-worker.js": {
+      "sha256": "ff15446234f98ea313134db016b3a74dd6dd8c5bb601ef630c63fd86064d57b8",
+      "size_bytes": 1427
+    },
+    "nexus/studio_static/shared.html": {
+      "sha256": "534c54e230f6410a10d483179e1eb3f0f49b994ecc254eefe41a06f5ec805906",
+      "size_bytes": 977
+    },
+    "nexus/studio_static/shared.js": {
+      "sha256": "c52c2c572f0eacf9f28d3acc4dee01632677ea7b013e29a1989e1e614b5ab476",
+      "size_bytes": 5901
+    },
+    "nexus/studio_static/studio.css": {
+      "sha256": "a3aaf70967b0ac8fc85b73ce0da372320bc3175ec6d3604586d99a150731f7e1",
+      "size_bytes": 98975
+    },
+    "nexus/studio_static/studio.js": {
+      "sha256": "18017ed1de9b46ac851ef6ebe39d298a2125417a05ef1da0d1abff695399ba82",
+      "size_bytes": 91983
+    },
+    "nexus/studio_static/workbench.js": {
+      "sha256": "c36f7c3c0b1db723114f2a3cb187634c8c8b6d5c4e39fa96a121dcdac26cb5e6",
+      "size_bytes": 46195
+    },
+    "nexus/studio_static/workspace-access.js": {
+      "sha256": "d35cce5b7c5f6fc120e3da2342d1e816c619cbce3d82b49fec55df6317b5d822",
+      "size_bytes": 13871
+    },
+    "nexus/studio_static/workspace.js": {
+      "sha256": "176ebae77c9408c6bd09b00a4421af45b9b53a3b98763576a09d10c272ad40fe",
+      "size_bytes": 14920
+    }
+  },
+  "findings": [
+    {
+      "id": "DT-01",
+      "title": "Text contrast fails in the main composer",
+      "priority": "P1",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P1. Skill sections 4.5, 6 and 8.\n\n`nexus/studio_static/studio.css:3` sets `.composer textarea::placeholder` to\n`#96958f`, about **3.00:1** on its white surface. The same line sets desktop\n`.chat-footnote` text to `#92918b`, about **3.16:1**. Both are small normal text,\nbelow 4.5:1. The general `textarea::placeholder` rule at line 513 has lower\nspecificity and does not repair the composer placeholder.\n\nUse a shared text token with sufficient contrast in each theme. Preserve labels,\nwording and routes. Verify the composer and helper text using computed colors,\nincluding inheritance, opacity and focus/disabled states. Do not darken every\ndecorative divider as if it were body text."
+    },
+    {
+      "id": "DT-02",
+      "title": "Web dark mode is absent",
+      "priority": "P1",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P1 for the requested dual-theme alignment. Skill sections 4.11, 6.C and 8.\n\n`nexus/studio_static/studio.css:2` forces `color-scheme:light` and white surfaces.\nNo first-party web dark token set or theme selection was found. The standalone\nstartup CSS has a dark media query, so dark-mode users can move from a dark\nstartup screen into a light workspace. Browser-forced darkening is not a designed\nor tested theme.\n\nIntroduce theme tokens for surfaces, text, controls, semantic states, previews\nand diagrams; retain the brand accent. Cover shared/artifact viewers and overlays\nas well as the main app. Remove hardcoded light overrides as part of that work.\nDo not invert isolated sections or claim dark mode from startup styling alone."
+    },
+    {
+      "id": "DT-03",
+      "title": "Typography depends on a remote CSS import",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2. Skill sections 3.A, 3.F and 6.D.\n\n`nexus/studio_static/studio.css:1` imports Google Fonts. The shell cache lists no\nfont files, and no self-hosted `@font-face` was found. Offline or restricted\nconnections fall back to another face, changing text geometry; first loading\nalso depends on the external CSS/font requests. No actual network timing or\nlayout shift was measured in this audit.\n\nPreserve IBM Plex with locally packaged, licensed font files and\n`font-display:swap`, or deliberately use a consistent system stack. Keep wheel,\ndesktop and service-worker packaging in agreement. Do not replace the existing\nfont merely because another font appears in the skill's greenfield defaults."
+    },
+    {
+      "id": "DT-04",
+      "title": "Reduced motion does not disable the attachment animation",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2. Skill sections 5.D and 6.B.\n\n`studio.css:159` applies `fadeInChip` unconditionally; line 160 animates opacity\nand vertical translation. Both reduced-motion blocks (lines 6 and 580) suppress\ntransitions/scroll behavior but do not disable animations. The guide's separate\nreduced-motion handling does not disable this CSS animation.\n\nGate this entrance animation on `prefers-reduced-motion:no-preference`, or disable\nit explicitly in reduce mode. Keep attachment state updates immediate. This is a\nsource-confirmed issue even though the chosen design dial is low."
+    },
+    {
+      "id": "DT-05",
+      "title": "Mobile target rules have specific exceptions",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2. Skill sections 3.E, 4.5 and 11.C.\n\nThe 44px mobile/coarse-pointer baseline is good. However,\n`studio.css:168` sets `.chat-chip-remove` to `min-height:0`, no vertical padding\nand a 16px line box. `studio.css:657` explicitly uses a 26px hint-action minimum.\nThose class selectors override generic `button` sizing. These small secondary\nactions do not inherit the intended mobile baseline.\n\nGive touch controls deliberate hit areas without making every desktop toolbar\noversized. Check spacing and hit boxes at 360/390px widths and on a real device.\nThis finding identifies inconsistent touch sizing; it does not assert a blanket\nWCAG target-size failure without testing spacing exceptions and actual geometry."
+    },
+    {
+      "id": "DT-06",
+      "title": "Control boundaries need a non-text contrast pass",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2. Skill sections 4.5 and 6.\n\n`--control:#cdced1` is **1.57:1** against white; `--line:#e8eaec` is **1.21:1**.\nThe form/input styles at lines 512, 689, 754 and 771 reuse these weak boundaries,\nincluding white fields against white surfaces. Where the boundary is needed to\nidentify the field, it should reach the relevant 3:1 non-text contrast target.\nThe focus accent itself is about 5.99:1 against white.\n\nUse a distinct control-border token instead of strengthening all separators.\nVerify which boundaries convey control identity, selected state or purely\ndecorative grouping. Inspect actual focus outlines and high-contrast modes before\nclaiming accessibility conformance."
+    },
+    {
+      "id": "DT-07",
+      "title": "Icons do not have a documented library family",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2 for skill alignment. Skill sections 3.C and 9.E.\n\n`index.html` contains 13 inline SVG instances; first-party JavaScript adds others.\nThe help/download/search glyphs, speech and file icons use embedded paths and\nseveral stroke widths, including 1.7, 1.8 and 2. No canonical approved icon package,\nvendored family or attribution was found. Inline SVG itself is not an accessibility\ndefect; the missing family/provenance and inconsistent weights are the design gap.\n\nChoose one approved family, package its required assets locally with license\nmetadata, and standardize sizing/strokes. Preserve accessible labels and hide\ndecorative paths from assistive technology. Do not add a runtime CDN or a React\ndependency solely to replace icons in a vanilla interface. Charts, workflow\ngraphs and the existing logo are not UI icon-family violations."
+    },
+    {
+      "id": "DT-08",
+      "title": "Token and layout policy needs consolidation",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2. Skill sections 4.2, 4.4, 6.F and 11.\n\n`studio.css` has an existing token layer at lines 2 and 463, but many later rules\nstill hardcode colors, radii and elevations. Quick Build uses a separate green\nfocus/accent vocabulary at lines 14 and 24. Attachment image glyphs use purple\nat lines 163/183. Existing shadows include raw black RGBA values. Radii and\nz-index values are spread across overrides without a documented role scale.\nMultiple radius values are not automatically wrong; their component roles need\none explicit policy. Shared buttons also lack a common pressed state; explicit\n`:active` feedback is currently limited to selected guide/dropzone treatments.\n\nDefine roles for control/panel/dialog/pill radii, semantic versus decorative\ncolor, border strength, elevation and layers. Apply tokens in small behavior-\npreserving passes. Document any meaningful category-color exception. Do not\nflatten semantic success/error colors into one accent, rewrite the framework,\nor normalize all component geometry to one radius. Add shared pressed feedback\nwithout introducing perpetual animation or shifting focused controls."
+    },
+    {
+      "id": "DT-09",
+      "title": "Long dash separators remain in interface literals",
+      "priority": "P3",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P3, editorial skill alignment. Skill section 9.G.\n\n`operations.js:38`, `:158`, `:405`, `:439` and `graph.js:25` contain long dashes\nin interface copy or numeric ranges. `workbench.js:143` formats segment time\nranges with one. These are real skill mismatches, not runtime faults.\n\nChange interface-authored separators/ranges to plain punctuation in a copy pass.\nDo not alter imported documents, transcripts, answers, filenames, identifiers or\nother user data to satisfy this preference. Keep existing form field names,\nnavigation labels and legal/consent wording intact."
+    },
+    {
+      "id": "DT-10",
+      "title": "Dialog resizing animates layout properties",
+      "priority": "P2",
+      "status": "confirmed-source-gap",
+      "assessment": "Priority: P2 for performance alignment. Skill section 6.A.\n\n`studio.css:814` transitions width, height, max-width and max-height on the detail\ndialog. That contradicts the transform/opacity-only animation rule and can add\nlayout work during expansion. No frame timing regression is asserted here.\n\nUse immediate geometry changes, or a measured transform/opacity transition that\ndoes not compromise text clarity, focus or reduced-motion behavior. Do not add\nMotion or GSAP for this small interaction."
+    }
+  ],
+  "preflight": [
+    {
+      "box": 1,
+      "skill_check": "**Brief inference** declared (Section 0.B one-liner)?",
+      "short_name": "Brief inference",
+      "status": "Pass",
+      "assessment": "Pass: declared above."
+    },
+    {
+      "box": 2,
+      "skill_check": "**Dial values** explicit and reasoned from the brief, not silently using baseline?",
+      "short_name": "Explicit dials",
+      "status": "Pass",
+      "assessment": "Pass: preserve mode; predictable daily product UI."
+    },
+    {
+      "box": 3,
+      "skill_check": "**Design system** chosen from Section 2 if applicable, or aesthetic labeled honestly?",
+      "short_name": "Chosen foundation",
+      "status": "Pass",
+      "assessment": "Pass in context: existing native CSS system, no official system impersonated."
+    },
+    {
+      "box": 4,
+      "skill_check": "**Redesign mode** detected and audit performed (if applicable, Section 11)?",
+      "short_name": "Redesign audit",
+      "status": "Pass",
+      "assessment": "Pass: tokens, structure, preservation and findings recorded."
+    },
+    {
+      "box": 5,
+      "skill_check": "**ZERO em-dashes (`—`) anywhere on the page.** Headlines, eyebrows, pills, body, quotes, attribution, captions, buttons, alt text. Zero. (Section 9.G - non-negotiable.)",
+      "short_name": "Zero long dashes",
+      "status": "Fail",
+      "assessment": "Fail: interface literals, DT-09. User content excluded."
+    },
+    {
+      "box": 6,
+      "skill_check": "**Page Theme Lock**: ONE theme (light, dark, or auto) for the whole page. No section flips to inverted mode mid-page (Section 4.11)?",
+      "short_name": "Page theme lock",
+      "status": "Partial",
+      "assessment": "Partial: main light palette is consistent; dark startup/main mismatch, DT-02."
+    },
+    {
+      "box": 7,
+      "skill_check": "**Color Consistency Lock**: one accent color used identically across all sections (Section 4.2)?",
+      "short_name": "Accent consistency",
+      "status": "Partial",
+      "assessment": "Partial: teal core plus meaningful status colors; decorative/category/Builder exceptions need policy, DT-08."
+    },
+    {
+      "box": 8,
+      "skill_check": "**Shape Consistency Lock**: one corner-radius system applied consistently (Section 4.4)?",
+      "short_name": "Shape consistency",
+      "status": "Partial",
+      "assessment": "Partial: role-based radius scale is not documented, DT-08."
+    },
+    {
+      "box": 9,
+      "skill_check": "**Button Contrast Check**: every CTA text is readable against its background (no white-on-white, WCAG AA 4.5:1)?",
+      "short_name": "All button contrasts",
+      "status": "Pending",
+      "assessment": "Pending: sampled primary/secondary pairs pass; all computed hover/active/generated combinations unverified."
+    },
+    {
+      "box": 10,
+      "skill_check": "**CTA Button Wrap**: no CTA label wraps to 2+ lines at desktop?",
+      "short_name": "Desktop button wrapping",
+      "status": "Pending",
+      "assessment": "Pending: long workflow/library labels and added actions need actual layout checks."
+    },
+    {
+      "box": 11,
+      "skill_check": "**Form Contrast Check**: form inputs, placeholders, focus rings, labels all pass WCAG AA against the section background?",
+      "short_name": "Form contrast",
+      "status": "Fail",
+      "assessment": "Fail: composer placeholder, DT-01; boundary concerns in DT-06."
+    },
+    {
+      "box": 12,
+      "skill_check": "**Serif discipline**: if a serif is used, it is NOT Fraunces or Instrument_Serif (or it is, with explicit brand justification)? Different serif from your previous project?",
+      "short_name": "Serif discipline",
+      "status": "Source pass",
+      "assessment": "Source pass: existing IBM Plex sans/mono; no new serif introduced."
+    },
+    {
+      "box": 13,
+      "skill_check": "**Premium-consumer palette check**: if the brief is premium-consumer (cookware / wellness / artisan / luxury), the palette is NOT the AI-default beige+brass+oxblood+espresso family? Different family from your previous premium-consumer project?",
+      "short_name": "Premium-consumer palette",
+      "status": "N/A",
+      "assessment": "N/A: agent workspace, not a consumer marketing brief."
+    },
+    {
+      "box": 14,
+      "skill_check": "**Italic descender clearance**: every italic word with `y g j p q` has `leading-[1.1]` min + `pb-1` reserve?",
+      "short_name": "Italic display descenders",
+      "status": "N/A",
+      "assessment": "N/A: no relevant first-party italic display treatment found; user prose excluded."
+    },
+    {
+      "box": 15,
+      "skill_check": "**Hero fits the viewport**: headline ≤ 2 lines, subtext ≤ 20 words AND ≤ 4 lines, CTA visible without scroll, font scale planned around image?",
+      "short_name": "Hero fits viewport",
+      "status": "N/A",
+      "assessment": "N/A as a marketing rule; initial workspace/Quick Build action visibility still pending browser checks."
+    },
+    {
+      "box": 16,
+      "skill_check": "**Hero top padding**: max `pt-24` at desktop, hero content does not float halfway down the viewport?",
+      "short_name": "Hero top padding",
+      "status": "N/A",
+      "assessment": "N/A: product entry states. Do not redesign them to impose a marketing hero."
+    },
+    {
+      "box": 17,
+      "skill_check": "**Hero stack discipline**: max 4 text elements in hero (eyebrow OR brand strip, headline, subtext, CTAs)? No tiny tagline below CTAs, no trust micro-strip in hero?",
+      "short_name": "Hero stack limit",
+      "status": "N/A",
+      "assessment": "N/A: task controls are real product controls."
+    },
+    {
+      "box": 18,
+      "skill_check": "**EYEBROW COUNT (mechanical)**: count instances of `uppercase tracking` micro-labels above section headlines across all components. Count ≤ ceil(sectionCount / 3)? Hero counts as 1.",
+      "short_name": "Eyebrow quota",
+      "status": "N/A",
+      "assessment": "N/A across hidden routes: 19 static eyebrow instances do not mean 19 visible sections. Agents' nested headings remain a typography review candidate."
+    },
+    {
+      "box": 19,
+      "skill_check": "**Split-Header Ban**: no \"left big headline + right small explainer paragraph\" pattern as a section header (vertical stack instead)?",
+      "short_name": "Split-header ban",
+      "status": "N/A",
+      "assessment": "N/A to heading/action toolbars. Existing supporting copy sits with its heading."
+    },
+    {
+      "box": 20,
+      "skill_check": "**Zigzag Alternation Cap**: no 3+ consecutive sections with the same image+text-split layout?",
+      "short_name": "Zigzag cap",
+      "status": "N/A",
+      "assessment": "N/A: no marketing section sequence."
+    },
+    {
+      "box": 21,
+      "skill_check": "**No Duplicate CTA Intent**: no two CTAs with the same intent (\"Get in touch\" + \"Let's talk\" both on page = Fail)?",
+      "short_name": "Duplicate CTA intent",
+      "status": "N/A",
+      "assessment": "N/A as a global ban: repeated contextual product actions can be valid. Preserve intent clarity."
+    },
+    {
+      "box": 22,
+      "skill_check": "**Logo wall = logo only**: no industry / category labels printed below logos?",
+      "short_name": "Logo-only wall",
+      "status": "N/A",
+      "assessment": "N/A: no first-party customer logo wall."
+    },
+    {
+      "box": 23,
+      "skill_check": "**Bento Background Diversity**: at least 2-3 bento cells have real visual variation (image, gradient, pattern), not all white-on-white text cards?",
+      "short_name": "Bento visual variation",
+      "status": "N/A",
+      "assessment": "N/A: resource cards contain real product records, not marketing bento."
+    },
+    {
+      "box": 24,
+      "skill_check": "**\"Used by / Trusted by\" logo wall** lives UNDER the hero, not inside it, uses REAL SVG logos (Simple Icons / devicon) or generated SVG marks, NOT plain text wordmarks?",
+      "short_name": "Real logos below hero",
+      "status": "N/A",
+      "assessment": "N/A: no customer proof wall."
+    },
+    {
+      "box": 25,
+      "skill_check": "**Copy Self-Audit**: every visible string re-read, no grammatically-broken or AI-hallucinated phrases (\"free on its past\" type) shipped?",
+      "short_name": "Every visible string reviewed",
+      "status": "Pending",
+      "assessment": "Pending: static labels sampled; dynamic account/error/import states need rendered copy review. DT-09 is confirmed."
+    },
+    {
+      "box": 26,
+      "skill_check": "**Motion motivated**: every animation can be justified in one sentence (hierarchy / storytelling / feedback / state transition), no GSAP-for-show?",
+      "short_name": "Motivated motion",
+      "status": "Partial",
+      "assessment": "Partial: state feedback exists; attachment preference and dialog geometry need correction, DT-04/10."
+    },
+    {
+      "box": 27,
+      "skill_check": "**Marquee max-one-per-page**: no two horizontal marquees on the same page?",
+      "short_name": "One marquee maximum",
+      "status": "Source pass",
+      "assessment": "Source pass: no first-party marquee found."
+    },
+    {
+      "box": 28,
+      "skill_check": "**Navigation on ONE line** at desktop, height ≤ 80px?",
+      "short_name": "Single-line navigation",
+      "status": "N/A",
+      "assessment": "N/A for vertical sidebar; 69px desktop topbar fits nominal height cap. Title/search/actions need width checks."
+    },
+    {
+      "box": 29,
+      "skill_check": "**Section-Layout-Repetition** check: no two sections share the same layout family (at least 4 different families across 8 sections)?",
+      "short_name": "Different layout per section",
+      "status": "N/A",
+      "assessment": "N/A: repeatable product templates intentionally share layout."
+    },
+    {
+      "box": 30,
+      "skill_check": "**Bento has rhythm AND exact cell count** (N items → N cells, no empty cells in middle or at end)?",
+      "short_name": "Exact bento cell count",
+      "status": "N/A",
+      "assessment": "N/A: no marketing bento."
+    },
+    {
+      "box": 31,
+      "skill_check": "**Long lists use the right UI component** (not default `<ul>` with `divide-y` for > 5 items - see Section 4.9 alternatives)?",
+      "short_name": "Long list component",
+      "status": "Partial",
+      "assessment": "Partial: search/filter/tabs exist; data tables and execution histories are intentionally preserved. Large-data rendering unverified."
+    },
+    {
+      "box": 32,
+      "skill_check": "**Real images used** (gen-tool first, then Picsum-seed, then explicit placeholder slots) - NO div-based fake screenshots, NO hand-rolled decorative SVGs, NO pure-text minimalism?",
+      "short_name": "Real marketing images",
+      "status": "N/A",
+      "assessment": "N/A: actual workspace UI; do not generate decorative photos or fake product screenshots."
+    },
+    {
+      "box": 33,
+      "skill_check": "**No pills/labels overlaid on images** (no `Plate · Brand`, no `Field notes - journal`)?",
+      "short_name": "No labels over photos",
+      "status": "N/A",
+      "assessment": "N/A: document/user-media previews are product content."
+    },
+    {
+      "box": 34,
+      "skill_check": "**No photo-credit captions as decoration** (`Field study no. 12 · Ines Caetano`)?",
+      "short_name": "No decorative photo credits",
+      "status": "Source pass",
+      "assessment": "Source pass: no first-party decorative photo-credit pattern found."
+    },
+    {
+      "box": 35,
+      "skill_check": "**No version footers** (`v1.4.2`, `Build 0048`) on marketing pages?",
+      "short_name": "No marketing version footer",
+      "status": "N/A",
+      "assessment": "N/A: real product/runtime version information can remain."
+    },
+    {
+      "box": 36,
+      "skill_check": "**No micro-meta-sentences** under eyebrows (\"Each of these is a feature we ship today...\")?",
+      "short_name": "No eyebrow meta prose",
+      "status": "N/A",
+      "assessment": "N/A as a marketing limit; functional permission/billing guidance must remain."
+    },
+    {
+      "box": 37,
+      "skill_check": "**No decoration text strip at hero bottom** (`BRAND. MOTION. SPATIAL.`)?",
+      "short_name": "No hero decoration strip",
+      "status": "N/A",
+      "assessment": "N/A: no marketing hero."
+    },
+    {
+      "box": 38,
+      "skill_check": "**No floating top-right sub-text** in section headings?",
+      "short_name": "No floating explainer",
+      "status": "Source pass",
+      "assessment": "Source pass: section description lives with heading; actual geometry still pending."
+    },
+    {
+      "box": 39,
+      "skill_check": "**No scoring/progress bars with filled background tracks** as comparison visuals?",
+      "short_name": "No comparison progress tracks",
+      "status": "N/A",
+      "assessment": "N/A for operational progress or score data."
+    },
+    {
+      "box": 40,
+      "skill_check": "**No locale / city-name / time / weather strips** unless brief is genuinely globally-distributed or place-focused?",
+      "short_name": "No locale decoration",
+      "status": "Source pass",
+      "assessment": "Source pass: no decorative city/weather header; real timezone/tool data excluded."
+    },
+    {
+      "box": 41,
+      "skill_check": "**No scroll cues** (`Scroll`, `↓ scroll`, `Scroll to explore`)?",
+      "short_name": "No scroll cues",
+      "status": "Source pass",
+      "assessment": "Source pass: no first-party decorative scroll cue found."
+    },
+    {
+      "box": 42,
+      "skill_check": "**No version labels in hero** (V0.6, BETA, INVITE-ONLY) unless the brief is a launch?",
+      "short_name": "No hero version labels",
+      "status": "N/A",
+      "assessment": "N/A: actual product runtime/status information is not marketing decoration."
+    },
+    {
+      "box": 43,
+      "skill_check": "**No section-numbering eyebrows** (`00 / INDEX`, `001 · Capabilities`, `06 · how it works`)?",
+      "short_name": "No numbered eyebrows",
+      "status": "N/A",
+      "assessment": "N/A to real setup progression labels such as 2 OF 3; retain navigable progression."
+    },
+    {
+      "box": 44,
+      "skill_check": "**No decorative dots** (zero by default, only for real semantic state)?",
+      "short_name": "No decorative dots",
+      "status": "Partial",
+      "assessment": "Partial: runtime status dot exists; its actual state association needs review, not a blind visual removal."
+    },
+    {
+      "box": 45,
+      "skill_check": "**No `border-t` + `border-b` on every row** of long lists / spec tables?",
+      "short_name": "Sparse row dividers",
+      "status": "N/A",
+      "assessment": "N/A as a marketing prohibition on operational tables/history; retain useful grouping."
+    },
+    {
+      "box": 46,
+      "skill_check": "**Content density** sane: no 20-row data tables, no fake-precise specs without justification, ≤ 25-word sub-paragraphs by default?",
+      "short_name": "Content density",
+      "status": "Pending",
+      "assessment": "Pending: mobile collapse exists; controls, nested disclosures and long settings forms need screen review."
+    },
+    {
+      "box": 47,
+      "skill_check": "**Quotes ≤ 3 lines** of body, attribution clean (no em-dash)?",
+      "short_name": "Short testimonials",
+      "status": "N/A",
+      "assessment": "N/A: no product testimonial section; user/AI responses may be long."
+    },
+    {
+      "box": 48,
+      "skill_check": "**Motion claimed = motion shown**: if `MOTION_INTENSITY > 4`, page actually animates, not just claimed?",
+      "short_name": "Motion matches dial",
+      "status": "Pass",
+      "assessment": "Pass in context: low motion chosen, no cinematic treatment required."
+    },
+    {
+      "box": 49,
+      "skill_check": "**GSAP sticky-stack / horizontal-pan** implemented per Section 5.A / 5.B canonical skeleton (`start: \"top top\"`, `pin: true`, correct scrub)?",
+      "short_name": "GSAP pin/scrub pattern",
+      "status": "N/A",
+      "assessment": "N/A: no first-party GSAP scroll stack/pan."
+    },
+    {
+      "box": 50,
+      "skill_check": "**No `window.addEventListener('scroll')`** - using Motion `useScroll()` / ScrollTrigger / IntersectionObserver / CSS scroll-driven animations only?",
+      "short_name": "No raw window scroll animation",
+      "status": "Source pass",
+      "assessment": "Source pass: no first-party forbidden scroll-animation listener found."
+    },
+    {
+      "box": 51,
+      "skill_check": "**Reduced motion** wrapped for everything `MOTION_INTENSITY > 3`?",
+      "short_name": "Reduced motion",
+      "status": "Fail",
+      "assessment": "Fail: attachment entrance animation remains enabled, DT-04."
+    },
+    {
+      "box": 52,
+      "skill_check": "**Dark mode** tokens defined and tested in both modes?",
+      "short_name": "Tested dark mode",
+      "status": "Fail",
+      "assessment": "Fail: no main-app dark theme; both-mode visual acceptance unperformed, DT-02."
+    },
+    {
+      "box": 53,
+      "skill_check": "**Mobile collapse** explicit (`w-full`, `px-4`, `max-w-7xl mx-auto`) for high-variance layouts?",
+      "short_name": "Explicit mobile collapse",
+      "status": "Source pass",
+      "assessment": "Source pass with limits: dedicated mobile rules and settings disclosure exist; actual overflow/touch testing pending."
+    },
+    {
+      "box": 54,
+      "skill_check": "**Viewport stability**: `min-h-[100dvh]`, never `h-screen`?",
+      "short_name": "Dynamic viewport sizing",
+      "status": "Partial",
+      "assessment": "Partial: main app uses dvh; startup still uses 100vh. Desktop-only startup is not a mobile hero defect."
+    },
+    {
+      "box": 55,
+      "skill_check": "**`useEffect` animations** have strict cleanup functions?",
+      "short_name": "React effect cleanup",
+      "status": "N/A",
+      "assessment": "N/A: vanilla frontend, no React effect tree. Existing listener ownership still needs its normal behavioral tests."
+    },
+    {
+      "box": 56,
+      "skill_check": "**Empty / loading / error** states provided?",
+      "short_name": "Empty/loading/error states",
+      "status": "Partial",
+      "assessment": "Partial: states exist and interface logic passes; all rendered/generated states not inspected."
+    },
+    {
+      "box": 57,
+      "skill_check": "**Cards omitted** in favor of spacing where possible?",
+      "short_name": "Restraint with cards",
+      "status": "Pass",
+      "assessment": "Pass in context: resource grouping and dialog hierarchy have purpose. Three chat task starters are not fake feature cards."
+    },
+    {
+      "box": 58,
+      "skill_check": "**Icons** from an allowed library only (Phosphor / HugeIcons / Radix / Tabler), no hand-rolled SVG paths?",
+      "short_name": "Approved icon family",
+      "status": "Fail",
+      "assessment": "Fail: no documented family/provenance; mixed embedded glyphs, DT-07."
+    },
+    {
+      "box": 59,
+      "skill_check": "**Motion** isolated in client-leaf components with `'use client'` at the top, memoized?",
+      "short_name": "Client-leaf motion",
+      "status": "N/A",
+      "assessment": "N/A: no React/Next framework migration authorized or necessary."
+    },
+    {
+      "box": 60,
+      "skill_check": "**No AI Tells** from Section 9 (Inter as default, AI-purple, three-equal cards, Jane Doe, Acme, \"Quietly in use at\")?",
+      "short_name": "No generic AI tells",
+      "status": "Partial",
+      "assessment": "Partial: real brand preserved, no decorative gradient hero. Token/icon/copy findings remain; no blanket aesthetic certificate."
+    },
+    {
+      "box": 61,
+      "skill_check": "**Core Web Vitals** plausibly hit (LCP < 2.5s, INP < 200ms, CLS < 0.1)?",
+      "short_name": "Core Web Vitals",
+      "status": "Pending",
+      "assessment": "Pending: no Lighthouse, LCP/INP/CLS measurements or large-state performance run. DT-03/10 identify risks only."
+    },
+    {
+      "box": 62,
+      "skill_check": "**One design system** per project (no Material + shadcn mixed)?",
+      "short_name": "One design system",
+      "status": "Pass",
+      "assessment": "Pass in context: one existing shared stylesheet/component system; no new library mix. Token debt is DT-08."
+    }
+  ],
+  "preflight_dispositions": {
+    "Pass": 7,
+    "Fail": 5,
+    "Partial": 9,
+    "Pending": 5,
+    "Source pass": 8,
+    "N/A": 28
+  },
+  "contrast": {
+    "method": "sRGB relative luminance: (Llighter+0.05)/(Ldarker+0.05); literal source pairs, not browser-computed cascade/state measurements",
+    "pairs": [
+      {
+        "name": "body",
+        "foreground": "#131416",
+        "background": "#ffffff",
+        "ratio": 18.4318
+      },
+      {
+        "name": "muted",
+        "foreground": "#5d5f60",
+        "background": "#ffffff",
+        "ratio": 6.4196
+      },
+      {
+        "name": "primary-button",
+        "foreground": "#ffffff",
+        "background": "#1d1f20",
+        "ratio": 16.5472
+      },
+      {
+        "name": "accent",
+        "foreground": "#1b6c80",
+        "background": "#ffffff",
+        "ratio": 5.9943
+      },
+      {
+        "name": "general-placeholder-white",
+        "foreground": "#6b7479",
+        "background": "#ffffff",
+        "ratio": 4.7734
+      },
+      {
+        "name": "general-placeholder-raised-if-used",
+        "foreground": "#6b7479",
+        "background": "#f4f6f8",
+        "ratio": 4.4061
+      },
+      {
+        "name": "composer-placeholder",
+        "foreground": "#96958f",
+        "background": "#ffffff",
+        "ratio": 3.0033
+      },
+      {
+        "name": "desktop-helper",
+        "foreground": "#92918b",
+        "background": "#ffffff",
+        "ratio": 3.1602
+      },
+      {
+        "name": "control-boundary",
+        "foreground": "#cdced1",
+        "background": "#ffffff",
+        "ratio": 1.5736
+      },
+      {
+        "name": "separator",
+        "foreground": "#e8eaec",
+        "background": "#ffffff",
+        "ratio": 1.2061
+      }
+    ]
+  },
+  "validation": {
+    "frontend_checks": {
+      "command": "node --test tests/studio_*.test.cjs",
+      "passed": 267,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "report_sha256": "8e0b79232ec871c720a27ab8aa56852d6fbfa2b7b0c4cea84dab070a43ab298d",
+      "type": "Node logic, fixtures and source assertions; not browser rendering"
+    },
+    "static_main_controls": 197,
+    "static_main_unnamed_controls": 0,
+    "static_main_duplicate_ids": 0,
+    "static_main_inline_svgs": 13,
+    "static_main_eyebrows": 19,
+    "static_shared_controls": 1,
+    "static_shared_unnamed_controls": 0,
+    "static_artifact_controls": 0,
+    "static_startup_controls": 0,
+    "skill_boxes_accounted_for": 62
+  },
+  "pending": [
+    "Actual phone/tablet/desktop geometry, overflow and desktop button-label wrapping",
+    "Computed contrast for every generated state and both themes",
+    "Keyboard, screen-reader and physical touch interactions",
+    "Complete rendered interface-copy review, excluding user/AI content",
+    "Lighthouse and measured LCP/INP/CLS",
+    "Approved browser access path; prior local-origin denial was not retried or bypassed"
+  ],
+  "correction_order": [
+    "Text/control contrast; coherent dark tokens; reduced motion; touch targets",
+    "Local fonts; approved local icon family; role-based tokens; shared pressed feedback; interface punctuation; layout-animation removal",
+    "Authorized rendered acceptance at mobile/tablet/desktop widths, both themes, keyboard and performance checks"
+  ],
+  "constraints": {
+    "product_code_changed": false,
+    "example_code_changed": false,
+    "vm_contacted": false,
+    "dmg_rebuilt": false,
+    "release_published": false,
+    "new_packages_installed": false,
+    "browser_access_attempted": false
+  },
+  "scope_exclusions": [
+    "Marketing hero/photography/bento/testimonial composition rules",
+    "Rewriting user/AI/imported content or identifiers",
+    "Renaming Nexus or changing routes/navigation/form order/legal copy",
+    "Separate legacy example visualizer and third-party vendor code",
+    "Automatically replacing native CSS with React/Next, Fluent or Carbon"
+  ],
+  "next": "Correct confirmed design defects before optional new evaluation features; preserve desktop-last and no-VM/no-DMG constraints."
+}

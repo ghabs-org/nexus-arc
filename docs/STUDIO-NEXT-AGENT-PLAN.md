@@ -1,5 +1,31 @@
 # Nexus Studio — next-agent delivery plan
 
+### Design guideline audit — 30 October 2026
+
+The requested design-taste review finds Studio **not fully aligned**. Preserve
+the existing product UI and brand; the skill's marketing layouts, imagery quotas
+and framework defaults do not override the approved no-rewrite constraint.
+The source audit considers every one of the skill's 62 pre-flight boxes and
+records ten findings with evidence and correction boundaries.
+
+Priority corrections: insufficient composer/helper text contrast; main-app dark
+theme coverage; locally packaged fonts; reduced-motion handling for attachment
+animation; small mobile secondary targets; control-boundary contrast; icon-family
+provenance; visual token consistency; interface-only punctuation; and dialog
+layout-property animation. Fix these before the optional offline report comparison.
+Do not change routes, primary navigation labels, form order, logo or user content.
+
+All 267 existing frontend logic/source checks pass, zero failures/skips. Static
+main-document inspection finds names for all 197 controls and unique IDs. These
+checks do not prove layout, computed contrast, generated-form accessibility or
+performance. Browser/Lighthouse, both-theme and physical-device acceptance remain
+pending. This slice changes audit/plan records only. No VM, new DMG, release
+publication or package installation occurred. Whole-plan completion stays false;
+desktop milestone 9 stays last.
+
+See [audit and full pre-flight matrix](STUDIO-DESIGN-TASTE-AUDIT.md) and
+[source/evidence snapshot](STUDIO-DESIGN-TASTE-AUDIT.json).
+
 ### Coverage and delivery reconciliation — 29 October 2026
 
 Current decision: the frozen inventory retains 135 locally accepted flags,
