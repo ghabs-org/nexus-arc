@@ -3,6 +3,17 @@
 Date: 30 October 2026. Result: **not fully aligned**. This is a source-based audit,
 not approval of every rendered screen or an implementation of the fixes below.
 
+Follow-up: the [first accessibility correction slice](STUDIO-INTERFACE-ACCESSIBILITY.md)
+implements the known source issues in DT-01, DT-04 and DT-05, including the compact
+skill-action sizing exception. Its [checkpoint](STUDIO-INTERFACE-ACCESSIBILITY-CHECKPOINT.json)
+records its source and validation boundaries. The [system-theme slice](STUDIO-SYSTEM-THEME.md)
+adds source implementation for DT-02 and shared control-boundary issues in DT-06,
+with palette contracts and isolated-preview checks. Color portions of DT-08 are
+addressed; its broader shape/layer/interaction policy remains open. The audit and
+matrix below are the original pre-fix snapshot, not current-source certification.
+DT-03/07/09/10, remaining consistency work and rendered/physical-device acceptance
+are still open. Neither source slice establishes complete visual conformance.
+
 ## Design read and scope
 
 Reading this as: an existing agent workspace for daily use, with a calm,

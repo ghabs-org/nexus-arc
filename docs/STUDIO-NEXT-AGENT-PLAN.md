@@ -1,5 +1,62 @@
 # Nexus Studio — next-agent delivery plan
 
+### System dark theme and control boundaries — 30 October 2026
+
+Implemented a system-preference palette across the existing workspace, shared and
+document viewers, controls, dialogs, semantic states, previews and native diagrams.
+Fixed light colors now use shared roles. Native startup shares the canvas/text/
+accent colors. Enabled controls use stronger border tokens; decorative dividers
+remain quiet. Theme changes use CSS without submitting or restarting work.
+
+Restricted HTML previews receive owned color-scheme metadata while preserving the
+empty sandbox, no-referrer, sanitizer exclusions and no-network/no-style CSP.
+Downloaded media/document content is not inverted or rewritten. Dark tokens apply
+to screens, preserving light print styling. The shell cache advances to v66 using
+the existing explicit update flow. No new framework, package, API or state record
+is introduced; routes, navigation, field order and approval behavior stay intact.
+
+All 273 frontend checks pass, zero failures/skips, including the six focused theme
+checks. The initial five checks failed before the changes; the added sixth checks
+native-startup consistency. Token checks cover 54 workspace text, 20 non-text and
+two startup contrast pairs. Syntax, example lint/compilation, CSS delimiter/comment
+and whitespace checks pass. These are source/fixture contracts, not full computed
+browser accessibility. Rendered two-theme/mobile/keyboard/device/performance and
+complex diagram acceptance remain pending. No denied browser path was retried,
+VM contacted, dependency installed, DMG rebuilt or release published.
+
+DT-02 and shared DT-06 source defects are implemented, with part of DT-08's color
+consolidation. Do not mark the audit or full plan complete. Next source work:
+locally packaged fonts and one documented icon family, then remaining visual
+consistency, punctuation and dialog animation. Desktop milestone 9 stays last.
+See [scope and acceptance](STUDIO-SYSTEM-THEME.md) and
+[evidence](STUDIO-SYSTEM-THEME-CHECKPOINT.json).
+
+### Text contrast, reduced motion and touch targets — 30 October 2026
+
+Implemented the first small design correction slice: composer/helper/placeholder
+text now uses existing readable muted tokens; skill-filter placeholders no longer
+fade that color; attachment entrance animation requires normal-motion preference.
+Scoped phone/coarse-pointer rules give known small remove, hint and skill-import
+actions 44px minimum hit heights, with wrapping groups and no desktop-wide resize.
+The skill buttons' important compact-size overrides are handled explicitly.
+
+The shell cache advances to v65 using the existing explicit PWA update flow.
+The existing example serves the shared UI and documents manual checks without AI.
+No route, label, form order, framework, dependency or persisted-data change occurs.
+
+All 267 frontend logic/source checks pass, zero failures/skips. Six current literal
+text/background pairs exceed 4.5:1; source-rule, syntax, example lint/compilation
+and whitespace checks pass. Real rendered hit boxes, preference behavior, keyboard
+and physical-device acceptance remain pending. The previous browser access denial
+was not retried or bypassed. No VM, provider, new DMG or publication occurred.
+
+DT-01, DT-04 and the identified DT-05 source defects are implemented; the original
+audit snapshot remains historical. Do not mark the design audit or entire plan
+complete. Next: coherent dark theme and control-border tokens (DT-02/06), then
+local fonts/icons and remaining visual consistency work. Desktop milestone 9
+stays last. See [scope and manual checks](STUDIO-INTERFACE-ACCESSIBILITY.md) and
+[evidence](STUDIO-INTERFACE-ACCESSIBILITY-CHECKPOINT.json).
+
 ### Design guideline audit — 30 October 2026
 
 The requested design-taste review finds Studio **not fully aligned**. Preserve

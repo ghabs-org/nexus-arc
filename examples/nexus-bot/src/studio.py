@@ -3,6 +3,20 @@
 The same Studio UI adapts to phones, tablets and desktop browsers. For access
 from a separate phone, configure authenticated team hosting over HTTPS; a phone's
 localhost address does not point to the computer running this example.
+
+This consumer serves the framework's shared stylesheet, including readable
+composer/helper text, reduced-motion attachment feedback and touch-sized secondary
+actions. To inspect those states, attach a small local file without sending a
+message, compare the attachment entrance with the system's Reduce Motion setting,
+and inspect the remove/import actions at a phone width or on a touch device.
+These manual checks do not require an AI call. Rendered/device acceptance remains
+separate from source and interface-logic checks.
+
+The framework also follows the system light/dark preference. Switch that setting
+while Studio is open and inspect focused fields, selected tabs, status labels,
+file previews and existing diagrams. The same palette applies to shared/document
+viewers and the native startup screen. Inspect control outlines separately from
+decorative dividers; changing the theme does not submit or restart work.
 """
 
 import os

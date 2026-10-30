@@ -133,7 +133,7 @@ function previewContent(preview, options={}) {
     if(preview.kind==="audio")media.controls=true;else media.alt="Artifact preview";root.append(media);
   } else if(preview.kind==="html") {
     const frame=document.createElement("iframe");frame.title="Restricted HTML preview";frame.setAttribute("sandbox","");frame.referrerPolicy="no-referrer";
-    frame.srcdoc="<!doctype html><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; style-src 'none'; img-src 'none'; form-action 'none'; base-uri 'none'\">"+DOMPurify.sanitize(preview.text,{FORBID_TAGS:["script","style","link","meta","base","form","input","button","select","textarea","svg","math","iframe","object","embed","img","video","audio"],FORBID_ATTR:["href","src","srcset","style"]});root.append(frame);
+    frame.srcdoc="<!doctype html><meta name='color-scheme' content='light dark'><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; style-src 'none'; img-src 'none'; form-action 'none'; base-uri 'none'\">"+DOMPurify.sanitize(preview.text,{FORBID_TAGS:["script","style","link","meta","base","form","input","button","select","textarea","svg","math","iframe","object","embed","img","video","audio"],FORBID_ATTR:["href","src","srcset","style"]});root.append(frame);
   } else if(preview.kind==="csv") {
     const table=document.createElement("table");preview.rows.forEach((row,i)=>{const tr=document.createElement("tr");row.forEach(value=>{const cell=document.createElement(i?"td":"th");cell.textContent=value;tr.append(cell);});table.append(tr);});root.append(table);
   } else if(preview.kind==="mermaid") {

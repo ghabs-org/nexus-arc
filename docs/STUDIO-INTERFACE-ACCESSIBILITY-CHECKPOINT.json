@@ -1,0 +1,100 @@
+{
+  "format": "nexus-studio-interface-accessibility-checkpoint/v1",
+  "date": "2026-10-30",
+  "scope": "First small design correction slice: text contrast, preference-gated attachment animation and secondary touch targets",
+  "status": "source-implemented-interface-logic-verified",
+  "whole_plan_complete": false,
+  "whole_design_audit_complete": false,
+  "audit": "docs/STUDIO-DESIGN-TASTE-AUDIT.md",
+  "implemented_findings": [
+    "DT-01: identified composer/helper text source defects",
+    "DT-04: attachment motion preference source defect",
+    "DT-05: identified removal/hint/skill-action sizing exceptions"
+  ],
+  "source_head": "cd8bde12dc3945f26f89742471578b4786d0f842",
+  "working_tree_snapshot": true,
+  "implementation": {
+    "nexus/studio_static/studio.css": "2fafaa3957bd130d83526c29dae93702cc94a999d07da12bdcbf8aad9e4d8a0f",
+    "nexus/studio_static/service-worker.js": "3752c3aef0a87a486b237198f0eec9895aff796383cb1aa20683e1e8f2f6131f",
+    "examples/nexus-bot/src/studio.py": "d021fb9c6470c08f01b7782adb8f19a637d922e55131b1da20f85781f0b22a4c"
+  },
+  "example": "examples/nexus-bot/src/studio.py consumes the shared framework UI; documentation now identifies affected manual checks, with no duplicated styles or AI use",
+  "validation": {
+    "frontend_logic": {
+      "command": "node --test tests/studio_*.test.cjs",
+      "passed": 267,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "report_sha256": "a8b0c246c94238e7a96d762e38458326c70f9ae28a1ded88b54c7de4bc836651",
+      "scope": "Node fixture/source/logic tests, not actual browser rendering"
+    },
+    "literal_text_contrast": {
+      "method": "sRGB relative luminance; current token colors, not browser-computed states",
+      "target": 4.5,
+      "pairs": [
+        {
+          "foreground": "#5d5f60",
+          "background": "#ffffff",
+          "ratio": 6.42
+        },
+        {
+          "foreground": "#5d5f60",
+          "background": "#f9fbfc",
+          "ratio": 6.185
+        },
+        {
+          "foreground": "#5d5f60",
+          "background": "#f4f6f8",
+          "ratio": 5.926
+        },
+        {
+          "foreground": "#666660",
+          "background": "#ffffff",
+          "ratio": 5.778
+        },
+        {
+          "foreground": "#666660",
+          "background": "#f9fbfc",
+          "ratio": 5.567
+        },
+        {
+          "foreground": "#666660",
+          "background": "#f4f6f8",
+          "ratio": 5.334
+        }
+      ],
+      "previous_composer_placeholder_ratio": 3.003,
+      "previous_chat_helper_ratio": 3.16
+    },
+    "source_rules": "Specific composer/helper selectors use muted tokens; placeholder opacity is 1; default chip rule has no animation; no-preference media gate owns chip animation; final narrow/coarse overrides handle compact important skill buttons",
+    "static": [
+      "JavaScript syntax: service-worker.js",
+      "Python compilation: example consumer",
+      "Ruff: example consumer",
+      "git diff --check"
+    ],
+    "browser": "Not attempted; prior local-origin denial not retried or bypassed",
+    "new_test_files": []
+  },
+  "pwa": {
+    "cache_before": "nexus-studio-shell-v64",
+    "cache_after": "nexus-studio-shell-v65",
+    "explicit_update_flow_preserved": true,
+    "private_data_cache_policy_changed": false
+  },
+  "compatibility": "Stylesheet and public cache version only; no state migration, API, route, field order, wording or provider behavior change. Fine-pointer desktop compact action sizing remains.",
+  "pending": [
+    "Actual computed contrast and control boundaries (DT-06)",
+    "Dark theme (DT-02) and both-theme rendered acceptance",
+    "Fonts/icons/tokens/punctuation/dialog-layout animation (DT-03/07/08/09/10)",
+    "Real mobile hit boxes, no-overflow layout and coarse-pointer tablet acceptance",
+    "Rendered preference changes, keyboard and screen-reader checks"
+  ],
+  "vm_contacted": false,
+  "provider_invoked": false,
+  "dmg_rebuilt": false,
+  "release_published": false,
+  "new_dependencies_installed": false,
+  "next": "Coherent dark theme and control-border tokens, preserving the current frontend, brand, routes and desktop-last policy."
+}
