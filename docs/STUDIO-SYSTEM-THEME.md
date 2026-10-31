@@ -4,6 +4,11 @@ Date: 30 October 2026. Scope: DT-02 and the shared control-boundary source issue
 in DT-06 from the design audit. The complete audit and implementation plan remain
 open. This does not certify every rendered state or physical device.
 
+Follow-up on 31 October: [the theme picker](STUDIO-THEME-PICKER.md) adds explicit
+System/Light/Dark selection and browser-origin persistence. The original source
+description below records the initial system-only slice; the picker supersedes
+its no-storage/no-theme-control boundary for the served UI.
+
 ## Behavior
 
 Studio now follows the system light/dark preference through a shared CSS token

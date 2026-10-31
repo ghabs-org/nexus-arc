@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const css = fs.readFileSync("nexus/studio_static/studio.css", "utf8");
-const dark = css.match(/@media[^{}]*prefers-color-scheme:\s*dark[^{}]*\{\s*:root\s*\{([^{}]*)\}/);
+const dark = css.match(/@media[^{}]*prefers-color-scheme:\s*dark[^{}]*\{\s*:root[^{}]*\{([^{}]*)\}/);
 const lightSource = dark ? css.slice(0, dark.index) : css;
 
 function declarations(source) {
@@ -65,7 +65,7 @@ for (const mode of ["light", "dark"]) {
 
 test("native startup and the workspace retain the same system palette", () => {
   const startup = fs.readFileSync("apps/studio-desktop/ui/startup.css", "utf8");
-  const startupDark = startup.match(/@media[^{}]*prefers-color-scheme:\s*dark[^{}]*\{\s*:root\s*\{([^{}]*)\}/);
+  const startupDark = startup.match(/@media[^{}]*prefers-color-scheme:\s*dark[^{}]*\{\s*:root[^{}]*\{([^{}]*)\}/);
   assert.ok(startupDark, "Native startup needs the matching dark palette");
   const startupLight = Object.assign({}, ...[...startup.slice(0, startupDark.index).matchAll(/:root\s*\{([^{}]*)\}/g)].map(match => declarations(match[1])));
   for (const mode of ["light", "dark"]) {

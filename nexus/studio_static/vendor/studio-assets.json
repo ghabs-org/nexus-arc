@@ -1,0 +1,223 @@
+{
+  "format": "nexus-studio-vendored-assets/v1",
+  "date": "2026-10-31",
+  "source_archives_verified": "SHA-512 against pinned registry metadata; no installation hooks executed",
+  "packages": [
+    {
+      "name": "@ibm/plex-sans",
+      "version": "1.1.0",
+      "license": "OFL-1.1",
+      "source": "https://registry.npmjs.org/@ibm/plex-sans/-/plex-sans-1.1.0.tgz",
+      "integrity": "sha512-WPgvO6Yfj2w5YbhyAr1tv95RUz4LRJlqN+CmYvBglabXteufP1D1E9BABMde+ZIKdRbFJDoKF5eQzfhpnbgZcQ==",
+      "license_file": "IBMPlexSans-LICENSE.txt",
+      "files": [
+        {
+          "file": "IBMPlexSans-Regular.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexSans-Regular.woff2",
+          "sha256": "ba711a3085ff9f27440b6b9c4550cfc47c97bf36591d5da958b975bb3add8c1a",
+          "bytes": 63020,
+          "weight": 400,
+          "style": "normal"
+        },
+        {
+          "file": "IBMPlexSans-Medium.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexSans-Medium.woff2",
+          "sha256": "5660f8a658f8bb50dbc005232f885eadffd2bc1c235c4f6fbb63469d1f9cde6d",
+          "bytes": 66740,
+          "weight": 500,
+          "style": "normal"
+        },
+        {
+          "file": "IBMPlexSans-SemiBold.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexSans-SemiBold.woff2",
+          "sha256": "f78048030eab62e860efa39a0df79e2e5581bf122eb95b9bc42c0b8a4988d205",
+          "bytes": 67060,
+          "weight": 600,
+          "style": "normal"
+        },
+        {
+          "file": "IBMPlexSans-Italic.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexSans-Italic.woff2",
+          "sha256": "13284fab1821ba6e3652c1580fcf2bbfd8c9309520c69b3d1224dab40b37c597",
+          "bytes": 67220,
+          "weight": 400,
+          "style": "italic"
+        },
+        {
+          "file": "IBMPlexSans-MediumItalic.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexSans-MediumItalic.woff2",
+          "sha256": "16f11ab3543e3d1e2704407378aafa4ddb570ad11f6a476eeaa4ec6e67fc30e8",
+          "bytes": 71204,
+          "weight": 500,
+          "style": "italic"
+        },
+        {
+          "file": "IBMPlexSans-SemiBoldItalic.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexSans-SemiBoldItalic.woff2",
+          "sha256": "d875a0705b4596532250beeb66d9a2b8866a25f78b5b249b3d3293b5f922e50e",
+          "bytes": 70664,
+          "weight": 600,
+          "style": "italic"
+        }
+      ]
+    },
+    {
+      "name": "@ibm/plex-mono",
+      "version": "2.5.0",
+      "license": "OFL-1.1",
+      "source": "https://registry.npmjs.org/@ibm/plex-mono/-/plex-mono-2.5.0.tgz",
+      "integrity": "sha512-STBJIPxPomOYPmBMO7z5TKPJUotAF9u3gAUumTqVgwgrAO+K4FRNh0MlhsoJjKhJKsMbBJR10/bk4inkj/wc1w==",
+      "license_file": "IBMPlexMono-LICENSE.txt",
+      "files": [
+        {
+          "file": "IBMPlexMono-Regular.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexMono-Regular.woff2",
+          "sha256": "ba204497f16b6d334cee9d1e963a831b73e3a56e1d6300a8489d18df7214b350",
+          "bytes": 49248,
+          "weight": 400,
+          "style": "normal"
+        },
+        {
+          "file": "IBMPlexMono-Medium.woff2",
+          "source_member": "package/fonts/complete/woff2/IBMPlexMono-Medium.woff2",
+          "sha256": "33faf307fa6031fb4062276d7320a6d632de890cbb347576fd80cfa01077bc25",
+          "bytes": 50400,
+          "weight": 500,
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "name": "@tabler/icons",
+      "version": "3.50.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/@tabler/icons/-/icons-3.50.0.tgz",
+      "integrity": "sha512-HflLxyrH1cqC7s7jzQGSjpsTAVIoaf7+/yHjbdM59rJQBMjliibp+LYhDPFxOMcwa1M8DNpOk6ENzQiWn9a1Dg==",
+      "license_file": "tabler-icons-LICENSE.txt",
+      "sprite": "tabler-icons.svg",
+      "sprite_sha256": "9d1a0c1b283907b80e69e97e14a0b1253d322b15a8e86aab3bc036e14c3f2f03",
+      "icons": [
+        {
+          "id": "search",
+          "source_member": "package/icons/outline/search.svg",
+          "source_sha256": "57e054b6c1508be40d5eba1ea434b702f5ff55dca04e28e5e3f22472c2f6176d",
+          "paths_sha256": "5bda62b1c8c164ed498976e2ed5d14e8893096d7f9efa7efe6db56623ae1cb4d"
+        },
+        {
+          "id": "help-circle",
+          "source_member": "package/icons/outline/help-circle.svg",
+          "source_sha256": "74ae26c8029b6aa824a688207a5c3cd54e08b611dc35e3faa593165cab48517b",
+          "paths_sha256": "e678ded34ee9847608d3f128780c0975a46e4f7006f2e103b00b354ceab13f0b"
+        },
+        {
+          "id": "download",
+          "source_member": "package/icons/outline/download.svg",
+          "source_sha256": "cbd1714bda2ebd0fa70ab725a6845be0853ba908b2c05a7cadf2ba4fef41cbdf",
+          "paths_sha256": "21da65263112273201c20603c7de2a8dfef5d458a1fe98a350293b1eee19e631"
+        },
+        {
+          "id": "paperclip",
+          "source_member": "package/icons/outline/paperclip.svg",
+          "source_sha256": "2095683ad0162da2e51b703d42170892d37f437698c94a5afd01cf60d8e754bc",
+          "paths_sha256": "e53466120674745693daefa34e4137f8440f7df800398d1eb0da44bb7637de07"
+        },
+        {
+          "id": "upload",
+          "source_member": "package/icons/outline/upload.svg",
+          "source_sha256": "7f0524e0eb36c694dda24352199d1b2b4609b98a0096d10cf1eb0f82cf8084d8",
+          "paths_sha256": "618cf2b0620f045655c3f9c2ad5f41b4ea31acae7469ca7cbd96187942974bcb"
+        },
+        {
+          "id": "arrows-maximize",
+          "source_member": "package/icons/outline/arrows-maximize.svg",
+          "source_sha256": "783d491ed6046e51b9b09d377b8a5dc1c01aec3ecd28546b67065a326ca7f672",
+          "paths_sha256": "61f661df213d43fc875b5acc539539d8471265d7b87c7a59569a31b85be34c1e"
+        },
+        {
+          "id": "arrows-minimize",
+          "source_member": "package/icons/outline/arrows-minimize.svg",
+          "source_sha256": "04bbdfc9361cbdb7d2049690a9fc35818628b6b5e03794ce625ead786a39b34a",
+          "paths_sha256": "568d1a53b84c280861262f96f26589661b5ca6b15156141ea6d0e161b495ec69"
+        },
+        {
+          "id": "thumb-up",
+          "source_member": "package/icons/outline/thumb-up.svg",
+          "source_sha256": "80f74cd0cf0e3e13d23158091a82b9d1a2143a5c59cbb4e1dfe5119f640921de",
+          "paths_sha256": "b290cecd380739624f0e67d0870f5021abced01acc3ffb81a383a294629b82a8"
+        },
+        {
+          "id": "thumb-down",
+          "source_member": "package/icons/outline/thumb-down.svg",
+          "source_sha256": "3318f47baa4ef434367705fccdf7b03c1aa433c4ae36364c19cfcd4df2fb50fa",
+          "paths_sha256": "9033587333c9506a61f99b2d831ec5782c839cb5efa78b44189f4b4ca6e74415"
+        },
+        {
+          "id": "volume",
+          "source_member": "package/icons/outline/volume.svg",
+          "source_sha256": "22d085446863a81202f4ee88b5ad86462ad63ff3fe48c678f2f67dcb048a491c",
+          "paths_sha256": "023fce8d7efa0f92e5bc2e76644a15c457f8e9162c69fe941758c882d2759d97"
+        },
+        {
+          "id": "player-pause",
+          "source_member": "package/icons/outline/player-pause.svg",
+          "source_sha256": "a797446af04bd77bfbf008bab59eaa51c3a45c879247b58299f8a97efc5c137c",
+          "paths_sha256": "daae159ea2326666cdcffc952a366fa6275d80262285b01eafa2738ecaeaa0d9"
+        },
+        {
+          "id": "player-play",
+          "source_member": "package/icons/outline/player-play.svg",
+          "source_sha256": "9726d5358929fbfe4a4cbd08131a5f1b4246ca01125f5108e7221b9c73e101ff",
+          "paths_sha256": "9225f3bb493ecf612c64e512933850ac743a482fa30228fbab04b3436a13e237"
+        },
+        {
+          "id": "player-stop",
+          "source_member": "package/icons/outline/player-stop.svg",
+          "source_sha256": "75f1904477cb0250c54ec6b47f361f66dc2c7162f25715546cf65cdc2dc891dc",
+          "paths_sha256": "c77e4ed3060da193d7cf81e375423e8a855b29c81be27648fda996efb8fea136"
+        },
+        {
+          "id": "photo",
+          "source_member": "package/icons/outline/photo.svg",
+          "source_sha256": "9aa0bd44bef46e1b80445220ea04499ca145fb3339005e13f1da1b17ad8ac159",
+          "paths_sha256": "609e29b97c0ca9226e80f995dc2ecdfba8c2dbaef54c969ed6214c188876ab22"
+        },
+        {
+          "id": "file-type-pdf",
+          "source_member": "package/icons/outline/file-type-pdf.svg",
+          "source_sha256": "fb26f0f0833ef4a37a757340d0145a42fdcf406e3496c54644a5dc5589f6e3c6",
+          "paths_sha256": "9f7ca61cc65681a4b921aed575dc398349e7a7c95f4c26d5d8556e636e565daa"
+        },
+        {
+          "id": "code",
+          "source_member": "package/icons/outline/code.svg",
+          "source_sha256": "5346a2b3e357ae031abe7b4c256869099dfb63dcfc7866114fa2805c8a45deb3",
+          "paths_sha256": "545197def597062191bb115c9aaabeca8ad67ee023281f0110da29cf77ad3ef5"
+        },
+        {
+          "id": "file",
+          "source_member": "package/icons/outline/file.svg",
+          "source_sha256": "5bc2f4793403e41bb0b0fa160d82f150199d8d0f97bbc6b4d4ca52227dc55984",
+          "paths_sha256": "2327dd00400a063b944443d85bbee22e62486e0f965c4ea0447ab2ab2b52df73"
+        },
+        {
+          "id": "chevron-down",
+          "source_member": "package/icons/outline/chevron-down.svg",
+          "source_sha256": "a3a801faaeeb084e8a96897a5e2f355870b861e9606a1b50a89011b2718cc322",
+          "paths_sha256": "f5d8428467ba01e92cc7c118995a7926a56d9877a06d01c97da918a0caec736a"
+        },
+        {
+          "id": "sparkles",
+          "source_member": "package/icons/outline/sparkles.svg",
+          "source_sha256": "ffafcb1ef22c839851ebcda13a9c73c62b36615acc458faa2f158254edadf3b6",
+          "paths_sha256": "cebfd764901be09ba782bc5c543545788765020b7f7a67d4438a7b7746bee792"
+        },
+        {
+          "id": "arrow-up-right",
+          "source_member": "package/icons/outline/arrow-up-right.svg",
+          "source_sha256": "450ff3ea98d6ccad96032d09e89c8d91b0b332e1dcc05e437ae8093916d5e005",
+          "paths_sha256": "a601cc30b892c738478a40738efff943a44621c53bb59b157c20b4ff3040f1ac"
+        }
+      ]
+    }
+  ]
+}

@@ -11,8 +11,10 @@ adds source implementation for DT-02 and shared control-boundary issues in DT-06
 with palette contracts and isolated-preview checks. Color portions of DT-08 are
 addressed; its broader shape/layer/interaction policy remains open. The audit and
 matrix below are the original pre-fix snapshot, not current-source certification.
-DT-03/07/09/10, remaining consistency work and rendered/physical-device acceptance
-are still open. Neither source slice establishes complete visual conformance.
+The [local-assets follow-up](STUDIO-LOCAL-ASSETS.md) implements DT-03 and DT-07,
+with scoped browser checks for themes, layouts and keyboard navigation. DT-08's
+broader consistency policy, DT-09, DT-10 and remaining rendered/physical-device
+acceptance stay open. No source slice establishes complete visual conformance.
 
 ## Design read and scope
 

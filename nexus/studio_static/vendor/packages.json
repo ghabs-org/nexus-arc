@@ -16,5 +16,23 @@
     "version": "12.2.0",
     "integrity": "sha512-w7nr/SFrLO7BaVTs3dQTvYSV6nYSBj0Yy9DjBhsIJtAcHqRzXSq4Pg32ujHZ/AdWsAMNEvvhbm5dt9E2tOiHzw==",
     "source": "https://registry.npmjs.org/mermaid/-/mermaid-12.2.0.tgz"
+  },
+  {
+    "name": "@ibm/plex-sans",
+    "version": "1.1.0",
+    "integrity": "sha512-WPgvO6Yfj2w5YbhyAr1tv95RUz4LRJlqN+CmYvBglabXteufP1D1E9BABMde+ZIKdRbFJDoKF5eQzfhpnbgZcQ==",
+    "source": "https://registry.npmjs.org/@ibm/plex-sans/-/plex-sans-1.1.0.tgz"
+  },
+  {
+    "name": "@ibm/plex-mono",
+    "version": "2.5.0",
+    "integrity": "sha512-STBJIPxPomOYPmBMO7z5TKPJUotAF9u3gAUumTqVgwgrAO+K4FRNh0MlhsoJjKhJKsMbBJR10/bk4inkj/wc1w==",
+    "source": "https://registry.npmjs.org/@ibm/plex-mono/-/plex-mono-2.5.0.tgz"
+  },
+  {
+    "name": "@tabler/icons",
+    "version": "3.50.0",
+    "integrity": "sha512-HflLxyrH1cqC7s7jzQGSjpsTAVIoaf7+/yHjbdM59rJQBMjliibp+LYhDPFxOMcwa1M8DNpOk6ENzQiWn9a1Dg==",
+    "source": "https://registry.npmjs.org/@tabler/icons/-/icons-3.50.0.tgz"
   }
 ]

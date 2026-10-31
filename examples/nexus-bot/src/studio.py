@@ -17,6 +17,20 @@ while Studio is open and inspect focused fields, selected tabs, status labels,
 file previews and existing diagrams. The same palette applies to shared/document
 viewers and the native startup screen. Inspect control outlines separately from
 decorative dividers; changing the theme does not submit or restart work.
+
+Use Theme in the header, sidebar on narrow desktops, or mobile Menu to select
+System, Light or Dark. This browser remembers the choice for the current Studio
+address; System remains the default. Shared/source viewers offer the same picker.
+Storage-disabled browsers keep the choice only while the page is open. Native
+startup still follows the OS; this preference belongs to the served UI origin.
+
+Fonts and interface icons also come from the framework's local static assets:
+IBM Plex Sans/Mono and the licensed Tabler outline sprite. No font CDN is needed.
+Inspect the header, file categories, audio controls and expanded chat controls in
+both themes. At phone widths, open Menu, change Theme, then use Tab and Escape to
+check focus containment and return. Empty desktop conversations scroll as a page
+so welcome actions remain reachable on shorter screens; existing conversations
+retain their message panel. These checks do not require sending a message.
 """
 
 import os

@@ -1,5 +1,64 @@
 # Nexus Studio — next-agent delivery plan
 
+### Local typography, icons and scoped browser acceptance — 31 October 2026
+
+Packaged eight complete IBM Plex Sans/Mono WOFF2 faces locally with their original
+OFL licenses, pinned registry integrity and per-file hashes. Removed the remote
+font import. Replaced 26 literal interface SVG instances with a locally packaged
+Tabler outline family, canonical glyph paths and MIT attribution. Standard sizes
+are 16/20/24px with a shared 1.75 stroke. Data diagrams and the existing logo retain
+their own rendering. Wheel package data and public shell v68 include the assets;
+future native bundles already copy the complete static directory.
+
+Browser checks used a disposable local workspace at 360/390px phone, 1024px tablet
+and 1280px desktop widths. Sampled conversation/Quick Build layouts have no
+horizontal overflow; local fonts and visible sprite glyphs load. Light/Dark and
+System selection, persisted System after reload, mobile Tab containment, Escape
+closure and focus return passed. Fixed empty-desktop welcome clipping found at
+1280x720 by allowing that empty state to scroll as a page.
+
+All 284 frontend checks pass, zero failures/skips, including five new asset
+integrity/packaging contracts. Twelve real HTTP assertions pass with Postman,
+without event reporting. A Python wheel contains all 14 checked asset/script
+files with exact source bytes. No native installer was built, provider called,
+VM contacted or release published. Build dependencies were isolated by uv; no
+frontend runtime/framework dependency was added.
+
+DT-03 and DT-07 source fixes are implemented with scoped browser evidence. DT-08
+shape/layer/interaction policy, DT-09 interface punctuation and DT-10 dialog
+layout animation remain open. Full screen-reader, real-device/PWA, broader screen
+coverage and performance measurements remain separate gates. Earlier snapshots
+below retain their historical browser-pending statements; this slice supersedes
+those only for the checks listed here. Whole-plan and whole-audit remain open.
+See [scope and maintenance](STUDIO-LOCAL-ASSETS.md) and
+[checkpoint](STUDIO-LOCAL-ASSETS-CHECKPOINT.json).
+
+### System / Light / Dark picker — 31 October 2026
+
+Added the requested explicit theme control to the wide desktop header, narrower
+desktop sidebar, mobile Menu, embedded agent header and shared/source viewers.
+System remains the default; fixed Light/Dark override OS changes. A before-paint
+local controller remembers the bounded choice per browser origin, synchronizes
+same-origin tabs and controls, and remains usable when storage is blocked.
+
+Explicit and automatic dark palettes match; explicit light suppresses automatic
+dark. Print remains light. The mobile focus trap includes the select, with 44px
+touch sizing. Registered inert HTML previews update their owned scheme metadata
+without changing content isolation, replaying work or reloading unchanged frames.
+The static asset map and public shell v67 include the local script. No account
+state, theme framework, provider invocation or mutation API was introduced.
+
+All 279 frontend checks pass, zero failures/skips, including twelve focused
+theme/picker checks. Browser layout, first paint, device/PWA and keyboard/native
+dropdown acceptance remain pending; no prior access denial was retried. Persistence
+is per Studio address; native startup and other origins retain their own system
+behavior. No VM deployment, dependency install, release or DMG rebuild occurred.
+
+Next source work: local fonts and one documented icon family. Preserve the
+remaining visual/device gates and desktop-last rule. Whole-plan stays open.
+See [usage and limits](STUDIO-THEME-PICKER.md) and
+[evidence](STUDIO-THEME-PICKER-CHECKPOINT.json).
+
 ### System dark theme and control boundaries — 30 October 2026
 
 Implemented a system-preference palette across the existing workspace, shared and

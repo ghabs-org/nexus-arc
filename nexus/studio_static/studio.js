@@ -1024,8 +1024,8 @@ function toggleDetailMaximized(force){
     expandBtn.setAttribute("aria-label",isMax?"Exit full view":"Full view");
     expandBtn.setAttribute("title",isMax?"Exit full view (F)":"Full view (F)");
     expandBtn.innerHTML=isMax
-      ? '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>'
-      : '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+      ? '<svg class="studio-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="/vendor/tabler-icons.svg#arrows-minimize"></use></svg>'
+      : '<svg class="studio-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="/vendor/tabler-icons.svg#arrows-maximize"></use></svg>';
   }
   if(footerBtn)footerBtn.textContent=isMax?"Exit full view":"Full view";
 }
@@ -1263,7 +1263,7 @@ bootstrap();
       event.preventDefault();
       closeNavigation(true);
     } else if (event.key === "Tab") {
-      const items = [...sidebar.querySelectorAll("a[href],button:not(:disabled)")].filter(item => item.getClientRects().length);
+      const items = [...sidebar.querySelectorAll("a[href],button:not(:disabled),select:not(:disabled)")].filter(item => item.getClientRects().length);
       const first = items[0], last = items.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }

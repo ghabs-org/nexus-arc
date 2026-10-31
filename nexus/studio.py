@@ -29,6 +29,7 @@ _ASSETS = {
     "/vendor/marked.js": ("vendor/marked.js", "text/javascript; charset=utf-8"),
     "/vendor/purify.js": ("vendor/purify.js", "text/javascript; charset=utf-8"),
     "/content.js": ("content.js", "text/javascript; charset=utf-8"),
+    "/theme.js": ("theme.js", "text/javascript; charset=utf-8"),
     "/conversation-content.js": ("conversation-content.js", "text/javascript; charset=utf-8"),
     "/features.js": ("features.js", "text/javascript; charset=utf-8"),
     "/workspace-access.js": ("workspace-access.js", "text/javascript; charset=utf-8"),
@@ -51,6 +52,18 @@ _ASSETS = {
 }
 _MAX_BODY = 1024 * 1024
 _DESKTOP_SESSION_REQUIRED = {"error": "Open this workspace from Nexus Studio Desktop"}
+
+# Bundled static fonts, glyphs and license/provenance records share the public asset policy.
+for _asset in (Path(__file__).parent / "studio_static" / "vendor").glob("*"):
+    _mime = {
+        ".woff2": "font/woff2",
+        ".svg": "image/svg+xml",
+        ".txt": "text/plain; charset=utf-8",
+        ".json": "application/json",
+    }.get(_asset.suffix)
+    if _asset.is_file() and _mime:
+        _ASSETS["/vendor/" + _asset.name] = ("vendor/" + _asset.name, _mime)
+
 
 # Vendored diagram modules are an explicit local inventory, never a generic
 # filesystem route. URL traversal cannot reach a file outside this allowlist.
