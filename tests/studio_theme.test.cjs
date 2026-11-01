@@ -141,3 +141,14 @@ test("first-party interface literals contain zero em-dashes or en-dashes (DT-09)
     }
   }
 });
+
+test("first-party HTML and rendered studio templates satisfy strict script-src and style-src CSP", () => {
+  for (const htmlFile of ["index.html", "artifact.html", "shared.html"]) {
+    const html = fs.readFileSync(`nexus/studio_static/${htmlFile}`, "utf8");
+    assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/i, `Inline <script> in ${htmlFile} violates script-src 'self'`);
+    assert.doesNotMatch(html, /\bstyle="/i, `Inline style="" in ${htmlFile} violates style-src 'self'`);
+    assert.match(html, /<meta name="description"/i, `${htmlFile} should declare a meta description`);
+  }
+  const studioJs = fs.readFileSync("nexus/studio_static/studio.js", "utf8");
+  assert.doesNotMatch(studioJs, /\bstyle="/, "studio.js templates must use CSS classes instead of inline style attributes blocked by style-src 'self'");
+});

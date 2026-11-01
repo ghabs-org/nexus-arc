@@ -54,13 +54,13 @@ function agentOptions(selected=""){
 }
 function renderAgents(){
   $("agent-count").textContent=state.agents.length;
-  const builtinHtml=`<div class="section-subheading" style="margin-bottom:14px"><span class="eyebrow">STANDARD ROLES</span><h2 style="font-size:18px;margin:4px 0 0">Built-in specialists</h2><p style="font-size:12px;color:var(--muted);margin:4px 0 0">Ready-made platform assistants available in every workspace.</p></div><div class="resource-grid"><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>General assistant</span></div><h2>General assistant</h2><p>Direct conversation with your selected provider and tools. Flexible general-purpose assistant for any task.</p><div class="card-meta"><span>Provider default model</span><span>· Interactive chat</span></div><div class="card-actions"><button data-agent="">Start conversation</button></div></article><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>Platform help</span></div><h2>Studio assistant</h2><p>Answers platform questions and reads, lists and edits workspace files. Every change waits for your Apply and is versioned in git.</p><div class="card-meta"><span>Platform documentation</span><span>· Workspace files</span><span>· Changes need approval</span></div><div class="card-actions"><button data-agent="studio-assistant">Start conversation</button><a class="button-link secondary" href="#assistant">Help center</a></div></article></div>`;
+  const builtinHtml=`<div class="section-subheading"><span class="eyebrow">STANDARD ROLES</span><h2>Built-in specialists</h2><p>Ready-made platform assistants available in every workspace.</p></div><div class="resource-grid"><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>General assistant</span></div><h2>General assistant</h2><p>Direct conversation with your selected provider and tools. Flexible general-purpose assistant for any task.</p><div class="card-meta"><span>Provider default model</span><span>· Interactive chat</span></div><div class="card-actions"><button data-agent="">Start conversation</button></div></article><article class="resource-card"><div class="card-meta">${badge("BUILT-IN")}<span>Platform help</span></div><h2>Studio assistant</h2><p>Answers platform questions and reads, lists and edits workspace files. Every change waits for your Apply and is versioned in git.</p><div class="card-meta"><span>Platform documentation</span><span>· Workspace files</span><span>· Changes need approval</span></div><div class="card-actions"><button data-agent="studio-assistant">Start conversation</button><a class="button-link secondary" href="#assistant">Help center</a></div></article></div>`;
   const customCards=state.agents.length?`<div class="resource-grid">${state.agents.map(item=>{
     const doc=item.document||{},meta=doc.metadata||{},spec=doc.spec||{};
     if(item.error)return `<article class="resource-card"><h2>${escapeHtml(item.id)}</h2>${badge("Invalid definition","failed")}<p>${escapeHtml(item.error)}</p></article>`;
     return `<article class="resource-card"><div class="card-meta">${badge("AGENT")}<span>${escapeHtml(providerName(spec.provider))}</span></div><h2>${escapeHtml(meta.name||item.id)}</h2><p>${escapeHtml(meta.description||spec.purpose||"Ready for your next task.")}</p><div class="card-meta"><span>${escapeHtml(spec.model||"Provider default model")}</span>${spec.effort?`<span>· ${escapeHtml(spec.effort)} effort</span>`:""}<span>· ${escapeHtml(spec.timeout_seconds||600)}s timeout</span>${(spec.skill_ids||[]).length?`<span>· ${(spec.skill_ids.length>1?`Skills: ${escapeHtml(spec.skill_ids.join(", "))}`:`Skill: ${escapeHtml(spec.skill_ids[0])}`)}</span>`:""}</div><div class="card-actions"><button data-agent="${escapeHtml(item.id)}">Start conversation</button><button class="secondary" data-versions="${escapeHtml(item.id)}" data-kind="agents">Versions</button><button class="secondary" data-schedule-agent="${escapeHtml(item.id)}">Schedule</button><button class="secondary" data-edit-agent="${escapeHtml(item.id)}">Edit</button><button class="secondary" data-definition="${escapeHtml(item.id)}" data-kind="agents">Instructions</button><button class="secondary" data-delete-definition="${escapeHtml(item.id)}" data-kind="agents">Delete</button></div></article>`;
   }).join("")}</div>`:empty("Give your team its first custom specialist","Create an agent with a clear purpose, then choose which provider does the work.","create-agent","Create an agent");
-  const customHtml=`<div class="section-subheading" style="margin:28px 0 14px"><span class="eyebrow">WORKSPACE SPECIALISTS</span><h2 style="font-size:18px;margin:4px 0 0">Custom specialists</h2><p style="font-size:12px;color:var(--muted);margin:4px 0 0">Agents configured for specific tasks, models, or workflows.</p></div>${customCards}`;
+  const customHtml=`<div class="section-subheading section-subheading-spaced"><span class="eyebrow">WORKSPACE SPECIALISTS</span><h2>Custom specialists</h2><p>Agents configured for specific tasks, models, or workflows.</p></div>${customCards}`;
   $("agents-content").innerHTML=builtinHtml+customHtml;
   const selected=$("chat-agent").value;
   $("chat-agent").innerHTML=agentOptions(selected);
@@ -122,7 +122,7 @@ function agentSkillOptions(selected=[], extraSkills=[], disabled=false){
     }
   }
   if(!allSkills.length){
-    return '<p class="empty-note" style="padding:8px;font-size:12px;color:var(--muted)">No skills in catalog yet. Click "+ New skill…" or import from Library.</p>';
+    return '<p class="empty-note">No skills in catalog yet. Click "+ New skill…" or import from Library.</p>';
   }
   return allSkills.map(s=>{
     const isChecked=selected.includes(s.id)?"checked":"";
@@ -481,7 +481,7 @@ function agentToolOptions(selected=[]){
     }
   }
   if(!allTools.length){
-    return '<p class="empty-note" style="padding:8px;font-size:12px;color:var(--muted)">No registered tools available in this workspace.</p>';
+    return '<p class="empty-note">No registered tools available in this workspace.</p>';
   }
   return allTools.map(t=>{
     const isChecked=selected.includes(t.id)?"checked":"";
@@ -493,7 +493,7 @@ function agentToolOptions(selected=[]){
 function createSkillDialog(){
   return new Promise(resolve=>{
     const dialog=document.createElement("dialog");dialog.className="feature-dialog";
-    dialog.innerHTML=`<form><header class="dialog-heading"><h2>Create a new skill</h2><button type="button" class="quiet close-dialog" data-dismiss aria-label="Close">×</button></header><div class="dialog-hint-row"><span>Have an existing skill repository or SKILL.md?</span><button type="button" class="secondary import-skill-trigger">Import skill…</button></div><label>Skill name<input name="name" required placeholder="e.g. Content Strategy Guidelines" maxlength="200"></label><label>Description (optional)<input name="description" placeholder="Short description of this skill" maxlength="500"></label><label>Instructions<textarea name="content" rows="6" required placeholder="Detailed guidelines and instructions this skill provides to the agent..."></textarea></label><p class="form-error" role="alert"></p><footer><button type="button" class="secondary import-skill-trigger" style="margin-right:auto">Import skill…</button><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">Create skill</button></footer></form>`;
+    dialog.innerHTML=`<form><header class="dialog-heading"><h2>Create a new skill</h2><button type="button" class="quiet close-dialog" data-dismiss aria-label="Close">×</button></header><div class="dialog-hint-row"><span>Have an existing skill repository or SKILL.md?</span><button type="button" class="secondary import-skill-trigger">Import skill…</button></div><label>Skill name<input name="name" required placeholder="e.g. Content Strategy Guidelines" maxlength="200"></label><label>Description (optional)<input name="description" placeholder="Short description of this skill" maxlength="500"></label><label>Instructions<textarea name="content" rows="6" required placeholder="Detailed guidelines and instructions this skill provides to the agent..."></textarea></label><p class="form-error" role="alert"></p><footer><button type="button" class="secondary import-skill-trigger">Import skill…</button><button type="button" class="secondary" data-dismiss>Cancel</button><button type="submit">Create skill</button></footer></form>`;
     document.body.append(dialog);let resolved=false;
     const finish=val=>{if(!resolved){resolved=true;dialog.close();dialog.remove();resolve(val);}};
     dialog.querySelectorAll("[data-dismiss]").forEach(b=>b.onclick=()=>finish(null));
@@ -1122,7 +1122,7 @@ document.addEventListener("click",async event=>{
       const name=item?.document?.metadata?.name||wfId;
       const wfRuns=(state.runs||[]).filter(r=>r.kind==="workflow"&&(r.workflow_definition_id===wfId||r.workflow_id===wfId||r.workflow_snapshot?.id===wfId));
       const content=wfRuns.length?`
-        <div class="card-actions" style="margin-bottom:14px">
+        <div class="card-actions workflow-history-top-actions">
           <button data-run-workflow="${escapeHtml(wfId)}">Run workflow</button>
           <button class="secondary" data-filter-activity-workflow="${escapeHtml(wfId)}">Filter in Activity</button>
         </div>
@@ -1142,7 +1142,7 @@ document.addEventListener("click",async event=>{
         </div>
       `:`
         <p>No runs recorded yet for this workflow.</p>
-        <div class="card-actions" style="margin-top:16px">
+        <div class="card-actions workflow-history-empty-actions">
           <button data-run-workflow="${escapeHtml(wfId)}">Run workflow now</button>
           <button class="secondary" data-filter-activity-workflow="${escapeHtml(wfId)}">View in Activity</button>
         </div>

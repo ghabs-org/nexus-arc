@@ -1,5 +1,48 @@
 # Nexus Studio — next-agent delivery plan
 
+### Broadened browser checks, CSP cleanup and open-plan status — 1 November 2026
+
+Executed broadened browser verification against a disposable local Studio
+workspace (`127.0.0.1:5094`) across `1280x720` (desktop), `1024x768` (tablet),
+`390x844` and `360x780` (mobile touch) in both Light and Dark themes, with zero
+external provider calls (`runCount: 0`):
+
+- **CSP and console cleanup (`index.html`, `theme.js`, `studio.js`, `studio.css`, `artifact.html`, `shared.html`):**
+  moved early `desktop-app` class detection from the inline `<script>` in
+  `index.html` into `theme.js` (satisfying `script-src 'self'`), replaced inline
+  `style="..."` attributes in `studio.js` (`renderAgents`, `agentSkillOptions`,
+  `agentToolOptions`, `createSkillDialog`, `workflowHistory`) with stylesheet
+  classes in `studio.css` (satisfying `style-src 'self'`), and added `<meta name="description">`
+  tags to `index.html`, `artifact.html` and `shared.html`. Public shell cache
+  advances to `v71`.
+- **Evaluator, dataset and experiment screens:** verified `#evaluations` report
+  listing, `#evaluation-compare-reports` offline before/after comparison dialog
+  (*"Offline report comparison"*, effective threshold `75%`, `improved slots: 1`,
+  `regressed slots: 0`), single report view with explicit `Download report JSON`,
+  experiment declaration export review (`experiment.yaml`, `experiment-handoff.json`
+  prepared without auto-download), dataset + judge export review (`dataset.yaml`,
+  `evaluator.yaml`, `cases.csv`, `evaluation-handoff.json` prepared without
+  auto-download), handoff import conversion -> `Review save changes` ->
+  `Save reviewed dataset and judge` plan preview, and structured diagnostics on
+  stale/unsupported export requests (`stale_revision`).
+- **Detail dialog full-view and transitions (`DT-10`):** verified `#detail` opens
+  and expands immediately via `#detail-toggle-expand` (`.maximized`, sticky
+  header and footer) with no layout-dimension transitions.
+- **Shared viewer (`/shared.html`), artifact viewer (`/artifact.html`) and complex previews:**
+  verified read-only private snapshot rendering with `.table-container` horizontal
+  wrapping, explicit artifact download button and private continuation prompt;
+  verified `/artifact.html` pinned revision rendering inside `iframe[sandbox=""]`
+  with `referrerPolicy="no-referrer"` and live `color-scheme` synchronization
+  across Light/Dark/System; and verified workflow graph SVG node fill adaptation
+  between Light (`rgb(255, 255, 255)`) and Dark (`rgb(28, 34, 39)`).
+- **Accessibility tree and Lighthouse audits:** verified accessibility snapshot
+  landmarks (`complementary`, `navigation`, `main`, `searchbox`, `combobox`,
+  heading hierarchy, and `alert` live region) and recorded Lighthouse `100`
+  Accessibility, `100` Best Practices and `100` SEO on desktop and mobile
+  navigation audits (plus `100` Accessibility and `100` Best Practices on
+  `/artifact.html` and `/shared.html`), with zero horizontal overflow across
+  `1280x720`, `1024x768`, `390x844` and `360x780`.
+
 ### Offline before/after evaluation comparison, UI consistency and open-plan status — 1 November 2026
 
 Implemented offline before/after evaluation report comparison (`compare_reports`
@@ -14,14 +57,15 @@ any previously passing slot regresses. Public shell cache advances to `v70`.
 The plan remains open. Most remaining work is validation and desktop delivery,
 plus the three UI consistency fixes now completed in source:
 
-1. **Finish UI consistency (completed in source; rendered sweep remains part of item 2):**
+1. **Finish UI consistency (completed in source and verified in local browser):**
    shared corner sizes (`--radius-*`), layering (`--layer-*`) and pressed-button
    feedback (`--primary-active`, secondary/quiet `:active`); clean interface
    punctuation (`DT-09`, zero first-party long dashes); remove dialog animations
    that resize layout (`DT-10`, immediate `#detail[open]` geometry changes).
-2. **Broaden browser checks:** evaluator/experiment screens, import/export,
-   review/save, diagnostics, downloads, shared views and complex previews. Check
-   screen readers and performance.
+2. **Broaden browser checks (local Chromium sweep completed; physical assistive-tech/screen-reader voiceover pass remains open with item 3):**
+   evaluator/experiment screens, import/export, review/save, diagnostics,
+   downloads, shared views and complex previews verified across desktop, tablet
+   and mobile viewports in Light and Dark themes.
 3. **Test real devices:** microphone permissions, recording/playback, touch
    controls and installed/offline web-app behavior.
 4. **Validate selected integrations live:** account permissions, API

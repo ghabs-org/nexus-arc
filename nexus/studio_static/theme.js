@@ -5,6 +5,17 @@
   const root = document.documentElement, previews = new WeakMap();
   let storage = null, preference = "system";
   try { storage = window.localStorage; preference = normalize(storage.getItem(key)); } catch {}
+  try {
+    if (
+      window.__TAURI__ ||
+      window.__TAURI_INTERNALS__ ||
+      String(window.location?.search || "").includes("desktop=1") ||
+      String(document.cookie || "").includes("nexus_desktop=1") ||
+      window.sessionStorage?.getItem("nexus-desktop") === "1"
+    ) {
+      root.classList?.add("desktop-app");
+    }
+  } catch {}
   const media = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   function normalize(value) { return choices.has(value) ? value : "system"; }
   function resolved() { return preference === "system" ? (media?.matches ? "dark" : "light") : preference; }

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Nexus Studio</title>
+  <meta name="description" content="Nexus Studio workspace for AI agents, workflows, evaluations, and runtime operations.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#173a36" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#15191c" media="(prefers-color-scheme: dark)">
@@ -13,17 +14,6 @@
   <script src="/theme.js"></script>
   <link rel="preload" href="/vendor/IBMPlexSans-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/studio.css">
-  <script>
-    if (
-      window.__TAURI__ ||
-      window.__TAURI_INTERNALS__ ||
-      location.search.includes("desktop=1") ||
-      document.cookie.includes("nexus_desktop=1") ||
-      sessionStorage.getItem("nexus-desktop") === "1"
-    ) {
-      document.documentElement.classList.add("desktop-app");
-    }
-  </script>
   <script defer src="/vendor/marked.js"></script>
   <script defer src="/vendor/purify.js"></script>
   <script defer src="/content.js"></script>
