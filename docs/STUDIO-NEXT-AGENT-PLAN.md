@@ -1,5 +1,30 @@
 # Nexus Studio — next-agent delivery plan
 
+### Token/layer policy, interface punctuation and dialog transition cleanup (DT-08, DT-09, DT-10) — 1 November 2026
+
+Consolidated role-based radius (`--radius-xs` to `--radius-pill`), elevation
+(`--elevation-control` to `--elevation-dialog`) and stacking layer (`--layer-sticky`
+to `--layer-menu`) tokens in `nexus/studio_static/studio.css`, with documented
+category-color exceptions (`--image-icon` and lifecycle status tokens) and shared
+button `:active` states (`--primary-active` in light and dark palettes, plus
+`--selected` for secondary and quiet buttons) that do not shift focused controls.
+Removed all remaining hardcoded light hex fallbacks from `var(...)` references.
+
+Replaced all seven remaining en-dash literals in first-party UI strings across
+`graph.js`, `operations.js` and `workbench.js` with plain ASCII `-`, leaving user
+content and imported data untouched. Removed layout-property transitions (`width`,
+`height`, `max-width`, `max-height`) on `#detail[open]` so full-view expansion
+uses immediate geometry changes, and replaced `transition:all` on interactive
+artifact cards, checkboxes and activity filter pills with explicit color/border
+transitions. Advanced the public shell cache to `v69`.
+
+All 287 frontend checks pass (`node --test tests/studio_*.test.cjs`), zero
+failures/skips, including new contract assertions for `DT-08`, `DT-09` and `DT-10`
+plus 4.5:1 contrast verification for `--primary-active`. All ten `DT-01`..`DT-10`
+source items are now closed. Full screen-reader, physical-device/PWA, broader
+screen coverage, performance measurements and desktop milestone 9 remain open.
+No DMG was built, VM contacted or release published.
+
 ### Local typography, icons and scoped browser acceptance — 31 October 2026
 
 Packaged eight complete IBM Plex Sans/Mono WOFF2 faces locally with their original

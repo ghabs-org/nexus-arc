@@ -30,7 +30,9 @@ Inspect the header, file categories, audio controls and expanded chat controls i
 both themes. At phone widths, open Menu, change Theme, then use Tab and Escape to
 check focus containment and return. Empty desktop conversations scroll as a page
 so welcome actions remain reachable on shorter screens; existing conversations
-retain their message panel. These checks do not require sending a message.
+retain their message panel. Shared radius, elevation and layer tokens keep button
+pressed states and detail-dialog full-view toggles immediate without layout-property
+transitions. These checks do not require sending a message.
 """
 
 import os

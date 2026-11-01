@@ -43,7 +43,7 @@ for (const mode of ["light", "dark"]) {
     for (const surface of ["--surface", "--canvas", "--raised", "--selected"]) {
       for (const text of ["--ink", "--muted", "--accent", "--builder-muted"]) contrast(tokens, text, surface, 4.5);
     }
-    for (const background of ["--primary", "--primary-hover", "--ink"]) contrast(tokens, "--primary-ink", background, 4.5);
+    for (const background of ["--primary", "--primary-hover", "--primary-active", "--ink"]) contrast(tokens, "--primary-ink", background, 4.5);
     for (const [foreground, background] of [
       ["--green", "--green-bg"], ["--green-strong", "--green-bg"],
       ["--red", "--red-bg"], ["--blue", "--blue-bg"],
@@ -99,4 +99,45 @@ test("restricted HTML previews inherit the system theme without relaxing isolati
   assert.ok(!frame.srcdoc.includes("untrusted"));
   for (const tag of ["meta", "style", "script", "form", "input", "iframe", "img"]) assert.ok(sanitized.options.FORBID_TAGS.includes(tag));
   for (const name of ["style", "href", "src", "srcset"]) assert.ok(sanitized.options.FORBID_ATTR.includes(name));
+});
+
+test("role-based radius, elevation, layer tokens and active button states are consolidated without stale hex fallbacks (DT-08)", () => {
+  const tokens = palette("light");
+  for (const radius of ["--radius-xs", "--radius-sm", "--radius-control", "--radius-panel", "--radius-card", "--radius-composer", "--radius-dialog", "--radius-pill"]) {
+    assert.match(tokens[radius] || "", /^\d+px$/, `Missing or invalid radius token ${radius}`);
+  }
+  for (const elevation of ["--elevation-control", "--elevation-card", "--elevation-composer", "--elevation-popover", "--elevation-callout", "--elevation-dialog"]) {
+    assert.match(tokens[elevation] || "", /^0\s+\d+px\s+\d+px\s+var\(--shadow-[\w-]+\)$/, `Missing or invalid elevation token ${elevation}`);
+  }
+  for (const [layer, expected] of [
+    ["--layer-sticky", "10"], ["--layer-toast", "20"], ["--layer-nav", "30"],
+    ["--layer-sheet", "40"], ["--layer-guide", "60"], ["--layer-menu", "100"],
+  ]) {
+    assert.equal(tokens[layer], expected, `Unexpected layer token ${layer}`);
+  }
+  assert.doesNotMatch(css, /var\(--[^)]*#/, "CSS custom property references must not embed stale light hex fallbacks");
+  assert.match(css, /button:not\(:disabled\):active[^{]*\{background:var\(--primary-active\);border-color:var\(--primary-active\)\}/);
+  assert.match(css, /button\.secondary:not\(:disabled\):active[^{]*\{background:var\(--selected\);border-color:var\(--control-hover\)\}/);
+  assert.match(css, /button\.quiet:not\(:disabled\):active[^{]*\{background:var\(--selected\);color:var\(--ink\)\}/);
+});
+
+test("detail dialog resizing uses immediate geometry changes and interactive controls avoid layout-property transitions (DT-10)", () => {
+  const detailOpen = css.match(/#detail\[open\]\s*\{([^}]*)\}/);
+  assert.ok(detailOpen, "#detail[open] block must exist");
+  assert.doesNotMatch(detailOpen[1], /\btransition\s*:/, "#detail[open] must not transition width, height, max-width or max-height");
+  assert.doesNotMatch(css, /transition\s*:[^;{}]*\b(?:width|height|max-width|max-height|all)\b/, "Stylesheet must not transition layout geometry or transition:all");
+});
+
+test("first-party interface literals contain zero em-dashes or en-dashes (DT-09)", () => {
+  const dirs = ["nexus/studio_static", "apps/studio-desktop/ui"];
+  for (const dir of dirs) {
+    for (const entry of fs.readdirSync(dir)) {
+      if (!/\.(?:html|css|js)$/.test(entry)) continue;
+      if (entry === "tabler-icons.svg") continue;
+      const filePath = `${dir}/${entry}`;
+      if (!fs.statSync(filePath).isFile()) continue;
+      const content = fs.readFileSync(filePath, "utf8");
+      assert.doesNotMatch(content, /[—–]/, `Found long dash in ${filePath}`);
+    }
+  }
 });

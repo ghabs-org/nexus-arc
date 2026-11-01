@@ -1,6 +1,6 @@
 "use strict";
 // Cache only the public application shell. Never intercept auth, API or downloads.
-const SHELL_CACHE="nexus-studio-shell-v68";
+const SHELL_CACHE="nexus-studio-shell-v69";
 const SHELL=["/vendor/tabler-icons.svg","/vendor/IBMPlexMono-Medium.woff2","/vendor/IBMPlexMono-Regular.woff2","/vendor/IBMPlexSans-Italic.woff2","/vendor/IBMPlexSans-Medium.woff2","/vendor/IBMPlexSans-MediumItalic.woff2","/vendor/IBMPlexSans-Regular.woff2","/vendor/IBMPlexSans-SemiBold.woff2","/vendor/IBMPlexSans-SemiBoldItalic.woff2","/theme.js","/workspace-access.js","/conversation-content.js","/artifact.html","/artifact-viewer.js","/vendor/marked.js","/vendor/purify.js","/content.js","/features.js","/shared.html","/shared.js","/","/studio.css","/studio.js","/quick-build.js","/library.js","/operations.js","/graph.js","/workspace.js","/integrations.js","/workbench.js","/experience.js","/manifest.webmanifest","/favicon.ico","/icon-192.png","/icon-512.png"];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(SHELL_CACHE).then(cache=>cache.addAll(SHELL)));});
 self.addEventListener("message",event=>{if(event.data?.type==="ACTIVATE_UPDATE")self.skipWaiting();});

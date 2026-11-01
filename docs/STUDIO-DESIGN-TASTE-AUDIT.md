@@ -339,3 +339,26 @@ Recommended correction order:
 This design work takes priority over the optional offline evaluation comparison.
 It does not reopen accepted workflow/connector implementations or authorize a VM
 deployment, framework rewrite, public release or a new desktop package.
+
+### Source correction status — 1 November 2026
+
+All ten source-level findings (`DT-01` through `DT-10`) now have implemented source
+corrections and automated contract tests:
+
+- `DT-01`, `DT-04`, `DT-05`: [STUDIO-INTERFACE-ACCESSIBILITY.md](STUDIO-INTERFACE-ACCESSIBILITY.md)
+- `DT-02`, `DT-06`: [STUDIO-SYSTEM-THEME.md](STUDIO-SYSTEM-THEME.md) and [STUDIO-THEME-PICKER.md](STUDIO-THEME-PICKER.md)
+- `DT-03`, `DT-07`: [STUDIO-LOCAL-ASSETS.md](STUDIO-LOCAL-ASSETS.md)
+- `DT-08`, `DT-09`, `DT-10`: role-based radius (`--radius-xs` through `--radius-pill`),
+  elevation (`--elevation-control` through `--elevation-dialog`) and z-index layer
+  (`--layer-sticky` through `--layer-menu`) tokens are declared in `studio.css` with
+  shared `--primary-active` and secondary/quiet button `:active` feedback, documented
+  category-color exceptions (`--image-icon`, semantic run-status tokens) and zero
+  stale light hex fallbacks in `var(...)` calls; all 7 first-party interface long
+  dashes in `graph.js`, `operations.js` and `workbench.js` are replaced with plain
+  ASCII `-`; and layout-property transitions (`width`, `height`, `max-width`,
+  `max-height`, `all`) are removed from `#detail[open]` and interactive cards/pills
+  in favor of immediate geometry changes and explicit color/border transitions.
+
+Full screen-reader, physical-device/PWA, broader screen coverage, Lighthouse/CWV
+measurements and desktop milestone 9 remain separate open acceptance gates; the
+original 30 October 2026 audit snapshot above is preserved as historical baseline.
