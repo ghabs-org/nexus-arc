@@ -1,5 +1,41 @@
 # Nexus Studio — next-agent delivery plan
 
+### Offline before/after evaluation comparison, UI consistency and open-plan status — 1 November 2026
+
+Implemented offline before/after evaluation report comparison (`compare_reports`
+in `nexus/core/studio_evaluation_gate.py`, `nexus eval compare-reports`, thin
+consumer `--compare` support in `examples/nexus-bot/src/studio_evaluation_gate.py`,
+and read-only **Compare two reports offline** controls in `nexus/studio_static/operations.js`).
+Comparison requires compatible variant names/order, case counts, repetitions and
+case inputs; enforces the highest effective threshold without lowering saved
+thresholds; blocks incomplete, nonterminal or errored evidence; and fails when
+any previously passing slot regresses. Public shell cache advances to `v70`.
+
+The plan remains open. Most remaining work is validation and desktop delivery,
+plus the three UI consistency fixes now completed in source:
+
+1. **Finish UI consistency (completed in source; rendered sweep remains part of item 2):**
+   shared corner sizes (`--radius-*`), layering (`--layer-*`) and pressed-button
+   feedback (`--primary-active`, secondary/quiet `:active`); clean interface
+   punctuation (`DT-09`, zero first-party long dashes); remove dialog animations
+   that resize layout (`DT-10`, immediate `#detail[open]` geometry changes).
+2. **Broaden browser checks:** evaluator/experiment screens, import/export,
+   review/save, diagnostics, downloads, shared views and complex previews. Check
+   screen readers and performance.
+3. **Test real devices:** microphone permissions, recording/playback, touch
+   controls and installed/offline web-app behavior.
+4. **Validate selected integrations live:** account permissions, API
+   voice/embeddings and provider behavior. SQL Server and Oracle still lack
+   real-server acceptance. Recorded coverage includes 27 supported catalog
+   entries and four exclusions; that does not mean every integration is
+   live-tested.
+5. **Finish recovery acceptance:** recovered-host browser/login and full
+   machine/service recovery. VM work stays deferred.
+6. **Finish desktop milestone 9 last:** another physical Mac, installed
+   Linux/Windows testing, Windows signing and genuine older-release upgrades.
+   Mac 1.0.2 is signed and notarized, but lacks later source fixes. New builds
+   require your explicit request; public update publication remains withheld.
+
 ### Token/layer policy, interface punctuation and dialog transition cleanup (DT-08, DT-09, DT-10) — 1 November 2026
 
 Consolidated role-based radius (`--radius-xs` to `--radius-pill`), elevation

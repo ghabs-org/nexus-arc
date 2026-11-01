@@ -272,7 +272,8 @@ async function refreshOperationResults(){
   const root=$("operation-results");root.replaceChildren();
   if(["evaluations","experiments"].includes(library.kind)){
     const reports=(await api("/api/evaluation-reports")).items.filter(report=>library.kind!=="experiments"||report.experiment_id);
-    root.innerHTML=`<div class="operation-heading"><h2>Reports</h2><button class="secondary" id="refresh-operation-results">Refresh reports</button></div>`+(reports.length?reports.map(report=>`<article class="library-row"><div><h3>${escapeHtml(report.experiment_name||report.name)}</h3>${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed · suite revision ${report.suite_revision} · ${escapeHtml(new Date(report.created_at).toLocaleString())}</p></div><button class="secondary" data-evaluation-report="${escapeHtml(report.id)}">View report</button></article>`).join(""):library.kind==="experiments"?'<p>Run a saved experiment to create your first report.</p>':'<p>Run a suite to create your first report.</p>');
+    const compareControls=reports.length>=2?`<details id="evaluation-compare-reports"><summary>Compare two reports offline</summary><p>Compare a baseline and candidate report without running tasks or lowering saved thresholds. Incompatible variants, case counts or inputs are rejected; incomplete or errored evidence stays blocked.</p><div class="form-grid"><label>Baseline report<select id="evaluation-compare-baseline">${reports.map((r,i)=>`<option value="${escapeHtml(r.id)}" ${i===1?"selected":""}>${escapeHtml(r.experiment_name||r.name)} · ${escapeHtml(r.id)}</option>`).join("")}</select></label><label>Candidate report<select id="evaluation-compare-candidate">${reports.map((r,i)=>`<option value="${escapeHtml(r.id)}" ${i===0?"selected":""}>${escapeHtml(r.experiment_name||r.name)} · ${escapeHtml(r.id)}</option>`).join("")}</select></label></div><button type="button" class="secondary" id="evaluation-compare-open">Compare reports</button></details>`:"";
+    root.innerHTML=`<div class="operation-heading"><h2>Reports</h2><button class="secondary" id="refresh-operation-results">Refresh reports</button></div>`+compareControls+(reports.length?reports.map(report=>`<article class="library-row"><div><h3>${escapeHtml(report.experiment_name||report.name)}</h3>${experimentReportSummary(report)}<p>${report.passed}/${report.total} cases passed · suite revision ${report.suite_revision} · ${escapeHtml(new Date(report.created_at).toLocaleString())}</p></div><button class="secondary" data-evaluation-report="${escapeHtml(report.id)}">View report</button></article>`).join(""):library.kind==="experiments"?'<p>Run a saved experiment to create your first report.</p>':'<p>Run a suite to create your first report.</p>');
   }else if(library.kind==="externalagents"){
     const remote=(await api("/api/workbench/externalagents")).runs;
     root.innerHTML='<h2>Remote tasks</h2>'+remote.map(item=>`<article class="library-row"><div><h3>${escapeHtml(item.agent_id)}</h3><p>${escapeHtml(item.status)} · ${escapeHtml(item.task_id||"Remote task ID not acknowledged")}</p></div><div class="card-actions">${["input-required","auth-required"].includes(item.status)?`<button data-remote-continue="${escapeHtml(item.id)}">Provide input</button>`:""}${item.task_id?`<button class="secondary" data-remote-refresh="${escapeHtml(item.id)}">Refresh remote status</button>`:""}${item.task_id&&!["completed","failed","canceled","cancelled","rejected"].includes(item.status)?`<button class="secondary" data-remote-cancel="${escapeHtml(item.id)}">Cancel remote task</button>`:""}${item.callback_id?`<button class="secondary" data-remote-callbacks="${escapeHtml(item.id)}">Callback updates</button>`:""}<button class="secondary" data-run="${escapeHtml(item.id)}">Details</button></div></article>`).join("");
@@ -290,11 +291,62 @@ function variantFields(index,data={},removable=false){return `<div class="experi
 
 async function showEvaluationReport(id){
   const report=await api(`/api/evaluation-reports/${encodeURIComponent(id)}`);
-  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}${experimentEvaluatorReport(report)}${experimentPendingGrades(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${evaluationFileSources(result)}${experimentEvaluatorReport(report,result)}${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}${check.evaluator_id?` · ${escapeHtml(check.evaluator_id)}`:""}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
+  showDetail(report.experiment_name||report.name,`${experimentReportSummary(report)}${experimentEvaluatorReport(report)}${experimentPendingGrades(report)}<p>${report.passed}/${report.total} cases passed.</p><button type="button" class="secondary" data-evaluation-report-export="${escapeHtml(id)}">Download report JSON</button><p class="workspace-scope">Includes task inputs, answers and grading details. Keep this file private. Check it locally with <code>nexus eval check-report report.json</code> or compare two reports with <code>nexus eval compare-reports baseline.json candidate.json</code>; no tasks are rerun.</p>${report.results.map(result=>`<details class="report-case"><summary>${escapeHtml(result.variant)} · case ${result.case}${report.runs_per_example>1?` · repetition ${result.repetition}/${report.runs_per_example}`:""} ${badge(result.passed?"Passed":"Failed",result.passed?"ready":"failed")}</summary><p>${escapeHtml(result.input)}</p>${evaluationFileSources(result)}${experimentEvaluatorReport(report,result)}${result.error?`<p class="form-error">${escapeHtml(result.error)}</p>`:""}<ul>${result.checks.map(check=>`<li>${check.passed?"Pass":"Fail"}${check.evaluator_id?` · ${escapeHtml(check.evaluator_id)}`:""}: ${escapeHtml(({choice_judge:"AI choice grade",rubric_judge:"AI rubric grade"})[check.type]||check.type)} “${escapeHtml(check.phrase)}”${check.score!==undefined?` · score ${check.score} (threshold ${check.threshold})`:""}${check.choice!==undefined?` · choice ${escapeHtml(check.choice)}`:""}${check.reason?` · ${escapeHtml(check.reason)}`:""}${check.error?` · ${escapeHtml(check.error)}`:""}</li>`).join("")}</ul><pre>${escapeHtml(result.output)}</pre><small>${result.duration_seconds}s</small></details>`).join("")}`);
 }
 function evaluationFileSources(result){
   const sources=result.file_sources||{};
   return Object.keys(sources).length?`<details class="evaluation-file-sources"><summary>Pinned file sources</summary>${["input_files","reference_files"].map(role=>(sources[role]||[]).map(file=>`<p><strong>${role==="input_files"?"Input":"Grading reference"}</strong> · ${escapeHtml(file.filename)} · revision ${escapeHtml(file.revision)}<br><small>${escapeHtml(file.id)} · SHA-256 ${escapeHtml(file.sha256)}</small></p>`).join("")).join("")}</details>`:"";
+}
+function compareEvaluationReportData(baseline,candidate){
+  const inspect=report=>{
+    const variants=Array.isArray(report?.variants)&&report.variants.length?report.variants:[{name:report?.name||"Default"}];
+    const repeats=Number(report?.runs_per_example||1),expected=Number(report?.expected_total||(report?.results?.length||0));
+    if(!Number.isInteger(repeats)||repeats<1||!Number.isInteger(expected)||expected<1||expected%(variants.length*repeats)!==0)throw new Error("Reports must declare valid variant, case and repetition counts.");
+    const cases=expected/(variants.length*repeats),threshold=Number(report?.pass_threshold??1);
+    if(!Number.isFinite(threshold)||threshold<0||threshold>1)throw new Error("Report pass thresholds must be between 0 and 1.");
+    const slots=new Map(),inputs=new Map();let errors=false;
+    for(const entry of report?.results||[]){
+      const v=Number(entry.variant_index||1),c=Number(entry.case),r=Number(entry.repetition||1),key=`${v}:${c}:${r}`;
+      if(!Number.isInteger(v)||v<1||v>variants.length||!Number.isInteger(c)||c<1||c>cases||!Number.isInteger(r)||r<1||r>repeats||slots.has(key)||typeof entry.passed!=="boolean")throw new Error("Report results need unique, valid variant/case/repetition slots.");
+      if(typeof entry.input==="string"){if(inputs.has(c)&&inputs.get(c)!==entry.input)throw new Error("Slots for the same case must share the same input.");inputs.set(c,entry.input);}
+      const checks=Array.isArray(entry.checks)?entry.checks:[];
+      const slotError=Boolean(entry.error)||checks.some(ch=>Boolean(ch?.error));
+      errors=errors||slotError;slots.set(key,entry.passed&&!slotError);
+    }
+    const complete=Boolean(report?.complete)&&["passed","failed"].includes(report?.evaluation_status)&&(report?.results||[]).length===expected&&!errors;
+    return {variants:variants.map(v=>String(v.name||"").trim()),cases,repeats,expected,threshold,slots,inputs,complete};
+  };
+  const base=inspect(baseline),cand=inspect(candidate);
+  if(base.variants.length!==cand.variants.length||base.variants.some((name,i)=>name!==cand.variants[i]))throw new Error("Reports must have matching variant names in the same order.");
+  if(base.cases!==cand.cases||base.repeats!==cand.repeats)throw new Error("Reports must have matching case and repetition counts.");
+  for(const [caseIdx,text] of base.inputs.entries())if(cand.inputs.has(caseIdx)&&cand.inputs.get(caseIdx)!==text)throw new Error("Reports must have matching case inputs for each case.");
+  const effective=Math.max(base.threshold,cand.threshold),bothComplete=base.complete&&cand.complete,perVariant=base.cases*base.repeats;
+  const variants=base.variants.map((name,idx)=>{
+    const vIdx=idx+1;let basePassed=0,candPassed=0,regressed=0,improved=0,missing=0;
+    for(let c=1;c<=base.cases;c++)for(let r=1;r<=base.repeats;r++){
+      const key=`${vIdx}:${c}:${r}`,b=base.slots.get(key),d=cand.slots.get(key);
+      if(b===undefined||d===undefined){missing++;continue;}
+      if(b)basePassed++;if(d)candPassed++;
+      if(b&&!d)regressed++;if(!b&&d)improved++;
+    }
+    const baseRate=perVariant?basePassed/perVariant:0,candRate=perVariant?candPassed/perVariant:0;
+    const accepted=bothComplete?candRate>=effective&&regressed===0&&candPassed>=basePassed:null;
+    return {name,index:vIdx,baseline_passed:basePassed,candidate_passed:candPassed,delta_passed:candPassed-basePassed,expected_total:perVariant,baseline_pass_rate:baseRate,candidate_pass_rate:candRate,regressed_slots:regressed,improved_slots:improved,missing_slots:missing,accepted};
+  });
+  const regressed_slots=variants.reduce((n,v)=>n+v.regressed_slots,0),improved_slots=variants.reduce((n,v)=>n+v.improved_slots,0),missing_slots=variants.reduce((n,v)=>n+v.missing_slots,0);
+  const allMet=bothComplete&&variants.every(v=>v.candidate_pass_rate>=effective),passed=Boolean(bothComplete&&allMet&&regressed_slots===0);
+  const status=!bothComplete?"blocked":regressed_slots>0?"regressed":!allMet?"threshold-not-met":"passed";
+  return {passed,status,threshold:effective,complete:bothComplete,regressed_slots,improved_slots,missing_slots,variants};
+}
+async function showEvaluationComparison(button){
+  const baseId=$("evaluation-compare-baseline")?.value,candId=$("evaluation-compare-candidate")?.value;
+  if(!baseId||!candId||baseId===candId)throw new Error("Choose two distinct reports to compare.");
+  if(button)button.disabled=true;
+  try{
+    const [baseline,candidate]=await Promise.all([api(`/api/evaluation-reports/${encodeURIComponent(baseId)}`),api(`/api/evaluation-reports/${encodeURIComponent(candId)}`)]);
+    const diff=compareEvaluationReportData(baseline,candidate);
+    showDetail("Offline report comparison",`<p class="callout">${diff.passed?"Candidate meets the effective threshold without regressions.":diff.status==="blocked"?"Blocked: baseline or candidate evidence is incomplete, nonterminal or errored.":diff.status==="regressed"?"Regression detected: one or more previously passing slots failed.":"Candidate falls below the effective threshold."} Effective threshold: ${Math.round(diff.threshold*100)}% · improved slots: ${diff.improved_slots} · regressed slots: ${diff.regressed_slots}${diff.missing_slots?` · missing slots: ${diff.missing_slots}`:""}.</p><ul>${diff.variants.map(v=>`<li><strong>${escapeHtml(v.name)}</strong>: baseline ${v.baseline_passed}/${v.expected_total} → candidate ${v.candidate_passed}/${v.expected_total} (${v.delta_passed>=0?`+${v.delta_passed}`:v.delta_passed}) · improved ${v.improved_slots} · regressed ${v.regressed_slots}${diff.complete?` · ${v.accepted?"Accepted":"Rejected"}`:" · incomplete"}</li>`).join("")}</ul><p class="workspace-scope">No provider was called and saved thresholds were not lowered.</p>`);
+  }finally{if(button?.isConnected)button.disabled=false;}
 }
 async function exportEvaluationReport(button){
   button.disabled=true;
@@ -309,6 +361,7 @@ document.addEventListener("click",async event=>{
     if(button.dataset.caseFileRole)await chooseEvaluationFile(button);
     if(button.dataset.clearCaseFiles)clearEvaluationFiles(button);
     if(button.dataset.evaluationReportExport)await exportEvaluationReport(button);
+    if(button.id==="evaluation-compare-open")await showEvaluationComparison(button);
     if(button.dataset.savedExperimentRun)await runEvaluation(null,null,button.dataset.savedExperimentRun);
     if(button.dataset.experimentDeclarationExport)await exportExperimentDeclaration(button.dataset.experimentDeclarationExport);
     if(button.dataset.experimentExport){const item=await api(`/api/catalog/experiments/${encodeURIComponent(button.dataset.experimentExport)}`);downloadJson(`${item.id}.json`,item.data);}

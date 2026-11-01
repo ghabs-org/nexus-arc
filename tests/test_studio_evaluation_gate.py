@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from nexus.core.studio_evaluation_gate import check_report, read_report
+from nexus.core.studio_evaluation_gate import check_report, compare_reports, read_report
 from tests.test_studio_experiments import experiment, suite
 from tests.test_studio_resources import app as app
 from tests.test_studio_resources import done
@@ -157,3 +157,71 @@ def test_cli_exit_codes_and_private_errors(tmp_path):
     result = subprocess.run(command, capture_output=True, text=True)
     assert result.returncode == 2 and json.loads(result.stdout)["status"] == "invalid"
     assert "PRIVATE" not in result.stdout + result.stderr
+
+
+def test_compare_reports_tracks_improvements_regressions_and_preserves_thresholds():
+    baseline = report()
+    baseline["results"][1].update(passed=False, checks=[{"passed": False}])
+    candidate = report()
+    candidate["pass_threshold"] = 0.25
+    baseline["pass_threshold"] = 0.75
+    diff = compare_reports(baseline, candidate)
+    assert diff["passed"] is True
+    assert diff["status"] == "passed"
+    assert diff["threshold"] == 0.75
+    assert diff["improved_slots"] == 1 and diff["regressed_slots"] == 0
+    assert diff["variants"][0]["delta_passed"] == 1
+    assert "PRIVATE" not in json.dumps(diff)
+
+    regressed = report()
+    regressed["results"][0].update(passed=False, checks=[{"passed": False}])
+    reg_diff = compare_reports(baseline, regressed, threshold=0.25)
+    assert reg_diff["passed"] is False
+    assert reg_diff["status"] == "regressed"
+    assert reg_diff["regressed_slots"] == 1 and reg_diff["improved_slots"] == 1
+
+
+def test_compare_reports_blocks_incomplete_or_errored_and_rejects_incompatible_inputs(tmp_path):
+    baseline = report()
+    incomplete = report()
+    incomplete.update(complete=False, evaluation_status="running")
+    blocked = compare_reports(baseline, incomplete)
+    assert blocked["passed"] is False and blocked["status"] == "blocked"
+
+    mismatch_variants = report()
+    mismatch_variants["variants"] = [{"name": "B"}, {"name": "A"}]
+    with pytest.raises(ValueError, match="variant names"):
+        compare_reports(baseline, mismatch_variants)
+
+    mismatch_inputs = report()
+    mismatch_inputs["results"][0]["input"] = "CHANGED PRIVATE INPUT"
+    mismatch_inputs["results"][2]["input"] = "CHANGED PRIVATE INPUT"
+    with pytest.raises(ValueError, match="case inputs") as exc_info:
+        compare_reports(baseline, mismatch_inputs)
+    assert "PRIVATE" not in str(exc_info.value)
+
+    base_path = tmp_path / "baseline.json"
+    cand_path = tmp_path / "candidate.json"
+    base_path.write_text(json.dumps(baseline))
+    cand_path.write_text(json.dumps(report()))
+    for cmd in (
+        [
+            sys.executable,
+            "-m",
+            "nexus.cli",
+            "eval",
+            "compare-reports",
+            str(base_path),
+            str(cand_path),
+        ],
+        [
+            sys.executable,
+            "examples/nexus-bot/src/studio_evaluation_gate.py",
+            str(base_path),
+            "--compare",
+            str(cand_path),
+        ],
+    ):
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        assert proc.returncode == 0, proc.stderr
+        assert json.loads(proc.stdout)["passed"] is True

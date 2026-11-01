@@ -45,3 +45,47 @@ test('report file provenance distinguishes roles and escapes metadata without fi
  const result=scope.evaluationFileSources({file_sources:{input_files:[{id:'source',revision:2,filename:'<script>input.txt',sha256:'digest'}],reference_files:[{id:'expected',revision:3,filename:'reference.txt',sha256:'other',text:'DO_NOT_RENDER'}]}});
  assert.match(result,/Input/);assert.match(result,/Grading reference/);assert.match(result,/revision 3/);assert.match(result,/&lt;script&gt;/);assert.doesNotMatch(result,/<script>|DO_NOT_RENDER/);
 });
+
+test('offline report comparison detects slot regressions, blocks incomplete evidence and preserves higher threshold',async()=>{
+  let html='';
+  const makeReport=(passFirst,passSecond,threshold=0.5,complete=true)=>({
+    variants:[{name:'Variant A'}],
+    runs_per_example:1,
+    expected_total:2,
+    pass_threshold:threshold,
+    complete,
+    evaluation_status:complete?'passed':'running',
+    results:[
+      {variant_index:1,case:1,repetition:1,input:'case-1',passed:passFirst,checks:[{passed:passFirst}]},
+      {variant_index:1,case:2,repetition:1,input:'case-2',passed:passSecond,checks:[{passed:passSecond}]},
+    ],
+  });
+  const reports={base:makeReport(true,false,0.75),cand:makeReport(true,true,0.25),reg:makeReport(false,true,0.5),inc:makeReport(true,true,0.5,false)};
+  const scope=vm.createContext({
+    escapeHtml,
+    $:id=>id==='evaluation-compare-baseline'?{value:'base'}:id==='evaluation-compare-candidate'?{value:'cand'}:null,
+    api:async url=>reports[url.split('/').pop()],
+    showDetail:(_,body)=>{html=body;},
+  });
+  vm.runInContext(functions,scope);
+  const improved=scope.compareEvaluationReportData(reports.base,reports.cand);
+  assert.equal(improved.passed,true);
+  assert.equal(improved.threshold,0.75);
+  assert.equal(improved.improved_slots,1);
+  assert.equal(improved.regressed_slots,0);
+
+  const regressed=scope.compareEvaluationReportData(reports.base,reports.reg);
+  assert.equal(regressed.passed,false);
+  assert.equal(regressed.status,'regressed');
+  assert.equal(regressed.regressed_slots,1);
+
+  const blocked=scope.compareEvaluationReportData(reports.base,reports.inc);
+  assert.equal(blocked.passed,false);
+  assert.equal(blocked.status,'blocked');
+
+  const btn={disabled:false,isConnected:true};
+  await scope.showEvaluationComparison(btn);
+  assert.match(html,/Candidate meets the effective threshold without regressions/);
+  assert.match(html,/Effective threshold: 75%/);
+  assert.equal(btn.disabled,false);
+});

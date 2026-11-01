@@ -14,11 +14,21 @@ restarting Studio, invoking providers, or applying a release.
 ```sh
 nexus eval check-report evaluation-report.json
 nexus eval check-report evaluation-report.json --threshold 0.9
+nexus eval compare-reports baseline-report.json candidate-report.json
+nexus eval compare-reports baseline-report.json candidate-report.json --threshold 0.9
 ```
 
 The optional threshold can strengthen the report's saved threshold but cannot
 lower it. Every variant must meet the effective threshold independently. A strong
 variant cannot hide a weak variant behind the overall average.
+
+`compare-reports` requires compatible variant names/order, case counts,
+repetitions and case inputs. It evaluates both reports against the highest
+effective threshold (`max(baseline, candidate, --threshold)`), counts improved
+and regressed slots per variant, and rejects (`exit 1`) any slot regression or
+incomplete/nonterminal/errored evidence. In Studio's Evaluations and Experiment
+Lab views, **Compare two reports offline** performs the same read-only check on
+two saved reports without calling a provider or lowering thresholds.
 
 Exit codes:
 
@@ -54,6 +64,7 @@ in trusted private storage and separately pin the tested resource revision.
 
 ```sh
 PYTHONPATH=. python examples/nexus-bot/src/studio_evaluation_gate.py evaluation-report.json
+PYTHONPATH=. python examples/nexus-bot/src/studio_evaluation_gate.py baseline.json --compare candidate.json
 ```
 
 This thin consumer uses the same framework validator as the CLI. Validation uses
