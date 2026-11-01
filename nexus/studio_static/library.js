@@ -67,12 +67,12 @@ async function refreshContextChoices(){
 }
 for(const [id,prefix] of [["builder-slash","/"],["builder-mention","@"]])$(id).addEventListener("change",event=>{
   if(!event.target.value)return;const field=$("builder-task"),text=`${prefix}${event.target.value} `;
-  field.setRangeText(text,field.selectionStart,field.selectionEnd,"end");field.focus();event.target.value="";
+  field.setRangeText(text,field.selectionStart,field.selectionEnd,"end");field.dispatchEvent(new Event("input",{bubbles:true}));field.focus();event.target.value="";
 });
 async function attachUploadedFiles(input, selectionId, statusId, refresh){
   const status=$(statusId),files=Array.from(input.files||[]);if(!files.length)return;
   if(state.attachmentUpload||state.busy||builder.busy){status.textContent="Wait for the current upload or run to finish.";input.value="";return;}
-  const selected=new Set(Array.from($(selectionId).selectedOptions,option=>option.value));
+  const selected=new Set(Array.from($(selectionId).selectedOptions,option=>option.value));let selectionChanged=false;
   try{
     if(selected.size+files.length>5)throw new Error("Attach at most five files.");
     if(files.some(file=>file.size>16*1024*1024))throw new Error("Each file must be no larger than 16 MiB.");
@@ -83,11 +83,11 @@ async function attachUploadedFiles(input, selectionId, statusId, refresh){
       status.textContent=`Uploading ${file.name}…`;
       const artifact=await uploadArtifact(file);selected.add(artifact.id);
       await refresh();
-      for(const option of $(selectionId).options)option.selected=selected.has(option.value);
+      for(const option of $(selectionId).options)option.selected=selected.has(option.value);selectionChanged=true;
     }
     status.textContent=`${selected.size} file${selected.size===1?"":"s"} attached. Sent only when you submit.`;
   }catch(error){status.textContent=error.message;}
-  finally{if(state.attachmentUpload){state.attachmentUpload=false;input.disabled=false;$("send-message").disabled=Boolean(state.busy);$("builder-generate").disabled=Boolean(builder.busy);}input.value="";}
+  finally{if(selectionChanged)$(selectionId).dispatchEvent(new Event("change",{bubbles:true}));if(state.attachmentUpload){state.attachmentUpload=false;input.disabled=false;$("send-message").disabled=Boolean(state.busy);$("builder-generate").disabled=Boolean(builder.busy);}input.value="";}
 }
 $("builder-upload").addEventListener("change",event=>attachUploadedFiles(event.target,"builder-artifacts","builder-upload-status",refreshContextChoices));
 $("chat-upload")?.addEventListener("change",event=>attachUploadedFiles(event.target,"chat-artifacts","chat-upload-status",refreshModelChoices));

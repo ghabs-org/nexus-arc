@@ -111,10 +111,12 @@ async function generateBuild(event) {
   try{payload.prompt_values=await resolvePromptValues(task);}catch(error){buildError(error);return;}
   if(builder.id)payload.build_id=builder.id;
   try{if(builder.draft){payload.revision=builder.draft.revision;payload.proposal=proposalFromFields();}}catch(error){buildError(error);return;}
+  if($("builder-task").value.trim()!==task){buildError("Your prompt changed while entering prompt variables. Review it before generating.");return;}
+  const draftTicket=typeof NexusDrafts==="undefined"?null:NexusDrafts.begin("builder");
   builder.review=null;$("builder-error").hidden=true;builderBusy(true,"Designing your team… This may take a few minutes.");
   const previousId=builder.id;
   try {
-    const queued=await api("/api/builds",payload);builder.id=queued.build_id;
+    const queued=await api("/api/builds",payload);if(typeof NexusDrafts!=="undefined")NexusDrafts.confirmed(draftTicket);builder.id=queued.build_id;
     const run=await pollRun(queued.id,run=>{const live=(run.output||"").slice(-6000);$("builder-progress").textContent=(run.phase==="correcting-proposal"?"Correcting the draft… One validation correction is allowed.":"Designing your team…")+(live?"\n\n"+live:"");$("builder-progress").scrollTop=$("builder-progress").scrollHeight;});
     if(!run||run.status!=="completed"){
       throw new Error(run?.error||`Build run ${run?.status||"did not complete"}`);
@@ -122,11 +124,11 @@ async function generateBuild(event) {
     builder.draft=await api(`/api/builds/${encodeURIComponent(builder.id)}`);
     $("builder-task").value="";renderBuild();await refreshBuilds();
     $("builder-proposal").scrollIntoView({behavior:"smooth",block:"start"});
-  }catch(error){
+  }catch(error){if(typeof NexusDrafts!=="undefined")NexusDrafts.failed(draftTicket);
     if(!builder.draft)builder.id=previousId;
     buildError(error);
   }
-  finally{builderBusy(false);refreshRuns().catch(()=>{});}
+  finally{builderBusy(false);if(typeof NexusDrafts!=="undefined")NexusDrafts.settled("builder");refreshRuns().catch(()=>{});}
 }
 async function saveBuild() {
   if(builder.busy||!builder.draft)return;

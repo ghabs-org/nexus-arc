@@ -1,5 +1,59 @@
 # Nexus Studio — next-agent delivery plan
 
+### Unsent chat and Quick Build draft recovery — 2 November 2026
+
+Implemented browser-local draft autosave and explicit Restore/Discard controls.
+One draft per surface is scoped to browser origin, mode, Nexus user, server
+workspace path and embedded agent. It retains prompt text, allowlisted settings,
+context and attachment IDs only; no file bytes, credential fields or variable
+answers are collected. Saves debounce for 350ms, flush on pagehide/hidden, expire
+after seven days, and degrade visibly when browser storage is unavailable.
+
+Recovery never submits work or overwrites a nonempty composer. Available settings
+and file references are restored through existing authorized metadata reads;
+missing original context/access keeps the saved draft with an error. Confirmed
+queue acknowledgement clears only its own draft before polling; unconfirmed
+submissions retain an Activity warning. Version checks handle observed cross-tab
+changes. LocalStorage remains browser-profile storage, not encryption, server
+backup or transactional cross-device collaboration.
+
+All 309 frontend checks pass, including 20 focused draft checks, plus 35 nearest
+backend/bundling checks; zero failures/skips. Real local browser checks verify
+chat/Quick Build refresh recovery, effort, keyboard restore, discard persistence,
+Light/Dark layout and 44px mobile actions. The disposable preview created zero
+runs and was stopped. Public shell v72 includes the local script. The example
+consumes the shared UI; no new API mutation or runtime dependency was added.
+
+This is an approved enhancement outside the frozen original feature inventory.
+Its flags remain unchanged. Whole-plan completion stays open for real devices,
+selected live accounts, deferred full recovery and desktop milestone 9 last.
+Workflow undo/redo and notifications remain suggestions, not delivered features.
+No VM, provider invocation, publication or DMG rebuild occurred. See
+[behavior and limits](STUDIO-DRAFT-RECOVERY.md) and
+[checkpoint](STUDIO-DRAFT-RECOVERY-CHECKPOINT.json).
+
+### Verified current delivery status — 1 November 2026
+
+Fresh verification confirms the latest commits already implement the remaining
+DT-08/09/10 UI fixes and offline evaluation report comparison. All 20 source paths
+in the broader browser checkpoint matched before this documentation follow-up.
+All 289 frontend checks and 43 focused Python checks pass, with zero failures or
+skips. The normal completion audit has no aggregate claim inconsistencies;
+`--require-complete` correctly exits 1 because final delivery remains open.
+
+Do not reimplement the UI fixes or treat the 29 October optional comparison as
+missing. Broader browser results are reused recorded evidence, not a new browser
+run here. Final save/download and platform flows retain their exact tested scope;
+automated accessibility scores do not replace physical screen-reader acceptance.
+
+Remaining gates: real devices/assistive technology and installed/offline web-app
+use; selected live integration accounts and real SQL Server/Oracle; recovered-host
+and full-machine recovery; desktop milestone 9 last. VM work remains deferred.
+New desktop builds still require an explicit request; public release/update-feed
+publication remains withheld. No product code, example behavior, provider, VM or
+installer changed. See [current status](STUDIO-DELIVERY-STATUS.md) and
+[verification checkpoint](STUDIO-DELIVERY-STATUS-CHECKPOINT.json).
+
 ### Broadened browser checks, CSP cleanup and open-plan status — 1 November 2026
 
 Executed broadened browser verification against a disposable local Studio

@@ -258,7 +258,7 @@ async function beginRecording(){
   voiceRecorder.ondataavailable=e=>{bytes+=e.data.size;voiceChunks.push(e.data);if(bytes>4*1024*1024&&voiceRecorder?.state==="recording")voiceRecorder.stop();};
   voiceRecorder.onstop=async()=>{voiceStream.getTracks().forEach(t=>t.stop());voiceStream=null;voiceRecorder=null;button.textContent="Record voice";button.setAttribute("aria-pressed","false");try{
     const blob=new Blob(voiceChunks,{type:mime});voiceChunks=[];if(blob.size>4*1024*1024)throw new Error("Recording exceeded 4 MiB. Try a shorter message.");
-    const run=await featureApi("speech",{...options,audio_base64:await fileContent(blob),format:mime.startsWith("audio/webm")?"webm":"mp4"});notify("Transcribing audio…");const result=await pollRun(run.id);$("chat-task").value=[$("chat-task").value,result.output].filter(Boolean).join("\n");$("chat-task").focus();notify("Transcript ready. Review before sending.");
+    const run=await featureApi("speech",{...options,audio_base64:await fileContent(blob),format:mime.startsWith("audio/webm")?"webm":"mp4"});notify("Transcribing audio…");const result=await pollRun(run.id);$("chat-task").value=[$("chat-task").value,result.output].filter(Boolean).join("\n");$("chat-task").dispatchEvent(new Event("input",{bubbles:true}));$("chat-task").focus();notify("Transcript ready. Review before sending.");
   }catch(error){notify(error.message);}};
   voiceRecorder.onerror=()=>{voiceStream?.getTracks().forEach(t=>t.stop());voiceRecorder=null;voiceStream=null;button.textContent="Record voice";notify("Recording failed; check microphone permission.");};voiceRecorder.start(1000);
 }

@@ -1004,3 +1004,12 @@ button.quiet:hover{background:var(--raised);color:var(--ink)}
   .chat-view:has(.welcome) .messages{overflow:visible;flex:0 0 auto}
   .chat-view:has(.welcome) .welcome{margin:24px auto}
 }
+
+/* Browser-local draft recovery shares existing controls, colors and touch targets. */
+.draft-recovery{margin:8px 0 12px;padding:10px 12px;border:1px solid var(--control);border-radius:var(--radius-panel);background:var(--raised);color:var(--muted);min-width:0}
+.draft-recovery p{margin:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.draft-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.draft-actions button{font-size:12px;min-height:36px;padding:6px 10px}
+@media(max-width:767px),(pointer:coarse){.draft-actions button{min-height:44px}.draft-recovery p{font-size:14px}}
+.draft-recovery[data-recovery="saved"]{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.draft-recovery[data-recovery="saved"] .draft-actions{margin-top:0;flex-shrink:0}

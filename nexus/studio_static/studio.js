@@ -24,7 +24,7 @@ async function api(path, body, method){
   if(response.status===401&&data.login_url){
     const login=new URL(data.login_url,location.href);
     if(login.origin===location.origin||(login.protocol==="https:"&&login.host===location.host)){$("deployment-mode").textContent="TEAM";$("workspace-name").textContent="Nexus team workspace";$("runtime-label").textContent="Sign in through Nexus";$("team-login-link").href=login.href;$("team-login").hidden=false;document.querySelectorAll(".view").forEach(section=>section.hidden=true);}
-    state.ready=false;state.token="";$("recent-sessions").replaceChildren();document.querySelectorAll("dialog[open]").forEach(dialog=>dialog.close());
+    state.ready=false;state.token="";if(typeof NexusDrafts!=="undefined")NexusDrafts.lock();$("recent-sessions").replaceChildren();document.querySelectorAll("dialog[open]").forEach(dialog=>dialog.close());
   }
   if(!response.ok){const error=new Error(data.error||`Request failed (${response.status})`);error.status=response.status;error.retryable=[401,408,429].includes(response.status)||response.status>=500;throw error;}
   return data;
@@ -805,18 +805,21 @@ async function sendMessage(event){
     knowledge_project_id:$("chat-project")?.value||null,
     artifact_ids:[...$("chat-artifacts").selectedOptions].map(item=>item.value)
   };
-  try{payload.prompt_values=await resolvePromptValues(task);}catch(error){notify(error.message);return;}state.busy=true;$("send-message").disabled=true;$("chat-task").value="";
+  try{payload.prompt_values=await resolvePromptValues(task);}catch(error){notify(error.message);return;}
+  if($("chat-task").value.trim()!==task){notify("Your message changed while entering prompt variables. Review it before sending.");return;}
+  const draftTicket=typeof NexusDrafts==="undefined"?null:NexusDrafts.begin("chat");
+  state.busy=true;$("send-message").disabled=true;$("chat-task").value="";
   const select=$("chat-artifacts");if(select&&select.options){for(const opt of select.options)opt.selected=false;if(typeof renderChatArtifacts==="function")renderChatArtifacts();}
   addMessage("user",task);
   const reply=addMessage("assistant","Working…",providerName(payload.provider));const body=reply.querySelector(".message-body");
   try{
-    const queued=await api("/api/runs",payload);state.sessionId=queued.session_id;
+    const queued=await api("/api/runs",payload);if(typeof NexusDrafts!=="undefined")NexusDrafts.confirmed(draftTicket);state.sessionId=queued.session_id;
     const finished=await pollRun(queued.id,run=>{renderRunMessage(reply,run);reply.dataset.runId=run.id;reply.querySelector(".message-provider").textContent=providerName(run.provider);$("messages").scrollTop=$("messages").scrollHeight;});
     if(isStudioAssistant&&typeof renderWorkspaceProposals==="function")renderWorkspaceProposals(reply,finished.id);
     if(finished.status==="completed")window.dispatchEvent(new CustomEvent("studio-response-completed",{detail:{text:finished.output}}));
     await refreshSessions();
-  }catch(error){reply.classList.add("error");if(!body.textContent||body.textContent==="Working…")body.textContent=error.message;else{const note=document.createElement("p");note.className="form-error";note.setAttribute("role","alert");note.textContent=error.message;reply.append(note);}}
-  finally{state.busy=false;$("send-message").disabled=false;refreshRuns().catch(()=>{});}
+  }catch(error){if(typeof NexusDrafts!=="undefined")NexusDrafts.failed(draftTicket);reply.classList.add("error");if(!body.textContent||body.textContent==="Working…")body.textContent=error.message;else{const note=document.createElement("p");note.className="form-error";note.setAttribute("role","alert");note.textContent=error.message;reply.append(note);}}
+  finally{state.busy=false;$("send-message").disabled=false;if(typeof NexusDrafts!=="undefined")NexusDrafts.settled("chat");refreshRuns().catch(()=>{});}
 }
 function inputField(name,label,value="",type="text"){return `<label>${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}" ${["name","task"].includes(name)?"required":""}></label>`;}
 async function openEditor(kind,identity){
@@ -1214,7 +1217,7 @@ document.addEventListener("keydown",event=>{
 window.addEventListener("hashchange",showView);
 async function bootstrap(){
   if(bootstrapInFlight)return;bootstrapInFlight=true;clearTimeout(bootstrapRetryTimer);
-  try{const data=await api("/api/bootstrap");if(state.user&&data.user?.nexus_id!==state.user.nexus_id){location.reload();return;}bootstrapFailures=0;state.workspacePath=data.workspace.path;disconnectedRuns.delete("bootstrap");state.accountUrl=data.account_url;state.token=data.token;state.mode=data.mode;state.user=data.user;state.providers=data.providers;$("team-login").hidden=true;connectionStatus();$("send-message").disabled=false;
+  try{const data=await api("/api/bootstrap");if(state.user&&data.user?.nexus_id!==state.user.nexus_id){if(typeof NexusDrafts!=="undefined")NexusDrafts.lock();location.reload();return;}bootstrapFailures=0;state.workspacePath=data.workspace.path;disconnectedRuns.delete("bootstrap");state.accountUrl=data.account_url;state.token=data.token;state.mode=data.mode;state.user=data.user;state.providers=data.providers;$("team-login").hidden=true;connectionStatus();$("send-message").disabled=false;
     if(data.mode==="team"){$("deployment-mode").textContent="TEAM";$("runtime-label").textContent=`${data.user.nexus_id} · ${data.user.role}`;$("composer-hint").textContent="Uses your Nexus provider configuration";$("view-providers").querySelector(".callout").textContent="Providers use your existing Nexus account setup. Shared Codex and Claude Code runs use isolated prompt-only containers. Complete provider setup through Nexus login.";}
     $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex");renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills(),loadDecisionModels(),loadKnowledgeProjects()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;const continued=location.hash.match(/^#chat\/([a-f0-9]{32})$/);if(continued)await openSession(continued[1]);restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
   catch(error){if(error.retryable&&$("team-login").hidden)disconnectedRuns.add("bootstrap");else disconnectedRuns.delete("bootstrap");connectionStatus();if($("team-login").hidden)notify(`Could not load the workspace: ${error.message}`);$("send-message").disabled=true;if(error.retryable&&$("team-login").hidden)bootstrapRetryTimer=setTimeout(bootstrap,Math.min(15000,1000*2**Math.min(bootstrapFailures++,4)));}

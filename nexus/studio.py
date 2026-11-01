@@ -30,6 +30,7 @@ _ASSETS = {
     "/vendor/purify.js": ("vendor/purify.js", "text/javascript; charset=utf-8"),
     "/content.js": ("content.js", "text/javascript; charset=utf-8"),
     "/theme.js": ("theme.js", "text/javascript; charset=utf-8"),
+    "/drafts.js": ("drafts.js", "text/javascript; charset=utf-8"),
     "/conversation-content.js": ("conversation-content.js", "text/javascript; charset=utf-8"),
     "/features.js": ("features.js", "text/javascript; charset=utf-8"),
     "/workspace-access.js": ("workspace-access.js", "text/javascript; charset=utf-8"),

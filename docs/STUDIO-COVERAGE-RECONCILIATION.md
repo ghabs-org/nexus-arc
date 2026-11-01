@@ -1,5 +1,21 @@
 # Studio delivery evidence reconciliation — 29 October 2026
 
+## Current follow-up — 1 November 2026
+
+This document and its JSON companion retain the 29 October audit snapshot.
+Its browser-pending and optional-comparison recommendations below are historical.
+The [current delivery status](STUDIO-DELIVERY-STATUS.md) supersedes those next steps:
+the three UI consistency fixes and offline report comparison are implemented, and
+the [1 November browser checkpoint](STUDIO-BROWSER-CHECKS-CHECKPOINT.json) records
+broader local Chromium checks. Fresh verification passes 289 frontend and 43
+focused Python checks with zero skips. All 20 checkpoint source paths matched
+before this documentation follow-up; no new browser session was run here.
+
+Real devices/assistive technology, selected live integration accounts, recovered
+host/full-machine recovery and final desktop delivery remain open. VM work stays
+deferred; new desktop builds and public publication retain their existing limits.
+The frozen flags are unchanged and whole-plan completion remains false.
+
 ## Decision
 
 The original feature inventory has scoped local acceptance. The entire delivery

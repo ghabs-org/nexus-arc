@@ -33,6 +33,17 @@ so welcome actions remain reachable on shorter screens; existing conversations
 retain their message panel. Shared radius, elevation and layer tokens keep button
 pressed states and detail-dialog full-view toggles immediate without layout-property
 transitions. These checks do not require sending a message.
+
+Unsent chat and Quick Build prompts also use the framework's browser-local draft
+recovery. Type a short prompt, choose an effort, then reload without submitting.
+The empty composer offers Restore draft and Discard draft; restoration fills the
+prompt/settings and available attachment references without starting work. This
+browser keeps one draft per surface, user/workspace and embedded-agent scope for
+seven days. Discard a restored draft and reload to verify it stays removed. A
+submission without confirmation retains a warning to check Activity before retry.
+No file bytes, credential fields or prompt-variable answers are collected by the
+draft controller. Browser storage can be unavailable; keep or copy your text when
+Studio reports that a draft could not be saved. Drafts are not server backups.
 """
 
 import os

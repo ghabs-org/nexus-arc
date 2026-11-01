@@ -8,13 +8,16 @@ implements the known source issues in DT-01, DT-04 and DT-05, including the comp
 skill-action sizing exception. Its [checkpoint](STUDIO-INTERFACE-ACCESSIBILITY-CHECKPOINT.json)
 records its source and validation boundaries. The [system-theme slice](STUDIO-SYSTEM-THEME.md)
 adds source implementation for DT-02 and shared control-boundary issues in DT-06,
-with palette contracts and isolated-preview checks. Color portions of DT-08 are
-addressed; its broader shape/layer/interaction policy remains open. The audit and
-matrix below are the original pre-fix snapshot, not current-source certification.
+with palette contracts and isolated-preview checks. The audit and matrix below
+are the original pre-fix snapshot, not current-source certification.
 The [local-assets follow-up](STUDIO-LOCAL-ASSETS.md) implements DT-03 and DT-07,
-with scoped browser checks for themes, layouts and keyboard navigation. DT-08's
-broader consistency policy, DT-09, DT-10 and remaining rendered/physical-device
-acceptance stay open. No source slice establishes complete visual conformance.
+with scoped browser checks for themes, layouts and keyboard navigation. The
+1 November token/layer/pressed-state, punctuation and dialog-transition changes
+close the identified DT-08, DT-09 and DT-10 source issues. All ten original source
+findings now have implementations. The [broadened browser checkpoint](STUDIO-BROWSER-CHECKS-CHECKPOINT.json)
+records later rendered checks; its automated scores do not establish full
+screen-reader or physical-device acceptance. See the [current delivery status](STUDIO-DELIVERY-STATUS.md)
+for the remaining gates. Complete visual/accessibility conformance is not declared.
 
 ## Design read and scope
 
