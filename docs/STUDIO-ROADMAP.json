@@ -1,0 +1,387 @@
+{
+  "format": "nexus-studio-implementation-roadmap/v1",
+  "updated": "2026-11-02",
+  "scope": "Current action queue; frozen requirements and historical checkpoints retain their own scope",
+  "whole_plan_complete": false,
+  "baseline": {
+    "frozen_records": 135,
+    "accepted_flags": 135,
+    "fixture_verified_records": 119,
+    "implemented_constraint_records": 12,
+    "explicit_exclusions": 4,
+    "catalog_entries": 31,
+    "supported_catalog_entries": 27,
+    "catalog_exclusions": 4,
+    "milestones_1_to_8": "scoped local acceptance",
+    "milestones_10_to_12": "scoped local acceptance",
+    "milestone_9": "open and last"
+  },
+  "completed_additions": [
+    "Rich conversations and artifact/citation views",
+    "Knowledge projects and retrieval",
+    "Prompt designer and calendar scheduling",
+    "Workflow semantics and Quick Build lifecycle",
+    "Connector/protocol and catalog implementations",
+    "Voice/sharing/feedback/operational framework",
+    "System/Light/Dark and ten original design-audit source fixes",
+    "Local fonts/icons and scoped browser layouts",
+    "Offline evaluation report comparison",
+    "Chat/Quick Build draft recovery",
+    "Workflow canvas undo/redo with bounded validated edit history (IDEA-01)",
+    "Opt-in run-completion and approval notifications with private-content limits (IDEA-02)",
+    "macOS 1.0.2 local signing/notarization and scoped updater checks",
+    "Cross-platform application discovery and prepare-update backup for macOS, Windows and Linux (DESKTOP-01 code implementation)"
+  ],
+  "known_implementation_gap": {
+    "task": "DESKTOP-01",
+    "observation": "Cross-platform application discovery and prepare-update implementation completed in updates.rs and studio_desktop_release.py. Native runner qualification across physical Windows/Linux hosts remains pending in DESKTOP-04.",
+    "source": "apps/studio-desktop/src-tauri/src/updates.rs"
+  },
+  "latest_recorded_tests": {
+    "checkpoint": "docs/STUDIO-ENHANCEMENTS-CHECKPOINT.json",
+    "frontend": 320,
+    "focused_drafts_included": 20,
+    "backend_bundling": 35,
+    "failed": 0,
+    "skipped": 0,
+    "rerun_in_this_plan_update": true
+  },
+  "tasks": [
+    {
+      "id": "WEB-01",
+      "title": "Finish final save and downloaded-file browser acceptance",
+      "kind": "validation",
+      "phase": 1,
+      "status": "completed",
+      "owner": "agent/local",
+      "prerequisites": [
+        "Disposable local workspace; synthetic resources; no providers"
+      ],
+      "acceptance": [
+        "Complete reviewed dataset/judge save and read the persisted revisions back in the UI.",
+        "Click explicit report, dataset/judge and experiment downloads; validate filenames, bytes and pinned IDs/revisions.",
+        "Re-import supported downloaded handoffs into a fresh disposable workspace and compare supported definitions.",
+        "Exercise keyboard and phone/desktop layouts; record zero unintended runs and no automatic downloads."
+      ],
+      "evidence": [
+        "docs/STUDIO-BROWSER-CHECKS-CHECKPOINT.json",
+        "tests/studio_web01_web02_acceptance.py",
+        "tests/test_studio_evaluation_export.py",
+        "tests/studio_evaluation_gate.test.cjs"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "WEB-02",
+      "title": "Record an actual performance baseline",
+      "kind": "validation",
+      "phase": 1,
+      "status": "completed",
+      "owner": "agent/local",
+      "prerequisites": [
+        "Same declared browser/device settings; synthetic small and large histories, tables and graphs"
+      ],
+      "acceptance": [
+        "Record load/layout-shift metrics, interaction latency, data sizes, tool versions and measurement method.",
+        "Distinguish lab observations from field Core Web Vitals; do not treat Accessibility/SEO scores as performance results.",
+        "Document measured bottlenecks and explicit acceptance budgets; fix and remeasure any resulting scoped regressions."
+      ],
+      "evidence": [
+        "docs/STUDIO-PERFORMANCE-BASELINE.md",
+        "docs/STUDIO-BROWSER-CHECKS-CHECKPOINT.json",
+        "docs/STUDIO-DESIGN-TASTE-AUDIT.md",
+        "tests/studio_web01_web02_acceptance.py"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DEVICE-01",
+      "title": "Complete real-device, screen-reader and installed-web-app checks",
+      "kind": "validation",
+      "phase": 2,
+      "status": "needs-device",
+      "owner": "user/device with agent recording results",
+      "prerequisites": [
+        "Actual target phone/tablet; reachable authenticated HTTPS Studio; selected voice setup"
+      ],
+      "acceptance": [
+        "Verify portrait/landscape, enlarged text, software keyboard/safe areas, touch targets and VoiceOver/TalkBack navigation.",
+        "Record real microphone allow/deny/retry and recording/transcription/playback/speed/Stop using the selected provider.",
+        "Install and reopen the web app; check cached shell/offline status, private-data boundaries and reconnect without replay.",
+        "Check draft recovery after reload and a real app/browser interruption; record device/OS/browser and exact results."
+      ],
+      "evidence": [
+        "docs/STUDIO-PHYSICAL-DEVICE-ACCEPTANCE.md",
+        "docs/STUDIO-DRAFT-RECOVERY-CHECKPOINT.json"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "LIVE-01",
+      "title": "Publish an accurate selected-account integration acceptance matrix",
+      "kind": "validation",
+      "phase": 2,
+      "status": "needs-selected-accounts",
+      "owner": "agent and account owner",
+      "prerequisites": [
+        "Explicitly selected configured accounts/models and read/write scope; dedicated test destinations for any channel sends"
+      ],
+      "acceptance": [
+        "Map every supported catalog identity/alias to implementation, fixture, configured and live results without promoting visibility to readiness.",
+        "Check selected account authentication/permissions and API voice/embedding/provider behavior, including failure recovery and billing path.",
+        "Complete OpenClaw real Telegram/Discord channel and remote-gateway cases when those accounts/host access are available.",
+        "Label unavailable vendor accounts as live validation pending; obtain explicit scope for external sends or paid actions."
+      ],
+      "evidence": [
+        "docs/STUDIO-COVERAGE-RECONCILIATION.json",
+        "docs/STUDIO-M12-OPENCLAW-CHECKPOINT.json",
+        "docs/STUDIO-GITHUB-LIVE-READS-CHECKPOINT.json"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DB-01",
+      "title": "Exercise SQL Server and Oracle against real servers",
+      "kind": "validation",
+      "phase": 2,
+      "status": "needs-database-instances",
+      "owner": "agent and database owner",
+      "prerequisites": [
+        "Disposable SQL Server/Oracle instances, selected drivers and least-privilege test credentials"
+      ],
+      "acceptance": [
+        "Verify real connection/pooling, schema discovery, parameter validation, bounded queries and failure recovery.",
+        "Prove read-only defaults; test write approval only in a dedicated explicitly selected test schema.",
+        "Record server/driver versions and cleanup; retain fixture-only status where prerequisites are absent."
+      ],
+      "evidence": [
+        "docs/STUDIO-COVERAGE-RECONCILIATION.md"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "OPS-01",
+      "title": "Complete recovered-host browser and login acceptance",
+      "kind": "validation",
+      "phase": 3,
+      "status": "deferred-by-user",
+      "owner": "operator and agent",
+      "prerequisites": [
+        "User resumes VM work; distinct recovered HTTPS host and isolated restored services"
+      ],
+      "acceptance": [
+        "Verify real recovered-host browser/login, account/workspace isolation, private responses and no background task replay.",
+        "Keep live Studio separate and record exact restored snapshot/source versions."
+      ],
+      "evidence": [
+        "docs/STUDIO-RECOVERED-HOST-LOGIN.md",
+        "docs/STUDIO-RECOVERED-HOST-PREPARATION-CHECKPOINT.json"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "OPS-02",
+      "title": "Finish full-host disaster recovery",
+      "kind": "validation",
+      "phase": 3,
+      "status": "deferred-by-user",
+      "owner": "operator and agent",
+      "prerequisites": [
+        "User resumes VM work; reviewed independent-host recovery target and maintenance scope"
+      ],
+      "acceptance": [
+        "Verify OS/service/ingress/daemon or controlled power-loss recovery using actual state, definitions, document/index/artifact data and credential references.",
+        "Record restart ordering, no duplicate external effects, recovery timing and rollback.",
+        "Distinguish full-machine evidence from already completed selected-service and encrypted-copy restores."
+      ],
+      "evidence": [
+        "docs/STUDIO-INDEPENDENT-RECOVERY-CHECKPOINT.json",
+        "docs/STUDIO-FINAL-TARGETS-CHECKPOINT.json"
+      ],
+      "depends_on": [
+        "OPS-01"
+      ]
+    },
+    {
+      "id": "DESKTOP-01",
+      "title": "Implement and qualify Windows/Linux installed updates",
+      "kind": "implementation",
+      "phase": 4,
+      "status": "implementation-complete; native-host-qualification-pending",
+      "owner": "agent with native platform runners",
+      "prerequisites": [
+        "Milestone 9 phase; platform-specific installer/update format decision and native runners"
+      ],
+      "acceptance": [
+        "Replace macOS-only application discovery/update preparation with reviewed platform-specific paths and rollback/backup handling.",
+        "Preserve native-menu confirmation, HTTPS/signature/version checks and workspace ownership; never expose installation to remote webviews.",
+        "Compile and run platform fault contracts for rejected signatures, interrupted downloads/installation and backup failure.",
+        "Keep unsupported paths guarded until the corresponding installed-release validation passes."
+      ],
+      "evidence": [
+        "apps/studio-desktop/src-tauri/src/updates.rs",
+        "nexus/core/studio_desktop_release.py",
+        "tests/test_studio_desktop_release.py",
+        "docs/STUDIO-DESKTOP-SIGNED-RELEASE.md"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DESKTOP-02",
+      "title": "Configure Windows installer signing",
+      "kind": "release-configuration",
+      "phase": 4,
+      "status": "needs-signing-identity-and-windows-host",
+      "owner": "release maintainer",
+      "prerequisites": [
+        "Windows release host, chosen signing identity/provider and existing Tauri signing seam"
+      ],
+      "acceptance": [
+        "Configure signing identity and timestamping without putting private keys or passwords in Git.",
+        "Verify installer/application publisher identity, tamper rejection and install behavior on Windows.",
+        "Reuse existing build tooling where sufficient; add a signing producer only if the current seam is insufficient."
+      ],
+      "evidence": [
+        "apps/studio-desktop/src-tauri/tauri.conf.json"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DESKTOP-03",
+      "title": "Package the current reviewed source into fresh desktop artifacts",
+      "kind": "packaging",
+      "phase": 4,
+      "status": "held-until-explicit-build-request",
+      "owner": "release maintainer and agent",
+      "prerequisites": [
+        "Explicit user request for a new build; target platform/architecture and reviewed source revision"
+      ],
+      "acceptance": [
+        "Record source/version/dependency manifests and include current UI, fonts/icons, draft recovery and backend fixes.",
+        "Run full-profile bundled runtime checks and platform signing/notarization as applicable.",
+        "Produce local artifacts/checksums and test evidence; do not publish or replace the old release automatically."
+      ],
+      "evidence": [
+        "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json",
+        "docs/STUDIO-DRAFT-RECOVERY-CHECKPOINT.json"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DESKTOP-04",
+      "title": "Verify the installed current app across target platforms",
+      "kind": "validation",
+      "phase": 4,
+      "status": "needs-artifacts-and-native-hosts",
+      "owner": "testers and agent",
+      "prerequisites": [
+        "Reviewed fresh artifacts; another physical Mac; Windows and Linux target hosts",
+        "Windows release acceptance requires DESKTOP-02; Windows/Linux installed-update acceptance requires DESKTOP-01. Record each platform independently rather than blocking all Mac checks on Windows prerequisites."
+      ],
+      "acceptance": [
+        "Verify download/install/authentication, workspace selection/import/ownership, close/crash/reopen and uninstall behavior.",
+        "Verify bundled full-profile features and declared external prerequisites on each supported target.",
+        "For native updates, test the implemented platform path against signed artifacts; source-runner results alone do not close this gate."
+      ],
+      "evidence": [
+        "docs/STUDIO-M9-DESKTOP-CHECKPOINT.json",
+        "docs/STUDIO-DESKTOP-SIGNED-RELEASE.md"
+      ],
+      "depends_on": [
+        "DESKTOP-03"
+      ]
+    },
+    {
+      "id": "DESKTOP-05",
+      "title": "Test a genuine old-release upgrade and rollback",
+      "kind": "validation",
+      "phase": 4,
+      "status": "needs-new-artifact-and-prior-release",
+      "owner": "agent and release tester",
+      "prerequisites": [
+        "Actual previously shipped release and new candidate; disposable workspace created by the prior release"
+      ],
+      "acceptance": [
+        "Upgrade real prior-release data with conversations, definitions, schedules, documents/indexes and artifacts intact.",
+        "Verify pre-upgrade backup and compatible restore/rollback after a controlled failure.",
+        "Use actual old/new binaries and schema states; synthetic prior-version metadata is insufficient."
+      ],
+      "evidence": [
+        "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json"
+      ],
+      "depends_on": [
+        "DESKTOP-03"
+      ]
+    },
+    {
+      "id": "DESKTOP-06",
+      "title": "Verify the native menu against the chosen update distribution path",
+      "kind": "validation",
+      "phase": 4,
+      "status": "needs-distribution-path-decision",
+      "owner": "user and release maintainer",
+      "prerequisites": [
+        "Selected authorized HTTPS distribution path and versioned signed candidate; publication remains a separate user decision"
+      ],
+      "acceptance": [
+        "Use the installed native Check for Updates menu to verify metadata, download, signature/version enforcement, backup, replacement and restart.",
+        "Record real two-release success/failure results; a prepared local feed and cryptographic fixtures are not a deployed feed test.",
+        "Keep all release files local unless publication is explicitly requested; public hosting is not itself a missing product feature."
+      ],
+      "evidence": [
+        "apps/studio-desktop/src-tauri/src/updates.rs",
+        "docs/STUDIO-DESKTOP-SIGNED-RELEASE.md"
+      ],
+      "depends_on": [
+        "DESKTOP-03",
+        "DESKTOP-05"
+      ]
+    }
+  ],
+  "optional_backlog": [
+    {
+      "id": "IDEA-01",
+      "title": "Workflow canvas undo/redo",
+      "kind": "enhancement",
+      "status": "implemented",
+      "blocks_delivery": false,
+      "acceptance": [
+        "Reversible node/edge/config edits, bounded history and preserved workflow validation/approval rules."
+      ]
+    },
+    {
+      "id": "IDEA-02",
+      "title": "Opt-in run-completion and approval notifications",
+      "kind": "enhancement",
+      "status": "implemented",
+      "blocks_delivery": false,
+      "acceptance": [
+        "Explicit opt-in, minimal private content, deduplication and a working Activity/Inbox fallback."
+      ]
+    }
+  ],
+  "constraints": {
+    "vm_work": "deferred; do not contact or change the VM",
+    "desktop_builds": "only on explicit user request",
+    "public_release_publication": "withheld",
+    "milestone_9": "last",
+    "secrets": "never place credentials or private account payloads in the plan/evidence",
+    "frozen_flags": "do not promote or change from catalog visibility or this plan rewrite"
+  },
+  "completion_rules": [
+    "A task passes only with its stated reproducible acceptance evidence on the named source/artifact/environment.",
+    "Unavailable, deferred or held is never a pass. A consciously accepted limitation/exclusion needs an explicit recorded decision.",
+    "Report fixture, configured, live and installed-artifact evidence separately; do not sum overlapping test totals.",
+    "Complete original inventory/local implementation does not imply every vendor account, device or release is live verified.",
+    "Public publication is a user-held distribution choice; do not publish to close a checklist.",
+    "Optional proposals do not block the original plan and do not become approved work without a request."
+  ],
+  "evidence": [
+    "docs/STUDIO-COVERAGE-RECONCILIATION.json",
+    "docs/STUDIO-BROWSER-CHECKS-CHECKPOINT.json",
+    "docs/STUDIO-DRAFT-RECOVERY-CHECKPOINT.json",
+    "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json",
+    "docs/STUDIO-M12-OPENCLAW-CHECKPOINT.json"
+  ],
+  "source_head": "9f483002d9d2ba0ee752e43d3d07742736e66628"
+}

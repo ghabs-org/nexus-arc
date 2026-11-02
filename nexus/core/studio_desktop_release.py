@@ -5,6 +5,7 @@ import json
 import os
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -20,16 +21,30 @@ def prepare_update(workspace, destination, application):
     workspace = check_workspace_root(workspace)
     destination = Path(destination).absolute()
     application = Path(application).resolve(strict=True)
+
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("Choose a new backup folder")
     if (
-        sys.platform != "darwin"
-        or application.suffix != ".app"
-        or not (application / "Contents/Info.plist").is_file()
-        or destination.exists()
-        or destination.is_symlink()
-        or destination.resolve().is_relative_to(workspace)
+        destination.resolve().is_relative_to(workspace)
         or destination.resolve().is_relative_to(application)
     ):
-        raise ValueError("Choose a new backup folder outside the workspace and macOS application")
+        raise ValueError("Choose a new backup folder outside the workspace and application")
+
+    if sys.platform == "darwin":
+        if application.suffix != ".app" or not (application / "Contents/Info.plist").is_file():
+            raise ValueError("Choose a new backup folder outside the workspace and macOS application")
+    elif sys.platform == "win32":
+        if not (
+            (application.is_file() and application.suffix.lower() == ".exe")
+            or (application.is_dir() and any(p.suffix.lower() == ".exe" for p in application.iterdir()))
+        ):
+            raise ValueError("Choose an installed Windows application")
+    elif sys.platform.startswith("linux"):
+        if not application.is_file() and not application.is_dir():
+            raise ValueError("Choose an installed Linux application")
+    else:
+        raise ValueError("Updates are unsupported on this platform")
+
     lock = WorkspaceLock(workspace)
     if not lock.acquire(0, metadata={"operation": "prepare-update"}):
         raise ValueError("Close the workspace before preparing an update")
@@ -38,11 +53,16 @@ def prepare_update(workspace, destination, application):
         create_snapshot(workspace, destination / "workspace", quiesced=True)
         verify_snapshot(destination / "workspace")
         previous = destination / application.name
-        result = subprocess.run(
-            ["/usr/bin/ditto", str(application), str(previous)], capture_output=True
-        )
-        if result.returncode:
-            raise ValueError("Could not preserve the previous application")
+        if sys.platform == "darwin" and Path("/usr/bin/ditto").is_file():
+            result = subprocess.run(
+                ["/usr/bin/ditto", str(application), str(previous)], capture_output=True
+            )
+            if result.returncode:
+                raise ValueError("Could not preserve the previous application")
+        elif application.is_dir():
+            shutil.copytree(str(application), str(previous), symlinks=True)
+        else:
+            shutil.copy2(str(application), str(previous))
         return {"success": True, "backup": str(destination), "previous_app": str(previous)}
     finally:
         lock.release()

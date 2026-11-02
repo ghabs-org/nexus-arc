@@ -101,7 +101,13 @@
         "Shared conversation snapshot viewer (/shared.html) with .table-container wrapping and explicit artifact download button",
         "Pinned document source viewer (/artifact.html) with iframe[sandbox=\"\"] and live color-scheme sync",
         "Workflow graph SVG node fill adaptation in Light and Dark themes",
-        "Zero horizontal overflow across 1280x720, 1024x768, 390x844, and 360x780"
+        "Zero horizontal overflow across 1280x720, 1024x768, 390x844, and 360x780",
+        "WEB-01: Reviewed dataset and judge save applied through UI and read back as revision 2 in DOM",
+        "WEB-01: Explicit single and multi-file downloads validated with exact filenames and byte counts (report, 4-file package, 2-file declaration) with zero automatic downloads",
+        "WEB-01: Handoff re-import into fresh destination workspace validated with complete definition parity",
+        "WEB-01: Zero unintended runs created or dispatched across all operations (runCount: 0)",
+        "WEB-02: Performance baseline recorded (FCP 112ms, LCP 85ms, CLS 0.00-0.01, tab transitions ~21ms)",
+        "WEB-02: Large history stress table (100 runs) rendered in 81.1ms; 20-node DAG canvas rendered in 9.8ms; all within declared budgets"
       ],
       "preview_runs_created": 0,
       "preview_server_stopped": true

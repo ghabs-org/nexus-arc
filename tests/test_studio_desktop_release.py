@@ -212,3 +212,51 @@ def test_update_archive_has_one_root_and_excludes_macos_metadata(tmp_path, monke
         release.build_update_archive(app, destination)
     with pytest.raises(ValueError, match="new updater archive"):
         release.build_update_archive(app, destination)
+
+
+def test_prepare_update_windows_application(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    service = StudioService(workspace)
+    service.save_definition("agents", {"id": "win_agent", "name": "WinAgent", "instructions": "Test"})
+    service.close()
+
+    win_app = tmp_path / "Nexus Studio"
+    win_app.mkdir()
+    (win_app / "Nexus Studio.exe").write_bytes(b"MZ_windows_binary")
+
+    monkeypatch.setattr(release.sys, "platform", "win32")
+    destination = tmp_path / "backups/before-update-win"
+    result = release.prepare_update(workspace, destination, win_app)
+    assert result["success"]
+    assert (Path(result["previous_app"]) / "Nexus Studio.exe").read_bytes() == b"MZ_windows_binary"
+    assert verify_snapshot(Path(result["backup"]) / "workspace")
+
+
+def test_prepare_update_linux_application(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    service = StudioService(workspace)
+    service.save_definition("agents", {"id": "linux_agent", "name": "LinuxAgent", "instructions": "Test"})
+    service.close()
+
+    linux_app = tmp_path / "nexus-studio.AppImage"
+    linux_app.write_bytes(b"\x7fELF_linux_binary")
+
+    monkeypatch.setattr(release.sys, "platform", "linux")
+    destination = tmp_path / "backups/before-update-linux"
+    result = release.prepare_update(workspace, destination, linux_app)
+    assert result["success"]
+    assert Path(result["previous_app"]).read_bytes() == b"\x7fELF_linux_binary"
+    assert verify_snapshot(Path(result["backup"]) / "workspace")
+
+
+def test_prepare_update_rejects_unsupported_platform(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    service = StudioService(workspace)
+    service.close()
+
+    app = tmp_path / "nexus-studio"
+    app.write_text("binary")
+
+    monkeypatch.setattr(release.sys, "platform", "freebsd")
+    with pytest.raises(ValueError, match="unsupported on this platform"):
+        release.prepare_update(workspace, tmp_path / "backup", app)

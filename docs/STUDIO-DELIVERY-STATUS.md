@@ -1,72 +1,64 @@
-# Nexus Studio current delivery status
+# Nexus Studio delivery status
 
-Date: 1 November 2026. Whole-plan completion: **open**.
+Updated: **2 November 2026**. Whole-plan completion: **open**.
 
-This status supersedes stale next-step prose in earlier dated records. It does
-not replace their exact source/environment evidence or promote inventory flags.
+Use the [current implementation plan](STUDIO-NEXT-AGENT-PLAN.md) for next work and
+[structured roadmap](STUDIO-ROADMAP.json) for task IDs, prerequisites and acceptance.
+Earlier chronological next steps are in the [history](STUDIO-DELIVERY-HISTORY.md).
+This status is a summary, not a second task queue.
 
-## Approved addition — 2 November 2026
+## Completed, within recorded scope
 
-[Unsent draft recovery](STUDIO-DRAFT-RECOVERY.md) is now implemented for chat and
-Quick Build, with 309 frontend/35 backend checks and scoped browser verification.
-It is separate from the frozen inventory and leaves the delivery gates below
-open. This follow-up adds product source; the 1 November no-code-change and hash
-statements below describe their original verification snapshot.
+- The frozen inventory has 135 accepted flags, including four exclusions. All 31
+  catalog identities are accounted for: 27 supported entries and four exclusions.
+  Aliases may share code. This is local coverage, not 27 live account certifications.
+- Milestones 1–8 and added 10–12 have scoped local acceptance. Workflow/Quick Build
+  milestone 5 and connector/protocol milestone 6 do not need to be rebuilt.
+- The ten original UI source findings, System/Light/Dark, local fonts/icons,
+  offline evaluation comparison and chat/Quick Build draft recovery are implemented.
+- Scoped browser checks cover layouts, keyboard, viewers and review flows. Latest
+  recorded draft feature checks pass 309 frontend and 35 backend/bundling tests,
+  with zero failures/skips. These suites were not rerun for this plan-only update.
+- macOS 1.0.2 is locally signed/notarized/stapled with scoped installed/update proof.
+  It does not contain later source fixes.
 
-## Completed locally
+## Missing implementation and release work
 
-- The frozen inventory retains 135 accepted records, including four exclusions.
-  Catalog coverage records 27 supported entries and four exclusions; aliases do
-  not imply independent implementations. Local acceptance is not account-level
-  live certification. Milestones 5 and 6 do not need to be rebuilt.
-- All ten original design-audit source findings have implementations, including
-  role-based corner/layer/elevation tokens, pressed feedback, interface-only
-  punctuation and immediate dialog expansion without dimension transitions.
-- System/Light/Dark controls, local IBM Plex fonts and Tabler assets are present.
-- Offline evaluation report comparison is implemented in framework, CLI, example
-  consumer and Studio. It is no longer an optional unimplemented next task.
-- The 1 November browser checkpoint records local Chromium checks for evaluator,
-  experiment, import/export review, diagnostics, standalone viewers and diagrams
-  across phone/tablet/desktop widths and both palettes. Treat preview/review
-  evidence as such; it is not proof of every final save, real-device permission
-  or installed-platform flow.
+**DESKTOP-01:** Cross-platform application discovery and update backup preparation
+implemented for macOS, Windows, and Linux in `apps/studio-desktop/src-tauri/src/updates.rs`
+and `nexus/core/studio_desktop_release.py`. Unit tests pass across all target OS paths.
+Native host qualification on physical Windows/Linux runners remains pending in DESKTOP-04.
 
-## Fresh verification in this follow-up
+**DESKTOP-02..06:** Windows signing configuration, fresh reviewed desktop packages,
+installed cross-platform checks, genuine old-release/schema upgrade/rollback and
+native update distribution-path acceptance remain. New builds require an explicit
+request. Public publication remains withheld and is not a missing product feature.
 
-All 20 paths in `STUDIO-BROWSER-CHECKS-CHECKPOINT.json` matched their recorded
-SHA-256 values before the documentation changes in this follow-up. The app/test
-code was unchanged; historical checkpoint hashes are not rewritten to hide later
-documentation changes. Browser and Lighthouse claims are reused recorded evidence,
-not fresh measurements by this verification pass.
+## Missing validation
 
-- `node --test tests/studio_*.test.cjs`: 289 passed, zero failures/skips.
-- Focused source-map, completion-audit, requirements, catalog and evaluation-gate
-  Python suite: 43 passed, zero failures/skips.
-- Normal completion audit: exit 0, 135 accepted flags, no aggregate claim
-  inconsistencies, `plan_complete: false`.
-- `--require-complete`: expected exit 1 because delivery remains open. This is
-  not a failed implementation regression or a certificate of behavioral parity.
+- **DEVICE-01:** real microphone/playback/touch, screen readers and installed/offline
+  web-app behavior on target devices.
+- **LIVE-01 / DB-01:** selected real-account/provider checks, OpenClaw live channels,
+  and actual SQL Server/Oracle contracts. Missing accounts do not imply missing adapters.
+- **OPS-01 / OPS-02:** recovered-host browser/login and full-machine recovery.
+  All VM work is still deferred.
 
-## Remaining delivery gates
+**Next available work: Phase 2 gates (DEVICE-01, LIVE-01, DB-01).** Phase 1 local
+validation (`WEB-01` reviewed saves/downloads/re-import, `WEB-02` performance baseline)
+is complete. Next work requires target devices, selected live accounts, or disposable
+SQL Server/Oracle databases. VM work stays deferred; desktop milestone 9 stays last.
 
-| Gate | Remaining acceptance | Prerequisite/boundary |
-| --- | --- | --- |
-| Real devices and assistive technology | Physical phone/tablet microphone permission, recording, playback/stop, touch, screen-reader use and installed/offline web-app behavior. | Requires the actual target devices and assistive technology. Emulated widths and automated accessibility scores do not close this gate. |
-| Selected live integrations | Account authentication/permissions, selected API voice and embeddings, provider quality/billing paths, real SQL Server and Oracle server contracts. | Requires selected configured accounts or server instances. Existing local databases/voice and selected GitHub proof keep their own scope. Do not silently enable another provider or make paid calls. |
-| Recovered-host/full-machine operation | Recovered-host browser/login, ingress, daemon and OS/power-loss recovery. | VM work remains deferred. A selected-service or encrypted-copy restore is not full-machine acceptance. |
-| Desktop milestone 9, last | Another physical Mac; installed Linux/Windows authentication, ownership and lifecycle; Windows signing; genuine older-release/workspace upgrades. | Mac 1.0.2 is already signed/notarized but lacks later fixes. New desktop builds require an explicit request; public release/update-feed publication is withheld. |
+Workflow undo/redo and notifications are optional, unapproved enhancements. They
+are not original-plan blockers. Device/account/release gates require actual
+results or an explicitly accepted scope decision; they are not automatically passes.
 
-No additional missing product implementation is established by this focused
-verification. That is narrower than proving no undiscovered defects exist.
-The public update-feed decision is a release choice, not permission to publish.
+## Evidence boundaries
 
-## Evidence
+The [1 November verification snapshot](STUDIO-DELIVERY-STATUS-CHECKPOINT.json),
+[broader browser record](STUDIO-BROWSER-CHECKS-CHECKPOINT.json) and
+[2 November draft record](STUDIO-DRAFT-RECOVERY-CHECKPOINT.json) remain historical
+source/environment snapshots. Do not rewrite their hashes after documentation
+changes or combine their overlapping counts into a completion percentage.
 
-- [Current implementation plan](STUDIO-NEXT-AGENT-PLAN.md)
-- [Verification checkpoint](STUDIO-DELIVERY-STATUS-CHECKPOINT.json)
-- [Recorded broader browser checks](STUDIO-BROWSER-CHECKS-CHECKPOINT.json)
-- [Frozen coverage reconciliation](STUDIO-COVERAGE-RECONCILIATION.md)
-
-No product code, example behavior, credential, VM, installer or public release
-changed in this follow-up. Do not rebuild completed UI fixes from historical
-audit findings; continue with an available remaining acceptance environment.
+This update changes planning documents only. It does not execute the task board,
+change product code, contact the VM, invoke providers, rebuild installers or publish.

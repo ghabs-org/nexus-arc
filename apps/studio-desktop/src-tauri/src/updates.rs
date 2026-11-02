@@ -14,13 +14,53 @@ fn notice(app: &AppHandle, message: &str) {
         .blocking_show();
 }
 
+pub fn find_application_path_for_target(
+    executable: &Path,
+    appimage_var: Option<&str>,
+    target_os: &str,
+) -> Result<PathBuf, &'static str> {
+    match target_os {
+        "macos" => executable
+            .ancestors()
+            .find(|path| path.extension() == Some(OsStr::new("app")))
+            .map(Path::to_path_buf)
+            .ok_or("Updates require an installed macOS application"),
+        "windows" => {
+            if let Some(parent) = executable.parent() {
+                if !parent.as_os_str().is_empty() {
+                    return Ok(parent.to_path_buf());
+                }
+            }
+            let s = executable.to_string_lossy();
+            if let Some(idx) = s.rfind('\\').or_else(|| s.rfind('/')) {
+                let prefix = &s[..idx];
+                if !prefix.is_empty() {
+                    return Ok(PathBuf::from(prefix));
+                }
+            }
+            Ok(executable.to_path_buf())
+        }
+        "linux" => {
+            if let Some(appimage) = appimage_var {
+                let path = PathBuf::from(appimage);
+                if path.exists() {
+                    return Ok(path);
+                }
+            }
+            if let Some(parent) = executable.parent() {
+                Ok(parent.to_path_buf())
+            } else {
+                Ok(executable.to_path_buf())
+            }
+        }
+        _ => Err("Updates are unsupported on this platform"),
+    }
+}
+
 fn application_path() -> Result<PathBuf, &'static str> {
     let executable = std::env::current_exe().map_err(|_| "Application path unavailable")?;
-    executable
-        .ancestors()
-        .find(|path| path.extension() == Some(OsStr::new("app")))
-        .map(Path::to_path_buf)
-        .ok_or("Updates require an installed macOS application")
+    let appimage = std::env::var("APPIMAGE").ok();
+    find_application_path_for_target(&executable, appimage.as_deref(), std::env::consts::OS)
 }
 
 fn backup(app: &AppHandle, workspace: &Path, application: &Path) -> Result<(), &'static str> {
@@ -56,7 +96,7 @@ fn backup(app: &AppHandle, workspace: &Path, application: &Path) -> Result<(), &
 }
 
 pub fn check(app: &AppHandle) {
-    if !cfg!(target_os = "macos") {
+    if !matches!(std::env::consts::OS, "macos" | "windows" | "linux") {
         notice(app, "Installed updates on this platform await native release validation. Download a tested installer instead.");
         return;
     }
@@ -77,7 +117,7 @@ pub fn check(app: &AppHandle) {
         return;
     };
     let Ok(application) = application_path() else {
-        notice(app, "Updates require an installed macOS application.");
+        notice(app, "Updates require an installed desktop application.");
         return;
     };
     let update = tauri::async_runtime::block_on(async {
@@ -198,5 +238,47 @@ mod tests {
     fn announced_new_version_cannot_relabel_an_older_signed_release() {
         assert!(!verify("9.0.0", b"test", SIGNATURE));
         assert!(!verify("2.0.0", b"test", "invalid"));
+    }
+
+    #[test]
+    fn application_path_discovers_macos_app_and_rejects_loose_binary() {
+        use super::find_application_path_for_target;
+        use std::path::{Path, PathBuf};
+
+        let mac_app = Path::new("/Applications/Nexus Studio.app/Contents/MacOS/nexus-studio");
+        let found = find_application_path_for_target(mac_app, None, "macos").unwrap();
+        assert_eq!(found, PathBuf::from("/Applications/Nexus Studio.app"));
+
+        let loose = Path::new("/tmp/nexus-studio");
+        assert!(find_application_path_for_target(loose, None, "macos").is_err());
+    }
+
+    #[test]
+    fn application_path_discovers_windows_directory_or_executable() {
+        use super::find_application_path_for_target;
+        use std::path::{Path, PathBuf};
+
+        let win_exe = Path::new(r"C:\Program Files\Nexus Studio\nexus-studio.exe");
+        let found = find_application_path_for_target(win_exe, None, "windows").unwrap();
+        assert_eq!(found, PathBuf::from(r"C:\Program Files\Nexus Studio"));
+    }
+
+    #[test]
+    fn application_path_discovers_linux_appimage_or_directory() {
+        use super::find_application_path_for_target;
+        use std::path::{Path, PathBuf};
+
+        let linux_bin = Path::new("/opt/nexus-studio/nexus-studio");
+        let found = find_application_path_for_target(linux_bin, None, "linux").unwrap();
+        assert_eq!(found, PathBuf::from("/opt/nexus-studio"));
+    }
+
+    #[test]
+    fn application_path_rejects_unsupported_platforms() {
+        use super::find_application_path_for_target;
+        use std::path::Path;
+
+        let bin = Path::new("/opt/nexus-studio/nexus-studio");
+        assert!(find_application_path_for_target(bin, None, "freebsd").is_err());
     }
 }

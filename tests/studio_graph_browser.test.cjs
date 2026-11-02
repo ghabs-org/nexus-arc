@@ -26,3 +26,75 @@ test('legacy graphs remain legacy and cannot silently acquire advanced nodes',()
 test('canvas clamps untrusted coordinates before rendering markup',()=>{
  const f=fixture();f.run('loadGraphScope({version:2,nodes:[{id:"one",name:"<img src=x>",kind:"switch",position:{x:"0) onload=bad",y:-10}}],edges:[]});');assert.deepEqual(f.plain('graphNodePosition(graphEditor.nodes[0],0)'),{x:40,y:0});const markup=f.element('graph-canvas').innerHTML;assert.ok(!markup.includes('onload=bad'));assert.ok(!markup.includes('<img'));
 });
+test('workflow canvas undo/redo reverses node additions and deletions while preserving state',()=>{
+ const f=fixture();f.run('state.agents=[{id:"agent-1",document:{metadata:{name:"Agent 1"}}}];loadGraphScope({version:2,nodes:[{id:"node-init",name:"Initial",kind:"agent",agent_id:"agent-1",position:{x:40,y:80}}],edges:[{source:"START",target:"node-init"}]});');
+ assert.equal(f.run('graphEditor.nodes.length'),1);
+ assert.equal(f.element('graph-undo').disabled,true);
+ assert.equal(f.element('graph-redo').disabled,true);
+
+ // Add a decision node
+ f.run('addGraphNode("decision");');
+ assert.equal(f.run('graphEditor.nodes.length'),2);
+ assert.equal(f.element('graph-undo').disabled,false);
+ assert.equal(f.element('graph-redo').disabled,true);
+
+ // Undo node addition
+ f.run('undoGraph();');
+ assert.equal(f.run('graphEditor.nodes.length'),1);
+ assert.equal(f.run('graphEditor.nodes[0].id'),'node-init');
+ assert.equal(f.element('graph-undo').disabled,true);
+ assert.equal(f.element('graph-redo').disabled,false);
+
+ // Redo node addition
+ f.run('redoGraph();');
+ assert.equal(f.run('graphEditor.nodes.length'),2);
+ assert.equal(f.element('graph-undo').disabled,false);
+ assert.equal(f.element('graph-redo').disabled,true);
+
+ // Remove a node
+ f.run('selectGraphNode("node-init");pushGraphHistory();graphEditor.nodes=graphEditor.nodes.filter(n=>n.id!=="node-init");graphEditor.edges=graphEditor.edges.filter(e=>e.source!=="node-init"&&e.target!=="node-init");');
+ assert.equal(f.run('graphEditor.nodes.length'),1);
+ assert.equal(f.run('graphEditor.edges.length'),0);
+
+ // Undo removal
+ f.run('undoGraph();');
+ assert.equal(f.run('graphEditor.nodes.length'),2);
+ assert.equal(f.run('graphEditor.edges.length'),1);
+ assert.equal(f.run('graphEditor.edges[0].target'),'node-init');
+});
+test('workflow canvas undo/redo reverses edge changes and auto-layout',()=>{
+ const f=fixture();f.run('loadGraphScope({version:2,nodes:[{id:"a",name:"A",kind:"delay",delay_seconds:1,position:{x:10,y:20}},{id:"b",name:"B",kind:"delay",delay_seconds:1,position:{x:500,y:300}}],edges:[]});');
+ const posA=f.plain('graphEditor.nodes[0].position');
+ const posB=f.plain('graphEditor.nodes[1].position');
+
+ // Arrange graph changes positions
+ f.run('arrangeGraph();');
+ const arrangedPosA=f.plain('graphEditor.nodes[0].position');
+ assert.notDeepEqual(arrangedPosA,posA);
+
+ // Undo restores exact layout positions
+ f.run('undoGraph();');
+ assert.deepEqual(f.plain('graphEditor.nodes[0].position'),posA);
+ assert.deepEqual(f.plain('graphEditor.nodes[1].position'),posB);
+
+ // Redo re-applies arranged positions
+ f.run('redoGraph();');
+ assert.deepEqual(f.plain('graphEditor.nodes[0].position'),arrangedPosA);
+
+ // Add edge
+ f.run('pushGraphHistory();graphEditor.edges.push({source:"a",target:"b"});');
+ assert.equal(f.run('graphEditor.edges.length'),1);
+
+ // Undo edge addition
+ f.run('undoGraph();');
+ assert.equal(f.run('graphEditor.edges.length'),0);
+});
+test('workflow canvas edit history is bounded to maximum 50 states',()=>{
+ const f=fixture();f.run('loadGraphScope({version:2,nodes:[],edges:[]});');
+ for(let i=0;i<65;i++){
+  f.run(`pushGraphHistory({nodes:[{id:"node-${i}",name:"Node ${i}",kind:"delay",position:{x:${i},y:${i}}}],edges:[],selected:null,meta:{version:2},argumentText:{},fieldText:{},graphText:{}});`);
+ }
+ assert.equal(f.run('graphEditor.undoStack.length'),50);
+ // Oldest state remaining is snapshot 15 (0..14 shifted out)
+ assert.equal(f.run('graphEditor.undoStack[0].nodes[0].id'),'node-15');
+});

@@ -1,7 +1,61 @@
 "use strict";
-const graphEditor={nodes:[],edges:[],selected:null,id:null,revision:null,drag:null,argumentText:{}};
+const graphEditor={nodes:[],edges:[],selected:null,id:null,revision:null,drag:null,argumentText:{},undoStack:[],redoStack:[],maxHistory:50};
+function captureGraphState(){
+  return {
+    nodes:structuredClone(graphEditor.nodes),
+    edges:structuredClone(graphEditor.edges),
+    selected:graphEditor.selected,
+    meta:structuredClone(graphEditor.meta),
+    argumentText:structuredClone(graphEditor.argumentText),
+    fieldText:structuredClone(graphEditor.fieldText||{}),
+    graphText:structuredClone(graphEditor.graphText||{})
+  };
+}
+function updateGraphHistoryControls(){
+  const undo=$("graph-undo"),redo=$("graph-redo");
+  if(undo)undo.disabled=!graphEditor.undoStack||graphEditor.undoStack.length===0;
+  if(redo)redo.disabled=!graphEditor.redoStack||graphEditor.redoStack.length===0;
+}
+function pushGraphHistory(preState){
+  graphEditor.undoStack??=[];graphEditor.redoStack??=[];
+  graphEditor.undoStack.push(preState||captureGraphState());
+  if(graphEditor.undoStack.length>(graphEditor.maxHistory||50))graphEditor.undoStack.shift();
+  graphEditor.redoStack.length=0;
+  updateGraphHistoryControls();
+}
+function applyGraphSnapshot(snapshot){
+  if(!snapshot)return;
+  graphEditor.nodes=structuredClone(snapshot.nodes||[]);
+  graphEditor.edges=structuredClone(snapshot.edges||[]);
+  graphEditor.selected=snapshot.selected||null;
+  graphEditor.meta=structuredClone(snapshot.meta||{version:2});
+  graphEditor.argumentText=structuredClone(snapshot.argumentText||{});
+  graphEditor.fieldText=structuredClone(snapshot.fieldText||{});
+  graphEditor.graphText=structuredClone(snapshot.graphText||{});
+  renderGraphCanvas();
+  renderGraphScope();
+  selectGraphNode(graphEditor.selected);
+  updateGraphHistoryControls();
+}
+function undoGraph(){
+  if(!graphEditor.undoStack||!graphEditor.undoStack.length)return;
+  const current=captureGraphState();
+  graphEditor.redoStack??=[];
+  graphEditor.redoStack.push(current);
+  const prev=graphEditor.undoStack.pop();
+  applyGraphSnapshot(prev);
+}
+function redoGraph(){
+  if(!graphEditor.redoStack||!graphEditor.redoStack.length)return;
+  const current=captureGraphState();
+  graphEditor.undoStack??=[];
+  graphEditor.undoStack.push(current);
+  const next=graphEditor.redoStack.pop();
+  applyGraphSnapshot(next);
+}
 function graphNodePosition(node,index){const p=node.position||{x:40+index*230,y:80};return {x:Number.isFinite(p.x)?Math.max(0,Math.min(10000,p.x)):40,y:Number.isFinite(p.y)?Math.max(0,Math.min(10000,p.y)):80};}
 function arrangeGraph(){
+  pushGraphHistory();
   const levels={START:-1};let remaining=[...graphEditor.nodes];
   for(let round=0;round<41&&remaining.length;round++){
     const next=[];
@@ -30,16 +84,18 @@ async function openGraph(id){
   graphEditor.policy=(await api("/api/studio/workflow-policy")).effective;
   graphEditor.stack=[];graphEditor.fieldText={};graphEditor.graphText={};
   graphEditor.argumentText={};graphEditor.meta={version:2};graphEditor.id=id||null;graphEditor.revision=null;
+  graphEditor.undoStack=[];graphEditor.redoStack=[];
   const item=id?state.workflows.find(item=>item.id===id):null;
   graphEditor.nodes=structuredClone(item?.document.graph.nodes||[]);graphEditor.edges=structuredClone(item?.document.graph.edges||[]);graphEditor.selected=null;
   if(item){graphEditor.revision=item.revision;graphEditor.meta=Object.fromEntries(Object.entries(item.document.graph).filter(([k])=>!["nodes","edges"].includes(k)));}
   $("graph-name").value=item?.document.metadata?.name||"";$("graph-description").value=item?.document.metadata?.description||"";
-  $("graph-error").textContent="";$("graph-node-fields").replaceChildren();$("graph-editor").showModal();renderGraphCanvas();renderGraphScope();
+  $("graph-error").textContent="";$("graph-node-fields").replaceChildren();$("graph-editor").showModal();renderGraphCanvas();renderGraphScope();updateGraphHistoryControls();
 }
 function addGraphNode(kind){
   if(["map","loop","workflow","switch","input"].includes(kind)&&graphEditor.meta.version!==2)throw new Error("Advanced nodes need a new version-2 workflow; legacy graphs keep their format.");
   if(graphEditor.nodes.length>=40)throw new Error("Maximum 40 nodes.");
   const first=state.agents.find(item=>item.document);if(kind==="agent"&&!first)throw new Error("Create an agent first.");
+  pushGraphHistory();
   const id="node-"+crypto.randomUUID().slice(0,8),node={id,name:({approval:"Review and approve",tool:"Tool step",map:"Each item",loop:"Repeat",workflow:"Nested workflow",switch:"Choose a branch",input:"Ask for input"})[kind]||kind[0].toUpperCase()+kind.slice(1)+" step",kind,position:{x:40+graphEditor.nodes.length%3*245,y:45+Math.floor(graphEditor.nodes.length/3)*135}};
   if(kind==="agent"){node.agent_id=first.id;node.prompt="{task}";}
   if(kind==="tool"){node.tool_id="text:wordcount";node.args=[];node.kwargs={text:graphEditor.meta.version===2?{ref:"input"}:"{task}"};}
@@ -73,17 +129,18 @@ document.addEventListener("click",async event=>{
   const button=event.target.closest("button");if(!button)return;
   try{
     if(button.id==="create-graph")await openGraph();if(button.dataset.editGraph)await openGraph(button.dataset.editGraph);
+    if(button.id==="graph-undo")undoGraph();if(button.id==="graph-redo")redoGraph();
     if(button.id==="graph-add-decision")addGraphNode("decision");if(button.id==="graph-add-integration")addGraphNode("integration");if(button.id==="graph-add-delay")addGraphNode("delay");
     if(button.dataset.graphAdvanced)addGraphNode(button.dataset.graphAdvanced);
     if(button.dataset.graphBody)enterGraphScope("body",button.dataset.graphBody);
     if(button.dataset.graphHandler)enterGraphScope(button.dataset.graphHandler);
     if(button.id==="graph-scope-back")leaveGraphScope();
-    if(button.dataset.removeHandler){delete graphEditor.meta[button.dataset.removeHandler];renderGraphScope();}
+    if(button.dataset.removeHandler){pushGraphHistory();delete graphEditor.meta[button.dataset.removeHandler];renderGraphScope();}
     if(button.id==="graph-add-tool")addGraphNode("tool");
     if(button.id==="graph-add-agent")addGraphNode("agent");if(button.id==="graph-add-gate")addGraphNode("approval");if(button.id==="graph-layout")arrangeGraph();
-    if(button.id==="graph-remove-node"){graphEditor.nodes=graphEditor.nodes.filter(node=>node.id!==graphEditor.selected);graphEditor.edges=graphEditor.edges.filter(edge=>edge.source!==graphEditor.selected&&edge.target!==graphEditor.selected);selectGraphNode(null);}
-    if(button.id==="graph-add-edge"){graphEditor.edges.push({source:$("graph-edge-source").value,target:$("graph-edge-target").value,contains:$("graph-edge-condition").value,...($("graph-edge-choice").value?{choice:$("graph-edge-choice").value}:{})});$("graph-edge-condition").value="";$("graph-edge-choice").value="";renderGraphCanvas();}
-    if(button.dataset.removeEdge!==undefined){graphEditor.edges.splice(Number(button.dataset.removeEdge),1);renderGraphCanvas();}
+    if(button.id==="graph-remove-node"){pushGraphHistory();graphEditor.nodes=graphEditor.nodes.filter(node=>node.id!==graphEditor.selected);graphEditor.edges=graphEditor.edges.filter(edge=>edge.source!==graphEditor.selected&&edge.target!==graphEditor.selected);selectGraphNode(null);}
+    if(button.id==="graph-add-edge"){pushGraphHistory();graphEditor.edges.push({source:$("graph-edge-source").value,target:$("graph-edge-target").value,contains:$("graph-edge-condition").value,...($("graph-edge-choice").value?{choice:$("graph-edge-choice").value}:{})});$("graph-edge-condition").value="";$("graph-edge-choice").value="";renderGraphCanvas();}
+    if(button.dataset.removeEdge!==undefined){pushGraphHistory();graphEditor.edges.splice(Number(button.dataset.removeEdge),1);renderGraphCanvas();}
     if(button.dataset.approveRun||button.dataset.rejectRun){const id=button.dataset.approveRun||button.dataset.rejectRun;const run=await api(`/api/runs/${encodeURIComponent(id)}/resume`,{decision:button.dataset.approveRun?"approve":"reject",evaluation_checkpoint:button.dataset.evaluationCheckpoint||undefined});showRun(run);if(run.status==="queued"||run.status==="running")pollRun(id,updateRunDetail).then(()=>refreshRuns()).catch(error=>{updateRunDetail(error.run||{id,status:"failed",error:error.message});});}
   }catch(error){if($("graph-editor").open)$("graph-error").textContent=error.message;else notify(error.message);}
 });
@@ -96,7 +153,7 @@ $("graph-canvas").addEventListener("keydown",event=>{
   const el=event.target.closest("[data-graph-node]");if(!el)return;
   if(["Enter"," "].includes(event.key)){event.preventDefault();selectGraphNode(el.dataset.graphNode);}
   else if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)){
-    event.preventDefault();const node=graphEditor.nodes.find(item=>item.id===el.dataset.graphNode),p=graphNodePosition(node,graphEditor.nodes.indexOf(node)),step=event.shiftKey?40:10;
+    event.preventDefault();pushGraphHistory();const node=graphEditor.nodes.find(item=>item.id===el.dataset.graphNode),p=graphNodePosition(node,graphEditor.nodes.indexOf(node)),step=event.shiftKey?40:10;
     node.position={x:Math.max(0,Math.min(10000,p.x+(event.key==="ArrowRight"?step:event.key==="ArrowLeft"?-step:0))),y:Math.max(0,Math.min(10000,p.y+(event.key==="ArrowDown"?step:event.key==="ArrowUp"?-step:0)))};
     renderGraphCanvas();$("graph-canvas").querySelector(`[data-graph-node="${node.id}"]`).focus();
   }
@@ -104,7 +161,7 @@ $("graph-canvas").addEventListener("keydown",event=>{
 $("graph-canvas").addEventListener("pointerdown",event=>{
   if(event.button!==0)return;const el=event.target.closest("[data-graph-node]");if(!el)return;
   const node=graphEditor.nodes.find(node=>node.id===el.dataset.graphNode),p=graphNodePosition(node,graphEditor.nodes.indexOf(node)),point=graphPointerPosition(event);
-  graphEditor.drag={id:node.id,pointer:event.pointerId,x:point.x,y:point.y,position:{...p},moved:false};
+  graphEditor.drag={id:node.id,pointer:event.pointerId,x:point.x,y:point.y,position:{...p},moved:false,initialSnapshot:captureGraphState()};
   $("graph-canvas").setPointerCapture(event.pointerId);
 });
 $("graph-canvas").addEventListener("pointermove",event=>{
@@ -114,7 +171,9 @@ $("graph-canvas").addEventListener("pointermove",event=>{
   node.position={x:Math.min(10000,Math.max(0,drag.position.x+dx)),y:Math.min(10000,Math.max(0,drag.position.y+dy))};renderGraphCanvas();
 });
 $("graph-canvas").addEventListener("pointerup",event=>{
-  const drag=graphEditor.drag;if(!drag||drag.pointer!==event.pointerId)return;graphEditor.drag=null;
+  const drag=graphEditor.drag;if(!drag||drag.pointer!==event.pointerId)return;
+  if(drag.moved&&drag.initialSnapshot)pushGraphHistory(drag.initialSnapshot);
+  graphEditor.drag=null;
   if($("graph-canvas").hasPointerCapture(event.pointerId))$("graph-canvas").releasePointerCapture(event.pointerId);
   selectGraphNode(drag.id);
 });
@@ -150,7 +209,7 @@ function loadGraphScope(graph){
   graphEditor.nodes=structuredClone(graph.nodes||[]);graphEditor.edges=structuredClone(graph.edges||[]);
   graphEditor.meta=Object.fromEntries(Object.entries(graph).filter(([key])=>!["nodes","edges"].includes(key)));
   graphEditor.selected=null;graphEditor.fieldText={};graphEditor.argumentText={};graphEditor.graphText={};
-  $("graph-error").textContent="";$("graph-node-fields").replaceChildren();renderGraphCanvas();renderGraphScope();
+  $("graph-error").textContent="";$("graph-node-fields").replaceChildren();renderGraphCanvas();renderGraphScope();updateGraphHistoryControls();
 }
 function enterGraphScope(relation,nodeId){
   commitGraphFields();if(graphEditor.stack.length+1>=graphEditor.policy.nesting_depth)throw new Error("Administrator nesting limit reached.");
@@ -188,7 +247,17 @@ document.addEventListener("input",event=>{
   if(element.dataset.nodeJson){const id=element.dataset.nodeOwner;graphEditor.fieldText[id]??={};graphEditor.fieldText[id][element.dataset.nodeJson]=element.value;}
   if(element.dataset.nodeNumber){const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);if(node)node[element.dataset.nodeNumber]=Number(element.value);}
 });
+let graphInputFocusSnapshot=null;
+document.addEventListener("focusin",event=>{
+  if(event.target.closest&&event.target.closest("#graph-editor")&&["INPUT","TEXTAREA","SELECT"].includes(event.target.tagName)){
+    graphInputFocusSnapshot=captureGraphState();
+  }
+});
 document.addEventListener("change",event=>{
+  if(event.target.closest&&event.target.closest("#graph-editor")&&graphInputFocusSnapshot){
+    pushGraphHistory(graphInputFocusSnapshot);
+    graphInputFocusSnapshot=null;
+  }
   if(event.target.hasAttribute("data-node-workflow")){const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);if(node)node.workflow_id=event.target.value;}
   if(event.target.id==="graph-node-decision-model"){
     const node=graphEditor.nodes.find(n=>n.id===graphEditor.selected);
@@ -212,3 +281,26 @@ document.addEventListener("change",event=>{
     }
   }
 });
+
+if(typeof $==="function"&&$("graph-editor"))$("graph-editor").addEventListener("keydown",event=>{
+  if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="z"){
+    const tag=event.target?.tagName;
+    if(!["INPUT","TEXTAREA"].includes(tag)||event.target?.closest("#graph-canvas")){
+      event.preventDefault();if(event.shiftKey)redoGraph();else undoGraph();
+    }
+  }else if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="y"){
+    const tag=event.target?.tagName;
+    if(!["INPUT","TEXTAREA"].includes(tag)||event.target?.closest("#graph-canvas")){
+      event.preventDefault();redoGraph();
+    }
+  }
+});
+
+if(typeof window!=="undefined"){
+  window.graphEditor=graphEditor;
+  window.undoGraph=undoGraph;
+  window.redoGraph=redoGraph;
+  window.pushGraphHistory=pushGraphHistory;
+  window.captureGraphState=captureGraphState;
+  window.applyGraphSnapshot=applyGraphSnapshot;
+}

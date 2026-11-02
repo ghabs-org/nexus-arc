@@ -35,7 +35,7 @@ function providerOptions(selected="codex", optional=false){return (optional?'<op
 function effortOptions(selected=""){return [["","Default"],["low","Low"],["medium","Medium"],["high","High"],["xhigh","Extra high"],["max","Max"]].map(([val,label])=>`<option value="${val}" ${val===selected?"selected":""}>${label}</option>`).join("");}
 function empty(title,copy,action,label){return `<div class="empty-state"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p>${action?`<button data-action="${action}">${escapeHtml(label)}</button>`:""}</div>`;}
 function view(){const name=location.hash.slice(1).split("/")[0]||"chat";if(["connectors","entrypoints","schedules","evaluations","datasets","evaluators","experiments","models","externalagents","decisionmodels","skills","artifacts","toolsets","prompts"].includes(name))return "library";return ["chat","agents","workflows","providers","tools","activity","inbox","quick-build","library","workspace","workbench","projects","feedback","sharing","files","assistant"].includes(name)?name:"chat";}
-function showView(){if(!$("team-login").hidden)return;const name=view();document.querySelectorAll(".view").forEach(section=>section.hidden=section.id!==`view-${name}`);const hashBase=location.hash.slice(1).split("/")[0];const targetNav=document.querySelector(`nav a[href="#${hashBase}"]`);document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",targetNav?a===targetNav:a.getAttribute("href")===`#${name}`));const titles={files:"Workspace files",assistant:"Studio assistant",projects:"Knowledge projects",feedback:"Response feedback",sharing:"Conversation sharing",inbox:"Approval inbox",workbench:"Workspace tools",workspace:"Workspace & event mesh",library:"Library","quick-build":"Quick Build",chat:"Conversations",agents:"Agents",workflows:"Workflows",providers:"Providers & models",tools:"Tools",activity:"Activity"};const libraryTitles={experiments:"Experiment Lab",externalagents:"External agents",decisionmodels:"Decision models",evaluations:"Evaluations",datasets:"Datasets",evaluators:"Evaluators",schedules:"Schedules",connectors:"Connectors",entrypoints:"Entrypoints",models:"Models"};$("view-title").textContent=(name==="library"&&libraryTitles[hashBase])||titles[name]||"Conversations";if(name==="tools")api("/api/tools").then(data=>{state.tools=data.items;renderTools();}).catch(error=>notify(error.message));if(name==="agents"||name==="quick-build")loadSkills().catch(()=>{});if(name==="activity")refreshRuns().catch(error=>notify(error.message));if(name==="chat")loadKnowledgeProjects().catch(()=>{});if(name==="chat"&&typeof renderChatArtifacts==="function")renderChatArtifacts();}
+function showView(){if(!$("team-login").hidden)return;if(typeof syncNotificationOptInUI==="function")syncNotificationOptInUI();const name=view();document.querySelectorAll(".view").forEach(section=>section.hidden=section.id!==`view-${name}`);const hashBase=location.hash.slice(1).split("/")[0];const targetNav=document.querySelector(`nav a[href="#${hashBase}"]`);document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",targetNav?a===targetNav:a.getAttribute("href")===`#${name}`));const titles={files:"Workspace files",assistant:"Studio assistant",projects:"Knowledge projects",feedback:"Response feedback",sharing:"Conversation sharing",inbox:"Approval inbox",workbench:"Workspace tools",workspace:"Workspace & event mesh",library:"Library","quick-build":"Quick Build",chat:"Conversations",agents:"Agents",workflows:"Workflows",providers:"Providers & models",tools:"Tools",activity:"Activity"};const libraryTitles={experiments:"Experiment Lab",externalagents:"External agents",decisionmodels:"Decision models",evaluations:"Evaluations",datasets:"Datasets",evaluators:"Evaluators",schedules:"Schedules",connectors:"Connectors",entrypoints:"Entrypoints",models:"Models"};$("view-title").textContent=(name==="library"&&libraryTitles[hashBase])||titles[name]||"Conversations";if(name==="tools")api("/api/tools").then(data=>{state.tools=data.items;renderTools();}).catch(error=>notify(error.message));if(name==="agents"||name==="quick-build")loadSkills().catch(()=>{});if(name==="activity")refreshRuns().catch(error=>notify(error.message));if(name==="chat")loadKnowledgeProjects().catch(()=>{});if(name==="chat"&&typeof renderChatArtifacts==="function")renderChatArtifacts();}
 function agentOptions(selected=""){
   let html='<optgroup label="Built-in specialists">';
   html+=`<option value="" ${selected===""?"selected":""}>General assistant</option>`;
@@ -592,6 +592,10 @@ async function promptNewSkill(targetSelect=null, extraSkills=[], targetList=null
 let modelLinkQueued=false;
 new MutationObserver(()=>{if(modelLinkQueued)return;modelLinkQueued=true;requestAnimationFrame(()=>{modelLinkQueued=false;linkModelInputs();});}).observe(document.body,{childList:true,subtree:true});
 document.addEventListener("change",event=>{
+  if(event.target.id==="activity-notifications-optin"||event.target.id==="inbox-notifications-optin"){
+    setNotificationsOptedIn(event.target.checked);
+    return;
+  }
   if(event.target instanceof HTMLSelectElement){
     const select=event.target;
     const isProvider=select.id==="chat-provider"||select.id==="builder-provider"||select.name==="provider"||select.dataset?.buildField?.endsWith(".provider");
@@ -750,7 +754,7 @@ function renderRuns(){
 }
 async function refreshDefinitions(){const [agents,workflows]=await Promise.all([api("/api/agents"),api("/api/workflows")]);state.agents=agents.items;state.workflows=workflows.items;renderAgents();renderWorkflows();}
 async function refreshSessions(){state.sessions=(await api("/api/sessions")).items;renderSessions();}
-async function refreshRuns(){state.runs=(await api("/api/runs")).items;renderRuns();}
+async function refreshRuns(){state.runs=(await api("/api/runs")).items;renderRuns();if(typeof checkPendingApprovalsForNotification==="function")checkPendingApprovalsForNotification();}
 function addMessage(role,text,provider="",runId=null,citations=[],structured=[],retrievalNotice=null){
   $("welcome")?.remove();const node=document.createElement("article");node.className=`message ${role}`;
   node.innerHTML=`<div class="message-label">${role==="user"?"You":"Nexus"}<span class="message-provider">${escapeHtml(provider)}</span></div><div class="message-body"></div>`;
@@ -763,6 +767,95 @@ function selectAgent(){
   if(item){$("chat-provider").value=item.document.spec.provider;$("chat-model").value=item.document.spec.model||"";if($("chat-effort"))$("chat-effort").value=item.document.spec.effort||"";}
 }
 function newChat(){if(state.busy){notify("Let the current conversation finish first.");return;}state.sessionId=null;$("messages").replaceChildren();const select=$("chat-artifacts");if(select&&select.options){for(const opt of select.options)opt.selected=false;if(typeof renderChatArtifacts==="function")renderChatArtifacts();}addMessage("assistant","Ready when you are. Describe the task you’d like to work on.");location.hash="chat";$("chat-task").focus();}
+const NOTIFICATIONS_STORAGE_KEY="nexus-notifications-optin";
+const notifiedRunEvents=new Set();
+function areNotificationsOptedIn(){
+  try{return localStorage.getItem(NOTIFICATIONS_STORAGE_KEY)==="true";}catch{return false;}
+}
+async function setNotificationsOptedIn(enabled){
+  if(enabled){
+    if(typeof window==="undefined"||!("Notification" in window)){
+      if(typeof notify==="function")notify("Desktop notifications are not supported by this browser.");
+      syncNotificationOptInUI(false);
+      return false;
+    }
+    if(Notification.permission==="denied"){
+      if(typeof notify==="function")notify("Notification permission is blocked in browser settings.");
+      syncNotificationOptInUI(false);
+      return false;
+    }
+    if(Notification.permission!=="granted"){
+      const permission=await Notification.requestPermission();
+      if(permission!=="granted"){
+        if(typeof notify==="function")notify("Notification permission was not granted.");
+        syncNotificationOptInUI(false);
+        return false;
+      }
+    }
+    try{localStorage.setItem(NOTIFICATIONS_STORAGE_KEY,"true");}catch{}
+    syncNotificationOptInUI(true);
+    if(typeof notify==="function")notify("Desktop notifications enabled for completed runs and approvals.");
+    return true;
+  }else{
+    try{localStorage.setItem(NOTIFICATIONS_STORAGE_KEY,"false");}catch{}
+    syncNotificationOptInUI(false);
+    if(typeof notify==="function")notify("Desktop notifications disabled.");
+    return false;
+  }
+}
+function syncNotificationOptInUI(optedIn=areNotificationsOptedIn()){
+  const act=$("activity-notifications-optin"),inb=$("inbox-notifications-optin");
+  if(act)act.checked=optedIn;
+  if(inb)inb.checked=optedIn;
+}
+function dispatchRunNotification(run,eventType){
+  if(!areNotificationsOptedIn())return;
+  if(typeof window==="undefined"||!("Notification" in window))return;
+  if(Notification.permission!=="granted")return;
+  if(!run||!run.id)return;
+  const dedupeKey=`${run.id}:${eventType}`;
+  if(notifiedRunEvents.has(dedupeKey))return;
+  notifiedRunEvents.add(dedupeKey);
+  const shortId=String(run.id).slice(0,8);
+  const kind=String(run.kind||"task").toLowerCase();
+  let title="Nexus Studio update",body=`Run #${shortId} status updated.`;
+  if(eventType==="completed"){
+    title="Task completed";
+    body=`Run #${shortId} (${kind}) completed successfully.`;
+  }else if(eventType==="failed"){
+    title="Task stopped";
+    body=`Run #${shortId} (${kind}) finished with an error.`;
+  }else if(eventType==="awaiting_approval"){
+    title="Approval required";
+    body=`Run #${shortId} requires operator review and approval.`;
+  }else if(eventType==="awaiting_input"){
+    title="Input required";
+    body=`Run #${shortId} is paused waiting for operator input.`;
+  }
+  try{
+    const notification=new Notification(title,{
+      body,
+      icon:"/icon-192.png",
+      tag:`nexus-run-${run.id}`
+    });
+    notification.onclick=()=>{
+      try{window.focus();}catch{}
+      if(eventType==="awaiting_approval"||eventType==="awaiting_input")location.hash="inbox";
+      else location.hash="activity";
+      if(typeof showRun==="function")showRun(run);
+      notification.close();
+    };
+  }catch(err){}
+}
+function checkPendingApprovalsForNotification(){
+  if(!state.runs||!state.runs.length)return;
+  for(const run of state.runs){
+    if(run.status==="waiting"){
+      if(run.awaiting_approval?.length)dispatchRunNotification(run,"awaiting_approval");
+      if(run.awaiting_input?.length)dispatchRunNotification(run,"awaiting_input");
+    }
+  }
+}
 const watchedRuns=new Map();
 const disconnectedRuns=new Set();
 let recoveryKey="";
@@ -772,7 +865,7 @@ function waitForConnection(delay){return new Promise(resolve=>{const timer=setTi
 async function pollRun(runId,onUpdate=()=>{}){
   if(watchedRuns.has(runId)){const monitor=watchedRuns.get(runId);monitor.listeners.add(onUpdate);if(monitor.last)onUpdate(monitor.last);return monitor.promise;}
   const monitor={listeners:new Set([onUpdate]),last:null,promise:null};watchedRuns.set(runId,monitor);saveWatchedRuns();
-  monitor.promise=(async()=>{let failures=0;try{while(true){let run;try{run=await api(`/api/runs/${encodeURIComponent(runId)}`);}catch(error){if(!error.retryable)throw error;failures++;disconnectedRuns.add(runId);connectionStatus();await waitForConnection(Math.min(15000,1000*2**Math.min(failures-1,4)));continue;}if(failures)window.dispatchEvent(new Event("studio-connection-restored"));failures=0;disconnectedRuns.delete(runId);connectionStatus();monitor.last=run;for(const listener of monitor.listeners){try{listener(run);}catch(error){console.error("Run display failed",error);}}if(!["running","queued"].includes(run.status)){if(!["completed","waiting","cancelled"].includes(run.status)){const error=new Error(run.error||`Run ${run.status}`);error.run=run;throw error;}return run;}await waitForConnection(document.hidden?4000:750);}}
+  monitor.promise=(async()=>{let failures=0;try{while(true){let run;try{run=await api(`/api/runs/${encodeURIComponent(runId)}`);}catch(error){if(!error.retryable)throw error;failures++;disconnectedRuns.add(runId);connectionStatus();await waitForConnection(Math.min(15000,1000*2**Math.min(failures-1,4)));continue;}if(failures)window.dispatchEvent(new Event("studio-connection-restored"));failures=0;disconnectedRuns.delete(runId);connectionStatus();monitor.last=run;for(const listener of monitor.listeners){try{listener(run);}catch(error){console.error("Run display failed",error);}}if(!["running","queued"].includes(run.status)){if(typeof dispatchRunNotification==="function"){if(run.status==="completed")dispatchRunNotification(run,"completed");else if(run.status==="failed"||run.error)dispatchRunNotification(run,"failed");else if(run.status==="waiting"){if(run.awaiting_approval?.length)dispatchRunNotification(run,"awaiting_approval");if(run.awaiting_input?.length)dispatchRunNotification(run,"awaiting_input");}}if(!["completed","waiting","cancelled"].includes(run.status)){const error=new Error(run.error||`Run ${run.status}`);error.run=run;throw error;}return run;}await waitForConnection(document.hidden?4000:750);}}
     finally{watchedRuns.delete(runId);disconnectedRuns.delete(runId);saveWatchedRuns();connectionStatus();}})();return monitor.promise;
 }
 const watchRun=pollRun;
@@ -1300,4 +1393,13 @@ bootstrap();
   sizeViewport();
 })();
 
-$("reconnect-now").addEventListener("click",()=>{window.dispatchEvent(new Event("studio-reconnect"));if(!state.ready)bootstrap();});
+if(typeof $==="function"&&$("reconnect-now"))$("reconnect-now").addEventListener("click",()=>{window.dispatchEvent(new Event("studio-reconnect"));if(!state.ready)bootstrap();});
+
+if(typeof window!=="undefined"){
+  window.areNotificationsOptedIn=areNotificationsOptedIn;
+  window.setNotificationsOptedIn=setNotificationsOptedIn;
+  window.syncNotificationOptInUI=syncNotificationOptInUI;
+  window.dispatchRunNotification=dispatchRunNotification;
+  window.checkPendingApprovalsForNotification=checkPendingApprovalsForNotification;
+  window.notifiedRunEvents=notifiedRunEvents;
+}

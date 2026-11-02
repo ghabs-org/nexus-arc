@@ -1,5 +1,12 @@
 # Studio delivery evidence reconciliation — 29 October 2026
 
+Current action queue: [2 November implementation plan](STUDIO-NEXT-AGENT-PLAN.md)
+and [structured roadmap](STUDIO-ROADMAP.json). The dated reconciliation below
+retains its original scope. Later review identifies a concrete desktop source gap:
+Windows/Linux native updates remain guarded off and need platform adaptation;
+this is not only an installed-test prerequisite. Preserve desktop-last and the
+existing VM/build/publication holds.
+
 ## Current follow-up — 1 November 2026
 
 This document and its JSON companion retain the 29 October audit snapshot.
