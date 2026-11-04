@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 
+from nexus.connectors.linkedin import LinkedInClient
 from nexus.core.auth.access_domain import (
     get_setup_status,
     sync_user_gitlab_project_access,
@@ -28,6 +29,7 @@ from nexus.core.auth.access_domain import (
 )
 from nexus.core.auth.credential_crypto import encrypt_secret
 from nexus.core.auth.credential_store import (
+    bind_login_identity,
     cleanup_expired_auth_sessions,
     create_auth_session,
     find_user_credentials_by_github_identity,
@@ -35,16 +37,16 @@ from nexus.core.auth.credential_store import (
     get_auth_session,
     get_auth_session_by_state,
     get_latest_auth_session_for_nexus,
+    get_login_identity,
     get_user_credentials,
     update_auth_session,
     upsert_ai_provider_keys,
     upsert_github_credentials,
     upsert_gitlab_credentials,
     upsert_linkedin_credentials,
-    upsert_x_credentials,
     upsert_meta_credentials,
+    upsert_x_credentials,
 )
-from nexus.connectors.linkedin import LinkedInClient
 from nexus.core.config.runtime import normalize_runtime_mode
 
 logger = logging.getLogger(__name__)
@@ -1128,7 +1130,7 @@ def complete_github_oauth(*, code: str, state: str) -> dict[str, Any]:
     target_nexus_id = source_nexus_id
     existing = find_user_credentials_by_github_identity(
         github_user_id=github_user_id,
-        github_login=github_login,
+        github_login=None if getattr(session_record, "chat_platform", None) == "web-login" else github_login,
     )
     if existing and str(existing.nexus_id) != source_nexus_id:
         target_nexus_id = str(existing.nexus_id)
@@ -1202,7 +1204,7 @@ def complete_gitlab_oauth(*, code: str, state: str) -> dict[str, Any]:
     target_nexus_id = source_nexus_id
     existing = find_user_credentials_by_gitlab_identity(
         gitlab_user_id=gitlab_user_id,
-        gitlab_username=gitlab_username,
+        gitlab_username=None if getattr(session_record, "chat_platform", None) == "web-login" else gitlab_username,
     )
     if existing and str(existing.nexus_id) != source_nexus_id:
         target_nexus_id = str(existing.nexus_id)
@@ -1248,6 +1250,30 @@ def complete_gitlab_oauth(*, code: str, state: str) -> dict[str, Any]:
 # LinkedIn OAuth 2.0 (PKCE)
 # ---------------------------------------------------------------------------
 
+def _resolve_social_login_identity(session_record: Any, provider: str, subject: str) -> str:
+    """Resolve only verified subjects, never email, display name or a shared Page."""
+    from nexus.core.auth.browser_login import provider_client_id
+
+    if not subject:
+        raise ValueError("The provider did not return a user identity.")
+    client_id = provider_client_id(provider)
+    if getattr(session_record, "chat_platform", None) == "web-login":
+        nexus_id = get_login_identity(provider=provider, client_id=client_id, subject=subject)
+        if not nexus_id:
+            raise ValueError("Sign in with GitHub or GitLab first, then connect this social account in Account setup.")
+        credentials = get_user_credentials(nexus_id)
+        if not credentials or not (credentials.github_user_id or credentials.gitlab_user_id):
+            raise ValueError("The linked Nexus account no longer has a Git identity.")
+        update_auth_session(session_id=session_record.session_id, nexus_id=nexus_id,
+                            status="oauth_done", last_error="")
+        return nexus_id
+    nexus_id = str(session_record.nexus_id)
+    credentials = get_user_credentials(nexus_id)
+    if credentials and (credentials.github_user_id or credentials.gitlab_user_id):
+        bind_login_identity(provider=provider, client_id=client_id, subject=subject, nexus_id=nexus_id)
+    return nexus_id
+
+
 def _linkedin_oauth_scopes() -> str:
     raw = str(
         os.getenv(
@@ -1288,7 +1314,7 @@ def start_linkedin_oauth(session_id: str) -> tuple[str, str]:
         "client_id": client_id,
         "redirect_uri": callback_url,
         "state": state,
-        "scope": _linkedin_oauth_scopes(),
+        "scope": "openid profile" if getattr(record, "chat_platform", None) == "web-login" else _linkedin_oauth_scopes(),
     })
     return f"https://www.linkedin.com/oauth/v2/authorization?{query}", state
 
@@ -1329,7 +1355,9 @@ def complete_linkedin_oauth(*, code: str, state: str) -> dict[str, Any]:
         raise RuntimeError("LinkedIn profile missing sub")
 
     author_urn = f"urn:li:person:{sub}"
-    nexus_id = str(session_record.nexus_id)
+    nexus_id = _resolve_social_login_identity(session_record, "linkedin", sub)
+    if getattr(session_record, "chat_platform", None) == "web-login":
+        return {"session_id": session_record.session_id, "nexus_id": nexus_id, "provider": "linkedin"}
     enc_token = encrypt_secret(access_token, key_version=_key_version())
     upsert_linkedin_credentials(
         nexus_id=nexus_id,
@@ -1390,7 +1418,8 @@ def start_x_oauth(session_id: str) -> tuple[str, str]:
         "response_type": "code",
         "client_id": client_id,
         "redirect_uri": callback_url,
-        "scope": "tweet.read tweet.write users.read offline.access",
+        "scope": ("tweet.read users.read" if getattr(record, "chat_platform", None) == "web-login"
+                  else "tweet.read tweet.write users.read offline.access"),
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
@@ -1444,7 +1473,9 @@ def complete_x_oauth(*, code: str, state: str) -> dict[str, Any]:
     profile_data = profile_resp.json().get("data", {})
     username = str(profile_data.get("username") or "").strip()
 
-    nexus_id = str(session_record.nexus_id)
+    nexus_id = _resolve_social_login_identity(session_record, "x", str(profile_data.get("id") or "").strip())
+    if getattr(session_record, "chat_platform", None) == "web-login":
+        return {"session_id": session_record.session_id, "nexus_id": nexus_id, "provider": "x"}
     enc_token = encrypt_secret(access_token, key_version=_key_version())
     upsert_x_credentials(
         nexus_id=nexus_id,
@@ -1469,6 +1500,17 @@ def complete_x_oauth(*, code: str, state: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Meta (Facebook / Instagram) OAuth 2.0
 # ---------------------------------------------------------------------------
+
+def _meta_api_version() -> str:
+    version = str(os.getenv("NEXUS_META_API_VERSION", "v26.0")).strip()
+    if not re.fullmatch(r"v[0-9]+\.[0-9]+", version):
+        raise ValueError("NEXUS_META_API_VERSION must be a Graph version such as v26.0.")
+    return version
+
+
+def _meta_graph_url(path: str) -> str:
+    return f"https://graph.facebook.com/{_meta_api_version()}/{path.lstrip('/')}"
+
 
 def start_meta_oauth(session_id: str) -> tuple[str, str]:
     """Start Meta OAuth 2.0 flow. Returns (auth_url, state)."""
@@ -1496,10 +1538,11 @@ def start_meta_oauth(session_id: str) -> tuple[str, str]:
         "client_id": app_id,
         "redirect_uri": callback_url,
         "state": state,
-        "scope": "pages_manage_posts,instagram_basic,instagram_content_publish",
+        "scope": ("public_profile" if getattr(record, "chat_platform", None) == "web-login"
+                  else "pages_manage_posts,instagram_basic,instagram_content_publish"),
         "response_type": "code",
     })
-    return f"https://www.facebook.com/v19.0/dialog/oauth?{query}", state
+    return f"https://www.facebook.com/{_meta_api_version()}/dialog/oauth?{query}", state
 
 
 def complete_meta_oauth(*, code: str, state: str) -> dict[str, Any]:
@@ -1512,7 +1555,7 @@ def complete_meta_oauth(*, code: str, state: str) -> dict[str, Any]:
 
     # Step 1: Exchange code for short-lived user token
     token_resp = requests.get(
-        "https://graph.facebook.com/v19.0/oauth/access_token",
+        _meta_graph_url("oauth/access_token"),
         params={
             "client_id": app_id,
             "redirect_uri": callback_url,
@@ -1526,9 +1569,22 @@ def complete_meta_oauth(*, code: str, state: str) -> dict[str, Any]:
     if not short_token:
         raise RuntimeError("Meta OAuth: no access_token in response")
 
+    # Login uses the person identified by the user token, never an administered Page.
+    identity_resp = requests.get(
+        _meta_graph_url("me"),
+        headers={"Authorization": f"Bearer {short_token}"},
+        params={"fields": "id"}, timeout=10,
+    )
+    identity_resp.raise_for_status()
+    nexus_id = _resolve_social_login_identity(
+        session_record, "meta", str(identity_resp.json().get("id") or "").strip(),
+    )
+    if getattr(session_record, "chat_platform", None) == "web-login":
+        return {"session_id": session_record.session_id, "nexus_id": nexus_id, "provider": "meta"}
+
     # Step 2: Exchange short-lived for long-lived user token
     ll_resp = requests.get(
-        "https://graph.facebook.com/v19.0/oauth/access_token",
+        _meta_graph_url("oauth/access_token"),
         params={
             "grant_type": "fb_exchange_token",
             "client_id": app_id,
@@ -1542,7 +1598,7 @@ def complete_meta_oauth(*, code: str, state: str) -> dict[str, Any]:
 
     # Step 3: Get page list and page access token
     pages_resp = requests.get(
-        "https://graph.facebook.com/v19.0/me/accounts",
+        _meta_graph_url("me/accounts"),
         params={"access_token": long_user_token, "fields": "id,name,access_token"},
         timeout=10,
     )
@@ -1567,7 +1623,7 @@ def complete_meta_oauth(*, code: str, state: str) -> dict[str, Any]:
     ig_account_id = ""
     if page_id:
         ig_resp = requests.get(
-            f"https://graph.facebook.com/v19.0/{page_id}",
+            _meta_graph_url(page_id),
             params={"fields": "instagram_business_account", "access_token": page_token},
             timeout=10,
         )
@@ -1575,7 +1631,6 @@ def complete_meta_oauth(*, code: str, state: str) -> dict[str, Any]:
             ig_data = ig_resp.json().get("instagram_business_account", {})
             ig_account_id = str(ig_data.get("id") or "").strip()
 
-    nexus_id = str(session_record.nexus_id)
     enc_token = encrypt_secret(page_token, key_version=_key_version())
     upsert_meta_credentials(
         nexus_id=nexus_id,

@@ -56,6 +56,15 @@ if _SA_AVAILABLE:
     class _AuthBase(DeclarativeBase):
         pass
 
+    class _LoginIdentityRow(_AuthBase):
+        """Verified social subjects; publishing pages and usernames are not identities."""
+
+        __tablename__ = "nexus_login_identities"
+        provider: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(32), primary_key=True)
+        client_id: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(255), primary_key=True)
+        subject: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(255), primary_key=True)
+        nexus_id: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(64), nullable=False, index=True)
+
     class _AuthSessionRow(_AuthBase):
         __tablename__ = "nexus_auth_sessions"
 
@@ -1038,6 +1047,27 @@ def get_user_credentials(nexus_id: str) -> CredentialRecord | None:
     with Session(engine) as session:
         row = session.get(_UserCredentialRow, str(nexus_id))
         return _row_to_credential(row) if row else None
+
+
+def get_login_identity(*, provider: str, client_id: str, subject: str) -> str | None:
+    """Look up an immutable subject within the configured OAuth app."""
+    with Session(_get_engine()) as session:
+        row = session.get(_LoginIdentityRow, (provider, client_id, subject))
+        return str(row.nexus_id) if row else None
+
+
+def bind_login_identity(*, provider: str, client_id: str, subject: str, nexus_id: str) -> None:
+    """Idempotently bind a verified subject, refusing reassignment to another user."""
+    if provider not in {"linkedin", "x", "meta"} or not all((client_id, subject, nexus_id)):
+        raise ValueError("Invalid social login identity.")
+    with Session(_get_engine()) as session:
+        row = session.get(_LoginIdentityRow, (provider, client_id, subject))
+        if row:
+            if row.nexus_id != nexus_id:
+                raise ValueError("This social account is already linked to another Nexus account.")
+            return
+        session.add(_LoginIdentityRow(provider=provider, client_id=client_id, subject=subject, nexus_id=nexus_id))
+        session.commit()
 
 
 def find_user_credentials_by_github_identity(

@@ -1,0 +1,17 @@
+purpose: Validate real requests serialization and social identity resolution without live accounts.
+scope:
+  - LinkedIn token exchange and userinfo sub
+  - X token exchange with S256 verifier and users/me id
+  - Meta code exchange and user-token me id; no Page identity or publishing
+  - Linked and unlinked subjects, missing subject and provider denial
+assumptions:
+  - Synthetic responses model only fields consumed by the existing Nexus OAuth clients.
+  - A local test-only request adapter maps provider URLs to the simulation member.
+  - Production endpoints and provider credentials are never changed by this fixture.
+sources:
+  - https://docs.x.com/x-api/users/get-my-user
+  - https://learn.microsoft.com/en-us/linkedin/shared/authentication/authentication
+  - https://developers.facebook.com/docs/graph-api/reference/user/
+limitations:
+  - Live provider app approval, account consent, current Graph version availability and real authorization redirects remain pending.
+  - Does not model repository project ACL synchronization, publishing or real browser OAuth redirects.

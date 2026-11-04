@@ -19,7 +19,7 @@ import os
 import time
 from datetime import UTC, datetime
 from hmac import compare_digest
-from urllib.parse import quote
+from urllib.parse import quote, urlencode, urlsplit
 
 import requests
 from flask import Flask, jsonify, make_response, redirect, request, send_from_directory
@@ -146,6 +146,7 @@ from nexus.core.auth import (
 )
 from nexus.core.auth.credential_store import get_auth_session as _svc_get_auth_session
 from nexus.core.auth.credential_store import get_auth_session_by_state as _svc_get_auth_session_by_state
+from nexus.core.auth import browser_login as _browser_login
 from nexus.core.runtime_mode import is_issue_process_running
 
 logging.basicConfig(
@@ -221,8 +222,8 @@ def _oauth_provider_configured(provider: str) -> bool:
         )
     if normalized == "meta":
         return bool(
-            str(os.getenv("NEXUS_META_CLIENT_ID", "")).strip()
-            and str(os.getenv("NEXUS_META_CLIENT_SECRET", "")).strip()
+            str(os.getenv("NEXUS_META_APP_ID", "")).strip()
+            and str(os.getenv("NEXUS_META_APP_SECRET", "")).strip()
         )
     return False
 
@@ -276,11 +277,8 @@ def _run_acl_sync_if_due() -> None:
 
 
 def _safe_next_path(raw_path: str | None, *, default: str = "/visualizer") -> str:
-    candidate = str(raw_path or "").strip()
     # Browsers treat "\" like "/", so "/\evil.example" would leave this origin.
-    if candidate.startswith("/") and not candidate.startswith("//") and "\\" not in candidate:
-        return candidate
-    return default
+    return _browser_login.safe_return_path(raw_path, default=default)
 
 
 def _parse_iso_utc(raw_value: str | None) -> datetime | None:
@@ -339,7 +337,7 @@ def _set_web_session_cookie(response, session_id: str) -> None:
         str(session_id),
         max_age=_WEB_SESSION_COOKIE_MAX_AGE_SECONDS,
         httponly=True,
-        secure=_WEB_SESSION_COOKIE_SECURE,
+        secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure,
         samesite="Lax",
         path="/",
     )
@@ -429,7 +427,9 @@ def _visualizer_login_redirect(next_path: str = "/visualizer"):
     return redirect(f"/?next={safe_next}", code=302)
 
 
-def _render_login_page(*, message_html: str = "", session_hint: str = ""):
+def _render_login_page(*, message_html: str = "", session_hint: str = "", next_path: str = "/visualizer"):
+    if not session_hint:
+        return _render_web_sign_in_page(next_path=next_path, message_html=message_html)
     providers = _configured_oauth_providers()
     preferred_provider = _default_oauth_provider(providers) or "github"
     ordered_providers = (
@@ -911,7 +911,8 @@ def _render_setup_saved_page(*, session_id: str, ready: bool):
         f"{'Signed in as ' + html.escape(identity) + ' · ' if identity else ''}"
         f"{connected} of {len(accounts)} AI accounts connected"
     )
-    return _auth_pages.render_page("Setup saved", body, subline=subline, account=identity)
+    actions = '<a class="btn primary" href="/login?next=/">Open workspace</a>' if ready else ""
+    return _auth_pages.render_page("Setup saved", body, subline=subline, account=identity, actions_html=actions)
 
 
 def _render_account_setup_page(
@@ -967,6 +968,19 @@ def _render_account_setup_page(
         identity_rows=identity_rows,
         session_ref=session_ref,
     )
+    social = [item for item in _browser_login.configured_identity_providers()
+              if item["id"] in {"linkedin", "x", "meta"}]
+    if social:
+        links = "".join(
+            '<a class="btn" href="/auth/start?' + urlencode({"session": session_ref, "provider": item["id"]})
+            + '">Connect ' + item["label"] + '</a>' for item in social
+        )
+        body += ('<section class="setting" aria-labelledby="social-sign-in-h">'
+                 '<div class="label"><h2 id="social-sign-in-h">Other sign-in accounts</h2>'
+                 '<p>Connect a social account once to use it for future Nexus sign-ins.</p></div>'
+                 '<div class="panel"><div class="row-actions">' + links + '</div>'
+                 '<p class="note">Social accounts keep your existing project permissions. '
+                 'Older connections need one reconnect to enable sign-in.</p></div></section>')
     return _auth_pages.render_page("Account setup", body, subline=subline, account=identity)
 
 
@@ -1046,6 +1060,90 @@ def _notify_onboarding_message(
 
 
 
+def _clear_browser_login_cookie(response):
+    response.set_cookie(_browser_login.COOKIE_NAME, "", max_age=0, path="/auth",
+                        httponly=True, secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure,
+                        samesite="Lax")
+    return response
+
+
+@app.route("/auth/browser/start", methods=["POST"])
+def browser_login_start():
+    """Start identity login without a chat account or a pasted session reference."""
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    origin = request.headers.get("Origin")
+    try:
+        expected = urlsplit(NEXUS_PUBLIC_BASE_URL or request.host_url)
+        origin_matches = not origin or urlsplit(origin)[:2] == expected[:2]
+    except ValueError:
+        origin_matches = False
+    if ((not origin_matches)
+            or request.headers.get("Sec-Fetch-Site") == "cross-site"):
+        return _render_auth_message("Sign-in error", "Start sign-in from this Nexus site.", status_code=403)
+    try:
+        result = _browser_login.start_browser_login(
+            provider=str(request.form.get("provider", "")).strip().lower(),
+            next_path=_safe_next_path(request.form.get("next"), default="/"),
+        )
+    except Exception:
+        return _render_auth_message("Sign-in unavailable", "This sign-in provider is unavailable. "
+                                    '<a href="/login">Return to sign in</a>.', status_code=400)
+    response = make_response(redirect(str(result["authorization_url"]), code=303))
+    response.set_cookie(_browser_login.COOKIE_NAME, str(result["context"]),
+                        max_age=int(result["max_age"]), path="/auth", httponly=True,
+                        secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure, samesite="Lax")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+def _handle_browser_login_callback(provider: str):
+    """Keep chat linking unchanged; web attempts require their browser context."""
+    state = str(request.args.get("state", "")).strip()
+    context = request.cookies.get(_browser_login.COOKIE_NAME, "")
+    try:
+        record = _svc_get_auth_session_by_state(state) if state else None
+    except Exception:
+        record = None
+    if getattr(record, "chat_platform", None) not in {"web-login", "web-connect"} and (record or not context):
+        return None
+    try:
+        _browser_login.validate_browser_callback(context=context, provider=provider, state=state)
+        if request.args.get("error"):
+            _browser_login.onboarding.update_auth_session(
+                session_id=record.session_id, status="expired", oauth_state_hash="",
+            )
+            raise ValueError("Sign-in was cancelled. Please start again.")
+        result = _browser_login.complete_browser_login(
+            context=context, provider=provider, state=state,
+            code=str(request.args.get("code", "")).strip(),
+        )
+    except Exception as exc:
+        detail = str(exc) if isinstance(exc, ValueError) else "Sign-in could not complete. Please try again."
+        response = make_response(_render_auth_message(
+            "Sign-in error", html.escape(detail) + ' <a href="/login">Return to sign in</a>.', status_code=400,
+        ))
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return _clear_browser_login_cookie(response)
+    session_id = str(result["session_id"])
+    status = _svc_get_session_and_setup_status(session_id)
+    setup = status.get("setup") or {}
+    if setup.get("ready") or result.get("intent") == "connect":
+        response = make_response(redirect(result["next"], code=303))
+    else:
+        page = _render_account_setup_page(
+            session_id=session_id, setup=setup, show_copilot_option=provider == "github",
+            copilot_checked=bool(setup.get("copilot_ready")),
+        )
+        response = make_response(page)
+    _set_web_session_cookie(response, session_id)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return _clear_browser_login_cookie(response)
+
+
 @app.route("/auth/start", methods=["GET"])
 def auth_start():
     if not NEXUS_AUTH_ENABLED:
@@ -1088,6 +1186,19 @@ def auth_start():
             status_code=400,
         )
     try:
+        record = _svc_get_auth_session(resolved_session_id)
+        if getattr(record, "chat_platform", None) in {"web-login", "web-connect"}:
+            result = _browser_login.start_browser_connection(
+                session_id=resolved_session_id, provider=provider,
+                next_path="/auth/setup?" + urlencode({"session": session_value}),
+            )
+            response = make_response(redirect(str(result["authorization_url"]), code=303))
+            response.set_cookie(_browser_login.COOKIE_NAME, str(result["context"]),
+                                max_age=int(result["max_age"]), path="/auth", httponly=True,
+                                secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure, samesite="Lax")
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
         oauth_url, _state = _svc_start_oauth_flow(session_value, provider=provider)
     except Exception as exc:
         _notify_onboarding_message(
@@ -1106,6 +1217,9 @@ def auth_github_callback():
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
+    browser_response = _handle_browser_login_callback("github")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1195,6 +1309,9 @@ def auth_gitlab_callback():
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
+    browser_response = _handle_browser_login_callback("gitlab")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1281,6 +1398,9 @@ def auth_gitlab_callback():
 def auth_linkedin_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    browser_response = _handle_browser_login_callback("linkedin")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1310,6 +1430,9 @@ def auth_linkedin_callback():
 def auth_x_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    browser_response = _handle_browser_login_callback("x")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1338,6 +1461,9 @@ def auth_x_callback():
 def auth_meta_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    browser_response = _handle_browser_login_callback("meta")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1999,6 +2125,7 @@ def index():
         _render_login_page(
             message_html=info_message,
             session_hint=session_hint,
+            next_path=next_path,
         )
     )
     if session_hint:
@@ -2007,6 +2134,23 @@ def index():
 
 
 def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
+    providers = _browser_login.configured_identity_providers()
+    buttons = "".join(
+        '<button class="btn ' + ('primary' if item["id"] == "github" else '')
+        + '" type="submit" name="provider" value="' + item["id"] + '">Continue with '
+        + item["label"] + '</button>' for item in providers
+    )
+    provider_section = (
+        '<section class="setting login-providers" aria-labelledby="identity-login-h">'
+        '<div class="label"><h2 id="identity-login-h">Your account</h2>'
+        '<p>Sign in directly with a connected account.</p></div>'
+        '<div class="panel"><form class="provider-actions" method="post" action="/auth/browser/start">'
+        '<input type="hidden" name="next" value="' + html.escape(next_path, quote=True) + '">'
+        + buttons + '</form><p class="note">GitHub and GitLab establish your Nexus identity. '
+        'LinkedIn, X and Meta must first be connected from Account setup.</p></div></section>'
+        if providers else '<p class="note">Direct sign-in is not configured on this server. '
+        'Use an existing session reference below.</p>'
+    )
     body = _auth_pages.render_field_form(
         action="/login",
         hidden={"next": next_path},
@@ -2016,18 +2160,16 @@ def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
         field_label="Reference",
         placeholder="lsr_…",
         submit_label="Sign in",
-        message_html=message_html,
-        aside_title="No reference yet?",
-        aside_html=(
-        "<p>Send <code>/login</code> to the Nexus bot in Telegram or Discord and continue with GitHub.</p>"
-        "<p>When GitHub sign-in finishes, the reference is shown on your account page and in the chat. "
-        "Copy it from there.</p>"
-    ),
+        message_html="",
     )
+    body = (message_html + provider_section
+            + '<details class="login-reference"' + (' open' if not providers or message_html else '')
+            + '><summary>Use a session reference instead</summary>' + body + '</details>')
     page = _auth_pages.render_page(
-        "Sign in", body, subline="Open your Nexus workspace with a session reference."
+        "Sign in", body, subline="Open your Nexus workspace."
     )
-    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
+    return page, 200, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store",
+                       "Referrer-Policy": "no-referrer"}
 
 @app.route("/login", methods=["GET", "POST"])
 def web_login():

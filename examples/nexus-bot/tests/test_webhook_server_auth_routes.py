@@ -58,7 +58,7 @@ def test_index_renders_dedicated_login_page_when_auth_enabled(monkeypatch):
 
     assert response.status_code == 200
     assert b"<h1>Sign in</h1>" in response.data
-    assert b"/auth/start" in response.data
+    assert b'action="/login"' in response.data
 
 
 def test_visualizer_redirects_to_login_when_auth_enabled_without_session(monkeypatch):
@@ -400,6 +400,7 @@ def test_auth_start_redirects_when_provider_configured(monkeypatch):
 
     monkeypatch.setattr(webhook_server, "NEXUS_AUTH_ENABLED", True)
     monkeypatch.setattr(webhook_server, "_svc_resolve_login_session_id", lambda _value: "sess-1")
+    monkeypatch.setattr(webhook_server, "_svc_get_auth_session", lambda _value: SimpleNamespace(chat_platform="telegram"))
     monkeypatch.setattr(
         webhook_server,
         "_svc_start_oauth_flow",

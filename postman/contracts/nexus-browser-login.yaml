@@ -1,0 +1,66 @@
+openapi: 3.1.0
+info:
+  title: Nexus browser identity sign-in
+  version: 1.0.0
+  description: >-
+    GitHub/GitLab may establish Nexus identity using existing project ACL rules.
+    LinkedIn, X and Meta resolve only previously linked immutable user subjects.
+    Configured providers appear on the login page. Session-reference login remains
+    compatible. This contract does not claim live provider acceptance.
+paths:
+  /login:
+    get:
+      operationId: showNexusLogin
+      parameters:
+        - {in: query, name: next, schema: {type: string}, description: Same-origin return path}
+      responses:
+        '200': {description: Provider buttons and optional session-reference form}
+        '302': {description: Existing ready session continues to local return path}
+        '404': {description: Authentication disabled}
+    post:
+      operationId: exchangeExistingSessionReference
+      responses:
+        '200': {description: Invalid or incomplete session; login form remains available}
+        '302': {description: Existing ready session cookie set and local redirect}
+  /auth/browser/start:
+    post:
+      operationId: startNexusBrowserLogin
+      description: >-
+        Requires a same-origin browser request when Origin/Fetch Metadata is present.
+        Creates a fresh attempt, ignoring supplied session IDs. Sets an encrypted,
+        HttpOnly, SameSite=Lax, host-only /auth context cookie for at most 900 seconds;
+        Secure on HTTPS. Responses are no-store. A context is not an authenticated session.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider: {enum: [github, gitlab, linkedin, x, meta]}
+                next: {type: string, default: /}
+      responses:
+        '303': {description: Redirect to configured OAuth authorization endpoint}
+        '400': {description: Unsupported/unconfigured provider or unavailable account infrastructure}
+        '403': {description: Cross-origin initiation rejected}
+        '404': {description: Authentication disabled}
+  /auth/{provider}/callback:
+    get:
+      operationId: completeNexusBrowserLogin
+      parameters:
+        - {in: path, name: provider, required: true, schema: {enum: [github, gitlab, linkedin, x, meta]}}
+        - {in: query, name: code, schema: {type: string}}
+        - {in: query, name: state, required: true, schema: {type: string}}
+        - {in: query, name: error, schema: {type: string}}
+      description: >-
+        Browser-created attempts require the encrypted initiating-browser context,
+        matching provider, state, session and expiry before token exchange.
+        Successful attempts remain subject to existing setup readiness and project
+        permissions. Social login never replaces publishing credentials. Clear context
+        on completion/error. Existing bot linking callbacks keep their prior contract.
+      responses:
+        '200': {description: Identity verified but account setup still required}
+        '303': {description: Ready account; HttpOnly Nexus session and same-origin redirect}
+        '400': {description: 'Invalid/missing/expired/used/foreign callback, provider denial or unlinked social identity'}
+        '404': {description: Authentication disabled}

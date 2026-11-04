@@ -142,6 +142,13 @@ input:disabled { background: var(--raised); color: var(--muted); }
 .btn.primary:hover { background: #33363a; }
 .btn.done { color: var(--positive); }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.provider-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.provider-actions .btn { min-height: 44px; height: auto; padding: 12px 16px; white-space: normal; }
+.login-providers .note { margin: 16px 0 0; max-width: 60ch; }
+.login-reference { border-top: 1px solid var(--border); padding: 24px 0; }
+.login-reference summary { cursor: pointer; font-weight: 500; padding: 8px 0; }
+.login-reference[open] summary { margin-bottom: 24px; }
+.login-reference .setting { padding: 0; border: 0; }
 
 .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .switch input { appearance: none; width: 28px; height: 16px; border-radius: 999px; background: var(--control); position: relative; margin: 0; cursor: pointer; transition: background-color .12s ease; }
@@ -167,6 +174,7 @@ input:disabled { background: var(--raised); color: var(--muted); }
 .message-body label { font-weight: 500; }
 
 @media (max-width: 760px) {
+  .provider-actions { grid-template-columns: 1fr; }
   .topbar { padding: 0 16px; }
   .topbar .who { display: none; }
   .sheet { margin: 0; border-radius: 0; border-width: 1px 0 0; padding: 24px 16px 32px; }
