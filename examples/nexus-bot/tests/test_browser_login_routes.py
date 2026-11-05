@@ -272,3 +272,96 @@ def test_subscription_service_failure_is_sanitized(browser_routes, monkeypatch):
     assert b"Account service unavailable" in response.data
     assert b"private-account-store-detail" not in response.data
     assert response.headers["Cache-Control"] == "no-store"
+
+
+@pytest.mark.parametrize("provider", ["copilot", "opencode"])
+def test_account_shortcut_retained_through_incomplete_nexus_setup(browser_routes, monkeypatch, provider):
+    web, _ = browser_routes
+    client = web.app.test_client()
+    first = client.get("/auth/setup", query_string={"connection": provider, "next": "/workspace", "session": "untrusted"})
+    assert first.status_code == 302
+    destination = parse_qs(urlsplit(first.headers["Location"]).query)["next"][0]
+    assert parse_qs(urlsplit(destination).query)["connection"] == [provider]
+    assert "untrusted" not in destination
+    monkeypatch.setattr(web, "_svc_get_session_and_setup_status", lambda _: {"setup": {"ready": False}})
+    state = start(client, "gitlab", next=destination)
+    done = client.get("/auth/gitlab/callback", query_string={"state": state, "code": "synthetic"})
+    assert done.status_code == 303 and done.headers["Location"] == destination
+
+
+def _real_setup_payload(web, monkeypatch):
+    from nexus.core.auth import oauth_onboarding_domain as auth
+
+    monkeypatch.setattr(auth, "get_setup_status", lambda _: {
+        "ready": True, "github_linked": True, "git_provider_linked": True, "org_verified": True,
+        "copilot_ready": True, "ai_provider_ready": True, "projects": ["fixture"], "project_access_count": 1,
+    })
+    monkeypatch.setattr(web, "_svc_get_session_and_setup_status", auth.get_session_and_setup_status)
+
+
+@pytest.mark.parametrize("provider,expected", [("copilot", b'id="copilot-h"'), ("opencode", b'id="opencode-h"')])
+def test_account_shortcut_shows_existing_full_form_for_cookie_owner(browser_routes, monkeypatch, provider, expected):
+    web, _ = browser_routes
+    client = web.app.test_client()
+    sid = _existing_subscription_user(web, client)
+    _real_setup_payload(web, monkeypatch)
+    response = client.get("/auth/setup", query_string={"connection": provider, "session": "someone-else"})
+    assert response.status_code == 200 and expected in response.data
+    assert b'action="/auth/ai-keys"' in response.data
+    assert web._svc_format_login_session_ref(sid).encode() in response.data
+    assert b"someone-else" not in response.data
+    assert b"synthetic-private-token" not in response.data
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_copilot_shortcut_explains_missing_github_account(browser_routes, monkeypatch):
+    from nexus.core.auth import credential_store as store
+
+    web, _ = browser_routes
+    client = web.app.test_client()
+    sid = _existing_subscription_user(web, client)
+    with store.Session(store._get_engine()) as session:
+        row = session.get(store._UserCredentialRow, "subscription-owner")
+        row.github_user_id = None
+        row.github_token_enc = None
+        row.gitlab_user_id = 123
+        session.commit()
+    _real_setup_payload(web, monkeypatch)
+    monkeypatch.setattr(web._subscription_accounts.onboarding, "get_setup_status", lambda _: {"ready": False, "gitlab_linked": True})
+    response = client.get("/auth/setup?connection=copilot")
+    assert response.status_code == 200
+    assert b"Copilot needs a linked GitHub account" in response.data
+    assert b"Link GitHub for Copilot" in response.data
+    assert web._svc_format_login_session_ref(sid).encode() in response.data
+    assert b'name="use_copilot_account"' not in response.data
+
+
+@pytest.mark.parametrize("provider,fields", [("copilot", {"use_copilot_account": "1"}), ("opencode", {"opencode_api_key": "sk-synthetic-opencode-key-123456"})])
+def test_shortcut_forms_reuse_encrypted_saving_and_preserve_other_accounts(browser_routes, monkeypatch, provider, fields):
+    from nexus.core.auth import credential_store as store
+    from nexus.core.auth.credential_crypto import decrypt_secret
+
+    web, _ = browser_routes
+    client = web.app.test_client()
+    sid = _existing_subscription_user(web, client)
+    _real_setup_payload(web, monkeypatch)
+    # Saving setup invokes the existing notification helper; this browser fixture has no chat destination.
+    monkeypatch.setattr(web, "_notify_onboarding_message", lambda **kwargs: None)
+    store.upsert_ai_provider_keys(nexus_id="subscription-owner", codex_account_enabled=True)
+    monkeypatch.setenv("NEXUS_CLI_AUTH_MODE", "account")
+    response = client.post("/auth/ai-keys", data={"session_id": sid, **fields})
+    assert response.status_code == 200
+    credentials = store.get_user_credentials("subscription-owner")
+    assert credentials.codex_account_enabled
+    if provider == "opencode":
+        assert decrypt_secret(credentials.opencode_api_key_enc) == fields["opencode_api_key"]
+    else:
+        assert credentials.copilot_account_enabled
+
+
+def test_login_exposes_copilot_and_explicit_opencode_api_key_shortcuts(browser_routes):
+    web, _ = browser_routes
+    response = web.app.test_client().get("/login")
+    assert b"Connect Copilot" in response.data
+    assert b"Set up OpenCode API key" in response.data
+    assert b"OpenCode requires its own API key" in response.data

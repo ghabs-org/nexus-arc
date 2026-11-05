@@ -84,6 +84,34 @@ def test_changing_subscription_keeps_workspace_return_path():
     assert accounts.subscription_return_path("//evil.test") == "/"
 
 
+@pytest.mark.parametrize("provider,anchor,billing", [("copilot", "copilot-h", "subscription"), ("opencode", "opencode-h", "api-key")])
+def test_existing_form_shortcuts_preserve_selection_without_exposing_credentials(provider, anchor, billing):
+    option = next(item for item in accounts.account_setup_options() if item["id"] == provider)
+    assert option["billing"] == billing
+    destination = accounts.account_setup_destination(provider, "/workspace")
+    assert destination.endswith("#" + anchor)
+    assert accounts.is_account_connection_destination(destination)
+    assert accounts.subscription_return_path(destination) == "/workspace"
+    assert accounts.subscription_return_path(accounts.subscription_destination("claude", destination)) == "/workspace"
+    assert not accounts.is_account_connection_destination("/auth/setup?connection=unrecognized")
+    assert not accounts.is_account_connection_destination("//evil.test/auth/setup?connection=copilot")
+
+
+def test_existing_form_shortcut_context_uses_only_verified_nexus_user(monkeypatch):
+    monkeypatch.setattr(auth, "get_auth_session", lambda _: SimpleNamespace(
+        session_id="current-user", nexus_id="owner", status="oauth_done",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5)))
+    monkeypatch.setattr(auth, "get_user_credentials", lambda _: SimpleNamespace(
+        github_user_id=123, gitlab_user_id=None, github_token_enc="must-not-return"))
+    result = accounts.account_setup_context(session_id="current-user", provider="copilot")
+    assert result["github_linked"] and result["session_id"] == "current-user"
+    assert "must-not-return" not in str(result)
+    with pytest.raises(PermissionError):
+        accounts.account_setup_context(session_id="", provider="opencode")
+    with pytest.raises(ValueError):
+        accounts.account_setup_destination("shell")
+
+
 @pytest.mark.parametrize("case", ["missing", "expired", "pending", "no-identity"])
 def test_subscription_page_requires_current_existing_identity(monkeypatch, case):
     record = SimpleNamespace(session_id="session", nexus_id="owner", status="oauth_done",

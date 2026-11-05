@@ -22,6 +22,7 @@ The original approved specification remains in the operator-owned
 | macOS release | Signed/notarized/stapled 1.0.2 exists locally with scoped installed/update/rollback proof. It does not contain later source fixes. |
 | Direct browser identity login | GitHub/GitLab plus previously linked LinkedIn/X/Meta accounts, configured-provider buttons, protected callbacks and session-reference fallback. Local acceptance only; deployed provider checks remain pending. See [browser login](STUDIO-BROWSER-LOGIN.md). |
 | LLM subscription connections | Codex, Claude and Antigravity connection buttons on sign-in; guarded per-user pages, selection retention and existing CLI account flows. 178 focused checks and synthetic browser acceptance passed; live provider sign-in and deployment remain pending. |
+| Additional AI account shortcuts | Copilot and OpenCode entry points reuse existing account controls and encrypted API-key saving. 189 focused checks and synthetic browser saves passed; live provider invocation and deployment remain pending. |
 
 Latest recorded feature checks: **320 frontend checks**, including 20 draft checks,
 7 graph authoring/undo checks, and 8 notification checks, plus **35 backend/bundling checks**,

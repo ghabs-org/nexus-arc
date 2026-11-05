@@ -56,6 +56,32 @@ It covered desktop and mobile layouts, a Codex device code, both code-entry flow
 keyboard submission, cleared code fields and continuation. Real provider account
 acceptance remains pending. See the [subscription checkpoint](STUDIO-SUBSCRIPTION-CONNECTIONS-CHECKPOINT.json).
 
+### Copilot and OpenCode shortcuts
+
+Also added on 5 November 2026: **Connect Copilot** and **Set up OpenCode API key**
+on the sign-in page. The section is now named **AI accounts**, since OpenCode's
+existing setup uses an API key rather than the three subscription login flows.
+
+Both shortcuts require the current Nexus cookie and retain the selected section
+through identity login. They open the existing complete Account setup form at the
+Copilot or OpenCode section. Session query arguments cannot select a different user
+for these shortcuts. Legacy setup links without a `connection` selection remain
+compatible.
+
+Copilot users without linked GitHub see an explicit **Link GitHub for Copilot**
+action, or a server-configuration explanation if GitHub sign-in is unavailable.
+OpenCode uses the existing encrypted API-key field and save operation. These
+shortcuts introduce no credential store, provider protocol, migration or automatic
+activation. Opening them does not launch a CLI or save settings.
+
+The focused suite passed **189 checks with zero failures or skips**, including
+cookie ownership, incomplete-setup handoff, selected sections, missing GitHub,
+encrypted key readback and preservation of other provider settings. Browser checks
+used synthetic local credentials and the actual setup/save forms. At 390px both
+shortcuts had at least 44px touch height without horizontal overflow. Live Copilot
+and OpenCode invocation and VM deployment remain unverified. See the
+[account-shortcut checkpoint](STUDIO-ACCOUNT-SHORTCUTS-CHECKPOINT.json).
+
 ## Identity and permissions
 
 - GitHub/GitLab use the existing credential store, organization/group checks and

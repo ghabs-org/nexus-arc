@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nexus browser identity sign-in
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     GitHub/GitLab may establish Nexus identity using existing project ACL rules.
     LinkedIn, X and Meta resolve only previously linked immutable user subjects.
@@ -10,6 +10,25 @@ info:
     LLM subscription connections require an existing Nexus identity and do not
     grant project permissions.
 paths:
+  /auth/setup:
+    get:
+      operationId: showExistingAIAccountSetup
+      description: >-
+        With connection=copilot or opencode, require the current Nexus cookie and
+        retain the chosen account through identity login. Ignore session query
+        arguments for these shortcuts. Reuse the complete existing setup form and
+        save operations. Copilot without linked GitHub shows an explicit linking
+        action; OpenCode uses the existing API-key field. Legacy session-reference
+        setup links without connection retain their previous behavior.
+      parameters:
+        - {in: query, name: connection, schema: {enum: [copilot, opencode]}}
+        - {in: query, name: next, schema: {type: string, default: /}}
+      responses:
+        '200': {description: Existing account setup with selected section}
+        '302': {description: Nexus login required before account setup}
+        '400': {description: Unknown account connection}
+        '404': {description: Authentication disabled or legacy session missing}
+        '503': {description: Account service unavailable; private error detail omitted}
   /auth/subscription:
     get:
       operationId: showSubscriptionAccountConnection

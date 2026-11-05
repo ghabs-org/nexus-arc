@@ -922,6 +922,7 @@ def _render_account_setup_page(
     setup: dict | None,
     show_copilot_option: bool,
     copilot_checked: bool,
+    connection: dict | None = None,
 ):
     """The account setup screen for a session that finished Git OAuth."""
     setup = setup if isinstance(setup, dict) else {}
@@ -982,6 +983,15 @@ def _render_account_setup_page(
                  '<div class="panel"><div class="row-actions">' + links + '</div>'
                  '<p class="note">Social accounts keep your existing project permissions. '
                  'Older connections need one reconnect to enable sign-in.</p></div></section>')
+    if connection and connection["id"] == "copilot" and not connection["github_linked"]:
+        github_available = any(item["id"] == "github" for item in _browser_login.configured_identity_providers())
+        link = ("/auth/start?" + urlencode({"session": session_ref, "provider": "github"}))
+        action = ('<a class="btn" href="' + html.escape(link, quote=True) + '">Link GitHub for Copilot</a>'
+                  if github_available else '<p class="note">GitHub sign-in must be configured on this server first.</p>')
+        body = ('<section class="setting" aria-labelledby="copilot-h"><div class="label">'
+                '<h2 id="copilot-h">Copilot needs a linked GitHub account</h2></div>'
+                '<div class="panel"><p>Link your GitHub account, then enable Copilot in Account setup.</p>'
+                + action + '</div></section>' + body)
     return _auth_pages.render_page("Account setup", body, subline=subline, account=identity)
 
 
@@ -1132,7 +1142,7 @@ def _handle_browser_login_callback(provider: str):
     status = _svc_get_session_and_setup_status(session_id)
     setup = status.get("setup") or {}
     if (setup.get("ready") or result.get("intent") == "connect"
-            or _subscription_accounts.is_subscription_destination(result["next"])):
+            or _subscription_accounts.is_account_connection_destination(result["next"])):
         response = make_response(redirect(result["next"], code=303))
     else:
         page = _render_account_setup_page(
@@ -1625,7 +1635,25 @@ def auth_setup():
         return _render_auth_message(
             "Auth disabled", "Auth onboarding is disabled in this environment.", status_code=404
         )
-    session_hint = str(request.args.get("session") or request.cookies.get(_WEB_SESSION_COOKIE_NAME) or "").strip()
+    connection = None
+    connection_id = str(request.args.get("connection", "")).strip()
+    if connection_id:
+        try:
+            connection = _subscription_accounts.account_setup_context(
+                session_id=request.cookies.get(_WEB_SESSION_COOKIE_NAME, ""), provider=connection_id,
+            )
+        except ValueError as exc:
+            return _render_auth_message("Unknown account", html.escape(str(exc)), status_code=400)
+        except PermissionError:
+            destination = _subscription_accounts.account_setup_destination(connection_id, request.args.get("next", "/"))
+            response = make_response(redirect("/login?" + urlencode({"next": destination}), code=302))
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
+        except Exception:
+            return _render_auth_message("Account service unavailable", "Try again shortly.", status_code=503)
+    session_hint = (connection["session_id"] if connection else
+                    str(request.args.get("session") or request.cookies.get(_WEB_SESSION_COOKIE_NAME) or "").strip())
     payload = _svc_get_session_and_setup_status(session_hint) if session_hint else {}
     expires_at = _parse_iso_utc(payload.get("expires_at")) if isinstance(payload, dict) else None
     if (
@@ -1646,11 +1674,14 @@ def auth_setup():
         _render_account_setup_page(
             session_id=session_id,
             setup=setup,
-            show_copilot_option=bool(setup.get("github_linked")),
+            show_copilot_option=bool(setup.get("github_linked") or (connection and connection["id"] == "copilot" and connection["github_linked"])),
             copilot_checked=bool(setup.get("copilot_ready")),
+            connection=connection,
         )
     )
     _set_web_session_cookie(response, session_id)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
@@ -2199,12 +2230,17 @@ def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
             item["id"], _subscription_accounts.subscription_return_path(next_path)), quote=True)
         + '">Connect ' + item["label"] + '</a>' for item in _subscription_accounts.subscription_accounts()
     )
+    subscription_buttons += "".join(
+        '<a class="btn" href="' + html.escape(_subscription_accounts.account_setup_destination(
+            item["id"], _subscription_accounts.subscription_return_path(next_path)), quote=True)
+        + '">' + item["action"] + '</a>' for item in _subscription_accounts.account_setup_options()
+    )
     subscriptions = ('<section class="setting" aria-labelledby="subscription-login-h">'
-        '<div class="label"><h2 id="subscription-login-h">AI subscriptions</h2>'
-        '<p>Connect an account you already pay for.</p></div><div class="panel">'
+        '<div class="label"><h2 id="subscription-login-h">AI accounts</h2>'
+        '<p>Connect a subscription or configure an API key.</p></div><div class="panel">'
         '<div class="provider-actions">' + subscription_buttons + '</div>'
-        '<p class="note">Sign in to Nexus first, then connect your subscription. '
-        'No API key is required. Server software and provider plan limits apply.</p></div></section>')
+        '<p class="note">Sign in to Nexus first. Copilot uses a linked GitHub account; '
+        'OpenCode requires its own API key. Provider plan limits and API billing apply.</p></div></section>')
     body = (message_html + provider_section + subscriptions
             + '<details class="login-reference"' + (' open' if not providers or message_html else '')
             + '><summary>Use a session reference instead</summary>' + body + '</details>')
