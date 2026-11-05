@@ -147,6 +147,7 @@ from nexus.core.auth import (
 from nexus.core.auth.credential_store import get_auth_session as _svc_get_auth_session
 from nexus.core.auth.credential_store import get_auth_session_by_state as _svc_get_auth_session_by_state
 from nexus.core.auth import browser_login as _browser_login
+from nexus.core.auth import subscription_accounts as _subscription_accounts
 from nexus.core.runtime_mode import is_issue_process_running
 
 logging.basicConfig(
@@ -1130,7 +1131,8 @@ def _handle_browser_login_callback(provider: str):
     session_id = str(result["session_id"])
     status = _svc_get_session_and_setup_status(session_id)
     setup = status.get("setup") or {}
-    if setup.get("ready") or result.get("intent") == "connect":
+    if (setup.get("ready") or result.get("intent") == "connect"
+            or _subscription_accounts.is_subscription_destination(result["next"])):
         response = make_response(redirect(result["next"], code=303))
     else:
         page = _render_account_setup_page(
@@ -2133,6 +2135,36 @@ def index():
     return response
 
 
+@app.route("/auth/subscription", methods=["GET"])
+def auth_subscription():
+    """Offer an existing subscription flow to the current Nexus account only."""
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    try:
+        provider = _subscription_accounts.normalize_subscription_provider(request.args.get("provider", ""))
+    except ValueError as exc:
+        return _render_auth_message("Unknown subscription", html.escape(str(exc)), status_code=400)
+    next_path = _safe_next_path(request.args.get("next"), default="/")
+    try:
+        account = _subscription_accounts.subscription_account_context(
+            session_id=request.cookies.get(_WEB_SESSION_COOKIE_NAME, ""), provider=provider,
+        )
+    except PermissionError:
+        destination = _subscription_accounts.subscription_destination(provider, next_path)
+        response = make_response(redirect("/login?" + urlencode({"next": destination}), code=302))
+    except Exception:
+        response = make_response(_render_auth_message(
+            "Account service unavailable", "Your Nexus account could not be loaded. Try again shortly.", status_code=503,
+        ))
+    else:
+        response = make_response(_auth_pages.render_subscription_connection(
+            account, continue_url="/login?" + urlencode({"next": next_path}),
+        ))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
 def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
     providers = _browser_login.configured_identity_providers()
     buttons = "".join(
@@ -2162,7 +2194,18 @@ def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
         submit_label="Sign in",
         message_html="",
     )
-    body = (message_html + provider_section
+    subscription_buttons = "".join(
+        '<a class="btn" href="' + html.escape(_subscription_accounts.subscription_destination(
+            item["id"], _subscription_accounts.subscription_return_path(next_path)), quote=True)
+        + '">Connect ' + item["label"] + '</a>' for item in _subscription_accounts.subscription_accounts()
+    )
+    subscriptions = ('<section class="setting" aria-labelledby="subscription-login-h">'
+        '<div class="label"><h2 id="subscription-login-h">AI subscriptions</h2>'
+        '<p>Connect an account you already pay for.</p></div><div class="panel">'
+        '<div class="provider-actions">' + subscription_buttons + '</div>'
+        '<p class="note">Sign in to Nexus first, then connect your subscription. '
+        'No API key is required. Server software and provider plan limits apply.</p></div></section>')
+    body = (message_html + provider_section + subscriptions
             + '<details class="login-reference"' + (' open' if not providers or message_html else '')
             + '><summary>Use a session reference instead</summary>' + body + '</details>')
     page = _auth_pages.render_page(

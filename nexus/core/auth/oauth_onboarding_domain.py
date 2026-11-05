@@ -515,6 +515,26 @@ def _provider_runtime_home(*, provider: str, nexus_id: str) -> str:
     return os.path.join(runtime_root, "auth", str(provider).strip().lower(), str(nexus_id).strip())
 
 
+def _provider_account_environment(*, provider: str, user_home: str, provider_home: str) -> dict[str, str]:
+    """Keep subscription authentication in the user's home without API fallbacks."""
+    env = {**os.environ, "HOME": user_home}
+    for key in (
+        "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_BASE_URL",
+        "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+        "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_APPLICATION_CREDENTIALS",
+        "CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME",
+    ):
+        env.pop(key, None)
+    home_env = _PROVIDER_ACCOUNT_CONNECT_HOME_ENV[provider]
+    env[home_env] = provider_home
+    if provider == "agy":
+        # Antigravity keeps login and state in $HOME/.gemini under its own per-user home.
+        env["HOME"] = provider_home
+        env["NO_BROWSER"] = "true"
+    return env
+
+
 def _ensure_private_dir(path: str) -> None:
     os.makedirs(path, mode=0o700, exist_ok=True)
     try:
@@ -755,7 +775,7 @@ def _agy_signed_in(*, cli_path: str, home: str) -> bool:
     try:
         result = subprocess.run(
             [cli_path, "models"],
-            env={**os.environ, "HOME": home},
+            env=_provider_account_environment(provider="agy", user_home=home, provider_home=home),
             cwd=home,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -1910,7 +1930,6 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
     login_cmd = _provider_account_login_command(provider_name)
     if provider_name == "agy":
         login_cmd = _agy_login_command(login_cmd)
-    provider_home_env = str(_PROVIDER_ACCOUNT_CONNECT_HOME_ENV.get(provider_name) or "").strip()
     provider_home = _provider_runtime_home(provider=provider_name, nexus_id=session_record.nexus_id)
     user_home = _provider_user_runtime_home(nexus_id=session_record.nexus_id)
 
@@ -1971,13 +1990,7 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
             raise RuntimeError(f"Unable to create device-auth log file: {exc}") from exc
         _ensure_private_file(log_path)
 
-        env = {**os.environ, "HOME": user_home}
-        if provider_home_env:
-            env[provider_home_env] = provider_home
-        if provider_name == "agy":
-            # Antigravity keeps login and state in $HOME/.gemini under its own per-user home.
-            env["HOME"] = provider_home
-            env.setdefault("NO_BROWSER", "true")
+        env = _provider_account_environment(provider=provider_name, user_home=user_home, provider_home=provider_home)
         process_stdin: int | Any = subprocess.DEVNULL
         if provider_name in _CODE_ENTRY_PROVIDERS:
             # These CLIs read the code their sign-in page shows on stdin.
@@ -2036,8 +2049,9 @@ def start_provider_account_login(*, session_id: str, provider: str) -> dict[str,
 def get_provider_account_login_status(*, session_id: str, provider: str) -> dict[str, Any]:
     resolved_session_id = resolve_login_session_id(session_id)
     session_record = get_auth_session(str(resolved_session_id))
-    if not session_record:
-        return {"exists": False, "state": "invalid_session", "message": "Invalid session"}
+    if (not session_record or session_record.expires_at <= _now_utc()
+            or session_record.status not in {"oauth_done", "completed"}):
+        return {"exists": False, "state": "invalid_session", "message": "Sign in to Nexus again before connecting an account."}
 
     provider_name = str(provider or "").strip().lower()
     if provider_name not in _SUPPORTED_PROVIDER_ACCOUNT_CONNECTORS:
@@ -2291,8 +2305,9 @@ def submit_provider_account_login_code(
 ) -> dict[str, Any]:
     resolved_session_id = resolve_login_session_id(session_id)
     session_record = get_auth_session(str(resolved_session_id))
-    if not session_record:
-        return {"submitted": False, "state": "invalid_session", "message": "Invalid session"}
+    if (not session_record or session_record.expires_at <= _now_utc()
+            or session_record.status not in {"oauth_done", "completed"}):
+        return {"submitted": False, "state": "invalid_session", "message": "Sign in to Nexus again before connecting an account."}
 
     provider_name = _normalize_provider_account_connector(provider)
     if provider_name not in _CODE_ENTRY_PROVIDERS:

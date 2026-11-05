@@ -1,6 +1,6 @@
 {
   "format": "nexus-studio-implementation-roadmap/v1",
-  "updated": "2026-11-04",
+  "updated": "2026-11-05",
   "scope": "Current action queue; frozen requirements and historical checkpoints retain their own scope",
   "whole_plan_complete": false,
   "baseline": {
@@ -31,7 +31,8 @@
     "Opt-in run-completion and approval notifications with private-content limits (IDEA-02)",
     "macOS 1.0.2 local signing/notarization and scoped updater checks",
     "Cross-platform application discovery and prepare-update backup for macOS, Windows and Linux (DESKTOP-01 code implementation)",
-    "Direct GitHub/GitLab browser sign-in plus previously linked LinkedIn/X/Meta identities; local fixture acceptance, deployed provider validation pending"
+    "Direct GitHub/GitLab browser sign-in plus previously linked LinkedIn/X/Meta identities; local fixture acceptance, deployed provider validation pending",
+    "Codex/Claude/Antigravity subscription connections from sign-in for existing Nexus accounts; 178 focused checks and synthetic browser flows passed, live account/deployment validation pending"
   ],
   "known_implementation_gap": {
     "task": "DESKTOP-01",

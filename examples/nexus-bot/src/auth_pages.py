@@ -144,11 +144,13 @@ input:disabled { background: var(--raised); color: var(--muted); }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .provider-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .provider-actions .btn { min-height: 44px; height: auto; padding: 12px 16px; white-space: normal; }
-.login-providers .note { margin: 16px 0 0; max-width: 60ch; }
+.login-providers .note, .provider-actions + .note { margin: 16px 0 0; max-width: 60ch; }
 .login-reference { border-top: 1px solid var(--border); padding: 24px 0; }
 .login-reference summary { cursor: pointer; font-weight: 500; padding: 8px 0; }
 .login-reference[open] summary { margin-bottom: 24px; }
 .login-reference .setting { padding: 0; border: 0; }
+.subscription-connection .account-head { grid-template-columns: minmax(0, 1fr) auto auto; }
+[data-subscription-continue][hidden] { display: none; }
 
 .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .switch input { appearance: none; width: 28px; height: 16px; border-radius: 999px; background: var(--control); position: relative; margin: 0; cursor: pointer; transition: background-color .12s ease; }
@@ -175,6 +177,8 @@ input:disabled { background: var(--raised); color: var(--muted); }
 
 @media (max-width: 760px) {
   .provider-actions { grid-template-columns: 1fr; }
+  .subscription-connection .account-head { grid-template-columns: minmax(0, 1fr) auto; }
+  .subscription-connection .account-head > div:first-child { grid-column: 1 / -1; }
   .topbar { padding: 0 16px; }
   .topbar .who { display: none; }
   .sheet { margin: 0; border-radius: 0; border-width: 1px 0 0; padding: 24px 16px 32px; }
@@ -283,10 +287,15 @@ def _api_key_field(name: str, label: str, placeholder: str, saved: bool) -> str:
     </div>"""
 
 
-def _account_row(provider: dict, enabled: bool) -> str:
+def _account_row(provider: dict, enabled: bool, *, available: bool = True, show_toggle: bool = True) -> str:
     key = provider["key"]
     pill = '<span class="pill ok" data-pill>Connected</span>' if enabled else '<span class="pill off" data-pill>Not connected</span>'
     checked = " checked" if enabled else ""
+    toggle = (
+        f'<label class="switch" title="Use this account for agent runs"><input type="checkbox" '
+        f'name="use_{key}_account" value="1"{checked} /><span>Use</span></label>' if show_toggle else ""
+    )
+    disabled = " disabled" if not available else ""
     code_block = ""
     if key in CODE_PROVIDERS:
         code_block = f"""
@@ -304,8 +313,8 @@ def _account_row(provider: dict, enabled: bool) -> str:
       <div class="account-head">
         <div><div class="account-name">{escape(provider["name"])}</div><div class="account-sub">{escape(provider["sub"])}</div></div>
         {pill}
-        <label class="switch" title="Use this account for agent runs"><input type="checkbox" name="use_{key}_account" value="1"{checked} /><span>Use</span></label>
-        <button type="button" class="btn" data-connect onclick="startProviderConnect('{key}')">{"Reconnect" if enabled else "Connect"}</button>
+        {toggle}
+        <button type="button" class="btn" data-connect onclick="startProviderConnect('{key}')"{disabled}>{"Reconnect" if enabled else "Connect"}</button>
       </div>
       <div class="account-steps" data-steps hidden>
         <div data-link-step hidden>
@@ -326,6 +335,27 @@ def _account_row(provider: dict, enabled: bool) -> str:
         <div class="status-line" data-status role="status" aria-live="polite"></div>
       </div>
     </li>"""
+
+
+def render_subscription_connection(account: dict, *, continue_url: str) -> str:
+    """Reuse the existing provider flow without exposing unrelated account controls."""
+    provider = next(item for item in PROVIDERS if item["key"] == account["id"])
+    row = _account_row(provider, bool(account["connected"]), available=bool(account["available"]), show_toggle=False)
+    reason = ('<p class="status-line bad" role="status">' + escape(account["reason"]) + '</p>') if account["reason"] else ""
+    hidden = "" if account["connected"] else " hidden"
+    data = json.dumps({"session": account["session_ref"]}).replace("</", "<\\/")
+    body = f"""
+  <section class="setting subscription-connection" aria-labelledby="subscription-h">
+    <div class="label"><h2 id="subscription-h">Your subscription</h2>
+      <p>Connect your existing account for agent runs. No API key is needed for this connection.</p></div>
+    <div class="panel"><ul class="accounts">{row}</ul>{reason}</div>
+  </section>
+  <p class="note">Sign in on the provider's website. Connection credentials stay on the Studio server,
+    private to your Nexus user. Provider plan limits apply. Your Nexus project permissions stay the same.</p>
+  <div class="form-foot"><a class="btn" href="/auth/setup?session={escape(account['session_ref'], quote=True)}">Account setup</a>
+    <a class="btn primary" data-subscription-continue href="{escape(continue_url, quote=True)}"{hidden}>Continue to workspace</a></div>
+  <script type="application/json" id="setup-data">{data}</script><script>{SETUP_JS}</script>"""
+    return render_page("Connect " + account["label"], body, subline="Use your subscription with Nexus.")
 
 
 def render_setup_form(
@@ -507,6 +537,8 @@ SETUP_JS = r"""
     show(p, "[data-code-step]", !!payload.requires_code && state !== "connected");
 
     if (state === "connected") {
+      var continuation = document.querySelector("[data-subscription-continue]");
+      if (continuation) continuation.hidden = false;
       setPill(p, "ok", "Connected");
       var t = part(p, 'input[type="checkbox"]'); if (t) t.checked = true;
       var btn = part(p, "[data-connect]"); if (btn) btn.textContent = "Reconnect";

@@ -177,3 +177,98 @@ def test_https_marks_both_context_and_authenticated_cookies_secure(browser_route
     done = client.get("/auth/github/callback", base_url="https://localhost", query_string={"state": state, "code": "synthetic"})
     assert done.status_code == 303
     assert all("Secure" in cookie and "HttpOnly" in cookie for cookie in done.headers.getlist("Set-Cookie"))
+
+
+def _existing_subscription_user(web, client):
+    from nexus.core.auth import oauth_onboarding_domain as auth
+    from nexus.core.auth.credential_store import upsert_github_credentials
+
+    upsert_github_credentials(nexus_id="subscription-owner", github_user_id=456, github_login="existing",
+                             github_token_enc="synthetic-private-token", org_verified=True)
+    sid = auth.create_login_session_for_user(nexus_id="subscription-owner", discord_user_id="", discord_username=None)
+    auth.update_auth_session(session_id=sid, status="oauth_done")
+    client.set_cookie(web._WEB_SESSION_COOKIE_NAME, sid)
+    return sid
+
+
+def test_login_offers_three_subscription_connections(browser_routes):
+    web, _ = browser_routes
+    page = web.app.test_client().get("/login?next=/workspace")
+    for label in ("Codex", "Claude", "Antigravity"):
+        assert f"Connect {label}".encode() in page.data
+    assert b"Sign in to Nexus first" in page.data
+    assert b"/auth/subscription?" in page.data
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude", "agy"])
+def test_subscription_choice_survives_identity_login_before_ai_setup(browser_routes, monkeypatch, provider):
+    web, _ = browser_routes
+    client = web.app.test_client()
+    first = client.get("/auth/subscription", query_string={"provider": provider, "next": "/workspace"})
+    assert first.status_code == 302
+    destination = parse_qs(urlsplit(first.headers["Location"]).query)["next"][0]
+    assert parse_qs(urlsplit(destination).query)["provider"] == [provider]
+    monkeypatch.setattr(web, "_svc_get_session_and_setup_status", lambda _: {"setup": {"ready": False}})
+    state = start(client, "gitlab", next=destination)
+    done = client.get("/auth/gitlab/callback", query_string={"state": state, "code": "synthetic"})
+    assert done.status_code == 303
+    assert done.headers["Location"] == destination
+
+
+@pytest.mark.parametrize("provider,label", [("codex", "Codex"), ("claude", "Claude"), ("agy", "Antigravity")])
+def test_connection_page_uses_cookie_owner_and_never_starts_cli(browser_routes, monkeypatch, provider, label):
+    web, _ = browser_routes
+    client = web.app.test_client()
+    sid = _existing_subscription_user(web, client)
+    monkeypatch.setattr(web._subscription_accounts.shutil, "which", lambda _: "/synthetic/cli")
+    monkeypatch.setattr(web._browser_login.onboarding.subprocess, "Popen", lambda *a, **kw: pytest.fail("Viewing must not start CLI"))
+    response = client.get("/auth/subscription", query_string={"provider": provider, "session": "someone-else", "next": "//evil.test"})
+    assert response.status_code == 200
+    assert f"Connect {label}".encode() in response.data
+    assert b"someone-else" not in response.data
+    assert web._svc_format_login_session_ref(sid).encode() in response.data
+    assert b"synthetic-private-token" not in response.data
+    assert response.headers["Cache-Control"] == "no-store"
+    assert b"use_codex_account" not in response.data  # No unsaved Use switch on the standalone page.
+    assert b"next=%2F" in response.data
+    assert b"No API key is needed" in response.data
+
+
+def test_missing_cli_disables_connection_with_explanation(browser_routes, monkeypatch):
+    web, _ = browser_routes
+    client = web.app.test_client()
+    _existing_subscription_user(web, client)
+    monkeypatch.setattr(web._subscription_accounts.shutil, "which", lambda _: None)
+    response = client.get("/auth/subscription?provider=claude")
+    assert response.status_code == 200
+    assert b"Install the Claude CLI on the Studio server" in response.data
+    assert b"startProviderConnect('claude')\" disabled" in response.data
+
+
+def test_subscription_page_rejects_expired_session_and_bad_provider(browser_routes):
+    web, _ = browser_routes
+    client = web.app.test_client()
+    sid = _existing_subscription_user(web, client)
+    web._browser_login.onboarding.update_auth_session(session_id=sid, status="expired")
+    assert client.get("/auth/subscription?provider=codex").status_code == 302
+    assert client.get("/auth/subscription?provider=shell").status_code == 400
+
+
+def test_subscription_page_respects_disabled_auth(browser_routes, monkeypatch):
+    web, _ = browser_routes
+    monkeypatch.setattr(web, "NEXUS_AUTH_ENABLED", False)
+    assert web.app.test_client().get("/auth/subscription?provider=codex").status_code == 404
+
+
+def test_subscription_service_failure_is_sanitized(browser_routes, monkeypatch):
+    web, _ = browser_routes
+
+    def unavailable(**kwargs):
+        raise RuntimeError("private-account-store-detail")
+
+    monkeypatch.setattr(web._subscription_accounts, "subscription_account_context", unavailable)
+    response = web.app.test_client().get("/auth/subscription?provider=codex")
+    assert response.status_code == 503
+    assert b"Account service unavailable" in response.data
+    assert b"private-account-store-detail" not in response.data
+    assert response.headers["Cache-Control"] == "no-store"

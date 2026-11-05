@@ -7,6 +7,55 @@ their existing server credentials are configured. The session-reference form rem
 available in an expandable section. Browser users no longer need to start Git login
 through Telegram or Discord.
 
+## LLM subscription connections
+
+Added on 5 November 2026: **Connect Codex**, **Connect Claude** and
+**Connect Antigravity** on the sign-in page. These connect subscriptions to an
+existing Nexus account; they do not replace Nexus identity or project permissions.
+
+1. Select a subscription. If necessary, sign in to Nexus first. The selected
+   provider and original workspace destination survive that handoff, including
+   when the Nexus account has not configured its first AI provider yet.
+2. Press **Connect** on the subscription page. This explicitly starts the existing
+   provider account flow on the Studio server; viewing the page never starts it.
+3. Codex shows a device sign-in URL and code. Claude and Antigravity expose their
+   existing provider URL and authorization-code entry controls when requested by
+   the CLI. Complete authentication on the provider's own site.
+4. Once connected, **Continue to workspace** uses the normal Nexus readiness and
+   permission checks. Account setup remains available for managing all providers.
+
+The guarded `GET /auth/subscription?provider=codex|claude|agy` page uses only the
+current Nexus cookie, never a supplied user/session query argument. Provider
+connections reuse `/auth/provider-connect/start`, `/status` and `/submit-code`,
+the existing credential store and isolated per-user runtime homes. Expired or
+pre-OAuth sessions cannot poll login instructions or submit authorization codes.
+Subscription login processes and Antigravity's account-status probe exclude inherited
+server API keys and alternate cloud-auth overrides. They retain the existing private
+per-user credential homes; this does not remove or modify the server's own settings.
+
+The appropriate CLI must be installed on the **server running Studio**, using
+the existing `CODEX_CLI_PATH`, `CLAUDE_CLI_PATH` or `AGY_CLI_PATH` overrides if
+needed. `NEXUS_CLI_AUTH_MODE` must be `account` or `auto`. Discovery checks command
+availability without executing commands or reading credentials. Missing software
+or incompatible auth mode disables Connect with an explanation. No new provider
+OAuth client registration, database migration or API key is required for these
+subscription connections. Provider eligibility and plan limits still apply;
+API-only features retain their existing separate configuration and billing.
+
+The implementation reuses the installed Codex CLI's `login --device-auth` support
+and existing Claude/Antigravity adapters. The inspected [official Codex authentication
+documentation](https://developers.openai.com/codex/auth/) and
+[Claude authentication documentation](https://code.claude.com/docs/en/authentication)
+support the account-login approach. Antigravity's documentation was unavailable
+during this check; its existing adapter was retained rather than inventing a new
+OAuth protocol.
+
+Local browser acceptance used synthetic accounts: three explicit connection starts,
+two code submissions, connected-state persistence and zero real provider calls.
+It covered desktop and mobile layouts, a Codex device code, both code-entry flows,
+keyboard submission, cleared code fields and continuation. Real provider account
+acceptance remains pending. See the [subscription checkpoint](STUDIO-SUBSCRIPTION-CONNECTIONS-CHECKPOINT.json).
+
 ## Identity and permissions
 
 - GitHub/GitLab use the existing credential store, organization/group checks and

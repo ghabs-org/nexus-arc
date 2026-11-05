@@ -1,6 +1,6 @@
 # Nexus Studio implementation plan
 
-Updated: **4 November 2026**. Delivery status: **open**.
+Updated: **5 November 2026**. Delivery status: **open**.
 
 This is the current action queue. The [structured task record](STUDIO-ROADMAP.json)
 contains prerequisites, ownership, dependencies and acceptance criteria for every
@@ -21,6 +21,7 @@ The original approved specification remains in the operator-owned
 | Browser verification | Scoped phone/tablet/desktop layout, keyboard, viewer and review-flow evidence. Some final save/download actions and performance metrics are not established by that record. |
 | macOS release | Signed/notarized/stapled 1.0.2 exists locally with scoped installed/update/rollback proof. It does not contain later source fixes. |
 | Direct browser identity login | GitHub/GitLab plus previously linked LinkedIn/X/Meta accounts, configured-provider buttons, protected callbacks and session-reference fallback. Local acceptance only; deployed provider checks remain pending. See [browser login](STUDIO-BROWSER-LOGIN.md). |
+| LLM subscription connections | Codex, Claude and Antigravity connection buttons on sign-in; guarded per-user pages, selection retention and existing CLI account flows. 178 focused checks and synthetic browser acceptance passed; live provider sign-in and deployment remain pending. |
 
 Latest recorded feature checks: **320 frontend checks**, including 20 draft checks,
 7 graph authoring/undo checks, and 8 notification checks, plus **35 backend/bundling checks**,

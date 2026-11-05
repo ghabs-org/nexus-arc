@@ -1,13 +1,32 @@
 openapi: 3.1.0
 info:
   title: Nexus browser identity sign-in
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     GitHub/GitLab may establish Nexus identity using existing project ACL rules.
     LinkedIn, X and Meta resolve only previously linked immutable user subjects.
     Configured providers appear on the login page. Session-reference login remains
     compatible. This contract does not claim live provider acceptance.
+    LLM subscription connections require an existing Nexus identity and do not
+    grant project permissions.
 paths:
+  /auth/subscription:
+    get:
+      operationId: showSubscriptionAccountConnection
+      description: >-
+        Connect an LLM subscription to the existing Nexus user. Requires a current
+        post-OAuth Nexus cookie; incomplete AI setup is allowed. Without that cookie,
+        redirects to Nexus identity login and retains the selected provider. Opening
+        this page never starts a CLI login. Connect/code/status controls reuse the
+        existing /auth/provider-connect operations and private per-user runtime homes.
+      parameters:
+        - {in: query, name: provider, required: true, schema: {enum: [codex, claude, agy]}}
+        - {in: query, name: next, schema: {type: string, default: /}}
+      responses:
+        '200': {description: 'Connection instructions, existing status or missing server CLI message'}
+        '302': {description: Nexus login required before connecting a subscription}
+        '400': {description: Invalid provider}
+        '404': {description: Authentication disabled}
   /login:
     get:
       operationId: showNexusLogin
