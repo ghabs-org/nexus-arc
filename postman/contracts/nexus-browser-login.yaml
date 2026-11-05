@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nexus browser identity sign-in
-  version: 1.2.0
+  version: 1.2.1
   description: >-
     GitHub/GitLab may establish Nexus identity using existing project ACL rules.
     LinkedIn, X and Meta resolve only previously linked immutable user subjects.
@@ -64,7 +64,11 @@ paths:
     post:
       operationId: startNexusBrowserLogin
       description: >-
-        Requires a same-origin browser request when Origin/Fetch Metadata is present.
+        Requires the selected provider's configured callback origin when Origin is
+        present. A provider-specific callback override takes precedence over the
+        global public base URL. Normalize host casing and default HTTP(S) ports;
+        reject opaque/malformed origins and cross-site Fetch Metadata. Never trust
+        client-supplied forwarded-host/protocol headers to widen allowed origins.
         Creates a fresh attempt, ignoring supplied session IDs. Sets an encrypted,
         HttpOnly, SameSite=Lax, host-only /auth context cookie for at most 900 seconds;
         Secure on HTTPS. Responses are no-store. A context is not an authenticated session.

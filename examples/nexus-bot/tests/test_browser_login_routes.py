@@ -113,6 +113,61 @@ def test_cross_origin_login_and_unconfigured_provider_rejected(browser_routes, m
     assert not exchanges
 
 
+def test_browser_login_accepts_selected_provider_callback_origin(browser_routes, monkeypatch):
+    web, _ = browser_routes
+    monkeypatch.setattr(web, "NEXUS_PUBLIC_BASE_URL", "https://accounts.example")
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "https://accounts.example")
+    monkeypatch.setenv("NEXUS_GITHUB_CALLBACK_URL", "https://studio.example/auth/github/callback")
+    response = web.app.test_client().post(
+        "/auth/browser/start", base_url="https://studio.example", data={"provider": "github"},
+        headers={"Origin": "https://studio.example", "Sec-Fetch-Site": "same-origin"},
+    )
+    assert response.status_code == 303
+    query = parse_qs(urlsplit(response.headers["Location"]).query)
+    assert query["redirect_uri"] == ["https://studio.example/auth/github/callback"]
+    assert "Secure" in response.headers["Set-Cookie"]
+
+
+def test_browser_login_treats_default_https_port_as_same_origin(browser_routes, monkeypatch):
+    web, _ = browser_routes
+    monkeypatch.setattr(web, "NEXUS_PUBLIC_BASE_URL", "https://studio.example:443")
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "https://studio.example:443")
+    response = web.app.test_client().post(
+        "/auth/browser/start", base_url="https://studio.example", data={"provider": "github"},
+        headers={"Origin": "https://studio.example", "Sec-Fetch-Site": "same-origin"},
+    )
+    assert response.status_code == 303
+
+
+def test_proxied_https_callback_sets_secure_cookies_with_internal_http_config(browser_routes, monkeypatch):
+    web, _ = browser_routes
+    monkeypatch.setattr(web, "NEXUS_PUBLIC_BASE_URL", "http://auth-internal")
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "http://auth-internal")
+    monkeypatch.setenv("NEXUS_GITHUB_CALLBACK_URL", "https://studio.example/auth/github/callback")
+    client = web.app.test_client()
+    first = client.post("/auth/browser/start", base_url="http://studio.example", data={"provider": "github"},
+                        headers={"Origin": "https://studio.example", "Sec-Fetch-Site": "same-origin"})
+    assert first.status_code == 303
+    assert "Secure" in first.headers["Set-Cookie"]
+    state = parse_qs(urlsplit(first.headers["Location"]).query)["state"][0]
+    done = client.get("/auth/github/callback", base_url="https://studio.example", query_string={"state": state, "code": "synthetic"})
+    assert done.status_code == 303
+    session_cookie = next(cookie for cookie in done.headers.getlist("Set-Cookie") if cookie.startswith(web._WEB_SESSION_COOKIE_NAME + "="))
+    assert "Secure" in session_cookie and "HttpOnly" in session_cookie
+    refreshed = client.get("/login?next=/workspace", base_url="http://studio.example")
+    assert refreshed.status_code == 302
+    assert "Secure" in refreshed.headers["Set-Cookie"]
+
+
+def test_proxy_header_spoofing_cannot_allow_foreign_origin(browser_routes):
+    web, exchanges = browser_routes
+    response = web.app.test_client().post("/auth/browser/start", data={"provider": "github"}, headers={
+        "Origin": "https://evil.test", "X-Forwarded-Host": "evil.test", "X-Forwarded-Proto": "https",
+        "Sec-Fetch-Site": "same-origin",
+    })
+    assert response.status_code == 403 and not exchanges
+
+
 def test_denial_expires_attempt_without_exchange_or_session_cookie(browser_routes):
     web, exchanges = browser_routes
     client = web.app.test_client()

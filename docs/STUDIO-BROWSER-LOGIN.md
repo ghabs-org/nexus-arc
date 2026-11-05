@@ -121,12 +121,26 @@ inspected on 4 November 2026. The previous hard-coded `v19.0` is no longer used 
 these OAuth functions. Validate your app's approved Graph version before deployment;
 this change does not upgrade unrelated publishing adapters.
 
-`NEXUS_PUBLIC_BASE_URL` and any `NEXUS_<PROVIDER>_CALLBACK_URL` overrides must point to
-the **same public origin as this sign-in page**. Register the existing
+The selected provider's callback must use the **same public origin as this sign-in
+page**. A `NEXUS_<PROVIDER>_CALLBACK_URL` override takes precedence over
+`NEXUS_PUBLIC_BASE_URL`; the global address can remain on another Nexus account
+hostname when that provider has a matching override. Register the existing
 `/auth/<provider>/callback` URLs in each provider app. Browser context cookies cannot
 cross different hostnames. Route `/login` and `/auth/*` to the existing Nexus auth
 server; the new `POST /auth/browser/start` needs no additional proxy prefix.
 Provider app approval and allowed scopes remain provider requirements.
+
+An origin-validation defect was fixed on 6 November 2026. Previously browser login
+compared Origin only against the global public address, rejecting legitimate
+provider-specific callbacks with the error "Start sign-in from this Nexus site."
+An explicit default HTTPS port could cause the same rejection. Validation now uses
+the selected provider's callback origin, normalizing hostname casing and default
+HTTP(S) ports. It continues to reject other origins, malformed/opaque Origin values
+and cross-site Fetch Metadata. Client-supplied proxy headers cannot widen this policy.
+Secure cookies remain Secure through an HTTP backend proxy and later session refreshes
+for a configured HTTPS callback host. A genuine page/callback hostname mismatch still
+requires correcting server/provider registration; it is not bypassed automatically.
+See the [origin-fix checkpoint](STUDIO-BROWSER-ORIGIN-CHECKPOINT.json).
 
 ## Callback and storage boundaries
 

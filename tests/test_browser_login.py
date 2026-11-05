@@ -96,6 +96,39 @@ def test_redirect_does_not_leave_origin(path):
     assert login.safe_return_path(path) == "/"
 
 
+@pytest.mark.parametrize("provider", list(login.PROVIDERS))
+def test_login_origin_uses_selected_callback_instead_of_global_public_host(monkeypatch, provider):
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "https://accounts.example")
+    monkeypatch.setenv(f"NEXUS_{provider.upper()}_CALLBACK_URL", f"https://STUDIO.example:443/auth/{provider}/callback")
+    assert login.browser_login_origin_allowed(provider=provider, origin="https://studio.example", fetch_site="same-origin")
+    assert not login.browser_login_origin_allowed(provider=provider, origin="https://accounts.example", fetch_site="same-site")
+
+
+@pytest.mark.parametrize("origin", ["null", "", "https://evil.example", "http://studio.example", "https://studio.example:444", "https://user:password@studio.example", "https://studio.example/path", "https://studio.example?query", "https://studio.example#fragment", "https://studio.example:0", "https://studio.example:99999", "https://studio.\texample"])
+def test_login_origin_rejects_cross_site_opaque_and_malformed_headers(monkeypatch, origin):
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "https://studio.example")
+    assert not login.browser_login_origin_allowed(provider="github", origin=origin, fetch_site="same-origin")
+
+
+def test_fetch_metadata_cannot_override_origin_policy(monkeypatch):
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "https://studio.example")
+    assert not login.browser_login_origin_allowed(provider="github", origin="https://studio.example", fetch_site="cross-site")
+    assert login.browser_login_origin_allowed(provider="github", origin=None, fetch_site=None)
+    assert not login.browser_login_origin_allowed(provider="github", origin=None, fetch_site="cross-site")
+    monkeypatch.setenv("NEXUS_GITHUB_CALLBACK_URL", "file:///invalid/callback")
+    with pytest.raises(ValueError, match="public sign-in callback"):
+        login.browser_callback_origin("github")
+
+
+def test_cookie_https_policy_uses_configured_callback_host_only(monkeypatch):
+    monkeypatch.setenv("NEXUS_PUBLIC_BASE_URL", "http://auth-internal")
+    monkeypatch.setenv("NEXUS_GITHUB_CALLBACK_URL", "https://studio.example/auth/github/callback")
+    assert login.browser_cookie_requires_https("studio.example")
+    assert login.browser_cookie_requires_https("STUDIO.example:443")
+    assert not login.browser_cookie_requires_https("auth-internal")
+    assert not login.browser_cookie_requires_https("evil.example")
+
+
 def test_meta_configuration_uses_existing_app_environment_names(browser_auth, monkeypatch):
     assert [p["id"] for p in login.configured_identity_providers()] == list(login.PROVIDERS)
     monkeypatch.delenv("NEXUS_META_APP_SECRET")

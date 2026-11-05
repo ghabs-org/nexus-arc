@@ -24,6 +24,55 @@ TTL_SECONDS = 900
 PROVIDERS = {"github": "GitHub", "gitlab": "GitLab", "linkedin": "LinkedIn", "x": "X", "meta": "Meta"}
 
 
+def _normalized_origin(value: str, *, header: bool = False) -> tuple[str, str, int] | None:
+    """Normalize HTTP origins without trusting proxy headers or URL credentials."""
+    try:
+        if not value or any(ord(char) <= 32 or ord(char) == 127 for char in value):
+            return None
+        parsed = urlsplit(value)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or (header and (parsed.path or parsed.query or parsed.fragment))):
+            return None
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
+        if port <= 0:
+            return None
+        return parsed.scheme, parsed.hostname.lower(), port
+    except ValueError:
+        return None
+
+
+def browser_callback_origin(provider: str) -> tuple[str, str, int]:
+    """Use the same trusted callback configuration as the selected OAuth flow."""
+    if provider not in PROVIDERS:
+        raise ValueError("Choose a configured Nexus identity provider.")
+    origin = _normalized_origin(onboarding._oauth_callback_url(provider))
+    if origin is None:
+        raise ValueError("The public sign-in callback address is not configured correctly.")
+    return origin
+
+
+def browser_login_origin_allowed(*, provider: str, origin: str | None, fetch_site: str | None) -> bool:
+    expected = browser_callback_origin(provider)
+    if fetch_site == "cross-site":
+        return False
+    return origin is None or _normalized_origin(origin, header=True) == expected
+
+
+def browser_cookie_requires_https(host: str) -> bool:
+    """Retain Secure on later requests proxied to HTTP from a configured HTTPS site."""
+    requested = _normalized_origin("https://" + host, header=True)
+    if requested is None:
+        return False
+    for provider in PROVIDERS:
+        try:
+            if browser_callback_origin(provider) == requested:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def provider_client_id(provider: str) -> str:
     key = "NEXUS_META_APP_ID" if provider == "meta" else f"NEXUS_{provider.upper()}_CLIENT_ID"
     return str(os.getenv(key, "")).strip()

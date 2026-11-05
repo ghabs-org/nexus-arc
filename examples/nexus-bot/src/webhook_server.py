@@ -19,7 +19,7 @@ import os
 import time
 from datetime import UTC, datetime
 from hmac import compare_digest
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote, urlencode
 
 import requests
 from flask import Flask, jsonify, make_response, redirect, request, send_from_directory
@@ -332,13 +332,13 @@ def _resolve_ready_web_session(session_id: str | None = None) -> tuple[str, dict
     return resolved_session_id, payload
 
 
-def _set_web_session_cookie(response, session_id: str) -> None:
+def _set_web_session_cookie(response, session_id: str, *, secure: bool = False) -> None:
     response.set_cookie(
         _WEB_SESSION_COOKIE_NAME,
         str(session_id),
         max_age=_WEB_SESSION_COOKIE_MAX_AGE_SECONDS,
         httponly=True,
-        secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure,
+        secure=secure or _WEB_SESSION_COOKIE_SECURE or request.is_secure or _browser_login.browser_cookie_requires_https(request.host),
         samesite="Lax",
         path="/",
     )
@@ -1083,18 +1083,19 @@ def browser_login_start():
     """Start identity login without a chat account or a pasted session reference."""
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
-    origin = request.headers.get("Origin")
+    provider = str(request.form.get("provider", "")).strip().lower()
     try:
-        expected = urlsplit(NEXUS_PUBLIC_BASE_URL or request.host_url)
-        origin_matches = not origin or urlsplit(origin)[:2] == expected[:2]
+        origin_matches = _browser_login.browser_login_origin_allowed(
+            provider=provider, origin=request.headers.get("Origin"), fetch_site=request.headers.get("Sec-Fetch-Site"),
+        )
     except ValueError:
-        origin_matches = False
-    if ((not origin_matches)
-            or request.headers.get("Sec-Fetch-Site") == "cross-site"):
-        return _render_auth_message("Sign-in error", "Start sign-in from this Nexus site.", status_code=403)
+        return _render_auth_message("Sign-in unavailable", "Check the server's public sign-in address and provider configuration.", status_code=400)
+    if not origin_matches:
+        return _render_auth_message("Sign-in error", "This page does not match the configured sign-in address. "
+                                    "Ask your administrator to check the public callback address.", status_code=403)
     try:
         result = _browser_login.start_browser_login(
-            provider=str(request.form.get("provider", "")).strip().lower(),
+            provider=provider,
             next_path=_safe_next_path(request.form.get("next"), default="/"),
         )
     except Exception:
@@ -1103,7 +1104,7 @@ def browser_login_start():
     response = make_response(redirect(str(result["authorization_url"]), code=303))
     response.set_cookie(_browser_login.COOKIE_NAME, str(result["context"]),
                         max_age=int(result["max_age"]), path="/auth", httponly=True,
-                        secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure, samesite="Lax")
+                        secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure or _browser_login.browser_callback_origin(provider)[0] == "https", samesite="Lax")
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
@@ -1150,7 +1151,7 @@ def _handle_browser_login_callback(provider: str):
             copilot_checked=bool(setup.get("copilot_ready")),
         )
         response = make_response(page)
-    _set_web_session_cookie(response, session_id)
+    _set_web_session_cookie(response, session_id, secure=_browser_login.browser_callback_origin(provider)[0] == "https")
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"
     return _clear_browser_login_cookie(response)
@@ -1207,7 +1208,7 @@ def auth_start():
             response = make_response(redirect(str(result["authorization_url"]), code=303))
             response.set_cookie(_browser_login.COOKIE_NAME, str(result["context"]),
                                 max_age=int(result["max_age"]), path="/auth", httponly=True,
-                                secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure, samesite="Lax")
+                                secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure or _browser_login.browser_callback_origin(provider)[0] == "https", samesite="Lax")
             response.headers["Cache-Control"] = "no-store"
             response.headers["Referrer-Policy"] = "no-referrer"
             return response
