@@ -1,6 +1,6 @@
 {
   "format": "nexus-studio-implementation-roadmap/v1",
-  "updated": "2026-11-05",
+  "updated": "2026-11-06",
   "scope": "Current action queue; frozen requirements and historical checkpoints retain their own scope",
   "whole_plan_complete": false,
   "baseline": {
@@ -33,7 +33,9 @@
     "Cross-platform application discovery and prepare-update backup for macOS, Windows and Linux (DESKTOP-01 code implementation)",
     "Direct GitHub/GitLab browser sign-in plus previously linked LinkedIn/X/Meta identities; local fixture acceptance, deployed provider validation pending",
     "Codex/Claude/Antigravity subscription connections from sign-in for existing Nexus accounts; 178 focused checks and synthetic browser flows passed, live account/deployment validation pending",
-    "Copilot/OpenCode sign-in-page shortcuts reuse existing settings and encrypted credential saving; 189 focused checks and synthetic browser saves passed, live invocation/deployment validation pending"
+    "Copilot/OpenCode sign-in-page shortcuts reuse existing settings and encrypted credential saving; 189 focused checks and synthetic browser saves passed, live invocation/deployment validation pending",
+    "Optional macOS native Nexus identity bridge with PKCE, Keychain storage, revocation and guided local CLI sign-in; included in signed 1.0.3 macOS release; hosted deployment and real-account acceptance pending (DESKTOP-05).",
+    "Explicitly requested macOS 1.0.3 full-SDK local release: app/DMG signed, notarized and stapled; 301 source checks, 23 native checks and five installed runtime checks pass; native account setup no longer imports server project configuration."
   ],
   "known_implementation_gap": {
     "task": "DESKTOP-01",
@@ -254,7 +256,7 @@
       "title": "Package the current reviewed source into fresh desktop artifacts",
       "kind": "packaging",
       "phase": 4,
-      "status": "held-until-explicit-build-request",
+      "status": "macos-1.0.3-local-delivery-complete-other-platforms-pending",
       "owner": "release maintainer and agent",
       "prerequisites": [
         "Explicit user request for a new build; target platform/architecture and reviewed source revision"
@@ -266,7 +268,8 @@
       ],
       "evidence": [
         "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json",
-        "docs/STUDIO-DRAFT-RECOVERY-CHECKPOINT.json"
+        "docs/STUDIO-DRAFT-RECOVERY-CHECKPOINT.json",
+        "docs/STUDIO-DESKTOP-1.0.3-CHECKPOINT.json"
       ],
       "depends_on": []
     },
@@ -299,10 +302,10 @@
       "title": "Test a genuine old-release upgrade and rollback",
       "kind": "validation",
       "phase": 4,
-      "status": "needs-new-artifact-and-prior-release",
+      "status": "macos-packaged-live-acceptance-pending",
       "owner": "agent and release tester",
       "prerequisites": [
-        "Actual previously shipped release and new candidate; disposable workspace created by the prior release"
+        "Unlocked Mac for manual Account dialog/live identity and selected local CLI acceptance. The explicitly requested 1.0.3 build is complete; future rebuilds require a new request."
       ],
       "acceptance": [
         "Upgrade real prior-release data with conversations, definitions, schedules, documents/indexes and artifacts intact.",
@@ -310,7 +313,8 @@
         "Use actual old/new binaries and schema states; synthetic prior-version metadata is insufficient."
       ],
       "evidence": [
-        "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json"
+        "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json",
+        "docs/STUDIO-DESKTOP-1.0.3-CHECKPOINT.json"
       ],
       "depends_on": [
         "DESKTOP-03"
@@ -339,6 +343,32 @@
         "DESKTOP-03",
         "DESKTOP-05"
       ]
+    },
+    {
+      "id": "DESKTOP-05",
+      "title": "Qualify native desktop account sign-in and local subscriptions",
+      "kind": "implementation-and-validation",
+      "phase": 4,
+      "status": "macos-packaged-live-acceptance-pending",
+      "owner": "agent and account owner",
+      "prerequisites": [
+        "Deploy reviewed /auth/desktop endpoints to the existing Nexus auth service.",
+        "Register the Studio callback with each configured identity provider.",
+        "Unlocked Mac for manual Account dialog/live identity and selected local CLI acceptance. The explicitly requested 1.0.3 build is complete; future rebuilds require a new request."
+      ],
+      "acceptance": [
+        "Inspect the native Account menu and browser confirmation, cancellation, reconnect and sign-out.",
+        "Complete a real configured-provider sign-in and verify Keychain persistence/revocation with the signed app.",
+        "Verify guided local Codex/Claude Code/Antigravity sign-in; do not transfer VM credentials or silently use API billing.",
+        "Implement Windows/Linux OS credential-store adapters and guided terminal launch before claiming native account support on those platforms."
+      ],
+      "evidence": [
+        "docs/STUDIO-DESKTOP-ACCOUNTS.md",
+        "docs/STUDIO-DESKTOP-ACCOUNTS-CHECKPOINT.json",
+        "postman/contracts/nexus-desktop-login.yaml",
+        "docs/STUDIO-DESKTOP-1.0.3-CHECKPOINT.json"
+      ],
+      "depends_on": []
     }
   ],
   "optional_backlog": [
@@ -384,7 +414,17 @@
     "docs/STUDIO-BROWSER-CHECKS-CHECKPOINT.json",
     "docs/STUDIO-DRAFT-RECOVERY-CHECKPOINT.json",
     "docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json",
-    "docs/STUDIO-M12-OPENCLAW-CHECKPOINT.json"
+    "docs/STUDIO-M12-OPENCLAW-CHECKPOINT.json",
+    "docs/STUDIO-DESKTOP-ACCOUNTS-CHECKPOINT.json",
+    "docs/STUDIO-DESKTOP-1.0.3-CHECKPOINT.json"
   ],
-  "source_head": "9f483002d9d2ba0ee752e43d3d07742736e66628"
+  "source_head": "9f483002d9d2ba0ee752e43d3d07742736e66628",
+  "latest_desktop_release": {
+    "version": "1.0.3",
+    "date": "2026-11-06",
+    "platform": "macos-arm64",
+    "distribution": "local-only",
+    "evidence": "docs/STUDIO-DESKTOP-1.0.3-CHECKPOINT.json",
+    "future_rebuild_requires_request": true
+  }
 }

@@ -1,11 +1,16 @@
 # Nexus Studio Standalone Desktop Distribution
 
-Current macOS release **1.0.2** is a full-SDK Apple Silicon build, Developer ID
+Current macOS release **1.0.3** is a full-SDK Apple Silicon build, Developer ID
 signed with accepted app/DMG notarization and stapled tickets. The signed
-DMG-installed runtime and Gatekeeper checks pass. The native updater passes
-signature/version checks and an isolated install/rollback fixture. Publication
-of its release feed and another physical Mac remain separate checks.
-See [signed release evidence](STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json).
+DMG-installed runtime and Gatekeeper checks pass. The new updater archive passes
+offline signature/version verification and rejects a relabeled version. The older
+1.0.2 install/rollback fixture remains historical evidence. Publication of the
+release feed and another physical Mac remain separate checks.
+See [1.0.3 release evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
+
+The 1.0.3 DMG includes optional macOS native Nexus sign-in and local subscription
+setup. Hosted bridge deployment and real account acceptance remain pending. See
+[native account flow and acceptance boundaries](STUDIO-DESKTOP-ACCOUNTS.md).
 
 Milestone 9 remains open for installed Windows/Linux, Windows signing, other
 physical devices and remaining release-distribution acceptance. No VM work was

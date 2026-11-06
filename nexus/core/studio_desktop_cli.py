@@ -28,6 +28,12 @@ def desktop_command(args: argparse.Namespace) -> int:
     subcommand = getattr(args, "desktop_subcommand", "status")
     workspace_dir = Path(getattr(args, "dir", ".")).resolve()
 
+    if subcommand == "account-provider":
+        from nexus.core.studio_desktop_accounts import provider_login_setup
+
+        print(json.dumps(provider_login_setup(args.provider)))
+        return 0
+
     if subcommand == "prepare-update":
         from nexus.core.studio_desktop_release import prepare_update
 
@@ -168,6 +174,10 @@ def add_parser(subparsers: Any) -> Any:
         "desktop", help="Manage Nexus Studio standalone desktop application"
     )
     desktop_subs = parser.add_subparsers(dest="desktop_subcommand")
+    account = desktop_subs.add_parser(
+        "account-provider", help="Describe local subscription sign-in without starting it"
+    )
+    account.add_argument("--provider", choices=["codex", "claude", "agy"], required=True)
     update = desktop_subs.add_parser(
         "prepare-update", help="Back up a stopped workspace and current macOS app"
     )

@@ -147,6 +147,8 @@ from nexus.core.auth import (
 from nexus.core.auth.credential_store import get_auth_session as _svc_get_auth_session
 from nexus.core.auth.credential_store import get_auth_session_by_state as _svc_get_auth_session_by_state
 from nexus.core.auth import browser_login as _browser_login
+from nexus.core.auth import desktop_login as _desktop_login  # noqa: E402 - runtime bootstrap above
+from nexus.core.auth.desktop_routes import install_desktop_login_routes  # noqa: E402
 from nexus.core.auth import subscription_accounts as _subscription_accounts
 from nexus.core.runtime_mode import is_issue_process_running
 
@@ -1143,7 +1145,8 @@ def _handle_browser_login_callback(provider: str):
     status = _svc_get_session_and_setup_status(session_id)
     setup = status.get("setup") or {}
     if (setup.get("ready") or result.get("intent") == "connect"
-            or _subscription_accounts.is_account_connection_destination(result["next"])):
+            or _subscription_accounts.is_account_connection_destination(result["next"])
+            or _desktop_login.is_authorization_destination(result["next"])):
         response = make_response(redirect(result["next"], code=303))
     else:
         page = _render_account_setup_page(
@@ -2457,6 +2460,12 @@ def main():
         debug=False,
         allow_unsafe_werkzeug=allow_unsafe_werkzeug,
     )
+
+
+install_desktop_login_routes(
+    app, enabled=lambda: NEXUS_AUTH_ENABLED,
+    session_cookie_name=_WEB_SESSION_COOKIE_NAME, render_page=_auth_pages.render_page,
+)
 
 
 if __name__ == "__main__":

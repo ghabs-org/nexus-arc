@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import requests
 
 from nexus.connectors.linkedin import LinkedInClient
+from nexus.core import provider_account_commands as _account_commands
 from nexus.core.auth.access_domain import (
     get_setup_status,
     sync_user_gitlab_project_access,
@@ -141,22 +142,10 @@ _PROVIDER_ACCOUNT_CONNECT_HOME_ENV = {
     "claude": "CLAUDE_HOME",
     "agy": "AGY_HOME",
 }
-_PROVIDER_ACCOUNT_CONNECT_CLI_ENV = {
-    "codex": "CODEX_CLI_PATH",
-    "claude": "CLAUDE_CLI_PATH",
-    "agy": "AGY_CLI_PATH",
-}
-_PROVIDER_ACCOUNT_CONNECT_ARGS_ENV = {
-    "codex": "NEXUS_CODEX_ACCOUNT_CONNECT_ARGS",
-    "claude": "NEXUS_CLAUDE_ACCOUNT_CONNECT_ARGS",
-    "agy": "NEXUS_AGY_ACCOUNT_CONNECT_ARGS",
-}
-_PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS = {
-    "codex": "login --device-auth",
-    "claude": "auth login",
-    # Antigravity has no login subcommand; it signs in from its interactive TUI.
-    "agy": "",
-}
+_PROVIDER_ACCOUNT_CONNECT_CLI_ENV = _account_commands.CLI_ENV
+_PROVIDER_ACCOUNT_CONNECT_ARGS_ENV = _account_commands.ARGS_ENV
+# Antigravity has no login subcommand; it signs in from its interactive TUI.
+_PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS = _account_commands.DEFAULT_ARGS
 _PROVIDER_ACCOUNT_CONNECT_FAILURE_STATES = {
     "failed",
     "rate_limited",
@@ -198,16 +187,7 @@ def _provider_user_runtime_home(*, nexus_id: str) -> str:
 
 
 def _provider_account_login_command(provider: str) -> list[str]:
-    cli_env_name = str(_PROVIDER_ACCOUNT_CONNECT_CLI_ENV.get(provider) or "").strip()
-    args_env_name = str(_PROVIDER_ACCOUNT_CONNECT_ARGS_ENV.get(provider) or "").strip()
-    default_args = str(_PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS.get(provider) or "").strip()
-    cli_path = str(os.getenv(cli_env_name, provider)).strip() or provider
-    args_raw = str(os.getenv(args_env_name, default_args)).strip() or default_args
-    try:
-        args = shlex.split(args_raw) if args_raw else []
-    except ValueError as exc:
-        raise ValueError(f"Invalid {args_env_name}: {exc}") from exc
-    return [cli_path, *args]
+    return _account_commands.provider_account_login_command(provider)
 
 
 def _read_json_file(path: str) -> dict[str, Any]:

@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: Nexus native desktop identity bridge
+  version: 1.0.0
+  description: >-
+    Optional desktop identity; local workspaces remain available without Nexus login.
+    Reuses browser identity and project ACLs. No provider secrets or subscription
+    credentials are copied to desktop. Native requests use HTTPS, no redirects,
+    and no browser Origin. A PKCE S256 verifier binds each single-use code.
+paths:
+  /auth/desktop/start:
+    post:
+      description: >-
+        Create a ten-minute attempt. redirect_uri must be exactly
+        http://127.0.0.1:<unprivileged-port>/nexus/desktop/callback.
+        Accept code_challenge (43 base64url characters), state (43-128 base64url
+        characters), device_name (1-80 printable characters). No client secret.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [redirect_uri, code_challenge, state, device_name]
+              properties:
+                redirect_uri: {type: string, format: uri, maxLength: 255}
+                code_challenge: {type: string, pattern: '^[A-Za-z0-9_-]{43}$'}
+                state: {type: string, pattern: '^[A-Za-z0-9_-]{43,128}$'}
+                device_name: {type: string, minLength: 1, maxLength: 80}
+      responses:
+        '200': {description: 'attempt_id, authorization_url, expires_in'}
+        '400': {description: Invalid request}
+        '403': {description: Browser-origin requests rejected}
+        '429': {description: Too many pending attempts}
+  /auth/desktop/authorize:
+    get:
+      description: >-
+        Browser-only confirmation. Requires a current Nexus identity cookie;
+        otherwise continues through existing login, retaining attempt_id.
+        Displays device and account. No grant on GET.
+      responses:
+        '200': {description: Explicit approval form with browser-bound CSRF}
+        '302': {description: Nexus browser login required}
+        '400': {description: Missing or expired attempt}
+    post:
+      description: >-
+        Accept or deny using same-origin form, current identity cookie and encrypted
+        CSRF context. Atomically consume approval. Redirect only to recorded loopback
+        URI with state and a one-minute single-use code, or access_denied.
+      responses:
+        '303': {description: Return to desktop loopback listener}
+        '400': {description: Invalid or already handled attempt}
+        '403': {description: Invalid browser context or origin}
+  /auth/desktop/exchange:
+    post:
+      description: >-
+        Native JSON request with attempt_id, code, code_verifier and redirect_uri.
+        Atomically consumes code after PKCE validation. Returns a revocable,
+        thirty-day opaque Nexus device credential, stored hashed server-side.
+        Credential grants identity inspection only; does not grant new project access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [attempt_id, code, code_verifier, redirect_uri]
+              properties:
+                attempt_id: {type: string, maxLength: 64}
+                code: {type: string, pattern: '^[A-Za-z0-9_-]{43}$'}
+                code_verifier: {type: string, pattern: '^[A-Za-z0-9_-]{43,128}$'}
+                redirect_uri: {type: string, format: uri, maxLength: 255}
+      responses:
+        '200': {description: 'token, device_id, nexus_id, account, expires_at'}
+        '400': {description: 'Invalid, expired, reused or mismatched code'}
+        '403': {description: Browser-origin requests rejected}
+  /auth/desktop/session:
+    get:
+      description: >-
+        Bearer device credential. Returns account and current project names, never
+        Git-provider or subscription tokens. Revoked/expired credentials return 401.
+      security: [{deviceCredential: []}]
+      responses:
+        '200': {description: Current device identity and existing project grants}
+        '401': {description: 'Missing, expired or revoked credential'}
+    delete:
+      description: Revoke the current device credential; does not revoke other devices or CLI accounts.
+      security: [{deviceCredential: []}]
+      responses:
+        '204': {description: Revoked}
+        '401': {description: 'Missing, expired or revoked credential'}
+components:
+  securitySchemes:
+    deviceCredential:
+      type: http
+      scheme: bearer
+      description: Opaque Nexus desktop credential; grants identity inspection and self-revocation only.

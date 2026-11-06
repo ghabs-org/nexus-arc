@@ -5,11 +5,13 @@
 //! The sidecar holds the workspace lock; closing asks it to finish cleanly first.
 //! The Workspace menu opens, imports or reveals a workspace by switching backends.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod accounts;
 mod backend;
 mod updates;
 use backend::{BackendOwner, ManagedChild, SavedWorkspace};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -45,11 +47,18 @@ struct Workspace {
     switching: Mutex<()>,
 }
 
+#[derive(Default)]
+struct AccountFlow {
+    busy: Mutex<()>,
+    cancelled: AtomicBool,
+}
+
 fn main() {
     let owner: Owner = Arc::new(BackendOwner::default());
     tauri::Builder::default()
         .manage(owner)
         .manage(Workspace::default())
+        .manage(AccountFlow::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
@@ -81,6 +90,16 @@ fn main() {
                 "workspace-import" => import_workspace(&app),
                 "workspace-reveal" => reveal_workspace(&app),
                 "studio-update" => updates::check(&app),
+                "account-signin" => account_signin(&app),
+                "account-status" => account_status(&app),
+                "account-signout" => account_signout(&app),
+                "account-cancel" => app
+                    .state::<AccountFlow>()
+                    .cancelled
+                    .store(true, Ordering::SeqCst),
+                "account-codex" => provider_signin(&app, "codex"),
+                "account-claude" => provider_signin(&app, "claude"),
+                "account-agy" => provider_signin(&app, "agy"),
                 _ => (),
             });
         })
@@ -88,6 +107,11 @@ fn main() {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
                 // Hide first: the clean close may take a few seconds.
                 let _ = window.hide();
+                window
+                    .app_handle()
+                    .state::<AccountFlow>()
+                    .cancelled
+                    .store(true, Ordering::SeqCst);
                 let _ = window.app_handle().state::<Owner>().quit();
                 window.app_handle().exit(0);
             }
@@ -103,6 +127,9 @@ fn main() {
                     let _ = window.hide();
                 }
                 let _ = app.state::<Owner>().quit();
+                app.state::<AccountFlow>()
+                    .cancelled
+                    .store(true, Ordering::SeqCst);
             }
         });
 }
@@ -147,7 +174,227 @@ fn workspace_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::default(app)?;
     // After the macOS app menu and File; after File elsewhere.
     menu.insert(&workspace, if cfg!(target_os = "macos") { 2 } else { 1 })?;
+    let account = Submenu::with_items(
+        app,
+        "Account",
+        true,
+        &[
+            &MenuItem::with_id(
+                app,
+                "account-signin",
+                "Sign in to Nexus…",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(app, "account-status", "Nexus Account…", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "account-signout",
+                "Sign out of Nexus",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(app, "account-cancel", "Cancel Sign-in", true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "account-codex", "Connect Codex…", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "account-claude",
+                "Connect Claude Code…",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "account-agy",
+                "Connect Antigravity…",
+                true,
+                None::<&str>,
+            )?,
+        ],
+    )?;
+    menu.insert(&account, if cfg!(target_os = "macos") { 3 } else { 2 })?;
     Ok(menu)
+}
+
+fn account_server() -> Result<tauri::Url, String> {
+    accounts::server_origin(
+        &std::env::var("NEXUS_DESKTOP_ACCOUNT_SERVER")
+            .unwrap_or_else(|_| "https://arc.ghabs.me".into()),
+    )
+}
+
+fn account_message(app: &AppHandle, result: Result<String, String>) {
+    let (message, kind) = match result {
+        Ok(message) => (message, MessageDialogKind::Info),
+        Err(message) => (message, MessageDialogKind::Error),
+    };
+    app.dialog()
+        .message(message)
+        .title("Nexus account")
+        .kind(kind)
+        .blocking_show();
+}
+
+fn account_signin(app: &AppHandle) {
+    let state = app.state::<AccountFlow>();
+    let Ok(_busy) = state.busy.try_lock() else {
+        account_message(app,Err("A sign-in is already open. Finish it in your browser or choose Account → Cancel Sign-in.".into()));
+        return;
+    };
+    state.cancelled.store(false, Ordering::SeqCst);
+    account_message(
+        app,
+        (|| {
+            let server = account_server()?;
+            // Refuse before starting browser auth when secure OS storage is unavailable.
+            let previous = accounts::load(&server)?;
+            let pending = accounts::PendingLogin::begin(server.clone())?;
+            #[allow(deprecated)]
+            app.shell()
+                .open(pending.authorization_url.as_str(), None)
+                .map_err(|_| "Could not open your browser.".to_string())?;
+            let credential = pending.finish(&state.cancelled)?;
+            if state.cancelled.load(Ordering::SeqCst) {
+                let _ = accounts::revoke(&server, &credential);
+                return Err("Sign-in cancelled.".into());
+            }
+            if let Err(error) = accounts::save(&server, &credential) {
+                let _ = accounts::revoke(&server, &credential);
+                return Err(error);
+            }
+            // Never revoke the old credential until its replacement is safely saved.
+            let old_notice=previous.as_ref().filter(|old|accounts::revoke(&server,old).is_err())
+            .map(|_|" The previous device session could not be revoked; it remains valid until expiry.").unwrap_or("");
+            Ok(format!("Connected to {}. Your Nexus credential is stored in Keychain. Local files and subscription accounts stay on this Mac.{}",server,old_notice))
+        })(),
+    );
+}
+
+fn account_status(app: &AppHandle) {
+    account_message(
+        app,
+        (|| {
+            let server = account_server()?;
+            let Some(credential) = accounts::load(&server)? else {
+                return Ok(format!("Not signed in to {}. Local Studio remains available. Use Account → Sign in to Nexus to connect.",server));
+            };
+            let identity = accounts::identity(&server, &credential)?;
+            let days = ((identity.expires_at
+                - std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs_f64())
+                / 86400.0)
+                .ceil()
+                .max(0.0);
+            Ok(format!("Account: {}\nServer: {}\nExisting projects: {}\nSession expires in: {} days\n\nThis connection identifies your Nexus account. Workspace files and provider logins stay local. Sign in again when asked.",identity.account,server,identity.projects.join(", "),days))
+        })(),
+    );
+}
+
+fn account_signout(app: &AppHandle) {
+    let state = app.state::<AccountFlow>();
+    let Ok(_busy) = state.busy.try_lock() else {
+        account_message(
+            app,
+            Err("Finish or cancel the pending sign-in before signing out.".into()),
+        );
+        return;
+    };
+    account_message(
+        app,
+        (|| {
+            let server = account_server()?;
+            if let Some(credential) = accounts::load(&server)? {
+                accounts::revoke(&server, &credential)?;
+                accounts::forget(&server)?;
+            }
+            Ok(
+                "Signed out of Nexus. Local workspaces and provider CLI logins are unchanged."
+                    .into(),
+            )
+        })(),
+    );
+}
+
+fn provider_signin(app: &AppHandle, provider: &str) {
+    account_message(
+        app,
+        (|| {
+            if !cfg!(target_os = "macos") {
+                return Err(
+                    "Use your provider CLI's sign-in in a local terminal on this platform.".into(),
+                );
+            }
+            let command = backend_command(app)
+                .map_err(|_| "The bundled backend is unavailable.".to_string())?
+                .args([
+                    "--nexus-desktop",
+                    "account-provider",
+                    "--provider",
+                    provider,
+                ]);
+            let output = tauri::async_runtime::block_on(command.output())
+                .map_err(|_| "Could not check the provider CLI.".to_string())?;
+            if !output.status.success() {
+                return Err("Could not check the provider CLI.".into());
+            }
+            let setup: serde_json::Value = serde_json::from_slice(&output.stdout)
+                .map_err(|_| "Invalid provider setup response.".to_string())?;
+            let label = setup["label"].as_str().unwrap_or("Provider");
+            if setup["installed"] != true {
+                return Err(format!("Install the official {} CLI on this Mac, then try again. Studio does not install it automatically.",label));
+            }
+            let arguments = setup["command"]
+                .as_array()
+                .ok_or("Provider login command is unavailable.")?;
+            let words = arguments
+                .iter()
+                .map(|value| value.as_str().ok_or("Invalid provider login command."))
+                .collect::<Result<Vec<_>, _>>()?;
+            if words.is_empty() {
+                return Err("Provider login command is unavailable.".into());
+            }
+            let folder = app
+                .path()
+                .app_cache_dir()
+                .map_err(|_| "Could not prepare provider setup.".to_string())?;
+            std::fs::create_dir_all(&folder)
+                .map_err(|_| "Could not prepare provider setup.".to_string())?;
+            let script = folder.join(format!("connect-{}.command", provider));
+            let quoted = words
+                .iter()
+                .map(|value| format!("'{}'", value.replace('\'', "'\\''")))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let content=format!("#!/bin/sh\n# Provider CLI owns authentication; no Nexus credentials are passed.\nexec {}\n",quoted);
+            #[cfg(unix)]
+            {
+                use std::io::Write;
+                use std::os::unix::fs::OpenOptionsExt;
+                // Never follow a replaced script symlink from an earlier setup.
+                let _ = std::fs::remove_file(&script);
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o700)
+                    .open(&script)
+                    .map_err(|_| "Could not write provider setup.".to_string())?;
+                file.write_all(content.as_bytes())
+                    .map_err(|_| "Could not write provider setup.".to_string())?;
+            }
+            let status = std::process::Command::new("/usr/bin/open")
+                .args(["-b", "com.apple.Terminal"])
+                .arg(&script)
+                .status()
+                .map_err(|_| "Could not open Terminal for provider sign-in.".to_string())?;
+            if !status.success() {
+                return Err("Could not open Terminal for provider sign-in.".into());
+            }
+            Ok(format!("Finish {} sign-in in Terminal and your browser, then select it under Providers & models. The CLI keeps its credentials locally. Antigravity signs in from its interactive menu. Opening setup does not confirm authentication.",label))
+        })(),
+    );
 }
 
 fn settings_file(app: &AppHandle) -> Option<PathBuf> {

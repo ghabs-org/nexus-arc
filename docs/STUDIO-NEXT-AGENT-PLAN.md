@@ -1,6 +1,16 @@
 # Nexus Studio implementation plan
 
-Updated: **5 November 2026**. Delivery status: **open**.
+Updated: **6 November 2026**. Delivery status: **open**.
+
+Latest addition: optional macOS native Nexus sign-in, PKCE device grants,
+Keychain storage, revocation and guided local Codex/Claude Code/Antigravity setup
+are included in the signed/notarized **1.0.3 Apple Silicon DMG**, built on explicit
+request. See [release evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json). Startup, guide,
+Account-menu presence and clean close were observed. Hosted deployment, provider
+callback registration, manual dialog click-through and real account acceptance
+remain pending in **DESKTOP-05**. Windows/Linux account storage and guided terminal
+launch are implementation gaps. The old release is preserved; rebuild again only
+on an explicit user request.
 
 This is the current action queue. The [structured task record](STUDIO-ROADMAP.json)
 contains prerequisites, ownership, dependencies and acceptance criteria for every
@@ -19,7 +29,7 @@ The original approved specification remains in the operator-owned
 | Added milestones 10–12 | Scoped local acceptance for declarative compatibility, skill distribution and OpenClaw. OpenClaw live channel/gateway checks remain in LIVE-01. |
 | UI and local additions | All ten original design-audit source fixes; System/Light/Dark; local fonts/icons; offline evaluation comparison; chat/Quick Build draft recovery; workflow canvas undo/redo; opt-in desktop notifications. |
 | Browser verification | Scoped phone/tablet/desktop layout, keyboard, viewer and review-flow evidence. Some final save/download actions and performance metrics are not established by that record. |
-| macOS release | Signed/notarized/stapled 1.0.2 exists locally with scoped installed/update/rollback proof. It does not contain later source fixes. |
+| macOS release | Signed/notarized/stapled 1.0.3 exists locally with current source, native accounts and full-SDK packaging. Installed runtime and updater signature/version checks pass. The historical 1.0.2 install/rollback proof retains its original scope. |
 | Direct browser identity login | GitHub/GitLab plus previously linked LinkedIn/X/Meta accounts, configured-provider buttons, protected callbacks and session-reference fallback. Local acceptance only; deployed provider checks remain pending. See [browser login](STUDIO-BROWSER-LOGIN.md). |
 | LLM subscription connections | Codex, Claude and Antigravity connection buttons on sign-in; guarded per-user pages, selection retention and existing CLI account flows. 178 focused checks and synthetic browser acceptance passed; live provider sign-in and deployment remain pending. |
 | Additional AI account shortcuts | Copilot and OpenCode entry points reuse existing account controls and encrypted API-key saving. 189 focused checks and synthetic browser saves passed; live provider invocation and deployment remain pending. |
