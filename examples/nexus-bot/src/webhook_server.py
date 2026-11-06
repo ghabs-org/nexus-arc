@@ -2249,7 +2249,7 @@ def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
         "Sign in", body, subline="Open your Nexus workspace."
     )
     return page, 200, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store",
-                       "Referrer-Policy": "no-referrer"}
+                       "Referrer-Policy": _browser_login.FORM_REFERRER_POLICY}
 
 @app.route("/login", methods=["GET", "POST"])
 def web_login():

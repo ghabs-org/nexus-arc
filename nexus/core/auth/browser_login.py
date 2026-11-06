@@ -21,6 +21,9 @@ from nexus.core.auth.credential_crypto import decrypt_secret, encrypt_secret
 
 COOKIE_NAME = "nexus_browser_login"
 TTL_SECONDS = 900
+# Preserve Origin on same-site form POSTs while hiding external referrers.
+# A no-referrer document policy makes native browser forms send Origin: null.
+FORM_REFERRER_POLICY = "same-origin"
 PROVIDERS = {"github": "GitHub", "gitlab": "GitLab", "linkedin": "LinkedIn", "x": "X", "meta": "Meta"}
 
 

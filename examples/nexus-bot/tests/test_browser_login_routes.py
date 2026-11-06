@@ -65,6 +65,8 @@ def test_login_page_shows_all_configured_identity_providers(browser_routes):
     web, _ = browser_routes
     response = web.app.test_client().get("/login")
     assert response.status_code == 200
+    # Native form POSTs need their Origin; no-referrer makes browsers send null.
+    assert response.headers["Referrer-Policy"] == "same-origin"
     for label in ("GitHub", "GitLab", "LinkedIn", "X", "Meta"):
         assert f"Continue with {label}".encode() in response.data
     assert b'<details class="login-reference">' in response.data

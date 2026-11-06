@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nexus browser identity sign-in
-  version: 1.2.1
+  version: 1.2.2
   description: >-
     GitHub/GitLab may establish Nexus identity using existing project ACL rules.
     LinkedIn, X and Meta resolve only previously linked immutable user subjects.
@@ -52,7 +52,12 @@ paths:
       parameters:
         - {in: query, name: next, schema: {type: string}, description: Same-origin return path}
       responses:
-        '200': {description: Provider buttons and optional session-reference form}
+        '200':
+          description: Provider buttons and optional session-reference form
+          headers:
+            Referrer-Policy:
+              description: Preserve Origin on native same-site form POSTs; hide external referrers.
+              schema: {type: string, const: same-origin}
         '302': {description: Existing ready session continues to local return path}
         '404': {description: Authentication disabled}
     post:
