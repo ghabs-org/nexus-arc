@@ -34,8 +34,10 @@ The desktop app needs no flag:
    panel labels it "Router built into this app".
 
 The built-in router chooses from the model list (`generated/models.json`)
-captured when the app was built, so its "registry is old" warning is expected; a
-router you run yourself and refresh from OpenClaw stays current. It never sends
+captured when the app was built. Its file date is the build date, so the panel's
+"registry is older than 48h" warning does not reflect how old the list really is;
+the bundle manifest records the router revision and list digest. A router you run
+yourself and refresh from OpenClaw stays current. It never sends
 task text to a hosted classifier (`JEV_BACKEND=off` unless you set it), and its
 optional local classifier model is not shipped, so it classifies with
 heuristics.

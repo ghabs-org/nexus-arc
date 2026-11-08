@@ -1,6 +1,6 @@
 [package]
 name = "nexus-studio-desktop"
-version = "1.0.5"
+version = "1.0.6"
 description = "Nexus Studio Desktop Shell"
 authors = ["Nexus ARC Team"]
 license = "Apache-2.0"
