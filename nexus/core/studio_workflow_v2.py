@@ -207,6 +207,7 @@ class StudioWorkflowV2:
                 "interop_body_id",
                 "images",
                 "when",
+                "task_type",
             }:
                 raise ValueError("Unsupported structured workflow node fields")
             identity = node.get("id")
@@ -233,6 +234,12 @@ class StudioWorkflowV2:
                     )
             kind = node.get("kind", "agent")
             node["kind"] = kind
+            if node.get("task_type") is not None:
+                from nexus.core.router_feedback import TASK_LABELS
+
+                # Model-router hint for Auto agent nodes (coding, reasoning, ...).
+                if kind != "agent" or node["task_type"] not in TASK_LABELS:
+                    raise ValueError("task_type applies to agent nodes: " + ", ".join(TASK_LABELS))
             if kind not in {
                 "agent",
                 "tool",
@@ -1224,7 +1231,18 @@ class StudioWorkflowV2:
                             if node.get("invocation_instruction"):
                                 task += "\n\n" + node["invocation_instruction"]
                             result = await self.studio._invoke(
-                                {**payload, "agent_id": node["agent_id"]}, task, run_id
+                                {
+                                    **payload,
+                                    "agent_id": node["agent_id"],
+                                    "router_step": node["id"],
+                                    **(
+                                        {"router_task_type": node["task_type"]}
+                                        if node.get("task_type")
+                                        else {}
+                                    ),
+                                },
+                                task,
+                                run_id,
                             )
                             try:
                                 return json.loads(result.output)

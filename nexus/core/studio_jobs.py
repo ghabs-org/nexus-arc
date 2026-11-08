@@ -62,9 +62,9 @@ class StudioJobs:
                     raise ValueError("Choose an explicit fallback from the selected specialists")
                 from nexus.core.studio import _PROVIDERS
 
-                if payload.get("coordinator_provider", "codex") not in {
-                    item[0] for item in _PROVIDERS
-                }:
+                coordinator_provider = payload.get("coordinator_provider", "codex")
+                auto = coordinator_provider == "auto" and self.studio.workbench.router_client
+                if coordinator_provider not in {item[0] for item in _PROVIDERS} and not auto:
                     raise ValueError("Choose a configured coordinator provider")
             _text(payload.get("task"), "Delegation task", 16000)
         elif kind == "external":

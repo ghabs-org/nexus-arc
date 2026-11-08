@@ -1039,3 +1039,11 @@ button.quiet:hover{background:var(--raised);color:var(--ink)}
 .data-table th,.data-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
 .data-table thead th{font-size:10px;letter-spacing:.5px;color:var(--muted);font-weight:500}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* Model router round 2: why-this-model, per-step decisions, router view, composer preview */
+.route-why{margin:6px 0 8px;font-size:11px}
+.route-why summary{cursor:pointer;color:var(--ink)}
+.route-why ol,.run-router-steps ol{margin:6px 0 6px 18px;padding:0}
+.run-router-steps{margin:16px 0;font-size:12px}
+.run-router-steps h3{font-size:12px;margin:0 0 6px}
+.provider-router-view{font-size:11px;color:var(--muted);margin:4px 0 0}
+.route-preview{font-size:11px;color:var(--muted);margin:0 0 6px}

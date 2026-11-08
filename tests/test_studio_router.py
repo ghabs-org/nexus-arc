@@ -50,13 +50,18 @@ class FakeRouter:
     def __init__(self, decision=DECISION, error=None):
         self.decision, self.error = decision, error
         self.routes, self.outcomes, self.feedbacks = [], [], []
+        self.fields, self.observed = [], []
         self.stats_error = None
 
-    def route(self, identity, task, allowed=None, key=None):
+    def route(self, identity, task, allowed=None, key=None, **fields):
         self.routes.append((identity, task, allowed, key))
+        self.fields.append(fields)
         if self.error:
             raise self.error
         return dict(self.decision)
+
+    def observe(self, identity, provider, http_status=None, error_type=None, **fields):
+        self.observed.append((provider, http_status, error_type))
 
     def outcome(self, identity, decision_id, **fields):
         self.outcomes.append((decision_id, fields))
@@ -65,7 +70,16 @@ class FakeRouter:
         self.feedbacks.append(payload)
 
     def diagnostics(self, identity=None):
-        return {"warnings": []}
+        return {"warnings": [], "providers": {
+            "anthropic": {"enabled": True, "health_score": 0.4, "auth": "ok", "quota": "low", "cooldown_until": None},
+            "github-copilot": {"enabled": True, "health_score": 1.0, "auth": "ok", "quota": "healthy"}}}
+
+    def pricing(self, identity=None):
+        return {"models": {"anthropic/*": {"input_per_mtok": 3.0, "output_per_mtok": 15.0}},
+                "subscription_providers": []}
+
+    def decisions(self, identity=None, **params):
+        return {"items": [{"id": "dec-1", "source_tag": "studio:r"}]}
 
     def cli_status(self, identity=None):
         return {"active_session_pins": []}
@@ -323,7 +337,7 @@ def test_router_overview_is_failure_tolerant(tmp_path):
     service, _ = make(tmp_path, router=router)
     try:
         overview = service.workbench.get(["router"], None)
-        assert overview["configured"] is True and overview["diagnostics"] == {"warnings": []}
+        assert overview["configured"] is True and overview["diagnostics"]["warnings"] == []
         assert overview["stats"] == {"error": "down"}
     finally:
         service.close()
@@ -461,3 +475,188 @@ def test_coordinator_reads_selected_model(monkeypatch):
     )
     decision = coordinator._call_nexus_router("http://router", "task")
     assert decision["selected_model"] == "nvidia/x" and decision["decision_id"] == "d"
+
+
+
+# ── Round 2: explain, catalog, links, limits, ratings, provider view, experiments, auto everywhere ──
+
+
+def test_auto_sends_catalog_links_and_signals_and_keeps_explain_per_step(tmp_path):
+    router = FakeRouter(decision={**DECISION, "explain": {
+        "rules_triggered": ["static_weights", "caller_catalog"],
+        "classifier": {"task_type": "coding", "effective_task_type": "coding", "confidence": 0.91, "source": "local"},
+        "model_scores": [{"model": "anthropic/claude-opus-5-5", "total": 0.82}, {"model": "x/y", "total": 0.7},
+                         {"model": "x/z", "total": 0.6}, {"model": "x/w", "total": 0.5}]}})
+    service, _ = make(tmp_path, router=router)
+    try:
+        first = wait_run(service, service.start_run({"task": "fix the parser", "provider": "auto"})["id"])
+        second = wait_run(service, service.start_run(
+            {"task": "and the tests", "provider": "auto", "session_id": first["session_id"]})["id"])
+        fields = router.fields[-1]
+        assert {"id": "anthropic/claude-opus-5-5", "vision": True} in fields["available_models"]
+        assert not any(m["id"].startswith("github-copilot/") for m in fields["available_models"])  # not ready
+        assert fields["nexus_context"]["nexus_project"] == service.root.name
+        assert fields["nexus_context"]["nexus_workflow_id"] == second["id"]
+        assert fields["source_tag"] == f"studio:{second['id']}"
+        assert "fix the parser" in fields["conversation_context"]
+        run = service.run(second["id"])
+        assert run["router_explain"]["task"] == "coding" and len(run["router_explain"]["candidates"]) == 3
+        [step] = run["router_decisions"]
+        assert step["decision_id"] == "dec-1" and step["outcome"] == "success" and step["provider"] == "claude-code"
+    finally:
+        service.close()
+
+
+def test_node_task_type_hint_is_sent_as_the_classifier(tmp_path):
+    router = FakeRouter()
+    service, _ = make(tmp_path, router=router)
+    try:
+        asyncio_run = __import__("asyncio").run
+        asyncio_run(service._resolve_auto({"router_task_type": "code_review", "router_step": "review"}, "t", "run-x"))
+        assert router.fields[-1]["classifier"] == {"task_type": "code_review", "confidence": 0.9}
+        assert router.fields[-1]["nexus_context"]["nexus_step_id"] == "review"
+        workflow = service.graph.structured
+        node = {"id": "draft", "kind": "agent", "agent_id": "a", "task_type": "coding"}
+        with pytest.raises(ValueError, match="task_type"):
+            workflow.validate({"version": 2, "nodes": [{**node, "task_type": "dancing"}], "edges": []})
+        with pytest.raises(ValueError, match="task_type"):
+            workflow.validate({"version": 2, "nodes": [{"id": "t", "kind": "tool", "tool_id": "x", "task_type": "coding"}], "edges": []})
+    finally:
+        service.close()
+
+
+def test_limits_are_observed_by_the_router_even_without_auto(tmp_path):
+    router = FakeRouter()
+    service, calls = make(tmp_path, router=router, behavior={"claude-code": {"fail": "429 Too Many Requests"}})
+    try:
+        controls = service.workbench.controls(None)
+        service.workbench.save_controls({**controls, "fallback_providers": ["codex"]}, None)
+        run = wait_run(service, service.start_run({"task": "t", "provider": "claude-code"})["id"])
+        assert run["status"] == "completed"
+        assert router.observed == [("anthropic", 429, "rate_limit")]
+    finally:
+        service.close()
+
+
+def test_thumbs_on_a_routed_answer_teach_the_router(tmp_path):
+    router = FakeRouter()
+    service, _ = make(tmp_path, router=router)
+    try:
+        run = wait_run(service, service.start_run({"task": "t", "provider": "auto"})["id"])
+        service.collaboration.feedback({"run_id": run["id"], "rating": -1}, None)
+        [payload] = router.feedbacks
+        assert payload["decision_id"] == "dec-1" and payload["verdict"] == "wrong"
+        assert payload["reason_tag"] == "quality" and payload["source_surface"] == "studio"
+        plain = wait_run(service, service.start_run({"task": "t", "provider": "codex"})["id"])
+        service.collaboration.feedback({"run_id": plain["id"], "rating": 1}, None)
+        assert len(router.feedbacks) == 1  # unrouted answers stay local
+    finally:
+        service.close()
+
+
+def test_router_view_per_studio_provider_is_cached(tmp_path):
+    router = FakeRouter()
+    calls = []
+    original = router.diagnostics
+    router.diagnostics = lambda identity=None: calls.append(1) or original(identity)
+    service, _ = make(tmp_path, router=router)
+    try:
+        items = service.workbench.get(["router-providers"], None)["items"]
+        assert items["claude-code"]["health_score"] == 0.4 and items["claude"]["router_provider"] == "anthropic"
+        assert items["copilot"]["auth"] == "ok"  # Copilot gets a sign-in state from the router
+        service.workbench.get(["router-providers"], None)
+        assert len(calls) == 1
+        service.team = SimpleNamespace()
+        try:
+            assert service.workbench.router_providers({"nexus_id": "u", "role": "operator"}) == {"items": {}}
+        finally:
+            service.team = None
+    finally:
+        service.close()
+
+
+def test_experiment_variants_accept_auto_with_route_mode(tmp_path):
+    from nexus.core.studio_experiments import validate_variants
+
+    assert validate_variants([{"name": "router fast", "provider": "auto", "route_mode": "fast"}])
+    with pytest.raises(ValueError, match="route_mode"):
+        validate_variants([{"name": "x", "provider": "codex", "route_mode": "fast"}])
+    with pytest.raises(ValueError, match="route_mode"):
+        validate_variants([{"name": "x", "provider": "auto", "route_mode": "warp"}])
+    router = FakeRouter()
+    service, _ = make(tmp_path, router=router)
+    try:
+        __import__("asyncio").run(service.router_case_outcome({}, "dec-9", False, 0))
+        assert router.outcomes == [("dec-9", {"success": False, "latency_ms": router.outcomes[0][1]["latency_ms"]})]
+    finally:
+        service.close()
+
+
+def test_auto_for_saved_agents_entrypoints_and_quick_build(tmp_path):
+    from nexus.core.studio_messaging import validate_channel
+
+    service, _ = make(tmp_path)
+    try:
+        with pytest.raises(ValueError, match="Unknown provider"):
+            service.save_definition("agents", {"name": "Auto agent", "provider": "auto", "instructions": "x"})
+    finally:
+        service.close()
+    service, _ = make(tmp_path / "with-router", router=FakeRouter())
+    try:
+        saved = service.save_definition("agents", {"name": "Auto agent", "provider": "auto", "instructions": "x"})
+        assert service.definition("agents", saved["id"])["spec"]["provider"] == "auto"
+        service.builder.validate_request({"task": "build a triage team", "provider": "auto", "build_id": "b1"})
+    finally:
+        service.close()
+    base = {"type": "openclaw", "identity_map": {"1": "desktop"}, "allowed_channels": ["telegram"],
+            "operator_targets": ["agents:helper"]}
+    assert validate_channel({**base, "provider": "auto"})["provider"] == "auto"
+    with pytest.raises(ValueError, match="OpenClaw provider"):
+        validate_channel({**base, "provider": "bogus"})
+    with pytest.raises(ValueError, match="OpenClaw provider"):
+        validate_channel({**base, "type": "telegram", "provider": "auto", "operator_targets": None} if False else
+                         {"type": "telegram", "identity_map": {"1": "desktop"}, "allowed_channels": ["c"], "provider": "auto"})
+
+
+def test_route_preview_is_a_dry_run(tmp_path):
+    router = FakeRouter()
+    service, _ = make(tmp_path, router=router)
+    try:
+        assert service.features.get(["route-preview"], {"task": ["short"]}, None) == {"available": True, "pick": None}
+        preview = service.features.get(["route-preview"], {"task": ["please refactor the parser module"]}, None)
+        assert preview["pick"]["provider"] == "claude-code" and preview["pick"]["model"] == "claude-opus-5-5"
+        assert router.fields[-1]["dry_run"] is True and router.fields[-1]["source_tag"] == "studio:preview"
+    finally:
+        service.close()
+    bare, _ = make(tmp_path / "bare")
+    try:
+        assert bare.route_preview("please refactor the parser module", None) == {"available": False, "pick": None}
+    finally:
+        bare.close()
+
+
+def test_usage_shows_estimated_cost_from_router_pricing(tmp_path):
+    from nexus.core.studio_routing import estimate_cost
+
+    table = {"models": {"anthropic/*": {"input_per_mtok": 3.0, "output_per_mtok": 15.0},
+                        "anthropic/claude-haiku-5-5": {"input_per_mtok": 1.0, "output_per_mtok": 5.0}}}
+    assert estimate_cost(table, "claude", "claude-opus-5-5", 1_000_000, 100_000) == (4.5, "tariff")
+    assert estimate_cost(table, "claude", "claude-haiku-5-5", 1_000_000, 0) == (1.0, "tariff")
+    assert estimate_cost(table, "claude-code", "claude-opus-5-5", 10, 10) == (0.0, "subscription")
+    assert estimate_cost(table, "openai", "gpt-x", 10, 10) == (None, None)
+    assert estimate_cost(None, "claude", None, 10, 10) == (None, None)
+    service, _ = make(tmp_path, router=FakeRouter(), behavior={"claude-code": {"usage": {"input_tokens": 10, "output_tokens": 2}}})
+    try:
+        wait_run(service, service.start_run({"task": "t", "provider": "claude-code"})["id"])
+        summary = service.workbench.get(["usage"], None, {"days": ["7"]})
+        assert summary["providers"][0]["cost_source"] == "subscription"
+    finally:
+        service.close()
+
+
+def test_router_panel_lists_recent_routed_runs(tmp_path):
+    service, _ = make(tmp_path, router=FakeRouter())
+    try:
+        assert service.workbench.get(["router"], None)["decisions"]["items"][0]["source_tag"] == "studio:r"
+    finally:
+        service.close()

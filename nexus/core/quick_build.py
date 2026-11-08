@@ -91,11 +91,33 @@ class QuickBuilder:
         except FileNotFoundError:
             raise FileNotFoundError("Build draft not found") from None
 
+    async def _route_build(self, payload: dict, run_id: str):
+        """(decision, provider, model) for an Auto build: the first router pick Quick Build supports."""
+        decision, plan, ready, error = await self.studio._resolve_auto(
+            payload, payload.get("expanded_task", payload["task"]), run_id
+        )
+        for provider, model in plan:
+            if provider in BUILD_PROVIDERS:
+                self.studio._update_run(
+                    run_id,
+                    provider_requested="auto",
+                    router_decision_id=decision.get("decision_id"),
+                    routed_model=decision.get("selected_model"),
+                )
+                return decision, provider, model
+        fallback = next((name for name in BUILD_PROVIDERS if name in ready), None)
+        if fallback is None:
+            raise ValueError("Auto found no ready provider that Quick Build supports")
+        self.studio._update_run(run_id, provider_requested="auto", router_error=error or "no supported pick")
+        return None, fallback, None
+
     def validate_request(self, payload: dict) -> None:
         _text(payload.get("task"), "Build request")
-        if payload.get("provider", "codex") not in BUILD_PROVIDERS:
+        auto = payload.get("provider") == "auto" and self.studio.workbench.router_client
+        if payload.get("provider", "codex") not in BUILD_PROVIDERS and not auto:
             raise ValueError(
-                "Choose Codex, Claude Code, Google Antigravity, OpenAI API or Anthropic API for Quick Build"
+                "Choose Codex, Claude Code, Google Antigravity, OpenAI API, Anthropic API "
+                "or Auto (model router) for Quick Build"
             )
         if payload.get("model") is not None and not isinstance(payload["model"], str):
             raise ValueError("Model must be text")
@@ -220,7 +242,9 @@ class QuickBuilder:
                 raise ValueError("Agent IDs must be unique")
             agent_ids.add(agent_id)
             agent_provider = agent.get("provider") or provider
-            if agent_provider not in AGENT_PROVIDERS:
+            if agent_provider not in AGENT_PROVIDERS and not (
+                agent_provider == "auto" and self.studio.workbench.router_client
+            ):
                 raise ValueError("Unknown agent provider")
             agent_model = agent.get("model", model if agent_provider == provider else "")
             if not isinstance(agent_model, str) or len(agent_model) > 200:
@@ -590,6 +614,11 @@ class QuickBuilder:
             + payload.get("expanded_task", payload["task"])
             + str(payload.get("reference_context") or "")
         )
+        build_model = payload.get("model") or None
+        routed, build_started = None, time.monotonic()
+        if provider_name == "auto":
+            # Generation runs on the router's pick; the proposed agents keep "auto".
+            routed, provider_name, build_model = await self._route_build(payload, run_id)
         provider = (
             self.studio.team.provider(provider_name, payload, builder=True)
             if self.studio.team
@@ -611,7 +640,7 @@ class QuickBuilder:
                 "quick-build",
                 prompt,
                 Path(directory),
-                model_override=payload.get("model") or None,
+                model_override=build_model,
                 effort=payload.get("effort") or None,
                 metadata={**content_metadata, "worker_tools": payload.get("worker_tools")},
                 timeout=600,
@@ -636,6 +665,10 @@ class QuickBuilder:
                     raise ValueError("Builder proposal exceeds 256 KiB; request a smaller build")
                 try:
                     proposal = self.recovery.parse(raw, payload)
+                    if routed:
+                        await self.studio.router_case_outcome(
+                            payload, routed.get("decision_id"), True, build_started
+                        )
                     break
                 except (ValueError, TypeError, FileNotFoundError) as exc:
                     detail = (

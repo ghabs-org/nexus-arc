@@ -37,6 +37,7 @@ def build_feedback_payload(
     source_user_id: str | None,
     model_verdict: str | None = None,
     source_surface: str = "telegram",
+    reason_tag: str | None = None,
 ) -> dict[str, Any]:
     metadata = dict(meta.get("metadata") or {}) if isinstance(meta.get("metadata"), dict) else {}
     metadata.update(
@@ -55,6 +56,7 @@ def build_feedback_payload(
         "verdict": verdict,
         "corrected_task": corrected_task,
         "model_verdict": model_verdict or None,
+        "reason_tag": reason_tag or None,
         "source_surface": source_surface,
         "source_channel": meta.get("source_channel") or source_surface,
         "source_message_id": str(source_message_id or meta.get("source_message_id") or "") or None,

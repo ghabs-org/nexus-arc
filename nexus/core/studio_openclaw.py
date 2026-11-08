@@ -434,6 +434,8 @@ class StudioOpenClaw:
                 raise ValueError("Task is already terminal")
         self.studio._write(path, {"id": key, "fingerprint": fingerprint, "status": "dispatching"})
         if operation == "submit":
+            if data.get("provider"):
+                context["provider"] = data["provider"]
             run = self.studio.operations.launch_target(
                 {"target_kind": "agent" if kind == "agents" else "workflow", "target_id": identity},
                 args["task"],

@@ -60,6 +60,30 @@ def model_pinned(orchestrator, agent_type: str, project_name: str | None) -> boo
         return False
 
 
+def profile_catalog(orchestrator, project_name: str | None, ready: list[str]) -> list[str]:
+    """Router ids of the models configured in the project's model profiles for ready tools."""
+    resolver = getattr(orchestrator, "_resolved_model_profiles", None)
+    if not callable(resolver):
+        return []
+    try:
+        profiles = resolver(project_name) or {}
+    except Exception:
+        return []
+    catalog = []
+    for profile in profiles.values() if isinstance(profiles, dict) else ():
+        if not isinstance(profile, dict):
+            continue
+        for tool, model in profile.items():
+            model_id = (
+                f"{ROUTER_FOR_ARC_TOOL[tool]}/{model}"
+                if tool in ready and isinstance(model, str) and model
+                else None
+            )
+            if model_id and model_id not in catalog:
+                catalog.append(model_id)
+    return catalog[:200]
+
+
 def route_agent(
     orchestrator,
     *,
@@ -100,6 +124,10 @@ def route_agent(
         "source_tag": f"{project_name or 'nexus'}#{issue_num or '?'}:{agent_type}",
         "dry_run": dry_run or None,
     }
+    catalog = profile_catalog(orchestrator, project_name, ready)
+    if catalog:
+        # Route among the models this project's profiles actually run (newer than any registry).
+        fields["available_models"] = catalog
     if hint and hint.get("task_type"):
         fields["classifier"] = {"task_type": hint["task_type"], "confidence": 0.9}
     if hint and hint.get("cost_profile"):

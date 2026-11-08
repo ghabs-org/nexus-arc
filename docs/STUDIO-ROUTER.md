@@ -20,7 +20,8 @@ models cannot point Studio at another router.
 
 ### Desktop app
 
-The desktop app needs no flag:
+The built-in router requires a random token generated at every launch; other
+local processes cannot call it. The desktop app needs no flag:
 
 1. If `runtime.json` exists in the desktop config folder, it is used like
    `--runtime-config` (same rules: mode `0600`, same keys). macOS:
@@ -82,6 +83,44 @@ record (never from the browser), checks you own the run, and posts the router's
 `/feedback` with `source_surface: "studio"`. The payload builder is shared with
 the Telegram and Discord feedback (`nexus/core/router_feedback.py`).
 
+### What Studio sends, and what it keeps
+
+- **Caller catalog:** the router ids of today's model suggestions for your ready
+  providers (`nexus/core/studio_models.py`), as `available_models`. The router
+  scores exactly these, so a router whose catalog is older than Studio's models
+  (including the one built into the desktop app) still picks current models.
+- **Links:** `nexus_context` (workspace, run or workflow, step) and
+  `source_tag: studio:<run_id>`; the Model router panel lists recent routed runs
+  from the router's `GET /decisions`.
+- **Signals:** whether the message has image attachments, the last few
+  conversation turns (used for classification, not stored by the router), a
+  workflow agent node's optional `task_type`, and an experiment variant's
+  `route_mode`.
+- **Kept on the run:** a trimmed explanation (rules, task, top three candidates)
+  shown as **Why this model?** under routed answers, and one entry per routed
+  step in `router_decisions` (shown in run detail), each with its outcome.
+
+### Where Auto is available
+
+Chats, workflow runs, saved agents (provider `auto`), delegation coordinators,
+the Studio assistant, Quick Build (generation runs on the router's pick; the
+proposed agents keep `auto`), OpenClaw entrypoints (optional `provider`, may be
+`auto`) and experiment variants (`provider: auto` plus an optional
+`route_mode`: balanced, fast, reasoning, eco, free). An experiment case's
+verdict is reported as the outcome of its routed decision. "Build with AI" for
+prompts and schedules still uses an explicit provider.
+
+While Auto is selected, the composer shows **Auto would use …** for the draft
+(a router dry run: nothing is recorded).
+
+### Learning from Studio
+
+- Thumbs up/down on a routed answer is also sent to the router (correct /
+  confirmation, wrong / quality), from the web, Slack or Teams.
+- Every usage/rate-limit failure a provider returns in Studio, Auto or not, is
+  reported with `POST /observe`, so the router's provider cooldowns also cover
+  OpenClaw and CLI traffic.
+
 ## Fallback providers
 
 **Workspace tools → Controls → Fallback providers** is your ordered list, empty by
@@ -98,11 +137,21 @@ exact providers. A switched run records `fallback_from` and `attempts`.
 ## Token use
 
 Controls also shows your own token use for the last 30 days per provider, from
-the invocation traces (`GET /api/workbench/usage?days=30`). Claude Code,
+the invocation traces (`GET /api/workbench/usage?days=30`), with an estimated
+cost: CLI providers show "subscription"; API providers are priced from the
+router's tariff table (`GET /pricing`, `policies/pricing.yaml` in nexus-router)
+when a router is configured, else "no tariff". Claude Code,
 Antigravity and the Anthropic API report `input_tokens`/`output_tokens`; they are
 now stored as `prompt_tokens`/`completion_tokens` (cache reads/writes count as
 prompt tokens) so the existing per-run token summary sees them too. Codex does not
 report usage and shows "not reported". Money and subscription quota are not measured.
+
+## Providers view
+
+With a router configured (owners only in team mode), each provider card adds a
+**Router view** line: the router's health score, sign-in and quota state, and any
+cooldown for the matching router provider. This is the router's view, which also
+gives Copilot and OpenCode a sign-in state Studio cannot check locally.
 
 ## Model router panel
 

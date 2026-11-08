@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import threading
+import time
 from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -479,6 +480,36 @@ class StudioWorkbench:
             "error": self.audit_error,
         }
 
+    def router_providers(self, actor):
+        """The router's view of each Studio provider: health, sign-in, quota, cooldown (30 s cache)."""
+        if not self.router_client or (
+            self.studio.team and (not actor or actor.get("role") != "owner")
+        ):
+            return {"items": {}}
+        cached = getattr(self, "_router_provider_cache", None)
+        if cached and time.monotonic() - cached[0] < 30:
+            return cached[1]
+        from nexus.core.studio_routing import ROUTER_TO_STUDIO
+
+        try:
+            providers = (self.router_client.diagnostics(actor["nexus_id"] if actor else None) or {}).get(
+                "providers"
+            ) or {}
+        except Exception as exc:
+            return {"items": {}, "error": str(exc) or type(exc).__name__}
+        items = {}
+        for router_provider, studios in ROUTER_TO_STUDIO.items():
+            row = providers.get(router_provider)
+            if isinstance(row, dict):
+                for studio_provider in studios:
+                    items[studio_provider] = {
+                        "router_provider": router_provider,
+                        **{k: row.get(k) for k in ("enabled", "health_score", "auth", "quota", "cooldown_until")},
+                    }
+        result = {"items": items}
+        self._router_provider_cache = (time.monotonic(), result)
+        return result
+
     def router_overview(self, actor):
         """Router panel: /diagnostics, CLI proxy status and model stats, each failure-tolerant."""
         if self.studio.team and (not actor or actor.get("role") != "owner"):
@@ -495,6 +526,7 @@ class StudioWorkbench:
             ("diagnostics", self.router_client.diagnostics),
             ("cli_status", self.router_client.cli_status),
             ("stats", self.router_client.stats),
+            ("decisions", lambda who: self.router_client.decisions(who, source_type="studio", limit=20)),
         ):
             try:
                 overview[name] = call(identity)
@@ -558,6 +590,8 @@ class StudioWorkbench:
             return self.studio.telemetry.summarize_usage(actor, days)
         if area == "router":
             return self.router_overview(actor)
+        if area == "router-providers":
+            return self.router_providers(actor)
         if area == "memorysources":
             return (
                 {"items": self.memory_sources.list_sources(actor)}

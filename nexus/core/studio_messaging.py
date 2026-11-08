@@ -95,6 +95,13 @@ def validate_channel(data):
         ):
             raise ValueError("OpenClaw operator_targets must list up to 100 agent/workflow references")
         result["operator_targets"] = list(dict.fromkeys(targets))
+    if data.get("provider"):
+        from nexus.core.studio import _PROVIDERS
+
+        # Provider for runs this OpenClaw entrypoint starts; "auto" asks the model router.
+        if kind != "openclaw" or data["provider"] not in {p[0] for p in _PROVIDERS} | {"auto"}:
+            raise ValueError("OpenClaw provider must be a Studio provider id or auto")
+        result["provider"] = data["provider"]
     for name in ("auto_reply", "approval_notifications"):
         result[name] = data.get(name, False)
         if type(result[name]) is not bool:

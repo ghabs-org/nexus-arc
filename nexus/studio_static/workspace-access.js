@@ -145,7 +145,7 @@ async function refreshWorkspaceAccess(){
   if(!state.ready)return;
   if(view()==="files")await refreshServerFiles();
   if(view()==="assistant"){
-    const select=$("studio-help-provider"),selected=select.value;select.innerHTML=state.providers.map(provider=>`<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.name)}</option>`).join("");if(selected)select.value=selected;
+    const select=$("studio-help-provider"),selected=select.value;select.innerHTML=(state.capabilities?.model_router?'<option value="auto">Auto (model router)</option>':"")+state.providers.map(provider=>`<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.name)}</option>`).join("");if(selected)select.value=selected;
     if(!$("studio-help-answer").textContent){try{renderStudioHelp(await featureApi("assistant"));}catch(error){$("studio-help-error").textContent=error.message;}}
   }
 }

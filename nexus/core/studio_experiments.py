@@ -15,6 +15,10 @@ def validate_workers(value):
     return value
 
 
+# nexus-router route modes an Auto variant may compare.
+ROUTE_MODES = ("auto", "balanced", "fast", "reasoning", "eco", "free")
+
+
 def validate_variants(variants, *, unique=False):
     from nexus.adapters.ai.base import EFFORT_LEVELS
     from nexus.core.studio import _PROVIDERS
@@ -23,14 +27,21 @@ def validate_variants(variants, *, unique=False):
         raise ValueError("An experiment supports 1 to 4 variants")
     names = set()
     for variant in variants:
-        if not isinstance(variant, dict) or set(variant) - {"name", "provider", "model", "effort"}:
+        if not isinstance(variant, dict) or set(variant) - {
+            "name", "provider", "model", "effort", "route_mode"
+        }:
             raise ValueError("Invalid experiment variant")
         name = _text(variant.get("name"), "Variant name", 100)
         if unique and name.strip() in names:
             raise ValueError("Experiment variant names must be unique")
         names.add(name.strip())
-        if variant.get("provider") and variant["provider"] not in {p[0] for p in _PROVIDERS}:
+        # "auto" asks the model router (it must be configured when the experiment runs).
+        if variant.get("provider") and variant["provider"] not in {p[0] for p in _PROVIDERS} | {"auto"}:
             raise ValueError("Unknown variant provider")
+        if variant.get("route_mode") is not None and (
+            variant.get("provider") != "auto" or variant["route_mode"] not in ROUTE_MODES
+        ):
+            raise ValueError("route_mode applies to Auto variants: " + ", ".join(ROUTE_MODES))
         if variant.get("model") is not None and (
             not isinstance(variant["model"], str) or unique and len(variant["model"]) > 200
         ):

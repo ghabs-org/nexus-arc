@@ -519,3 +519,23 @@ parent = Workflow("parent", edges=[(START, workflow_node(child), final_step)])
   introduced yet.
 - Import/export to actual Google ADK objects is intentionally separate from this
   runtime and belongs under `nexus/integrations/adk/`.
+
+## Model-router hints for workflow steps
+
+With `NEXUS_ROUTER_ROUTE_AGENTS=true` and `NEXUS_ROUTER_URL` (plus
+`NEXUS_ROUTER_TOKEN` when the router requires one), agents that have no explicit
+tool or `spec.model` pin are routed by nexus-router. A step can guide it:
+
+```yaml
+steps:
+  - id: develop
+    agent_type: developer
+    routing:
+      task_type: coding        # coding|code_review|reasoning|summarization|fast_utility|long_context|vision|general_chat
+      cost_profile: cheap      # cheap|balanced|premium
+```
+
+Each routed launch reports one outcome (completion, dead agent or timeout); a
+quota failure is reported to the router and the fallback is routed again without
+the limited tool. `/doctor router` shows the router's diagnostics in chat, and the
+operator routing explain includes a dry-run router decision.

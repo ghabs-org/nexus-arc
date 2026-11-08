@@ -55,6 +55,8 @@ class StudioFeatures:
             )
         if parts == ["openclaw"]:
             return studio.openclaw.overview(actor)
+        if parts == ["route-preview"]:
+            return studio.route_preview(query.get("task", [""])[0], actor)
         if len(parts) == 2 and parts[0] == "schedules":
             from nexus.core.studio_schedules import StudioSchedules
 

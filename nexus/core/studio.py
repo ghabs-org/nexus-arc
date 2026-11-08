@@ -479,7 +479,9 @@ class StudioService:
         metadata = {"name": name, "description": str(payload.get("description") or "")}
         if kind == "agents":
             provider = str(payload.get("provider") or "codex")
-            if provider not in {p[0] for p in _PROVIDERS}:
+            # "auto": each run asks the configured model router.
+            auto = provider == "auto" and self.workbench.router_client is not None
+            if provider not in {p[0] for p in _PROVIDERS} and not auto:
                 raise ValueError("Unknown provider")
             timeout = int(payload.get("timeout_seconds", 600))
             if not 1 <= timeout <= 3600:
@@ -1263,7 +1265,9 @@ class StudioService:
 
         decision, plan = None, [(requested, model)]
         if requested == AUTO:
-            decision, plan = await self._auto_plan(payload, task, run_id)
+            decision, plan = await self._auto_plan(
+                payload, task, run_id, history=history, record=not evaluation_slot
+            )
         if not evaluation_slot:  # evaluations and experiments compare exact providers
             plan = self._with_fallbacks(plan, payload)
         attempts, used, result, executed = [], None, None, False
@@ -1294,11 +1298,20 @@ class StudioService:
                     )
                 except ProviderLimitError:
                     attempts.append(_attempt(provider_name, candidate_model, "limit"))
+                    await self._observe_limit(payload, provider_name)
                     if index + 1 < len(plan):
                         continue
                     raise
                 if attempts:
                     self._update_run(run_id, fallback_from=plan[0][0], attempts=attempts)
+                if decision and result.metadata is not None:
+                    # Evaluation cases record the routed model per case and report their own outcome.
+                    result.metadata["router"] = {
+                        "decision_id": decision.get("decision_id"),
+                        "routed_model": decision.get("selected_model"),
+                        "provider": provider_name,
+                        "model": candidate_model,
+                    }
                 return result
             tried = ", ".join(dict.fromkeys(name for name, _ in plan))
             if len(plan) == 1:
@@ -1308,13 +1321,17 @@ class StudioService:
             executed = False  # a stop is not a model failure
             raise
         finally:
-            if decision and executed:
+            if decision and executed and not evaluation_slot:
                 await self._report_router_outcome(
-                    payload, decision, plan, used, attempts, result, started
+                    payload, decision, plan, used, attempts, result, started, run_id
                 )
 
-    async def _auto_plan(self, payload, task, run_id):
-        """Ask the configured router; returns (decision, [(provider, model), ...])."""
+    async def _resolve_auto(self, payload, task, run_id=None, *, history=None, dry_run=False):
+        """Ask the router for this task; returns (decision, [(provider, model), ...], ready, error).
+
+        Sends the caller catalog (the models the ready providers run today), links
+        back to this run, per-step hints, image/conversation signals and route mode.
+        """
         from nexus.core import studio_routing
 
         router = self.workbench.router_client
@@ -1323,6 +1340,34 @@ class StudioService:
         identity = payload.get("requester_nexus_id")
         inventory = self.team.providers(self.providers(), identity) if self.team else self.providers()
         ready = [item["id"] for item in inventory if item.get("configured")]
+        try:
+            has_image = any(
+                str(mime).startswith("image/") for _, _, mime in self.artifacts.input_records(payload)
+            )
+        except Exception:
+            has_image = False
+        fields = {
+            "available_models": studio_routing.caller_catalog(ready),
+            "nexus_context": {
+                "nexus_project": self.root.name,
+                "nexus_workflow_id": payload.get("workflow_id") or run_id,
+                "nexus_step_id": payload.get("router_step") or payload.get("agent_id"),
+            },
+            "source_tag": f"studio:{run_id}" if run_id else "studio:preview",
+            "route_mode": payload.get("route_mode"),
+            "has_image": has_image or None,
+            "conversation_context": studio_routing.conversation_context(history),
+            "dry_run": dry_run or None,
+        }
+        if payload.get("router_task_type"):
+            fields["classifier"] = {"task_type": payload["router_task_type"], "confidence": 0.9}
+        # Stable A/B key: the conversation, so one chat stays in one router variant.
+        key = payload.get("session_id")
+        if not key and run_id:
+            try:
+                key = self.run(run_id).get("session_id")
+            except FileNotFoundError:
+                key = None
         decision, plan, error = None, [], None
         try:
             decision = await asyncio.to_thread(
@@ -1330,29 +1375,118 @@ class StudioService:
                 identity,
                 str(task)[:8000],
                 studio_routing.allowed_router_providers(ready),
-                # Stable A/B key: the conversation, so one chat stays in one router variant.
-                payload.get("session_id") or self.run(run_id).get("session_id") or run_id,
+                key or run_id,
+                **fields,
             )
             plan = studio_routing.candidates(decision, ready)
         except PermissionError:
             raise
         except Exception as exc:  # router down or no eligible model: still answer
             error = str(exc) or type(exc).__name__
+        return decision, plan, ready, error
+
+    async def _auto_plan(self, payload, task, run_id, *, history=None, record=True):
+        """Route an Auto invocation; records the decision on the run unless *record* is off."""
+        from nexus.core import studio_routing
+
+        decision, plan, ready, error = await self._resolve_auto(payload, task, run_id, history=history)
         if not plan:
-            self._update_run(
-                run_id,
-                provider_requested=studio_routing.AUTO,
-                router_error=error or "The router picked no model that a ready provider can run",
-            )
+            if record:
+                self._update_run(
+                    run_id,
+                    provider_requested=studio_routing.AUTO,
+                    router_error=error or "The router picked no model that a ready provider can run",
+                )
             return None, [(name, None) for name in ready] or [("codex", None)]
-        self._update_run(
-            run_id,
-            provider_requested=studio_routing.AUTO,
-            router_decision_id=decision.get("decision_id"),
-            routed_model=decision["selected_model"],
-            router_task_type=decision.get("task_type"),
-        )
+        if record:
+            explain = studio_routing.trim_explain(decision.get("explain"))
+            with self.lock:
+                steps = [
+                    *self.run(run_id).get("router_decisions", []),
+                    {
+                        "decision_id": decision.get("decision_id"),
+                        "routed_model": decision["selected_model"],
+                        "step": payload.get("router_step") or payload.get("agent_id"),
+                        "explain": explain,
+                    },
+                ][-50:]
+                self._update_run(
+                    run_id,
+                    provider_requested=studio_routing.AUTO,
+                    router_decision_id=decision.get("decision_id"),
+                    routed_model=decision["selected_model"],
+                    router_task_type=decision.get("task_type"),
+                    router_explain=explain,
+                    router_decisions=steps,
+                )
         return decision, plan
+
+    def route_preview(self, task, actor):
+        """What Auto would pick for a draft message (dry run: the router records nothing)."""
+        from nexus.core.studio_routing import trim_explain
+
+        if self.workbench.router_client is None:
+            return {"available": False, "pick": None}
+        task = str(task or "")[:8000]
+        if len(task.strip()) < 20:
+            return {"available": True, "pick": None}
+        if self.team:
+            self.team.assert_execution(actor["nexus_id"] if actor else None)
+        payload = {"requester_nexus_id": actor["nexus_id"] if actor else None}
+        decision, plan, _ready, error = asyncio.run(
+            self._resolve_auto(payload, task, None, dry_run=True)
+        )
+        if not plan:
+            return {"available": True, "pick": None, "error": error}
+        provider, model = plan[0]
+        return {
+            "available": True,
+            "pick": {
+                "provider": provider,
+                "model": model,
+                "routed_model": decision.get("selected_model"),
+                "explain": trim_explain(decision.get("explain")),
+            },
+        }
+
+    async def router_case_outcome(self, payload, decision_id, passed, started):
+        """An evaluation case's verdict as the router outcome of its Auto decision (advisory)."""
+        router = self.workbench.router_client
+        if not router or not decision_id:
+            return
+        try:
+            await asyncio.to_thread(
+                router.outcome,
+                payload.get("requester_nexus_id"),
+                decision_id,
+                success=bool(passed),
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).info("Router evaluation outcome not recorded: %s", exc)
+
+    async def _observe_limit(self, payload, provider_name):
+        """Tell the router a provider hit a usage/rate limit, so its cooldowns cover every caller."""
+        from nexus.core.studio_routing import STUDIO_TO_ROUTER
+
+        router = self.workbench.router_client
+        if not router or provider_name not in STUDIO_TO_ROUTER:
+            return
+        try:
+            await asyncio.to_thread(
+                router.observe,
+                payload.get("requester_nexus_id"),
+                STUDIO_TO_ROUTER[provider_name],
+                429,
+                "rate_limit",
+                quota_hint="low",
+            )
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).info("Router limit observation not recorded: %s", exc)
 
     def _with_fallbacks(self, plan, payload):
         """Append the user's ordered fallback providers (Controls) not already planned."""
@@ -1360,7 +1494,9 @@ class StudioService:
         planned = {name for name, _ in plan}
         return plan + [(name, None) for name in names if name not in planned]
 
-    async def _report_router_outcome(self, payload, decision, plan, used, attempts, result, started):
+    async def _report_router_outcome(
+        self, payload, decision, plan, used, attempts, result, started, run_id=None
+    ):
         """Advisory /outcome so the router learns from Studio runs; never fails the run."""
         from nexus.core.studio_routing import router_model_id
 
@@ -1393,6 +1529,15 @@ class StudioService:
             import logging
 
             logging.getLogger(__name__).info("Router outcome not recorded: %s", exc)
+        if run_id:
+            with self.lock:
+                steps = self.run(run_id).get("router_decisions", [])
+                for step in steps:
+                    if step.get("decision_id") == decision["decision_id"]:
+                        step["outcome"] = "success" if fields["success"] else "failure"
+                        step["provider"] = used[0] if used else None
+                if steps:
+                    self._update_run(run_id, router_decisions=steps)
 
     async def _invoke_provider(
         self, provider, provider_name, model, effort, agent, payload, task, run_id, history, evaluation_slot

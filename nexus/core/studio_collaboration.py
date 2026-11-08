@@ -46,7 +46,35 @@ class StudioCollaboration:
                 "updated_at": datetime.now(UTC).isoformat(),
             }
             self.studio._write(path, record)
-            return record
+        self._rating_to_router(run, rating, actor)
+        return record
+
+    def _rating_to_router(self, run, rating, actor):
+        """A thumbs rating on an Auto-routed answer also teaches the router (advisory)."""
+        router = self.studio.workbench.router_client
+        if not run.get("router_decision_id") or router is None:
+            return
+        from nexus.core.router_feedback import build_feedback_payload
+
+        payload = build_feedback_payload(
+            meta={
+                "decision_id": run["router_decision_id"],
+                "task_type": run.get("router_task_type"),
+                "selected_model": run.get("routed_model"),
+            },
+            verdict="correct" if rating > 0 else "wrong",
+            corrected_task=None,
+            source_message_id=run["id"],
+            source_user_id=owner(actor),
+            source_surface="studio",
+            reason_tag="confirmation" if rating > 0 else "quality",
+        )
+        try:
+            router.feedback(actor["nexus_id"] if actor else None, payload)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).info("Router rating not recorded: %s", exc)
 
     def router_feedback(self, data, actor):
         """Wrong task / wrong model on an Auto-routed response, sent to nexus-router /feedback.

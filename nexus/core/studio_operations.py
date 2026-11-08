@@ -657,7 +657,9 @@ class StudioOperations:
                 "input": case["input"],
             }
             request = {
-                key: variant[key] for key in ("provider", "model", "effort") if variant.get(key)
+                key: variant[key]
+                for key in ("provider", "model", "effort", "route_mode")
+                if variant.get(key)
             }
             request["requester_nexus_id"] = payload.get("requester_nexus_id")
             request.update(
@@ -691,6 +693,10 @@ class StudioOperations:
                         {**request, "agent_id": target["target_id"]}, task_input, run_id
                     )
                     output = result.output
+                    routed = (result.metadata or {}).get("router")
+                    if routed:
+                        entry["routed_model"] = routed.get("routed_model")
+                        entry["router_decision_id"] = routed.get("decision_id")
                 lowered = output.casefold()
                 checks = [
                     {
@@ -740,6 +746,11 @@ class StudioOperations:
                     checks=checks,
                     passed=not entry.get("error") and all(check["passed"] for check in checks),
                 )
+                if entry.get("router_decision_id"):
+                    # For an Auto variant the case verdict is the routed model's outcome.
+                    await self.studio.router_case_outcome(
+                        payload, entry["router_decision_id"], entry["passed"], started
+                    )
             except StudioPausedError:
                 import uuid
 

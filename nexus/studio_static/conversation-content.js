@@ -65,7 +65,14 @@ function routeInfoHtml(run){
     actions=run.router_feedback?`<p class="route-feedback-done" role="status">Thanks, your feedback went to the router (${escapeHtml(run.router_feedback.verdict==="correct"?"good pick":"wrong pick")}).</p>`
       :`<div class="route-feedback" role="group" aria-label="Was this the right model?"><button class="secondary" data-route-feedback="correct" data-run-id="${id}">Good pick</button><button class="secondary" data-route-feedback="too_cheap" data-run-id="${id}">Needed a stronger model</button><button class="secondary" data-route-feedback="too_powerful" data-run-id="${id}">A lighter model would do</button><label>Wrong kind of task?<select data-route-task="${id}"><option value="">It was…</option>${ROUTE_TASKS.map(task=>`<option value="${task}">${task.replace("_"," ")}</option>`).join("")}</select></label></div>`;
   }
-  return `<p class="route-summary">${bits.join(" · ")}</p>${actions}`;
+  return `<p class="route-summary">${bits.join(" · ")}</p>${routeWhyHtml(run.router_explain)}${actions}`;
+}
+function routeWhyHtml(explain){
+  if(!explain||!Array.isArray(explain.candidates)||!explain.candidates.length)return "";
+  const task=explain.task?`Read as <strong>${escapeHtml(String(explain.task).replace("_"," "))}</strong>${Number.isFinite(explain.confidence)?` (confidence ${Math.round(explain.confidence*100)}%)`:""}${explain.classifier?` by the ${escapeHtml(explain.classifier)} classifier`:""}.`:"";
+  const candidates=explain.candidates.map(item=>`<li>${escapeHtml(item.model)}${Number.isFinite(item.score)?` · ${Number(item.score).toFixed(2)}`:""}</li>`).join("");
+  const rules=(explain.rules||[]).length?`<p>Rules: ${explain.rules.map(rule=>escapeHtml(rule)).join(", ")}</p>`:"";
+  return `<details class="route-why"><summary>Why this model?</summary>${task?`<p>${task}</p>`:""}<p>Top candidates:</p><ol>${candidates}</ol>${rules}${explain.policy?`<p>Policy: ${escapeHtml(explain.policy)}</p>`:""}</details>`;
 }
 function renderRouteInfo(node,run){
   const html=routeInfoHtml(run);let info=node.querySelector(".route-info");

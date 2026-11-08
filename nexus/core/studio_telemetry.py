@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import time
 from datetime import UTC, datetime
 
 from nexus import __version__
@@ -138,11 +139,39 @@ class StudioTelemetry:
                 bucket["total_tokens"] += tokens
             row["prompt_tokens"] += prompt
             row["completion_tokens"] += completion
+        self._add_costs(rows, providers, actor)
         return {
             "days": days,
             "items": sorted(rows.values(), key=lambda r: (r["day"], r["provider"], r["model"]), reverse=True),
             "providers": sorted(providers.values(), key=lambda r: -r["total_tokens"]),
         }
+
+    def _add_costs(self, rows, providers, actor):
+        """Estimated cost from the router's tariff table; CLI logins are flat-rate subscriptions."""
+        from nexus.core.studio_routing import estimate_cost
+
+        router = self.studio.workbench.router_client
+        table = None
+        if router is not None:
+            cached = getattr(self, "_pricing_cache", None)
+            if cached and time.monotonic() - cached[0] < 300:
+                table = cached[1]
+            else:
+                try:
+                    table = router.pricing(actor["nexus_id"] if actor else None)
+                except Exception:
+                    table = None
+                self._pricing_cache = (time.monotonic(), table)
+        for row in rows.values():
+            row["cost_usd"], row["cost_source"] = estimate_cost(
+                table, row["provider"], row["model"], row["prompt_tokens"], row["completion_tokens"]
+            )
+            total = providers[row["provider"]]
+            if row["cost_source"] == "subscription":
+                total["cost_source"] = "subscription"
+            elif row["cost_usd"] is not None:
+                total["cost_usd"] = round(total.get("cost_usd", 0.0) + row["cost_usd"], 6)
+                total["cost_source"] = "tariff"
 
     def export_opentelemetry_traces(self, run_id: str, actor: dict | None = None) -> dict:
         """Export OpenTelemetry OTLP JSON representation of a run and its hierarchical traces."""

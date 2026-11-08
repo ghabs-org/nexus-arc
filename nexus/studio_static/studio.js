@@ -757,9 +757,24 @@ async function refreshProviderStatuses(force=false){
   });
   return providerStatusRefresh;
 }
+function routerViewText(provider){
+  const view=state.routerProviders?.[provider.id];
+  if(!view)return "";
+  const health=Number.isFinite(view.health_score)?` · health ${Math.round(view.health_score*100)}%`:"";
+  const auth=view.auth&&view.auth!=="unknown"?` · ${view.auth==="ok"?"signed in":"sign-in "+escapeHtml(view.auth)}`:"";
+  const quota=view.quota&&view.quota!=="unknown"?` · quota ${escapeHtml(view.quota)}`:"";
+  const cooling=view.cooldown_until?` · cooling until ${escapeHtml(view.cooldown_until)}`:"";
+  return `<p class="provider-router-view">Router view${health}${auth}${quota}${cooling}</p>`;
+}
+async function refreshRouterProviders(){
+  if(!state.capabilities?.model_router)return;
+  try{state.routerProviders=(await api("/api/workbench/router-providers")).items||{};}catch{state.routerProviders={};}
+  if(view()==="providers")renderProviders();
+}
 function renderProviders(){
   renderModelLists();
-  $("providers-content").innerHTML=state.providers.map(p=>`<article class="provider-row"><div><h2>${escapeHtml(p.name)}</h2><p>${state.mode==="team"?"Your Nexus account · shared worker execution":p.kind==="cli"?"Official CLI · local account configuration":"API provider · environment credentials"}</p>${p.models?.length?`<p class="provider-models">Models: ${p.models.map(m=>escapeHtml(m.name)).join(" · ")}</p>`:""}${providerAuthenticationText(p)}</div><div class="provider-side">${badge(p.status,(p.authentication?p.authentication.state==="signed-in":p.configured)?"ready":"")}${desktopProviderSignin(p)}<button class="secondary" data-provider="${escapeHtml(p.id)}">${p.configured?"Configuration":"Setup instructions"}</button></div></article>`).join("");
+  if(state.capabilities?.model_router&&state.routerProviders===undefined){state.routerProviders=null;refreshRouterProviders();}
+  $("providers-content").innerHTML=state.providers.map(p=>`<article class="provider-row"><div><h2>${escapeHtml(p.name)}</h2><p>${state.mode==="team"?"Your Nexus account · shared worker execution":p.kind==="cli"?"Official CLI · local account configuration":"API provider · environment credentials"}</p>${p.models?.length?`<p class="provider-models">Models: ${p.models.map(m=>escapeHtml(m.name)).join(" · ")}</p>`:""}${providerAuthenticationText(p)}${routerViewText(p)}</div><div class="provider-side">${badge(p.status,(p.authentication?p.authentication.state==="signed-in":p.configured)?"ready":"")}${desktopProviderSignin(p)}<button class="secondary" data-provider="${escapeHtml(p.id)}">${p.configured?"Configuration":"Setup instructions"}</button></div></article>`).join("");
 }
 function renderTools(){
   $("tools-content").innerHTML=state.tools.length?`<div class="resource-grid">${state.tools.map(t=>`<article class="resource-card"><div class="card-meta">${badge(t.category||"TOOL")}</div><h2 class="tool-name">${escapeHtml(t.id)}</h2><p>${escapeHtml(t.description||"Registered Nexus tool")}</p><div class="card-actions"><button class="secondary" data-tool="${escapeHtml(t.id)}">Run tool</button></div></article>`).join("")}</div>`:empty("No tools registered","Register tools with the Nexus tool registry to make them available here.");
@@ -1133,6 +1148,7 @@ function updateRunDetail(run){
   }
   const finished=["completed","failed","cancelled","interrupted"].includes(run.status);
   actionsBar.innerHTML=`<button type="button" class="secondary" data-fix-run-chat="${escapeHtml(run.id)}">Fix in conversation</button><button type="button" class="secondary" id="run-trace-button" data-run-trace="${escapeHtml(run.id)}">Inspect execution trace</button>`+(finished?'<button type="button" class="secondary" id="run-print">Print / Save as PDF</button><button type="button" class="secondary" id="run-markdown">Download Markdown</button><button type="button" class="secondary" id="run-share">Share snapshot</button>':"");
+  renderRunRouterSteps(run);
   if(!finished)return;
   $("run-print").onclick=()=>{document.body.classList.add("print-run");window.addEventListener("afterprint",()=>document.body.classList.remove("print-run"),{once:true});window.print();};
   $("run-markdown").onclick=()=>{
@@ -1141,6 +1157,33 @@ function updateRunDetail(run){
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   $("run-share").onclick=()=>shareSnapshot({run_id:run.id},"Share run","Create a read-only snapshot of this run's task and output.").catch(error=>notify(error.message));
+}
+function runRouterStepsHtml(run){
+  const steps=Array.isArray(run.router_decisions)?run.router_decisions:[];
+  if(!steps.length)return "";
+  return `<section class="run-router-steps" aria-label="Model router decisions"><h3>Model router</h3><ol>${steps.map(step=>`<li>${step.step?`<strong>${escapeHtml(step.step)}</strong>: `:""}${escapeHtml(step.routed_model||"")}${step.provider?` via ${escapeHtml(providerName(step.provider))}`:""}${step.outcome?` · ${escapeHtml(step.outcome)}`:""}${step.explain?.task?` · read as ${escapeHtml(step.explain.task)}`:""}</li>`).join("")}</ol></section>`;
+}
+function renderRunRouterSteps(run){
+  const html=runRouterStepsHtml(run);let host=$("run-router-steps");
+  if(!html){if(typeof host?.remove==="function")host.remove();return;}
+  if(!host){host=document.createElement("div");host.id="run-router-steps";$("run-actions-bar").after(host);}
+  if(host.dataset.rendered!==html){host.innerHTML=html;host.dataset.rendered=html;}
+}
+let routePreviewTimer=null,routePreviewSeq=0;
+function scheduleRoutePreview(){
+  const hint=$("chat-route-preview");if(!hint)return;
+  clearTimeout(routePreviewTimer);
+  const task=$("chat-task")?.value.trim()||"";
+  if($("chat-provider")?.value!=="auto"||task.length<20){hint.hidden=true;return;}
+  routePreviewTimer=setTimeout(async()=>{
+    const seq=++routePreviewSeq;
+    try{
+      const data=await api(`/api/studio/route-preview?task=${encodeURIComponent(task.slice(0,4000))}`);
+      if(seq!==routePreviewSeq)return;
+      hint.textContent=data.pick?`Auto would use ${providerName(data.pick.provider)}${data.pick.model?` · ${data.pick.model}`:""}`:"";
+      hint.hidden=!data.pick;
+    }catch{hint.hidden=true;}
+  },800);
 }
 function runMarkdown(run){
   const names=run.kind==="workflow"&&run.output?runStepNames(run):null;
@@ -1352,7 +1395,7 @@ async function bootstrap(){
   if(bootstrapInFlight)return;bootstrapInFlight=true;clearTimeout(bootstrapRetryTimer);
   try{const data=await api("/api/bootstrap");if(state.user&&data.user?.nexus_id!==state.user.nexus_id){if(typeof NexusDrafts!=="undefined")NexusDrafts.lock();location.reload();return;}bootstrapFailures=0;state.workspacePath=data.workspace.path;disconnectedRuns.delete("bootstrap");state.accountUrl=data.account_url;state.token=data.token;state.mode=data.mode;state.user=data.user;state.providers=data.providers;state.capabilities=data.capabilities||{};$("team-login").hidden=true;connectionStatus();$("send-message").disabled=false;
     if(data.mode==="team"){$("deployment-mode").textContent="TEAM";$("runtime-label").textContent=`${data.user.nexus_id} · ${data.user.role}`;$("composer-hint").textContent="Uses your Nexus provider configuration";$("view-providers").querySelector(".callout").textContent="Providers use your existing Nexus account setup. Shared Codex and Claude Code runs use isolated prompt-only containers. Complete provider setup through Nexus login.";}
-    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex",false,true);renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills(),loadDecisionModels(),loadKnowledgeProjects()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;const continued=location.hash.match(/^#chat\/([a-f0-9]{32})$/);if(continued)await openSession(continued[1]);restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
+    $("workspace-name").textContent=data.workspace.name;$("chat-provider").innerHTML=providerOptions(state.providers.find(p=>p.configured&&p.kind==="cli")?.id||"codex",false,true);if(!state.routePreviewBound){state.routePreviewBound=true;$("chat-task").addEventListener("input",scheduleRoutePreview);$("chat-provider").addEventListener("change",scheduleRoutePreview);}renderProviders();await Promise.all([refreshDefinitions(),refreshSessions(),refreshRuns(),loadSkills(),loadDecisionModels(),loadKnowledgeProjects()]);state.tools=(await api("/api/tools")).items;renderTools();showView();state.ready=true;const continued=location.hash.match(/^#chat\/([a-f0-9]{32})$/);if(continued)await openSession(continued[1]);restoreRunMonitoring();window.dispatchEvent(new Event("studio-ready"));}
   catch(error){if(error.retryable&&$("team-login").hidden)disconnectedRuns.add("bootstrap");else disconnectedRuns.delete("bootstrap");connectionStatus();if($("team-login").hidden)notify(`Could not load the workspace: ${error.message}`);$("send-message").disabled=true;if(error.retryable&&$("team-login").hidden)bootstrapRetryTimer=setTimeout(bootstrap,Math.min(15000,1000*2**Math.min(bootstrapFailures++,4)));}
   finally{bootstrapInFlight=false;}
 }

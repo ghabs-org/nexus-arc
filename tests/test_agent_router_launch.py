@@ -198,3 +198,20 @@ def test_doctor_router_target(monkeypatch):
     assert payload["scope"] == "router" and payload["diagnostics"]["warnings"] == ["registry old"]
     text = _format_doctor_payload(payload, fix_requested=False)
     assert "Target: `router`" in text and "• registry old" in text
+
+
+def test_route_agent_sends_the_projects_profile_models(client):
+    orchestrator = FakeOrchestrator()
+    orchestrator._resolved_model_profiles = lambda project: {
+        "small": {"claude": "claude-haiku-5-5", "codex": "gpt-6-luna", "copilot": "gpt-x"},
+        "large": {"claude": "claude-opus-5-5"},
+        "broken": "not-a-dict",
+    }
+    pick(orchestrator)
+    assert client.routes[-1][1]["available_models"] == [
+        "anthropic/claude-haiku-5-5",
+        "openai-codex/gpt-6-luna",
+        "anthropic/claude-opus-5-5",
+    ]
+    pick(FakeOrchestrator())
+    assert "available_models" not in client.routes[-1][1]  # no profiles: the router's catalog

@@ -92,3 +92,28 @@ test('OpenClaw panel lists entrypoints, their runs and waiting replies',()=>{
   ctx.renderOpenClaw({items:[]});
   assert.match(dom['wb-openclaw'].innerHTML,/No OpenClaw entrypoints/);
 });
+
+test('why-this-model explains task, candidates and rules', () => {
+  const {ctx}=context();
+  assert.equal(ctx.routeWhyHtml(null),'');
+  const html=ctx.routeWhyHtml({task:'code_review',confidence:0.91,classifier:'local',rules:['caller_catalog'],candidates:[{model:'anthropic/claude-opus-5-5',score:0.8212},{model:'x/<y>',score:0.5}],policy:'exp:b'});
+  assert.match(html,/<summary>Why this model\?<\/summary>/);
+  assert.match(html,/Read as <strong>code review<\/strong> \(confidence 91%\) by the local classifier/);
+  assert.match(html,/<li>anthropic\/claude-opus-5-5 · 0.82<\/li><li>x\/&lt;y> · 0.50<\/li>/);
+  assert.match(html,/Rules: caller_catalog/);
+  assert.match(html,/Policy: exp:b/);
+  const run={id:'r1',status:'completed',provider:'claude-code',router_decision_id:'d',router_explain:{candidates:[{model:'m',score:1}]}};
+  assert.match(ctx.routeInfoHtml(run),/route-why/);
+});
+
+test('run detail lists each routed step and providers show the router view', () => {
+  const {ctx}=context();
+  vm.runInContext(between(studio,'function runRouterStepsHtml(','function renderRunRouterSteps(')+between(studio,'function routerViewText(','async function refreshRouterProviders('),ctx);
+  assert.equal(ctx.runRouterStepsHtml({}),'');
+  const html=ctx.runRouterStepsHtml({router_decisions:[{step:'draft',routed_model:'anthropic/claude-opus-5-5',provider:'claude-code',outcome:'success',explain:{task:'coding'}},{routed_model:'openai-codex/gpt-6.1-sol'}]});
+  assert.match(html,/<strong>draft<\/strong>: anthropic\/claude-opus-5-5 via Claude Code · success · read as coding/);
+  assert.match(html,/<li>openai-codex\/gpt-6.1-sol<\/li>/);
+  ctx.state.routerProviders={codex:{health_score:0.42,auth:'ok',quota:'low',cooldown_until:'2026-11-09T10:00:00Z'}};
+  assert.match(ctx.routerViewText({id:'codex'}),/Router view · health 42% · signed in · quota low · cooling until 2026-11-09T10:00:00Z/);
+  assert.equal(ctx.routerViewText({id:'agy'}),'');
+});
