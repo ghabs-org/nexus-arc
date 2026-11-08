@@ -83,6 +83,14 @@ class AIProvider(Enum):
     OPENCODE = "opencode"
 
 
+def _same_tool(tool, preferred) -> bool:
+    """True when *tool* is the preferred tool (given as an AIProvider or its value)."""
+    if not preferred:
+        return False
+    value = preferred.value if isinstance(preferred, AIProvider) else str(preferred).lower().strip()
+    return getattr(tool, "value", tool) == value
+
+
 class ToolUnavailableError(Exception):
     """Raised when a tool is unavailable or fails."""
 
@@ -856,9 +864,14 @@ class AIOrchestrator:
         log_subdir: str | None = None,
         env: dict[str, str] | None = None,
         execution_mode: str | None = None,
+        model_override: str | None = None,
     ) -> int | None:
-        """Dispatch to the correct CLI for *tool*. Extend here when adding new providers."""
-        model_override = self._resolve_model_for_tool(
+        """Dispatch to the correct CLI for *tool*. Extend here when adding new providers.
+
+        *model_override* (a model chosen for this tool by the model router) wins over
+        profile models; otherwise the agent's pin or profile model is used.
+        """
+        model_override = model_override or self._resolve_model_for_tool(
             tool=tool,
             agent_name=agent_name,
             project_name=project_name,
@@ -989,8 +1002,12 @@ class AIOrchestrator:
         log_subdir: str | None = None,
         env: dict[str, str] | None = None,
         execution_mode: str | None = None,
+        model_override: str | None = None,
     ) -> tuple[int | None, AIProvider]:
         """Try each available tool in priority order, skipping any in *exclude_tools*.
+
+        *model_override* applies only to *preferred_tool* (a router pick); fallback
+        tools keep their own pinned/profile models.
 
         *exclude_tools* is a list of tool value strings (e.g. ["copilot"]) that should
         be skipped entirely — used by the retry path so a crashed tool is not retried.
@@ -1024,6 +1041,7 @@ class AIOrchestrator:
                 log_subdir=log_subdir,
                 env=env,
                 execution_mode=execution_mode,
+                model_override=model_override if _same_tool(tool, preferred_tool) else None,
             ),
             record_rate_limit_with_context=lambda tool, exc, context: self._record_rate_limit_with_context(
                 tool,
@@ -1035,7 +1053,9 @@ class AIOrchestrator:
             tool_unavailable_error_type=ToolUnavailableError,
             logger=logger,
         )
-        selected_model = self._resolve_model_for_tool(
+        selected_model = (
+            model_override if model_override and _same_tool(selected_tool, preferred_tool) else None
+        ) or self._resolve_model_for_tool(
             tool=selected_tool,
             agent_name=agent_name,
             project_name=project_name,

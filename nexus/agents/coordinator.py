@@ -4,11 +4,12 @@ nexus/agents/coordinator.py — Coordinator agent with LLM-driven delegation and
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+import os
+import time
 from typing import TYPE_CHECKING, Any
-from urllib.error import URLError
-from urllib.request import Request, urlopen
+
+from nexus.core.router_client import RouterClient, endpoint
 
 from .base import AgentContext, AgentOutput, BaseAgent, propagate_requester, run_child
 from .context import slice_context
@@ -19,26 +20,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _call_nexus_router(router_url: str, task: str, task_type: str = "general_chat") -> str | None:
+DEFAULT_ROUTER_URL = "http://127.0.0.1:7771"
+
+
+def _router_client(router_url: str | None) -> RouterClient | None:
+    """Explicit URL, else NEXUS_ROUTER_URL, else the local default; NEXUS_ROUTER_TOKEN if set."""
+    if router_url:
+        token = (os.getenv("NEXUS_ROUTER_TOKEN") or "").strip() or None
+        return RouterClient(endpoint({"url": router_url, "allow_private": True}), token, timeout=3)
+    return RouterClient.from_env(default_url=DEFAULT_ROUTER_URL, timeout=3)
+
+
+def _call_nexus_router(router_url: str | None, task: str) -> dict | None:
     """
-    Call nexus-router POST /route to get the recommended model for a task.
-    Returns model name string or None if router is unavailable.
+    Ask nexus-router (POST /route) for the best model for a task.
+    Returns the decision ({selected_model, decision_id, fallbacks, explain, ...}),
+    or None if the router is unavailable.
     """
     try:
-        payload = json.dumps({"message": task, "task_type": task_type}).encode()
-        req = Request(
-            f"{router_url.rstrip('/')}/route",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read())
-            # nexus-router answers selected_model; model/provider_model are older shapes.
-            return data.get("selected_model") or data.get("model") or data.get("provider_model")
-    except (URLError, OSError, json.JSONDecodeError, KeyError) as exc:
+        client = _router_client(router_url)
+        return client.route(None, task[:8000], source_type="coordinator") if client else None
+    except Exception as exc:
         logger.debug("nexus-router unavailable (%s) — using sub-agent default model", exc)
         return None
+
+
+def _report_coordinator_outcome(router_url: str | None, decision: dict, success: bool, started: float):
+    try:
+        client = _router_client(router_url)
+        if client and decision.get("decision_id"):
+            client.outcome(
+                None,
+                decision["decision_id"],
+                success=success,
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
+    except Exception as exc:
+        logger.debug("nexus-router outcome not recorded (%s)", exc)
 
 
 class LLMSubAgent(BaseAgent):
@@ -112,7 +130,7 @@ class Coordinator(BaseAgent):
         name: str,
         sub_agents: list[BaseAgent],
         ai_provider: Any,
-        router_url: str = "http://127.0.0.1:7771",
+        router_url: str | None = None,
         workspace_path: str = "/tmp",
         description: str = "",
         timeout: float | None = None,
@@ -233,9 +251,10 @@ class Coordinator(BaseAgent):
 
         # 2. Ask nexus-router for the best model for this sub-task (non-blocking)
         loop = asyncio.get_running_loop()
-        model = await loop.run_in_executor(
+        decision = await loop.run_in_executor(
             None, lambda: _call_nexus_router(self.router_url, context.task)
         )
+        model = decision.get("selected_model") if isinstance(decision, dict) else None
         if model:
             logger.info("nexus-router selected model: %s for agent: %s", model, selected.name)
 
@@ -252,7 +271,15 @@ class Coordinator(BaseAgent):
                 prior_outputs=sliced.prior_outputs,
                 metadata={**sliced.metadata, "_router_model": model},
             )
+        started = time.monotonic()
         output = await run_child(selected, sliced, self.timeout)
         output.metadata["coordinator_selected_agent"] = selected.name
         output.metadata["coordinator_model"] = explicit_model or model
+        if model and not explicit_model:
+            output.metadata["router_decision_id"] = decision.get("decision_id")
+            success = bool(output.metadata.get("success", True)) and not output.metadata.get("timeout")
+            await loop.run_in_executor(
+                None,
+                lambda: _report_coordinator_outcome(self.router_url, decision, success, started),
+            )
         return propagate_requester(sliced, output)

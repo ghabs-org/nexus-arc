@@ -453,14 +453,11 @@ def test_model_router_client_contract(monkeypatch):
 
 
 def test_coordinator_reads_selected_model(monkeypatch):
-    import io
-    import json
-
     from nexus.agents import coordinator
 
     monkeypatch.setattr(
-        coordinator,
-        "urlopen",
-        lambda req, timeout: io.BytesIO(json.dumps({"selected_model": "nvidia/x"}).encode()),
+        "nexus.core.router_client.request_json",
+        lambda *a, **k: {"selected_model": "nvidia/x", "decision_id": "d"},
     )
-    assert coordinator._call_nexus_router("http://router", "task") == "nvidia/x"
+    decision = coordinator._call_nexus_router("http://router", "task")
+    assert decision["selected_model"] == "nvidia/x" and decision["decision_id"] == "d"

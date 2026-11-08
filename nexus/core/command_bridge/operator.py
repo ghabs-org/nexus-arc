@@ -1092,8 +1092,17 @@ class BridgeOperatorService:
         agent_pref = ai_prefs.get(chosen_agent or "") if chosen_agent else None
         profile_name = agent_pref.get("profile") if isinstance(agent_pref, dict) else None
         provider_name = agent_pref.get("provider") if isinstance(agent_pref, dict) else None
+        router_block = await self._router_dry_run(
+            project_key=project_key,
+            task_type=str(task_type or "feature"),
+            agent_name=chosen_agent,
+            workflow_path=workflow_path,
+            tier_name=tier_name,
+            workflow_label=workflow_label,
+        )
         return {
             "ok": True,
+            "router": router_block,
             "project_key": project_key,
             "task_type": task_type,
             "tier_name": tier_name,
@@ -1253,6 +1262,67 @@ class BridgeOperatorService:
         active_role = next((item for item in repo_roles if item.get('task_type_match')), None)
         return {'ok': True, **explained, 'validation': {'checks': validations, 'repo_roles': repo_roles, 'recommended_repo': active_role.get('repo') if active_role else explained.get('default_repo'), 'provider_expectation': explained.get('resolved_profile', {}), 'note': 'Validation is best-effort and based on current PROJECT_CONFIG plus repo-name heuristics for the nexus multi-repo split.'}}
 
+    async def _router_dry_run(
+        self, *, project_key, task_type, agent_name, workflow_path, tier_name, workflow_label
+    ) -> dict[str, Any]:
+        """What the model router would pick for this agent step (dry run: nothing is recorded)."""
+        from nexus.core.router_client import RouterClient
+        from nexus.core.runtime.agent_routing import enabled, step_hint
+
+        client = RouterClient.from_env(timeout=5)
+        if client is None:
+            return {"configured": False}
+        hint = None
+        if agent_name and workflow_path:
+            try:
+                from nexus.core.runtime import agent_launcher
+
+                step = agent_launcher._find_workflow_step(
+                    workflow_path=str(workflow_path),
+                    tier_name=str(tier_name or ""),
+                    workflow_name=str(workflow_label or ""),
+                    step_id=str(agent_name),
+                    step_num=0,
+                )
+                hint = step_hint(step.get("routing")) if step else None
+            except Exception:
+                hint = None
+        fields: dict[str, Any] = {"dry_run": True, "source_type": "arc-operator"}
+        if hint and hint.get("task_type"):
+            fields["classifier"] = {"task_type": hint["task_type"], "confidence": 0.9}
+        if hint and hint.get("cost_profile"):
+            fields["cost_profile"] = hint["cost_profile"]
+        task = f"{agent_name or 'agent'} step of a {task_type} workflow in project {project_key}"
+        try:
+            decision = await asyncio.to_thread(client.route, None, task, **fields)
+        except Exception as exc:
+            return {"configured": True, "agents_routed": enabled(), "error": str(exc), "url": client.url}
+        return {
+            "configured": True,
+            "agents_routed": enabled(),
+            "url": client.url,
+            "step_hint": hint,
+            "selected_model": decision.get("selected_model"),
+            "fallbacks": decision.get("fallbacks"),
+            "explain": decision.get("explain"),
+        }
+
+    async def router_doctor(self) -> dict[str, Any]:
+        from nexus.core.router_client import RouterClient
+
+        client = RouterClient.from_env(default_url="http://127.0.0.1:7771", timeout=10)
+        try:
+            diagnostics = await asyncio.to_thread(client.diagnostics, None)
+        except Exception as exc:
+            return {"ok": False, "scope": "router", "error": f"Router unreachable at {client.url}: {exc}"}
+        return {
+            "ok": True,
+            "scope": "router",
+            "target": "router",
+            "router_url": client.url,
+            "diagnostics": diagnostics,
+        }
+
     async def doctor(
         self,
         *,
@@ -1262,6 +1332,8 @@ class BridgeOperatorService:
         target: str | None = None,
         apply_fix: bool = False,
     ) -> dict[str, Any]:
+        if target == "router" and not (workflow_id or issue_number):
+            return await self.router_doctor()
         if workflow_id or issue_number:
             workflow, resolved_issue, resolved_workflow_id = await self._workflow_by_ref(
                 workflow_id=workflow_id,

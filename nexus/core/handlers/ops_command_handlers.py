@@ -260,6 +260,8 @@ def _doctor_runtime_target(args: list[str]) -> str | None:
         "gateway": "gateway",
         "chat": "chat",
         "session": "session",
+        "router": "router",
+        "nexus-router": "router",
     }
     for item in args:
         token = str(item or "").strip().lower()
@@ -268,12 +270,45 @@ def _doctor_runtime_target(args: list[str]) -> str | None:
     return None
 
 
+def _format_router_doctor(payload: dict[str, Any]) -> str:
+    diagnostics = payload.get("diagnostics") if isinstance(payload.get("diagnostics"), dict) else {}
+    warnings = [str(w) for w in diagnostics.get("warnings") or []]
+    registry = diagnostics.get("registry") if isinstance(diagnostics.get("registry"), dict) else {}
+    classifier = diagnostics.get("classifier") if isinstance(diagnostics.get("classifier"), dict) else {}
+    providers = diagnostics.get("providers") if isinstance(diagnostics.get("providers"), dict) else {}
+    cooling = diagnostics.get("model_cooldowns") if isinstance(diagnostics.get("model_cooldowns"), list) else []
+    cli = diagnostics.get("cli_proxy") if isinstance(diagnostics.get("cli_proxy"), dict) else {}
+    lines = ["🩺 **Doctor**", "Target: `router`", f"Router: `{payload.get('router_url') or 'unknown'}`"]
+    lines.append(f"Warnings: `{len(warnings)}`" + ("" if warnings else " ✅"))
+    lines.extend(f"• {warning}" for warning in warnings[:6])
+    lines.append(
+        f"Registry: `{registry.get('authed_models', '?')}/{registry.get('models', '?')}` signed-in models, "
+        f"updated `{registry.get('updated_at') or 'never'}`"
+    )
+    lines.append(f"Classifier: `{'local model' if classifier.get('local_available') else 'heuristics'}`")
+    unhealthy = [
+        f"{name} ({float(row.get('health_score') or 0):.2f})"
+        for name, row in sorted(providers.items())
+        if isinstance(row, dict) and row.get("enabled") and float(row.get("health_score") or 0) < 0.8
+    ]
+    lines.append(f"Providers: `{len(providers)}`; degraded: {', '.join(unhealthy) or 'none'}")
+    lines.append(
+        "Model cooldowns: "
+        + (", ".join(f"`{c.get('model')}` on {c.get('scope')}" for c in cooling[:5] if isinstance(c, dict)) or "none")
+    )
+    if cli:
+        lines.append(f"CLI proxy: `{cli.get('active_pins', 0)}` pins, `{cli.get('turns_24h', 0)}` turns/24h")
+    return "\n".join(lines)
+
+
 def _format_doctor_payload(payload: dict[str, Any], *, fix_requested: bool) -> str:
     if not payload.get("ok"):
         return f"❌ Doctor failed: {payload.get('error') or 'unknown error'}"
 
     lines: list[str] = ["🩺 **Doctor**"]
     scope = str(payload.get("scope") or "runtime").strip().lower()
+    if scope == "router":
+        return _format_router_doctor(payload)
     if scope == "workflow":
         workflow = payload.get("workflow") if isinstance(payload.get("workflow"), dict) else {}
         diagnosis = payload.get("diagnosis") if isinstance(payload.get("diagnosis"), dict) else {}
@@ -347,7 +382,9 @@ async def doctor_handler(ctx: InteractiveContext, deps: OpsHandlerDeps) -> None:
     target = _doctor_runtime_target(ctx.args)
     original_args = list(ctx.args)
     try:
-        msg_id = await ctx.reply_text("🩺 Running OpenClaw doctor checks...")
+        msg_id = await ctx.reply_text(
+            "🩺 Running router doctor checks..." if target == "router" else "🩺 Running OpenClaw doctor checks..."
+        )
         payload = await deps.run_doctor(
             project_key=None,
             issue_number=None,

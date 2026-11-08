@@ -957,6 +957,27 @@ def _start_agent_quota_watchdog(
             merged_exclusions = _merge_excluded_tools(exclude_tools or [], [tool_name])
             _persist_issue_excluded_tools(issue_num, [tool_name])
 
+            from nexus.core.runtime import agent_routing
+
+            try:
+                tracker = HostStateManager.load_launched_agents(recent_only=False)
+                limited = tracker.get(str(issue_num))
+                if isinstance(limited, dict) and agent_routing.report_outcome(
+                    limited, False, rate_limited=True
+                ):
+                    HostStateManager.save_launched_agents(tracker)
+            except Exception as exc:
+                logger.debug("Router quota outcome skipped for #%s: %s", issue_num, exc)
+            route_pick = agent_routing.route_agent(
+                orchestrator,
+                prompt=prompt,
+                agent_type=agent_type,
+                project_name=str(log_subdir or "nexus"),
+                issue_num=issue_num,
+                workflow_name=workflow_name,
+                exclude_tools=merged_exclusions,
+            )
+
             logger.warning(
                 "Quota detected for %s on issue #%s (pid=%s). Auto-fallback with exclusions=%s",
                 tool_name,
@@ -994,11 +1015,12 @@ def _start_agent_quota_watchdog(
                     ),
                     agent_name=agent_type,
                     project_name=str(log_subdir or "nexus"),
-                    preferred_tool=None,
+                    preferred_tool=route_pick["tool"] if route_pick else None,
                     exclude_tools=merged_exclusions,
                     log_subdir=log_subdir,
                     env=agent_env,
                     execution_mode=execution_mode,
+                    model_override=route_pick["model"] if route_pick else None,
                 )
                 if pid_new:
                     new_tool = str(getattr(tool_new, "value", tool_new))
@@ -1007,20 +1029,24 @@ def _start_agent_quota_watchdog(
                     if not isinstance(prev, dict):
                         prev = {}
                     requester_nexus_id = str(prev.get("requester_nexus_id") or "").strip() or None
-                    launched_agents[str(issue_num)] = {
-                        **prev,
-                        "timestamp": time.time(),
-                        "pid": int(pid_new or 0),
-                        "requester_nexus_id": requester_nexus_id,
-                        "tier": tier_name,
-                        "mode": mode,
-                        "tool": new_tool,
-                        "agent_type": agent_type,
-                        "execution_mode": resolved_execution_mode,
-                        "exclude_tools": _merge_excluded_tools(
-                            prev.get("exclude_tools", []), merged_exclusions
-                        ),
-                    }
+                    launched_agents[str(issue_num)] = agent_routing.record_pick(
+                        {
+                            **prev,
+                            "timestamp": time.time(),
+                            "pid": int(pid_new or 0),
+                            "requester_nexus_id": requester_nexus_id,
+                            "tier": tier_name,
+                            "mode": mode,
+                            "tool": new_tool,
+                            "agent_type": agent_type,
+                            "execution_mode": resolved_execution_mode,
+                            "exclude_tools": _merge_excluded_tools(
+                                prev.get("exclude_tools", []), merged_exclusions
+                            ),
+                        },
+                        route_pick,
+                        new_tool,
+                    )
                     HostStateManager.save_launched_agents(launched_agents)
                     record_agent_launch(issue_num, agent_type=agent_type, pid=int(pid_new or 0))
                     AuditStore.audit_log(
@@ -1410,14 +1436,15 @@ def _normalize_step_ref(value: str) -> str:
     return normalized.strip("-")
 
 
-def _resolve_step_requires_worktree(
+def _find_workflow_step(
     *,
     workflow_path: str,
     tier_name: str,
     workflow_name: str,
     step_id: str,
     step_num: int,
-) -> bool | None:
+) -> dict | None:
+    """The workflow step (YAML dict) matching *step_id*, else the *step_num*-th step."""
     path = str(workflow_path or "").strip()
     if not path or not os.path.isfile(path):
         return None
@@ -1475,14 +1502,53 @@ def _resolve_step_requires_worktree(
             }
             normalized_refs = {_normalize_step_ref(ref) for ref in refs if ref}
             if normalized_target in normalized_refs or step_id in refs:
-                return _coerce_optional_bool(step.get("requires_worktree"))
+                return step
 
     if step_num > 0 and step_num <= len(steps):
         selected_step = steps[step_num - 1]
         if isinstance(selected_step, dict):
-            return _coerce_optional_bool(selected_step.get("requires_worktree"))
+            return selected_step
 
     return None
+
+
+def _resolve_step_requires_worktree(
+    *,
+    workflow_path: str,
+    tier_name: str,
+    workflow_name: str,
+    step_id: str,
+    step_num: int,
+) -> bool | None:
+    step = _find_workflow_step(
+        workflow_path=workflow_path,
+        tier_name=tier_name,
+        workflow_name=workflow_name,
+        step_id=step_id,
+        step_num=step_num,
+    )
+    return _coerce_optional_bool(step.get("requires_worktree")) if step else None
+
+
+def _resolve_step_routing(
+    *,
+    workflow_path: str,
+    tier_name: str,
+    workflow_name: str,
+    step_id: str,
+    step_num: int,
+) -> dict | None:
+    """The step's optional ``routing: {task_type, cost_profile}`` hint for the model router."""
+    from nexus.core.runtime.agent_routing import step_hint
+
+    step = _find_workflow_step(
+        workflow_path=workflow_path,
+        tier_name=tier_name,
+        workflow_name=workflow_name,
+        step_id=step_id,
+        step_num=step_num,
+    )
+    return step_hint(step.get("routing")) if step else None
 
 
 def _resolve_step_context_policy(
@@ -2262,6 +2328,29 @@ def invoke_ai_agent(
                 agent_type,
             )
 
+        from nexus.core.runtime import agent_routing
+
+        route_pick = None
+        if not preferred_tool and not agent_routing.model_pinned(
+            orchestrator, agent_type, project_name
+        ):
+            route_pick = agent_routing.route_agent(
+                orchestrator,
+                prompt=prompt,
+                agent_type=agent_type,
+                project_name=project_name,
+                issue_num=issue_num,
+                workflow_name=workflow_name,
+                exclude_tools=exclude_tools,
+                hint=_resolve_step_routing(
+                    workflow_path=workflow_path,
+                    tier_name=tier_name,
+                    workflow_name=workflow_name,
+                    step_id=step_id,
+                    step_num=step_num,
+                ),
+            )
+
         pid, tool_used = orchestrator.invoke_agent(
             agent_prompt=prompt,
             workspace_dir=isolated_workspace,
@@ -2270,11 +2359,12 @@ def invoke_ai_agent(
             issue_url=issue_url,
             agent_name=agent_type,
             project_name=project_name,
-            preferred_tool=preferred_tool,
+            preferred_tool=route_pick["tool"] if route_pick else preferred_tool,
             exclude_tools=exclude_tools,
             log_subdir=log_subdir,
             env=agent_env,
             execution_mode=resolved_execution_mode,
+            model_override=route_pick["model"] if route_pick else None,
         )
 
         tool_name = str(getattr(tool_used, "value", tool_used))
@@ -2316,6 +2406,7 @@ def invoke_ai_agent(
                         ),
                     }
                 )
+                agent_routing.record_pick(entry, route_pick, tool_name)
                 launched_agents[str(issue_num)] = entry
                 HostStateManager.save_launched_agents(launched_agents)
 

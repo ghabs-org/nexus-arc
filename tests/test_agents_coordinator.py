@@ -93,7 +93,7 @@ def test_coordinator_calls_nexus_router():
     provider = make_mock_provider("Alpha")
 
     with patch("nexus.agents.coordinator._call_nexus_router") as mock_router:
-        mock_router.return_value = "claude-sonnet"
+        mock_router.return_value = {"selected_model": "claude-sonnet", "decision_id": "d1"}
         coord = Coordinator("coord", [a], provider)
         ctx = AgentContext(task="test")
         result = asyncio.run(coord.run(ctx))
@@ -148,7 +148,7 @@ def test_coordinator_does_not_mutate_sub_agent_model_override():
     coord = Coordinator("coord", [sub], coord_provider)
 
     with patch("nexus.agents.coordinator._call_nexus_router") as mock_router:
-        mock_router.return_value = "claude-sonnet"
+        mock_router.return_value = {"selected_model": "claude-sonnet", "decision_id": "d1"}
         # Patch the actual LLMSubAgent.run to avoid full AIProvider bootstrap
         sub_result = AgentOutput(content="ok", metadata={"success": True, "agent": "llm-sub"})
         with patch.object(sub, "run", new=AsyncMock(return_value=sub_result)):
@@ -170,7 +170,7 @@ def test_coordinator_explicit_model_beats_router():
     )
     coord = Coordinator("coord", [sub], make_mock_provider("llm-sub"))
     with patch("nexus.agents.coordinator._call_nexus_router") as mock_router:
-        mock_router.return_value = "claude-sonnet"
+        mock_router.return_value = {"selected_model": "claude-sonnet", "decision_id": "d1"}
         sub_result = AgentOutput(content="ok", metadata={"success": True, "agent": "llm-sub"})
         with patch.object(sub, "run", new=AsyncMock(return_value=sub_result)) as mock_run:
             output = asyncio.run(coord.run(AgentContext(task="test")))
@@ -249,3 +249,34 @@ def test_coordinator_skips_jev_without_key(monkeypatch):
         coord = Coordinator("coord", [alpha], make_mock_provider("Alpha"))
         chosen = asyncio.run(coord._select_agent(AgentContext(task="do it")))
     assert chosen is alpha
+
+
+def test_coordinator_reports_router_outcome_for_routed_runs():
+    """The router learns from coordinator runs: one outcome per routed decision."""
+    from nexus.agents import coordinator as module
+    from nexus.agents.coordinator import LLMSubAgent
+
+    sub = LLMSubAgent(name="llm-sub", description="sub", ai_provider=make_mock_provider("llm-sub"))
+    coord = Coordinator("coord", [sub], make_mock_provider("llm-sub"))
+    reported = []
+    with patch("nexus.agents.coordinator._call_nexus_router") as mock_router, patch.object(
+        module, "_report_coordinator_outcome", lambda url, decision, success, started: reported.append((decision["decision_id"], success))
+    ):
+        mock_router.return_value = {"selected_model": "claude-sonnet", "decision_id": "d9"}
+        sub_result = AgentOutput(content="ok", metadata={"success": False, "agent": "llm-sub"})
+        with patch.object(sub, "run", new=AsyncMock(return_value=sub_result)):
+            output = asyncio.run(coord.run(AgentContext(task="test")))
+    assert reported == [("d9", False)]
+    assert output.metadata["router_decision_id"] == "d9"
+
+
+def test_router_client_precedence(monkeypatch):
+    from nexus.agents.coordinator import _router_client
+
+    monkeypatch.delenv("NEXUS_ROUTER_URL", raising=False)
+    monkeypatch.setenv("NEXUS_ROUTER_TOKEN", "tok")
+    assert _router_client(None).url == "http://127.0.0.1:7771"
+    monkeypatch.setenv("NEXUS_ROUTER_URL", "http://nexus-router:7771")
+    assert _router_client(None).url == "http://nexus-router:7771"
+    explicit = _router_client("http://other:1")
+    assert explicit.url == "http://other:1" and explicit.token == "tok"

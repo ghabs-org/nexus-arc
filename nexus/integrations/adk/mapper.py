@@ -241,7 +241,7 @@ def _build_node(spec, node, leaf_factory, *, ai_provider, stop_condition):
         metadata = dict(node.metadata or {})
         return Coordinator(
             name=node.name, sub_agents=children, ai_provider=ai_provider,
-            router_url=str(metadata.get("router_url") or "http://127.0.0.1:7771"),
+            router_url=str(metadata["router_url"]) if metadata.get("router_url") else None,
             workspace_path=str(metadata.get("workspace_path") or "/tmp"),
             description=node.description,
             timeout=_node_timeout(metadata),

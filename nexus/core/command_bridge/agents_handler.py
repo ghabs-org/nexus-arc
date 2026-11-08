@@ -54,7 +54,7 @@ async def handle_agents_run(payload: dict[str, Any], config: dict | None = None)
 
     agent_type = (payload.get("agent_type") or "sequential").lower()
     agents_spec = payload.get("agents") or []
-    router_url = payload.get("router_url") or "http://127.0.0.1:7771"
+    router_url = payload.get("router_url") or None  # None: NEXUS_ROUTER_URL, else local default
     max_iterations = int(payload.get("max_iterations") or 5)
     stop_expr = payload.get("stop_condition") or ""
     # Per-child run budget; unbounded when explicitly null (leaf timeouts still apply).
