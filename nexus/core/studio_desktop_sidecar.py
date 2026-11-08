@@ -18,6 +18,12 @@ WORKERS = {
 }
 
 
+def _bundled_router_present():
+    from nexus.core.studio_desktop_router import bundled_router_source
+
+    return bundled_router_source() is not None
+
+
 def bundle_info():
     """Report package presence only; never probe credentials, providers or models."""
     packages = [
@@ -44,6 +50,7 @@ def bundle_info():
         "optional_sdk_presence": {
             name: importlib.util.find_spec(name) is not None for name in packages
         },
+        "bundled_router": _bundled_router_present(),
         "verification_scope": "Package presence only; not model/account/service validation",
     }
 

@@ -86,6 +86,11 @@ def main() -> int:
         default="core",
         help="Required offline SDK import gate",
     )
+    parser.add_argument(
+        "--router-source",
+        type=Path,
+        help="nexus-router checkout to ship inside the app (default: sibling nexus-router)",
+    )
     args = parser.parse_args()
     if args.development_wrapper and args.profile != "core":
         parser.error("Dependency profiles require a bundled build; omit --development-wrapper")
@@ -103,7 +108,9 @@ def main() -> int:
         from nexus.core.studio_desktop_bundle import build_bundle
 
         output = args.output or desktop_dir / "src-tauri" / "binaries"
-        result = build_bundle(repo_root, output, profile=args.profile)
+        result = build_bundle(
+            repo_root, output, profile=args.profile, router_source=args.router_source
+        )
         print(f"Bundled desktop sidecar: {result['executable']}")
         print(f"Dependency and asset manifest: {result['manifest']}")
         # Release apps ship this target's folder as the `sidecar` resource and never

@@ -486,7 +486,11 @@ class StudioWorkbench:
         if not self.router_client:
             return {"configured": False}
         identity = actor["nexus_id"] if actor else None
-        overview = {"configured": True, "url": self.router_client.url}
+        overview = {
+            "configured": True,
+            "url": self.router_client.url,
+            "bundled": bool(getattr(self.router_client, "config", {}).get("bundled")),
+        }
         for name, call in (
             ("diagnostics", self.router_client.diagnostics),
             ("cli_status", self.router_client.cli_status),

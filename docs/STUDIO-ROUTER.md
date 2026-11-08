@@ -18,6 +18,34 @@ proxy, add `"token_env": "ROUTER_TOKEN"`; in team mode each user's own value of
 that variable is used, never the host's. The URL is server-owned: browsers and
 models cannot point Studio at another router.
 
+### Desktop app
+
+The desktop app needs no flag:
+
+1. If `runtime.json` exists in the desktop config folder, it is used like
+   `--runtime-config` (same rules: mode `0600`, same keys). macOS:
+   `~/Library/Preferences/NexusStudio/runtime.json`; Windows:
+   `%APPDATA%\NexusStudio\config\runtime.json`; Linux:
+   `~/.config/nexus-studio/runtime.json`. A file that fails those rules is ignored
+   with a warning in the app log rather than stopping the app.
+2. If it names no router, the app starts the **nexus-router built into the app**
+   inside its own backend process, on `127.0.0.1` at a free port. Its database
+   lives in the desktop data folder (`.../NexusStudio/router`). The Model router
+   panel labels it "Router built into this app".
+
+The built-in router chooses from the model list (`generated/models.json`)
+captured when the app was built, so its "registry is old" warning is expected; a
+router you run yourself and refresh from OpenClaw stays current. It never sends
+task text to a hosted classifier (`JEV_BACKEND=off` unless you set it), and its
+optional local classifier model is not shipped, so it classifies with
+heuristics.
+
+Packaging: `apps/studio-desktop/build_desktop.py` ships a sibling `nexus-router`
+checkout automatically, or the one given with `--router-source` /
+`NEXUS_STUDIO_ROUTER_SOURCE` (then it is required). The build environment needs
+`httpx` (the full profile has it); the bundle manifest records `model_router`
+(included, git revision, registry digest).
+
 ## Auto (model router)
 
 With a router configured, the chat **Provider** menu and a workflow run's

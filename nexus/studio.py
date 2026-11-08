@@ -1030,7 +1030,15 @@ def serve_studio(
         try:
             from nexus.core.studio_runtime import load_runtime_configuration
 
-            options = load_runtime_configuration(runtime_config, root) if runtime_config else {}
+            if launch and not runtime_config:
+                # Native app: optional runtime.json, else the router bundled in the app.
+                from nexus.core.studio_desktop_router import desktop_options
+
+                options = desktop_options(root)
+            else:
+                options = (
+                    load_runtime_configuration(runtime_config, root) if runtime_config else {}
+                )
             service = StudioService(
                 root, team_policy=policy, state_dir=state_dir, transport=transport, **options
             )

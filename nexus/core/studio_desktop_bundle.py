@@ -79,7 +79,45 @@ def tree_sha256(root):
     return digest.hexdigest()
 
 
-def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core"):
+# What of a nexus-router checkout ships in the app: code, policies, model registry.
+ROUTER_PARTS = ("src", "policies", "generated/models.json")
+# Standard-library modules only the router imports (PyInstaller cannot see them).
+ROUTER_HIDDEN_IMPORTS = ("httpx", "statistics", "fnmatch", "html")
+
+
+def router_bundle_source(repo_root, router_source=None):
+    """(path, required) of the nexus-router checkout to ship, or (None, False).
+
+    Explicit argument or NEXUS_STUDIO_ROUTER_SOURCE is required; a sibling
+    ``nexus-router`` checkout is used when present.
+    """
+    explicit = router_source or os.environ.get("NEXUS_STUDIO_ROUTER_SOURCE")
+    source = Path(explicit) if explicit else Path(repo_root).resolve().parent / "nexus-router"
+    if all((source / part).exists() for part in ROUTER_PARTS):
+        return source.resolve(), bool(explicit)
+    if explicit:
+        raise ValueError(
+            "Router source lacks src/, policies/ or generated/models.json: " + str(source)
+        )
+    return None, False
+
+
+def router_revision(source):
+    try:
+        return subprocess.run(
+            ["git", "-C", str(source), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def build_bundle(
+    repo_root, output, *, target=None, log_path=None, profile="core", router_source=None
+):
     """Build a one-folder backend including this build environment's dependencies.
 
     One-folder, not one-file: the executable is then the single process leading the
@@ -113,6 +151,12 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
     for name in ["index.html", "studio.js", "studio.css", "favicon.ico", "vendor/marked.js"]:
         if not (static / name).is_file():
             raise ValueError("Studio frontend assets are incomplete")
+    router, router_required = router_bundle_source(repo_root, router_source)
+    router_note = None
+    if router and importlib.util.find_spec("httpx") is None:
+        if router_required:
+            raise ValueError("The bundled model router needs httpx in the build environment")
+        router, router_note = None, "omitted: httpx is not installed in the build environment"
     output.mkdir(parents=True, exist_ok=True)
     # Not "nexus-sidecar-<target>": that is the tracked development wrapper file.
     name = "nexus-backend-" + target
@@ -164,6 +208,13 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
         ]
         for distribution, module in requirements.items():
             command[3:3] = ["--hidden-import", module, "--recursive-copy-metadata", distribution]
+        if router:
+            # Shipped as source and loaded at runtime (nexus.core.studio_desktop_router).
+            for part in ROUTER_PARTS:
+                destination = "nexus_router/" + str(Path(part).parent if "." in part else part)
+                command[3:3] = ["--add-data", str(router / part) + os.pathsep + destination]
+            for module in ROUTER_HIDDEN_IMPORTS:
+                command[3:3] = ["--hidden-import", module]
         if profile in {"connected", "full"}:
             # Bedrock uses runtime-selected model descriptions; SQLAlchemy loads
             # dialects dynamically. Their package hooks/data must survive freezing.
@@ -243,6 +294,7 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
             runtime.get("format") != "nexus-sidecar-info/v1"
             or not runtime.get("frozen")
             or not runtime.get("frontend_present")
+            or (router and not runtime.get("bundled_router"))
         ):
             raise ValueError("Bundled runtime or frontend self-check failed")
         result = subprocess.run(
@@ -313,6 +365,16 @@ def build_bundle(repo_root, output, *, target=None, log_path=None, profile="core
             "Explicitly installed local models",
         ],
         "frontend_sha256": assets,
+        "model_router": {
+            "included": bool(router),
+            "revision": router_revision(router) if router else None,
+            "registry_sha256": hashlib.sha256(
+                (router / "generated" / "models.json").read_bytes()
+            ).hexdigest()
+            if router
+            else None,
+            "note": router_note,
+        },
     }
     manifest_path = output / (name + ".manifest.json")
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
