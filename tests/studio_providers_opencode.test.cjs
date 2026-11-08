@@ -42,7 +42,7 @@ test('renderProviders displays Configuration and ready badge when OpenCode is lo
   };
 
   const renderProvidersSlice = studioSource.slice(
-    studioSource.indexOf('function renderProviders()'),
+    studioSource.indexOf('function desktopProviderSignin('),
     studioSource.indexOf('function renderTools()')
   );
 
@@ -64,4 +64,29 @@ test('renderProviders displays Configuration and ready badge when OpenCode is lo
   // Copilot: configured=false -> button text is "Setup instructions", badge is "" with text "Setup needed"
   assert.match(providersHtml, /data-provider="copilot">Setup instructions<\/button>/);
   assert.match(providersHtml, /<span class="badge ">Setup needed<\/span>/);
+});
+
+test('desktop subscription links require native capability and stay separate from team login', () => {
+  const start = studioSource.indexOf('function desktopProviderSignin(');
+  const source = studioSource.slice(start, studioSource.indexOf('function renderProviders()', start));
+  const context = vm.createContext({
+    window: { __NEXUS_DESKTOP_PROVIDER_LOGIN__: true },
+    state: { mode: 'local' },
+    escapeHtml: value => String(value).replaceAll('"', '&quot;')
+  });
+  vm.runInContext(source, context);
+  for (const [id, native] of [['codex','codex'], ['claude-code','claude'], ['agy','agy']]) {
+    const html = context.desktopProviderSignin({ id, name: id, kind: 'cli' });
+    assert.match(html, new RegExp(`href="/__nexus_desktop__/provider-login/${native}"`));
+    assert.match(html, />Sign in<\/a>/);
+  }
+  for (const id of ['openai', 'opencode', 'constructor', '__proto__', 'sh']) {
+    assert.equal(context.desktopProviderSignin({ id, kind: 'cli' }), '');
+  }
+  assert.equal(context.desktopProviderSignin({ id: 'claude-code', kind: 'api' }), '');
+  context.state.mode = 'team';
+  assert.equal(context.desktopProviderSignin({ id: 'claude-code', kind: 'cli' }), '');
+  context.state.mode = 'local';
+  context.window.__NEXUS_DESKTOP_PROVIDER_LOGIN__ = false;
+  assert.equal(context.desktopProviderSignin({ id: 'claude-code', kind: 'cli' }), '');
 });

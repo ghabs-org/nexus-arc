@@ -421,6 +421,12 @@ h1,h2,h3,.dialog-heading,.provider-row p,.callout{overflow-wrap:anywhere}
 .document-navigation input { min-height:44px; font-size:16px; }
 .document-navigation button { min-height:44px; }
 .stream-status { color:var(--muted); font-size:13px; }
+.stream-status.is-loading{display:flex;align-items:center;gap:8px;min-height:20px}
+.stream-status.is-loading::before{content:"";width:14px;height:14px;flex:0 0 14px;border:2px solid var(--line);border-top-color:currentColor;border-radius:50%;animation:studio-response-spin .8s linear infinite}
+.message[data-pending="true"] .response-actions{display:none}
+.message.error .stream-status{color:var(--red)}
+@keyframes studio-response-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.stream-status.is-loading::before{animation:none}}
 .structured-content { display:grid; gap:12px; margin-top:16px; overflow-wrap:anywhere; }
 .structured-content pre { overflow:auto; padding:16px; background:var(--canvas); white-space:pre-wrap; }
 .execution-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
@@ -1015,3 +1021,7 @@ button.quiet:hover{background:var(--raised);color:var(--ink)}
 @media(max-width:767px),(pointer:coarse){.draft-actions button{min-height:44px}.draft-recovery p{font-size:14px}}
 .draft-recovery[data-recovery="saved"]{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .draft-recovery[data-recovery="saved"] .draft-actions{margin-top:0;flex-shrink:0}
+
+/* Keep desktop subscription actions aligned with the existing provider controls. */
+.provider-side .provider-signin{display:block;width:max-content;margin:10px 0 0 auto}
+@media(max-width:700px){.provider-side .provider-signin{margin-left:0}}

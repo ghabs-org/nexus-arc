@@ -1,8 +1,17 @@
 # Nexus Studio Standalone Desktop Distribution
 
-Current macOS release **1.0.3** is a full-SDK Apple Silicon build, Developer ID
-signed with accepted app/DMG notarization and stapled tickets. The signed
-DMG-installed runtime and Gatekeeper checks pass. The new updater archive passes
+Current DMG release **1.0.5, 7 November 2026**, is a full-SDK Apple Silicon build,
+Developer ID signed with accepted app/DMG notarization and stapled tickets.
+It packages the single conversation loading status with spinner, reduced-motion
+support, read-only Antigravity `agy models` status check, local provider sign-in
+actions (Codex, Claude Code, Antigravity), and cross-platform update discovery
+and backup (DESKTOP-01). See [1.0.5 release evidence](STUDIO-DESKTOP-1.0.5-CHECKPOINT.json).
+
+Earlier releases:
+- **1.0.4**: local app install only. See [1.0.4 local evidence](STUDIO-DESKTOP-1.0.4-LOCAL-INSTALL.json).
+- **1.0.3**: DMG release with native Account menu. See [1.0.3 release evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
+
+The signed DMG-installed runtime and Gatekeeper checks pass. The new updater archive passes
 offline signature/version verification and rejects a relabeled version. The older
 1.0.2 install/rollback fixture remains historical evidence. Publication of the
 release feed and another physical Mac remain separate checks.

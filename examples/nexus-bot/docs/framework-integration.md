@@ -102,6 +102,20 @@ matches = find_similar_autofix_attempts(
 # matches can be injected into prompt context for safer retries.
 ```
 
+## Consuming Local Provider Status
+
+Run `python examples/nexus-bot/scripts/check_local_provider_status.py` from the
+repository root with Nexus installed. The example consumes
+`nexus.core.provider_account_status` and the framework's executable resolver. It
+prints only sanitized sign-in state and authentication method for the process
+user's Codex, Claude and Antigravity CLI installations. It does not start login or model requests,
+read credential files directly, or export account identifiers and tokens.
+
+This local diagnostic must not be used as a shared Nexus user's account status.
+Shared Studio continues to use its existing per-user Nexus credentials and worker
+permissions. Local Studio exposes the same framework checks through the protected
+`POST /api/providers/status` endpoint.
+
 ## Further Reading
 
 - [nexus-arc/docs/ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) — Framework architecture

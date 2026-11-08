@@ -1342,7 +1342,7 @@ class TestCodexCLIProvider:
         from nexus.adapters.ai.codex_provider import CodexCLIProvider
 
         provider = CodexCLIProvider()
-        with patch("nexus.adapters.ai.codex_provider.shutil.which", return_value=None):
+        with patch("nexus.adapters.ai.codex_provider.resolve_provider_cli", return_value=None):
             available = asyncio.run(provider.check_availability())
 
         assert available is False

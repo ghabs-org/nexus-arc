@@ -896,6 +896,8 @@ def make_studio_handler(
                 if parts[:2] == ["api", "studio"]:
                     status, result = service.features.post(parts[2:], payload, self.actor)
                     return self.send_payload(status, result)
+                if route == "/api/providers/status":
+                    return self.send_payload(200, {"items": service.provider_status()})
                 if parts[:2] == ["api", "workbench"]:
                     status, result = service.workbench.post(parts[2:], payload, self.actor)
                     return self.send_payload(status, result)

@@ -7,6 +7,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod accounts;
 mod backend;
+mod provider_links;
 mod updates;
 use backend::{BackendOwner, ManagedChild, SavedWorkspace};
 use std::ffi::OsStr;
@@ -17,7 +18,7 @@ use std::time::Duration;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::webview::{cookie::SameSite, Cookie};
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_shell::{
     process::{Command, CommandChild, CommandEvent},
     ShellExt,
@@ -44,6 +45,7 @@ struct StartupPage(tauri::Url);
 #[derive(Default)]
 struct Workspace {
     current: Mutex<Option<PathBuf>>,
+    backend_url: Mutex<Option<tauri::Url>>,
     switching: Mutex<()>,
 }
 
@@ -63,6 +65,42 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("provider-login")
+                .js_init_script(if cfg!(target_os = "macos") {
+                    "window.__NEXUS_DESKTOP_PROVIDER_LOGIN__ = true;"
+                } else {
+                    "window.__NEXUS_DESKTOP_PROVIDER_LOGIN__ = false;"
+                })
+                .on_navigation(|webview, target| {
+                    if !target.path().starts_with(provider_links::PREFIX) {
+                        return true;
+                    }
+                    let app = webview.app_handle();
+                    let trusted = app.state::<Workspace>().backend_url.lock().ok().and_then(|url| url.clone());
+                    if webview.label() == "main" && app.state::<Owner>().running() {
+                        if let (Some(trusted), Ok(current)) = (trusted, webview.url()) {
+                            if let Some(provider) = provider_links::provider_action(&trusted, &current, target) {
+                                let (app, provider) = (app.clone(), provider.to_owned());
+                                std::thread::spawn(move || {
+                                    let Some(window) = app.get_webview_window("main") else { return; };
+                                    // A page navigation alone must never launch a local program.
+                                    if app.dialog().message("Open the provider's official sign-in in Terminal and your browser? Its CLI keeps your credentials on this Mac.")
+                                        .title("Connect subscription")
+                                        .parent(&window)
+                                        .buttons(MessageDialogButtons::OkCancelCustom("Open sign-in".into(), "Cancel".into()))
+                                        .blocking_show() {
+                                        provider_signin(&app, &provider);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    // Always intercept this private path; never load it as a page.
+                    false
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -229,11 +267,17 @@ fn account_message(app: &AppHandle, result: Result<String, String>) {
         Ok(message) => (message, MessageDialogKind::Info),
         Err(message) => (message, MessageDialogKind::Error),
     };
-    app.dialog()
+    let dialog = app
+        .dialog()
         .message(message)
         .title("Nexus account")
-        .kind(kind)
-        .blocking_show();
+        .kind(kind);
+    let dialog = if let Some(window) = app.get_webview_window("main") {
+        dialog.parent(&window)
+    } else {
+        dialog
+    };
+    dialog.blocking_show();
 }
 
 fn account_signin(app: &AppHandle) {
@@ -419,6 +463,9 @@ fn initial_workspace(app: &AppHandle) -> Result<PathBuf, &'static str> {
 }
 
 fn show_failure(app: &AppHandle, code: &str) {
+    if let Ok(mut url) = app.state::<Workspace>().backend_url.lock() {
+        *url = None;
+    }
     let _ = app.state::<Owner>().stop();
     let mut startup = app.state::<StartupPage>().0.clone();
     startup.set_query(Some(&format!("error={code}")));
@@ -443,6 +490,9 @@ fn switch_workspace(app: &AppHandle, folder: PathBuf) {
     let Ok(_one_at_a_time) = state.switching.try_lock() else {
         return;
     };
+    if let Ok(mut url) = state.backend_url.lock() {
+        *url = None;
+    }
     let owner = app.state::<Owner>().inner().clone();
     let _ = owner.stop();
     if !owner.reopen() {
@@ -677,6 +727,9 @@ fn start_backend(app: &AppHandle, folder: PathBuf) {
     if !install_session(&window, &credential.session()) {
         show_failure(app, "session");
         return;
+    }
+    if let Ok(mut trusted) = app.state::<Workspace>().backend_url.lock() {
+        *trusted = Some(url.clone());
     }
     if window.navigate(url).is_err() {
         show_failure(app, "navigation");

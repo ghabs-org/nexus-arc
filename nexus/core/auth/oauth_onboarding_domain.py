@@ -752,20 +752,13 @@ def _agy_login_command(command: list[str]) -> list[str]:
 
 def _agy_signed_in(*, cli_path: str, home: str) -> bool:
     """Ask the Antigravity CLI itself: `agy models` lists models only once signed in."""
-    try:
-        result = subprocess.run(
-            [cli_path, "models"],
-            env=_provider_account_environment(provider="agy", user_home=home, provider_home=home),
-            cwd=home,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except Exception:
-        return False
-    text = f"{result.stdout}\n{result.stderr}".lower()
-    return result.returncode == 0 and "sign in" not in text and "error:" not in text
+    from nexus.core.provider_account_status import provider_account_status
+
+    return provider_account_status(
+        "agy", cli_path,
+        env=_provider_account_environment(provider="agy", user_home=home, provider_home=home),
+        home=home, timeout=30,
+    )["state"] == "signed-in"
 
 
 def _wrap_command_with_script_tty(command: list[str]) -> list[str]:

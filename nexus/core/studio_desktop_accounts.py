@@ -4,10 +4,7 @@ This describes a login command only. The user starts it explicitly in a terminal
 provider CLIs keep their own credentials and no account data crosses to a VM.
 """
 
-import os
 import shlex
-import shutil
-from pathlib import Path
 
 from nexus.core.provider_account_commands import (
     DEFAULT_ARGS as _PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS,
@@ -15,6 +12,7 @@ from nexus.core.provider_account_commands import (
 from nexus.core.provider_account_commands import (
     provider_account_login_command as _provider_account_login_command,
 )
+from nexus.core.provider_account_commands import resolve_provider_cli
 
 
 def provider_login_setup(provider: str) -> dict:
@@ -26,17 +24,7 @@ def provider_login_setup(provider: str) -> dict:
     # Never copy them into a terminal launcher; keep desktop guidance to login.
     if command[1:] != shlex.split(_PROVIDER_ACCOUNT_CONNECT_DEFAULT_ARGS[provider]):
         raise ValueError("Run custom provider login arguments manually in your terminal.")
-    executable = shutil.which(command[0])
-    if not executable:
-        for folder in [
-            Path.home() / ".local/bin",
-            Path("/opt/homebrew/bin"),
-            Path("/usr/local/bin"),
-        ]:
-            candidate = folder / command[0]
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                executable = str(candidate.resolve())
-                break
+    executable = resolve_provider_cli(command[0])
     return {
         "provider": provider,
         "label": labels[provider],

@@ -193,11 +193,76 @@ def test_invalid_definitions_and_paths_never_escape_workspace(studio, tmp_path):
 
 def test_provider_inventory_never_claims_authentication_or_unlimited_quota(studio, monkeypatch):
     service, _ = studio
-    monkeypatch.setattr("nexus.core.studio.shutil.which", lambda name: "/usr/local/bin/" + name)
+    monkeypatch.setattr("nexus.core.provider_account_commands.shutil.which", lambda name: "/usr/local/bin/" + name)
     providers = service.providers()
     assert {"codex", "claude-code", "openai", "claude"} <= {p["id"] for p in providers}
     assert all(p["auth_verified"] is False and p["quota"] is None for p in providers)
     assert next(p for p in providers if p["id"] == "claude-code")["status"] == "CLI installed"
+
+
+def test_explicit_signin_check_updates_status_without_changing_inventory(studio, monkeypatch):
+    service, _ = studio
+    monkeypatch.setattr("nexus.core.provider_account_commands.resolve_provider_cli", lambda name: "/fixture/" + name)
+    responses = {"codex": {"state": "signed-in", "method": "subscription"},
+                 "claude-code": {"state": "signed-out", "method": None},
+                 "agy": {"state": "signed-in", "method": "other"}}
+    monkeypatch.setattr("nexus.core.provider_account_status.provider_account_status", lambda name, executable: responses[name])
+    providers = {p["id"]: p for p in service.provider_status()}
+    assert providers["codex"]["status"] == "Signed in" and providers["codex"]["auth_verified"] is True
+    assert providers["claude-code"]["status"] == "Sign-in needed"
+    assert providers["claude-code"]["auth_verified"] is False
+    assert providers["agy"]["status"] == "Signed in" and providers["agy"]["auth_verified"] is True
+    assert all(p["quota"] is None for p in providers.values())
+    responses["codex"] = {"state": "unknown", "method": None}
+    responses["claude-code"] = {"state": "signed-in", "method": "api"}
+    refreshed = {p["id"]: p for p in service.provider_status()}
+    assert refreshed["codex"]["status"] == "Couldn’t verify sign-in"
+    assert refreshed["claude-code"]["status"] == "API credentials configured"
+    assert all(p["auth_verified"] is False for p in service.providers())
+
+
+def test_shared_workspace_never_probes_host_cli_logins(studio, monkeypatch):
+    service, _ = studio
+    monkeypatch.setattr(service, "team", object())
+    monkeypatch.setattr("nexus.core.provider_account_status.provider_account_status", lambda *args: pytest.fail("Host login exposed"))
+    with pytest.raises(PermissionError, match="shared workspaces"):
+        service.provider_status()
+
+
+def test_provider_status_http_requires_token_and_same_origin(studio, monkeypatch):
+    service, _ = studio
+    calls = []
+
+    def check():
+        calls.append(True)
+        return [{"id": "claude-code", "status": "Signed in"}]
+
+    monkeypatch.setattr(service, "provider_status", check)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_studio_handler(service, "test-token"))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_port}"
+
+    def request(headers):
+        req = urllib.request.Request(origin + "/api/providers/status", data=b"{}",
+                                     headers={"Content-Type": "application/json", **headers})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            return error.code, json.load(error)
+
+    try:
+        assert request({})[0] == 403
+        assert request({"X-Nexus-Studio-Token": "test-token", "Origin": "https://untrusted.invalid"})[0] == 403
+        assert calls == []
+        code, data = request({"X-Nexus-Studio-Token": "test-token", "Origin": origin})
+        assert code == 200 and data["items"][0]["status"] == "Signed in"
+        assert len(calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_opencode_provider_detects_login_credentials(studio, monkeypatch, tmp_path):
@@ -206,7 +271,7 @@ def test_opencode_provider_detects_login_credentials(studio, monkeypatch, tmp_pa
     monkeypatch.delenv("OPENCODE_KEY", raising=False)
     monkeypatch.delenv("OPENCODE_TOKEN", raising=False)
     monkeypatch.setattr("nexus.adapters.ai.opencode_provider.resolve_opencode_cli", lambda *args: None)
-    monkeypatch.setattr("nexus.core.studio.shutil.which", lambda name: None)
+    monkeypatch.setattr("nexus.core.provider_account_commands.shutil.which", lambda name: None)
 
     fake_auth = tmp_path / "auth.json"
     fake_auth.write_text('{"opencode": {"key": "test-key-123"}}', encoding="utf-8")

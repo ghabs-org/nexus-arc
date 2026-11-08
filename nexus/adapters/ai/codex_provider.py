@@ -3,13 +3,13 @@
 import asyncio
 import logging
 import os
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
 from nexus.adapters.ai.base import AIProvider, ExecutionContext, split_model_effort
 from nexus.core.models import AgentResult, RateLimitStatus
+from nexus.core.provider_account_commands import resolve_provider_cli
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +47,18 @@ class CodexCLIProvider(AIProvider):
         if cached and now - cached["at"] < self._availability_ttl:
             return cached["available"]
 
-        available = bool(shutil.which(self._binary))
+        executable = resolve_provider_cli(self._binary)
+        available = bool(executable)
         if available:
             try:
                 result = subprocess.run(
-                    [self._binary, "--version"],
+                    [executable, "--version"],
                     capture_output=True,
                     timeout=10,
                 )
                 available = result.returncode == 0
+                if available:
+                    self._binary = executable
             except Exception:
                 available = False
 

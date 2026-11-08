@@ -4,6 +4,7 @@ const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"
 const state = {token:"",providers:[],agents:[],workflows:[],tools:[],skills:[],sessions:[],runs:[],sessionId:null,busy:false,editor:null,ready:false};
 let noticeTimer,bootstrapRetryTimer;
 let bootstrapInFlight=false,bootstrapFailures=0,reconnectHandshake=null;
+let providerStatusRefresh=null,providerStatusCheckedAt=0;
 function notify(message){$("notice").textContent=message;$("notice").hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$("notice").hidden=true,5500);}
 async function api(path, body, method){
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),body===undefined?15000:90000);
@@ -719,9 +720,46 @@ window.addEventListener("studio-resource-saved",event=>{
   }
 });
 document.addEventListener("focusin",event=>{if(event.target instanceof HTMLInputElement&&event.target.matches(MODEL_INPUTS))linkModelInputs();});
+function desktopProviderSignin(provider){
+  if(typeof window==="undefined"||!window.__NEXUS_DESKTOP_PROVIDER_LOGIN__||state.mode==="team"||provider.kind!=="cli")return "";
+  const nativeId=({codex:"codex","claude-code":"claude",agy:"agy"})[provider.id];
+  if(typeof nativeId!=="string")return "";
+  const connected=provider.authentication?.state==="signed-in";
+  return `<a class="button-link provider-signin" href="/__nexus_desktop__/provider-login/${nativeId}" aria-label="${connected?"Reconnect":"Sign in to"} ${escapeHtml(provider.name)} on this Mac">${connected?"Reconnect":"Sign in"}</a>`;
+}
+function providerAuthenticationText(provider){
+  const authentication=provider.authentication;
+  if(!authentication)return "";
+  const method=provider.id==="agy"?"Provider connection · billing managed by CLI":({subscription:"Subscription login",api:"API credentials · API billing",oauth:"OAuth login",other:"Provider login"})[authentication.method];
+  const text=authentication.state==="signed-in"?`CLI installed · ${method||"Provider login"}`:authentication.message;
+  const checked=authentication.checked_at?new Date(authentication.checked_at).toLocaleTimeString():"";
+  return `<p class="provider-auth-detail" role="status">${escapeHtml(text)}${checked?` · Checked ${escapeHtml(checked)}`:""}</p>`;
+}
+async function refreshProviderStatuses(force=false){
+  if(state.mode==="team")return;
+  if(providerStatusRefresh)return providerStatusRefresh;
+  if(!force&&Date.now()-providerStatusCheckedAt<2000)return;
+  const workspace=state.workspacePath,button=$("refresh-providers");
+  if(button){button.disabled=true;button.textContent="Checking sign-in…";}
+  providerStatusRefresh=api("/api/providers/status",{}).then(data=>{
+    if(state.workspacePath!==workspace||state.mode==="team")return;
+    state.providers=data.items;
+    renderProviders();
+    if(force)notify("Provider sign-in status refreshed.");
+  }).catch(error=>{
+    if(state.workspacePath!==workspace||state.mode==="team")return;
+    state.providers=state.providers.map(provider=>["codex","claude-code","agy"].includes(provider.id)?{...provider,status:"Couldn’t verify sign-in",auth_verified:false,authentication:{state:"unknown",message:"Could not reach the local sign-in checker."}}:provider);
+    renderProviders();
+    if(force)notify("Couldn’t verify sign-in. Refresh status to try again.");
+  }).finally(()=>{
+    providerStatusRefresh=null;providerStatusCheckedAt=Date.now();
+    if(button){button.disabled=false;button.textContent="Refresh status";}
+  });
+  return providerStatusRefresh;
+}
 function renderProviders(){
   renderModelLists();
-  $("providers-content").innerHTML=state.providers.map(p=>`<article class="provider-row"><div><h2>${escapeHtml(p.name)}</h2><p>${state.mode==="team"?"Your Nexus account · shared worker execution":p.kind==="cli"?"Official CLI · local account configuration":"API provider · environment credentials"}</p>${p.models?.length?`<p class="provider-models">Models: ${p.models.map(m=>escapeHtml(m.name)).join(" · ")}</p>`:""}</div><div class="provider-side">${badge(p.status,p.configured?"ready":"")}<button class="secondary" data-provider="${escapeHtml(p.id)}">${p.configured?"Configuration":"Setup instructions"}</button></div></article>`).join("");
+  $("providers-content").innerHTML=state.providers.map(p=>`<article class="provider-row"><div><h2>${escapeHtml(p.name)}</h2><p>${state.mode==="team"?"Your Nexus account · shared worker execution":p.kind==="cli"?"Official CLI · local account configuration":"API provider · environment credentials"}</p>${p.models?.length?`<p class="provider-models">Models: ${p.models.map(m=>escapeHtml(m.name)).join(" · ")}</p>`:""}${providerAuthenticationText(p)}</div><div class="provider-side">${badge(p.status,(p.authentication?p.authentication.state==="signed-in":p.configured)?"ready":"")}${desktopProviderSignin(p)}<button class="secondary" data-provider="${escapeHtml(p.id)}">${p.configured?"Configuration":"Setup instructions"}</button></div></article>`).join("");
 }
 function renderTools(){
   $("tools-content").innerHTML=state.tools.length?`<div class="resource-grid">${state.tools.map(t=>`<article class="resource-card"><div class="card-meta">${badge(t.category||"TOOL")}</div><h2 class="tool-name">${escapeHtml(t.id)}</h2><p>${escapeHtml(t.description||"Registered Nexus tool")}</p><div class="card-actions"><button class="secondary" data-tool="${escapeHtml(t.id)}">Run tool</button></div></article>`).join("")}</div>`:empty("No tools registered","Register tools with the Nexus tool registry to make them available here.");
@@ -904,14 +942,15 @@ async function sendMessage(event){
   state.busy=true;$("send-message").disabled=true;$("chat-task").value="";
   const select=$("chat-artifacts");if(select&&select.options){for(const opt of select.options)opt.selected=false;if(typeof renderChatArtifacts==="function")renderChatArtifacts();}
   addMessage("user",task);
-  const reply=addMessage("assistant","Working…",providerName(payload.provider));const body=reply.querySelector(".message-body");
+  const reply=addMessage("assistant","",providerName(payload.provider));const body=reply.querySelector(".message-body");
+  renderRunMessage(reply,{status:"running"});
   try{
     const queued=await api("/api/runs",payload);if(typeof NexusDrafts!=="undefined")NexusDrafts.confirmed(draftTicket);state.sessionId=queued.session_id;
     const finished=await pollRun(queued.id,run=>{renderRunMessage(reply,run);reply.dataset.runId=run.id;reply.querySelector(".message-provider").textContent=providerName(run.provider);$("messages").scrollTop=$("messages").scrollHeight;});
     if(isStudioAssistant&&typeof renderWorkspaceProposals==="function")renderWorkspaceProposals(reply,finished.id);
     if(finished.status==="completed")window.dispatchEvent(new CustomEvent("studio-response-completed",{detail:{text:finished.output}}));
     await refreshSessions();
-  }catch(error){if(typeof NexusDrafts!=="undefined")NexusDrafts.failed(draftTicket);reply.classList.add("error");if(!body.textContent||body.textContent==="Working…")body.textContent=error.message;else{const note=document.createElement("p");note.className="form-error";note.setAttribute("role","alert");note.textContent=error.message;reply.append(note);}}
+  }catch(error){if(typeof NexusDrafts!=="undefined")NexusDrafts.failed(draftTicket);reply.classList.add("error");renderRunMessage(reply,{status:"failed",provider:payload.provider,output:body.dataset.renderedText||"",error:error.message});}
   finally{state.busy=false;$("send-message").disabled=false;if(typeof NexusDrafts!=="undefined")NexusDrafts.settled("chat");refreshRuns().catch(()=>{});}
 }
 function inputField(name,label,value="",type="text"){return `<label>${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}" ${["name","task"].includes(name)?"required":""}></label>`;}
@@ -1209,7 +1248,8 @@ document.addEventListener("click",async event=>{
           : provider.kind==="cli"
             ? "Sign in through the provider’s official CLI. Nexus uses that executable and does not collect or copy its account tokens."
             : "Configure the API key in the environment before starting Nexus Studio. It will be read by the existing provider adapter.";
-      showDetail(provider.name,`<p class="callout">${calloutText}</p><pre>${escapeHtml(provider.setup)}</pre><p class="card-meta">Account authorization and usage limits are verified by the provider when you run a task.</p>`);
+      const signin=desktopProviderSignin(provider);
+      showDetail(provider.name,`<p class="callout">${calloutText}</p>${signin?`<div class="card-actions">${signin}</div><p>Complete sign-in in Terminal and your browser. Return here, refresh status, then retry your message.</p>`:""}<pre>${escapeHtml(provider.setup)}</pre><p class="card-meta">Account authorization and usage limits are verified by the provider when you run a task.</p>`);
     }
     if(button.dataset.workflow){const item=state.workflows.find(w=>w.id===button.dataset.workflow);const validation=await api(`/api/workflows/${encodeURIComponent(item.id)}/validate`);showDetail(item.document?.metadata?.name||item.id,`${badge(validation.valid?"Valid workflow":"Needs attention",validation.valid?"ready":"failed")}${(item.document?.steps||[]).map((s,i)=>`<div class="flow-step"><b>${i+1}</b><div>${escapeHtml(s.name||s.id)}<small>${escapeHtml(s.agent_type)}</small></div></div>`).join("")}<pre>${escapeHtml([...validation.errors,...validation.warnings,...validation.flow].join("\n"))}</pre>`);}
     if(button.dataset.workflowHistory){
@@ -1298,7 +1338,7 @@ document.addEventListener("click",async event=>{
     if(button.dataset.tool)openEditor("tool",button.dataset.tool);
     if(button.dataset.run)showRun(await api(`/api/runs/${encodeURIComponent(button.dataset.run)}`));
     if(button.id==="refresh-activity")await refreshRuns();
-    if(button.id==="refresh-providers"){state.providers=(await api("/api/bootstrap")).providers;renderProviders();notify("Provider installation status refreshed.");}
+    if(button.id==="refresh-providers"){if(state.mode==="team"){state.providers=(await api("/api/bootstrap")).providers;renderProviders();notify("Provider configuration refreshed.");}else await refreshProviderStatuses(true);}
   }catch(error){notify(error.message);}
 });
 $("new-chat").addEventListener("click",newChat);$("chat-form").addEventListener("submit",sendMessage);$("editor-form").addEventListener("submit",saveEditor);$("chat-agent").addEventListener("change",selectAgent);
@@ -1317,6 +1357,11 @@ async function bootstrap(){
   finally{bootstrapInFlight=false;}
 }
 window.addEventListener("studio-connection-restored",()=>{if(reconnectHandshake)return;reconnectHandshake=api("/api/bootstrap").then(data=>{if(data.workspace.path===state.workspacePath&&data.user?.nexus_id===state.user?.nexus_id)state.token=data.token;}).catch(()=>{}).finally(()=>{reconnectHandshake=null;});});
+function refreshVisibleProviderStatuses(){if(state.ready&&state.mode!=="team"&&view()==="providers"&&!document.hidden)refreshProviderStatuses();}
+window.addEventListener("focus",refreshVisibleProviderStatuses);
+window.addEventListener("hashchange",refreshVisibleProviderStatuses);
+window.addEventListener("studio-ready",refreshVisibleProviderStatuses);
+document.addEventListener("visibilitychange",refreshVisibleProviderStatuses);
 $("retry-login").addEventListener("click",bootstrap);
 bootstrap();
 

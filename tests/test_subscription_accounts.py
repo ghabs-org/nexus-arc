@@ -54,7 +54,7 @@ def test_antigravity_status_probe_also_excludes_server_api_keys(monkeypatch):
 
     def run(*args, **kwargs):
         captured.update(kwargs)
-        return SimpleNamespace(returncode=0, stdout="available models", stderr="")
+        return SimpleNamespace(returncode=0, stdout="gemini-fixture\tGemini Fixture\n", stderr="")
 
     monkeypatch.setattr(auth.subprocess, "run", run)
     assert auth._agy_signed_in(cli_path="synthetic-agy", home="/private/account")

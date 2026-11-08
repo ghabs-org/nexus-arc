@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from nexus.core import provider_account_commands as commands
 from nexus.core import studio_desktop_accounts as accounts
 from nexus.core.studio_desktop_cli import add_parser, desktop_command
 
@@ -22,7 +23,7 @@ from nexus.core.studio_desktop_cli import add_parser, desktop_command
     ],
 )
 def test_guidance_reuses_provider_command(monkeypatch, provider, executable, args):
-    monkeypatch.setattr(accounts.shutil, "which", lambda name: "/fixture/" + name)
+    monkeypatch.setattr(commands.shutil, "which", lambda name: "/fixture/" + name)
     assert accounts.provider_login_setup(provider)["command"] == ["/fixture/" + executable, *args]
 
 
@@ -32,8 +33,8 @@ def test_unknown_provider_is_not_an_arbitrary_command():
 
 
 def test_missing_cli_reports_setup_needed_without_api_fallback(monkeypatch):
-    monkeypatch.setattr(accounts.shutil, "which", lambda name: None)
-    monkeypatch.setattr(accounts.Path, "is_file", lambda path: False)
+    monkeypatch.setattr(commands.shutil, "which", lambda name: None)
+    monkeypatch.setattr(commands.Path, "is_file", lambda path: False)
     result = accounts.provider_login_setup("codex")
     assert result["installed"] is False and result["command"] == []
 
@@ -49,7 +50,7 @@ def test_custom_arguments_cannot_copy_secrets_into_terminal_launcher(monkeypatch
 
 
 def test_cli_returns_guidance_without_launching_provider(monkeypatch, capsys):
-    monkeypatch.setattr(accounts.shutil, "which", lambda name: "/fixture/" + name)
+    monkeypatch.setattr(commands.shutil, "which", lambda name: "/fixture/" + name)
     parser = argparse.ArgumentParser()
     add_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(["desktop", "account-provider", "--provider", "claude"])

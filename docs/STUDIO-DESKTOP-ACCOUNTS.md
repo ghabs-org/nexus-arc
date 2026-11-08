@@ -3,7 +3,10 @@
 The current source adds optional Nexus identity to the macOS native shell. Local
 Studio remains usable without Nexus sign-in. The signed/notarized 1.0.3 DMG now
 includes this implementation. The new hosted endpoints have not been deployed to
-the personal VM. See [release evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
+the personal VM. The signed/notarized **1.0.4 app** is now installed locally with
+the provider sign-in actions and status display described below. No new DMG was
+created. See [installation evidence](STUDIO-DESKTOP-1.0.4-LOCAL-INSTALL.json) and
+[1.0.3 DMG evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
 
 ## User flow
 
@@ -62,6 +65,59 @@ new routes and preserve device expiry/revocation state.
 
 ## Local subscriptions
 
+The installed 1.0.4 app exposes **Sign in** in **Providers & models** and its provider
+configuration dialog for Codex, Claude Code and Antigravity on macOS. These fixes
+are packaged in the local app only. The existing 1.0.3 DMG continues to
+offer subscription setup through the native **Account** menu only.
+
+The new action asks for native confirmation, then reuses the Account menu's local
+Terminal/browser flow. Only fixed provider IDs from the currently verified backend
+origin are accepted. Browser-only Studio, shared team sessions and unsupported
+desktop platforms do not show this local action. Returning to Studio does not
+resubmit a failed message; the user refreshes installation status and retries.
+
+Provider inventory, sign-in guidance and Codex/Claude Code/Antigravity execution
+now share executable discovery. Finder's short PATH previously let Providers show
+**CLI installed** for a Homebrew/local installation while chat reported that the
+provider was not ready. Availability now tests the discovered executable and keeps
+that exact path for execution. An explicit missing path never falls back to a
+different installation. This check runs `--version`, not a model or login request.
+
+Failed local CLI authentication now shows a sign-in action in the conversation.
+It explains that `/login` belongs in the provider's terminal rather than Studio
+chat. Identical output/error text is rendered once. Native account messages and
+subscription confirmations are attached to the main window so they remain visible.
+
+Providers now checks local Claude/Codex sign-in when opened, when returning to the
+visible page after login, or when **Refresh status** is selected. **Signed in** is
+separate from **CLI installed**. Connected providers offer **Reconnect**. Missing
+authentication shows **Sign-in needed**; timeouts, unsupported output and checker
+failures show **Couldn’t verify sign-in** rather than retaining a green badge.
+Subscription login and API credentials have distinct labels, including API billing.
+
+Pending after the 1.0.4 installation: Antigravity joins these checks using the
+documented [`agy models`](https://antigravity.google/docs/cli/reference/) command,
+also used by the existing Nexus account setup. Both consumers now share the pure
+status checker; server-side checks retain their isolated account environment and
+30-second limit, while the local check uses four seconds. A zero exit must include
+a recognized tab-separated model catalog. Empty output, help, transport errors
+and timeouts do not establish sign-in. Explicit authentication prompts report
+Sign-in needed. Successful catalog access shows Signed in/Reconnect, with billing
+managed by the CLI; it does not prove a paid subscription or remaining quota. The
+installed 1.0.4 app still needs a new build to include this change.
+
+The checks use the official [`claude auth status --json`](https://code.claude.com/docs/en/cli-reference)
+and [`codex login status`](https://learn.chatgpt.com/docs/developer-commands) commands,
+with a four-second timeout per CLI and two concurrent checks. Results are local
+CLI reports, not proof of remaining quota or live model authorization. Their raw
+output, email, organization, tokens and credential paths never enter the new
+authentication metadata. The new
+`POST /api/providers/status` operation requires the existing Studio token/session
+and origin checks. Shared workspaces reject host CLI status probes and keep their
+existing user-scoped Nexus setup. Cheap bootstrap inventory remains unchanged.
+
+This status display is included in the local 1.0.4 app; no DMG has been rebuilt.
+
 **Connect Codex/Claude Code/Antigravity** reads framework-owned setup guidance from
 the sidecar, checks the local CLI and opens its sign-in in Terminal. Missing CLIs
 produce installation guidance; Studio does not install software, initiate a model
@@ -73,6 +129,30 @@ the Mac. A CLI being installed or a terminal opening does not establish successf
 authentication. Verify a real account and invocation separately before release.
 
 ## Validation and remaining acceptance
+
+The installed, signed/notarized 1.0.4 app reopened the existing workspace and
+displayed **Signed in**, **Subscription login**, and **Reconnect** for the current
+Claude and Codex accounts. Its frozen status endpoint also passed a synthetic
+account check with private fields filtered out. The hardened runtime passed all
+44 SDK checks and five runtime/cleanup checks. The prior app copies and verified
+workspace snapshot remain in the private local update backup. No real login or
+model request was started during installation.
+
+The sign-in status extension passed 54 focused Python checks and 11 frontend
+checks without skips. The source UI showed **Signed in** and **Subscription
+login** for the installed Claude and Codex accounts, then refreshed both check
+timestamps through **Refresh status**. The example consumer reported the same
+sanitized results. No login, model request, VM change or DMG build was performed
+for this status check.
+
+The post-1.0.3 fix passed 36 focused Python checks, seven frontend checks and 24
+native checks without skips. An isolated macOS development app showed the provider
+links and native confirmation; Cancel returned to Providers without starting login.
+The real installed Claude executable passed `--version` with PATH restricted to
+`/usr/bin:/bin`, using the same discovered path as setup. No real account login or
+paid model request was performed. A broader adapter run passed 103 checks and
+separately skipped 15 optional HTTP checks because `aiohttp` is absent from the
+repository test environment. No DMG was rebuilt or installed for these source fixes.
 
 The implementation has real database/Flask route checks, native callback/transport
 tests, a Postman simulation and an opt-in synthetic Keychain round trip. The native

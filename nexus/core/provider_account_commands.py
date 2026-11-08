@@ -2,6 +2,8 @@
 
 import os
 import shlex
+import shutil
+from pathlib import Path
 
 CLI_ENV = {"codex": "CODEX_CLI_PATH", "claude": "CLAUDE_CLI_PATH", "agy": "AGY_CLI_PATH"}
 ARGS_ENV = {
@@ -10,6 +12,27 @@ ARGS_ENV = {
     "agy": "NEXUS_AGY_ACCOUNT_CONNECT_ARGS",
 }
 DEFAULT_ARGS = {"codex": "login --device-auth", "claude": "auth login", "agy": ""}
+
+
+def resolve_provider_cli(binary: str) -> str | None:
+    """Find the same local executable from Finder, terminal and provider setup.
+
+    Explicit paths never fall back to a different installation. No shell startup
+    files are sourced and discovering a CLI does not inspect its credentials.
+    """
+    executable = shutil.which(binary)
+    if executable:
+        return executable
+    if not binary or "/" in binary or "\\" in binary:
+        return None
+    for folder in (Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")):
+        candidate = folder / binary
+        try:
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate.resolve())
+        except OSError:
+            continue
+    return None
 
 
 def provider_account_login_command(provider: str) -> list[str]:

@@ -1,9 +1,13 @@
 # Signed macOS release and verified updates
 
-Latest local release: **1.0.3, 6 November 2026**. Both app and DMG have accepted
-notarization and stapled tickets. Installed runtime and offline updater signature
-checks pass. See [1.0.3 evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json). The historical
-1.0.2 checks below retain their original scope; no public feed was published.
+Latest DMG release: **1.0.5, 7 November 2026**. Both app and DMG have accepted
+Developer ID signing, Apple notarization, and stapled tickets. Gatekeeper and
+runtime profile checks pass. See [1.0.5 evidence](STUDIO-DESKTOP-1.0.5-CHECKPOINT.json).
+
+Earlier releases:
+- **1.0.4, 7 November 2026**: local application install only. See [1.0.4 evidence](STUDIO-DESKTOP-1.0.4-LOCAL-INSTALL.json).
+- **1.0.3, 6 November 2026**: DMG release with native Account menu. See [1.0.3 evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
+- **1.0.2**: initial local signed release.
 
 The Apple Silicon release pipeline uses two independent trust mechanisms:
 

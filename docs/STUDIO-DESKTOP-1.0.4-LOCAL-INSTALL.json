@@ -1,0 +1,80 @@
+{
+  "format": "nexus-studio-macos-local-install/v1",
+  "date": "2026-11-07",
+  "verified_at": "2026-11-07T13:06:22.195668+00:00",
+  "status": "signed-notarized-installed-and-opened",
+  "whole_plan_complete": false,
+  "application": {
+    "version": "1.0.4",
+    "path": "/Applications/Nexus Studio.app",
+    "architecture": "arm64",
+    "minimum_macos": "14.0",
+    "shell_sha256": "19355cf1b557c36851f641556d1a114cb7e0c6ba47c0f9a01e01df6292207756"
+  },
+  "apple": {
+    "signing": {
+      "native_files_signed": 211,
+      "identity_sha1": "5E99CB84198CEC0E07A84ABA2555D7DE20433BFC"
+    },
+    "signed_profile": {
+      "passed": true,
+      "profile": "full",
+      "sdk_imports": 44
+    },
+    "app_notarization": {
+      "id": "6ce328a0-1067-45cf-8d47-622e8bf5d830",
+      "status": "Accepted"
+    },
+    "stapled_ticket_valid": true,
+    "gatekeeper_accepted": true
+  },
+  "validation": {
+    "source_python_passed": 54,
+    "frontend_passed": 11,
+    "native_passed": 24,
+    "unsigned_frozen_runtime_passed": 5,
+    "signed_frozen_runtime_passed": 5,
+    "source_only_runtime_cases_deselected": 2,
+    "failed": 0,
+    "skipped": 0,
+    "packaged_provider_status": {
+      "frozen_status_endpoint": true,
+      "codex_and_claude_signed_in": true,
+      "private_fields_filtered": true,
+      "synthetic_clis_only": true,
+      "model_requests": 0
+    },
+    "native_ui": {
+      "installed_app_opened": true,
+      "existing_workspace_reopened": true,
+      "claude_and_codex_signed_in_badges": true,
+      "subscription_labels": true,
+      "reconnect_actions": true,
+      "source_snapshot_matches_bundle": true
+    }
+  },
+  "backup": {
+    "verified": true,
+    "path": "$HOME/Library/Application Support/com.nexusarc.studio/updates/local-1.0.4-20261107T124752Z",
+    "previous_installed_version": "1.0.2",
+    "previous_running_copy_version": "1.0.3"
+  },
+  "workspace_selection_preserved": true,
+  "provider_credentials_bundled": false,
+  "model_requests_started": 0,
+  "source_head": "c41fdac0fbe9f8130f3832b9b3f9346888531965",
+  "source_is_working_tree": true,
+  "build_manifest": "/private/tmp/nexus-studio-1.0.4-signed/build-manifest.json",
+  "distribution": {
+    "local_install_only": true,
+    "new_dmg_created": false,
+    "published": false,
+    "public_update_feed_changed": false,
+    "vm_changed": false
+  },
+  "remaining": [
+    "Real model invocation was not exercised.",
+    "Native Nexus OAuth deployment/live account acceptance remains separate.",
+    "No 1.0.4 DMG or updater release was produced."
+  ]
+}

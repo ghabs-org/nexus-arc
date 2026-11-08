@@ -12,7 +12,6 @@ import inspect
 import json
 import os
 import re
-import shutil
 import sqlite3
 import threading
 import time
@@ -358,6 +357,7 @@ class StudioService:
     def providers(self) -> list[dict]:
         """Installation/configuration inventory, not an authentication or quota test."""
         from nexus.adapters.ai.opencode_provider import get_opencode_auth, resolve_opencode_cli
+        from nexus.core.provider_account_commands import resolve_provider_cli
 
         items: list[dict] = []
         for identity, label, source, kind, setup in _PROVIDERS:
@@ -366,19 +366,7 @@ class StudioService:
                 if identity == "opencode":
                     cli_path = resolve_opencode_cli()
                 else:
-                    cli_path = shutil.which(source)
-                    if not cli_path:
-                        for cand in (
-                            Path.home() / ".local" / "bin" / source,
-                            Path("/opt/homebrew/bin") / source,
-                            Path("/usr/local/bin") / source,
-                        ):
-                            try:
-                                if cand.is_file() and os.access(cand, os.X_OK):
-                                    cli_path = str(cand)
-                                    break
-                            except OSError:
-                                pass
+                    cli_path = resolve_provider_cli(source)
 
             configured = bool(cli_path) if kind == "cli" else bool(os.getenv(source))
             status = (
@@ -415,6 +403,34 @@ class StudioService:
                     "models": default_models(identity),
                 }
             )
+        return items
+
+    def provider_status(self) -> list[dict]:
+        """Explicit local authentication checks, separate from cheap inventory reads."""
+        if self.team:
+            raise PermissionError("Local CLI sign-in checks are unavailable in shared workspaces")
+        from nexus.core.provider_account_commands import resolve_provider_cli
+        from nexus.core.provider_account_status import STATUS_COMMANDS, provider_account_status
+
+        items = self.providers()
+        checked = [item for item in items if item["id"] in STATUS_COMMANDS]
+
+        def check(item):
+            source = "claude" if item["id"] == "claude-code" else item["id"]
+            return provider_account_status(item["id"], resolve_provider_cli(source))
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            for item, authentication in zip(checked, executor.map(check, checked), strict=True):
+                item["authentication"] = authentication
+                item["auth_verified"] = authentication["state"] == "signed-in"
+                if item["auth_verified"]:
+                    item["status"] = (
+                        "API credentials configured" if authentication["method"] == "api" else "Signed in"
+                    )
+                elif authentication["state"] == "signed-out":
+                    item["status"] = "Sign-in needed"
+                elif authentication["state"] == "unknown":
+                    item["status"] = "Couldn’t verify sign-in"
         return items
 
     def definitions(self, kind: str) -> list[dict]:

@@ -20,16 +20,34 @@ function renderStructuredContent(node,parts=[]){
   }
   node.append(section);
 }
+function providerSigninHelp(run){
+  if(run.status!=="failed"||typeof state==="undefined"||state.mode==="team")return "";
+  if(!/not logged in|not authenticated|please run \/login/i.test(String(run.error||"")))return "";
+  const provider=(state.providers||[]).find(item=>item.id===run.provider);
+  if(!provider||provider.kind!=="cli")return "";
+  const signin=typeof desktopProviderSignin==="function"?desktopProviderSignin(provider):"";
+  return `<p>${escapeHtml(provider.name)} needs its own local sign-in. Complete it in the provider’s terminal and browser, then retry your message. Do not send /login as a Studio chat message.</p>${signin||'<a class="button-link" href="#providers">Open Providers & models</a>'}`;
+}
 function renderRunMessage(node,run){
-  const body=node.querySelector(".message-body"),text=run.output||(["running","queued"].includes(run.status)?"Working…":"");
+  const pending=["running","queued"].includes(run.status);
+  const body=node.querySelector(".message-body"),text=run.output||"";
+  node.dataset.pending=String(pending);
   if(body.dataset.renderedText!==text){renderContent(body,text);body.dataset.renderedText=text;}
+  body.hidden=!text;
   showCitations(node,run.citations||[]);
   renderRetrievalNotice(node,run.retrieval_notice);
   const parts=JSON.stringify(run.structured_content||[]);
   if(node.dataset.renderedParts!==parts){renderStructuredContent(node,run.structured_content||[]);node.dataset.renderedParts=parts;}
   let status=node.querySelector(".stream-status");
   if(!status){status=document.createElement("p");status.className="stream-status";status.setAttribute("role","status");node.append(status);}
-  status.textContent=run.status==="running"?(run.stream?.status==="streaming"?"Receiving response…":"Working…"):run.status==="queued"?"Queued":run.error||"";
+  status.className=`stream-status${pending?" is-loading":""}`;
+  status.textContent=run.status==="running"?(run.stream?.status==="streaming"?"Receiving response…":"Working…"):run.status==="queued"?"Queued":run.error===text?"":run.error||"";
   if(run.stream?.truncated&&run.status==="running")status.textContent="Live preview limit reached. The completed response will appear here.";
   status.hidden=!status.textContent;
+  const help=providerSigninHelp(run);
+  let setup=node.querySelector(".provider-signin-help");
+  if(help){
+    if(!setup){setup=document.createElement("div");setup.className="provider-signin-help callout";setup.setAttribute("role","note");node.append(setup);}
+    setup.innerHTML=help;
+  }else setup?.remove();
 }
