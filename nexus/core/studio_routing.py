@@ -71,22 +71,25 @@ def is_limit_error(text: str | None) -> bool:
 _TEXT_ONLY = ("gpt-oss", "glm-", "/auto")
 
 
-def caller_catalog(ready: list[str]) -> list[dict]:
+def caller_catalog(ready: list[str], profiles=()) -> list[dict]:
     """The models ready providers run today, as router ids, for /route ``available_models``.
 
-    Studio's model lists are newer than any router registry snapshot, so the router
-    scores exactly these (unknown ids from family priors) instead of stale entries.
+    Saved model profiles (``(provider, model)`` pairs) come first, then Studio's
+    default suggestions. Both are newer than any router registry snapshot, so the
+    router scores exactly these (unknown ids from family priors) instead of stale entries.
     """
     from nexus.core.studio_models import DEFAULT_MODELS
 
+    ready_set = set(ready)
+    pairs = [(p, m) for p, m in profiles if p in ready_set and isinstance(m, str) and m.strip()]
+    pairs += [(p, m) for p in ready for m, _label in DEFAULT_MODELS.get(p, ())]
     seen, catalog = set(), []
-    for provider in ready:
+    for provider, model in pairs:
         router_provider = STUDIO_TO_ROUTER.get(provider)
-        for model, _label in DEFAULT_MODELS.get(provider, ()):
-            model_id = f"{router_provider}/{model}" if router_provider else None
-            if model_id and model_id not in seen:
-                seen.add(model_id)
-                catalog.append({"id": model_id, "vision": not any(t in model_id for t in _TEXT_ONLY)})
+        model_id = f"{router_provider}/{model.strip()}" if router_provider else None
+        if model_id and model_id not in seen:
+            seen.add(model_id)
+            catalog.append({"id": model_id, "vision": not any(t in model_id for t in _TEXT_ONLY)})
     return catalog[:200]
 
 
@@ -95,7 +98,8 @@ def conversation_context(history, turns: int = 8, limit: int = 2000) -> str | No
     if not history:
         return None
     text = "\n".join(
-        f"{entry.get('role')}: {str(entry.get('content') or '')[:600]}" for entry in history[-turns:]
+        f"{entry.get('role')}: {str(entry.get('content') or '')[:600]}"
+        for entry in history[-turns:]
     )
     return text[-limit:] or None
 
@@ -120,9 +124,18 @@ def estimate_cost(table, provider, model, prompt_tokens, completion_tokens):
         price = models[max(matches, key=len)] if matches else None
     if price is None:
         return None, None
+    input_rate, output_rate = price.get("input_per_mtok", 0), price.get("output_per_mtok", 0)
+    tier = price.get("long_context")
+    if (
+        isinstance(tier, dict)
+        and int(prompt_tokens or 0) > int(tier.get("above_input_tokens") or 0) > 0
+    ):
+        # Long-context rates price the whole request (Haiku 5.5 over 100K, OpenAI over 272K).
+        input_rate = tier.get("input_per_mtok", input_rate)
+        output_rate = tier.get("output_per_mtok", output_rate)
     usd = (
-        int(prompt_tokens or 0) * float(price.get("input_per_mtok", 0))
-        + int(completion_tokens or 0) * float(price.get("output_per_mtok", 0))
+        int(prompt_tokens or 0) * float(input_rate)
+        + int(completion_tokens or 0) * float(output_rate)
     ) / 1e6
     return round(usd, 6), "tariff"
 
@@ -172,8 +185,11 @@ if __name__ == "__main__":
     history = [{"role": "user", "content": "x" * 900}] * 20
     assert len(conversation_context(history)) <= 2000 and conversation_context([]) is None
     trimmed = trim_explain(
-        {"rules_triggered": ["a"], "classifier": {"task_type": "coding", "confidence": 0.9},
-         "model_scores": [{"model": "m", "total": 0.8}] * 5}
+        {
+            "rules_triggered": ["a"],
+            "classifier": {"task_type": "coding", "confidence": 0.9},
+            "model_scores": [{"model": "m", "total": 0.8}] * 5,
+        }
     )
     assert trimmed["task"] == "coding" and len(trimmed["candidates"]) == 3
     print("studio_routing ok")

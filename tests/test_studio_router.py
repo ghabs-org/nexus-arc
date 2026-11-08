@@ -660,3 +660,59 @@ def test_router_panel_lists_recent_routed_runs(tmp_path):
         assert service.workbench.get(["router"], None)["decisions"]["items"][0]["source_tag"] == "studio:r"
     finally:
         service.close()
+
+
+
+def test_build_with_ai_design_runs_on_the_routers_pick(tmp_path):
+    import asyncio
+
+    router = FakeRouter()
+    service, _ = make(tmp_path, router=router)
+    seen = {}
+
+    class Designer:
+        async def check_availability(self):
+            return True
+
+        async def execute_agent(self, context):
+            seen["model"] = context.model_override
+            return AgentResult(success=True, output='{"name": "Greeting", "data": {"content": "Hi {{Name}}", "variables": {}}}')
+
+    service.builder.provider_factory = lambda name: seen.setdefault("provider", name) and Designer()
+    try:
+        run = service.start_run({"kind": "design", "design_kind": "prompt", "task": "a greeting prompt",
+                                 "provider": "auto", "requester_nexus_id": None})
+        wait_run(service, run["id"])
+        assert seen["provider"] == "claude-code" and seen["model"] == "claude-opus-5-5"
+        assert service.run(run["id"])["router_decision_id"] == "dec-1"
+        assert router.outcomes and router.outcomes[-1][1]["success"] is True
+    finally:
+        service.close()
+
+
+
+def test_saved_model_profiles_join_the_caller_catalog(tmp_path):
+    from nexus.core.studio_routing import caller_catalog
+
+    catalog = caller_catalog(["claude-code"], [("claude-code", "claude-opus-6-0"), ("copilot", "gpt-x"), ("claude-code", " ")])
+    assert catalog[0] == {"id": "anthropic/claude-opus-6-0", "vision": True}
+    assert not any(item["id"].startswith("github-copilot/") for item in catalog)  # copilot not ready
+    router = FakeRouter()
+    service, _ = make(tmp_path, router=router)
+    try:
+        service.catalog.save("models", {"name": "Next Claude", "data": {"provider": "claude-code", "model": "claude-opus-6-0"}})
+        wait_run(service, service.start_run({"task": "t", "provider": "auto"})["id"])
+        assert router.fields[-1]["available_models"][0]["id"] == "anthropic/claude-opus-6-0"
+    finally:
+        service.close()
+
+
+
+def test_studio_cost_applies_long_context_tiers():
+    from nexus.core.studio_routing import estimate_cost
+
+    table = {"models": {"anthropic/claude-haiku-5-5": {
+        "input_per_mtok": 0.1, "output_per_mtok": 0.5,
+        "long_context": {"above_input_tokens": 100000, "input_per_mtok": 0.5, "output_per_mtok": 2.5}}}}
+    assert estimate_cost(table, "claude", "claude-haiku-5-5", 100_000, 0) == (0.01, "tariff")
+    assert estimate_cost(table, "claude", "claude-haiku-5-5", 200_000, 1_000_000) == (2.6, "tariff")

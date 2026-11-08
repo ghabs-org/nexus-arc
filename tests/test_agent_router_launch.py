@@ -215,3 +215,22 @@ def test_route_agent_sends_the_projects_profile_models(client):
     ]
     pick(FakeOrchestrator())
     assert "available_models" not in client.routes[-1][1]  # no profiles: the router's catalog
+
+
+
+def test_outcome_carries_tokens_from_the_agent_log(client, monkeypatch):
+    from types import SimpleNamespace
+
+    import nexus.core.command_bridge.usage as usage_module
+
+    seen = []
+    monkeypatch.setattr(usage_module, "latest_log_usage", lambda project, issue: seen.append((project, issue))
+                        or SimpleNamespace(input_tokens=1200, output_tokens=340))
+    entry = agent_routing.record_pick({"timestamp": 1.0, "project": "nexus"}, pick(), "claude")
+    agent_routing.report_outcome(entry, True, issue_num="42")
+    assert seen == [("nexus", "42")]
+    decision_id, fields = client.outcomes[-1]
+    assert fields["input_tokens"] == 1200 and fields["output_tokens"] == 340
+    monkeypatch.setattr(usage_module, "latest_log_usage", lambda project, issue: None)
+    assert agent_routing.agent_usage("nexus", "42") == {}
+    assert agent_routing.agent_usage(None, "42") == {}

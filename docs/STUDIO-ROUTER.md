@@ -85,8 +85,9 @@ the Telegram and Discord feedback (`nexus/core/router_feedback.py`).
 
 ### What Studio sends, and what it keeps
 
-- **Caller catalog:** the router ids of today's model suggestions for your ready
-  providers (`nexus/core/studio_models.py`), as `available_models`. The router
+- **Caller catalog:** the router ids of your saved model profiles (Library →
+  Models) and today's model suggestions (`nexus/core/studio_models.py`) for your
+  ready providers, as `available_models`. The router
   scores exactly these, so a router whose catalog is older than Studio's models
   (including the one built into the desktop app) still picks current models.
 - **Links:** `nexus_context` (workspace, run or workflow, step) and
@@ -108,7 +109,7 @@ proposed agents keep `auto`), OpenClaw entrypoints (optional `provider`, may be
 `auto`) and experiment variants (`provider: auto` plus an optional
 `route_mode`: balanced, fast, reasoning, eco, free). An experiment case's
 verdict is reported as the outcome of its routed decision. "Build with AI" for
-prompts and schedules still uses an explicit provider.
+prompts, schedules and datasets generates on the router's pick, like Quick Build.
 
 While Auto is selected, the composer shows **Auto would use …** for the draft
 (a router dry run: nothing is recorded).
@@ -139,8 +140,10 @@ exact providers. A switched run records `fallback_from` and `attempts`.
 Controls also shows your own token use for the last 30 days per provider, from
 the invocation traces (`GET /api/workbench/usage?days=30`), with an estimated
 cost: CLI providers show "subscription"; API providers are priced from the
-router's tariff table (`GET /pricing`, `policies/pricing.yaml` in nexus-router)
-when a router is configured, else "no tariff". Claude Code,
+router's tariff table (`GET /pricing`, `policies/pricing.yaml` in nexus-router,
+checked against the Anthropic and OpenAI price pages on 2026-11-08, including
+their long-context tiers) when a router is configured, else "no tariff". Cache
+reads are priced as base input, so cached prompts are overestimated. Claude Code,
 Antigravity and the Anthropic API report `input_tokens`/`output_tokens`; they are
 now stored as `prompt_tokens`/`completion_tokens` (cache reads/writes count as
 prompt tokens) so the existing per-run token summary sees them too. Codex does not

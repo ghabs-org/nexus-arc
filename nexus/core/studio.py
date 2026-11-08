@@ -1346,8 +1346,15 @@ class StudioService:
             )
         except Exception:
             has_image = False
+        try:
+            profiles = [
+                (item["data"].get("provider"), item["data"].get("model"))
+                for item in self.catalog.list("models")
+            ]
+        except Exception:  # no profiles yet
+            profiles = []
         fields = {
-            "available_models": studio_routing.caller_catalog(ready),
+            "available_models": studio_routing.caller_catalog(ready, profiles),
             "nexus_context": {
                 "nexus_project": self.root.name,
                 "nexus_workflow_id": payload.get("workflow_id") or run_id,

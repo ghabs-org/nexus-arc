@@ -802,7 +802,7 @@ class ProcessOrchestrator:
             if agent_data.get("router_decision_id"):
                 from nexus.core.runtime.agent_routing import report_outcome
 
-                if report_outcome(agent_data, False):
+                if report_outcome(agent_data, False, issue_num=issue_num):
                     self._runtime.save_launched_agents(launched)
             self._runtime.audit_log(
                 issue_num,
@@ -915,7 +915,7 @@ class ProcessOrchestrator:
                 return
             from nexus.core.runtime.agent_routing import report_outcome
 
-            if report_outcome(entry, success):
+            if report_outcome(entry, success, issue_num=issue_num):
                 self._runtime.save_launched_agents(launched)
         except Exception as exc:
             logger.debug("Router outcome skipped for issue #%s: %s", issue_num, exc)

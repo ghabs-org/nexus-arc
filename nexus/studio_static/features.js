@@ -79,7 +79,7 @@ async function resolvePromptValues(task){
 }
 async function designResource(){
   const kind=library.kind==="schedules"?"schedule":"prompt";
-  const form=await fieldsDialog(`Build ${kind} with AI`,`<label>Describe what you need<textarea name="task" rows="5" required maxlength="16000"></textarea></label><label>Provider<select name="provider">${providerOptions($("chat-provider").value)}</select></label>`,"Generate draft");if(!form)return;
+  const form=await fieldsDialog(`Build ${kind} with AI`,`<label>Describe what you need<textarea name="task" rows="5" required maxlength="16000"></textarea></label><label>Provider<select name="provider">${providerOptions($("chat-provider").value,false,true)}</select></label>`,"Generate draft");if(!form)return;
   let task=form.get("task"),conversation="",proposal;
   while(true){
     const run=await featureApi("design",{design_kind:kind,task,conversation,provider:form.get("provider")});showRun(run);

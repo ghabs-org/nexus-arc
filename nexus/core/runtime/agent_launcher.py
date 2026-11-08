@@ -963,7 +963,7 @@ def _start_agent_quota_watchdog(
                 tracker = HostStateManager.load_launched_agents(recent_only=False)
                 limited = tracker.get(str(issue_num))
                 if isinstance(limited, dict) and agent_routing.report_outcome(
-                    limited, False, rate_limited=True
+                    limited, False, rate_limited=True, issue_num=issue_num
                 ):
                     HostStateManager.save_launched_agents(tracker)
             except Exception as exc:

@@ -167,7 +167,32 @@ def record_pick(entry: dict, pick: dict | None, launched_tool: str) -> dict:
     return entry
 
 
-def report_outcome(entry: dict, success: bool, *, rate_limited: bool = False) -> bool:
+def agent_usage(project_name: str | None, issue_num) -> dict:
+    """input/output tokens the agent's log reports, when parsable (empty otherwise)."""
+    if not project_name or not issue_num:
+        return {}
+    try:
+        # Imported lazily: it needs the runtime's project configuration.
+        from nexus.core.command_bridge.usage import latest_log_usage
+
+        usage = latest_log_usage(str(project_name), str(issue_num))
+    except Exception:
+        return {}
+    if usage is None:
+        return {}
+    return {
+        key: value
+        for key, value in (
+            ("input_tokens", usage.input_tokens),
+            ("output_tokens", usage.output_tokens),
+        )
+        if type(value) is int and value >= 0
+    }
+
+
+def report_outcome(
+    entry: dict, success: bool, *, rate_limited: bool = False, issue_num=None
+) -> bool:
     """Post the outcome of the entry's routed launch once; clears the decision from *entry*."""
     decision_id = entry.get("router_decision_id")
     if not decision_id:
@@ -185,6 +210,7 @@ def report_outcome(entry: dict, success: bool, *, rate_limited: bool = False) ->
             decision_id,
             success=success,
             latency_ms=int((time.time() - started) * 1000) if started else None,
+            **agent_usage(entry.get("project"), issue_num),
         )
         if rate_limited and ROUTER_FOR_ARC_TOOL.get(tool):
             client.observe(None, ROUTER_FOR_ARC_TOOL[tool], 429, "rate_limit", quota_hint="low")

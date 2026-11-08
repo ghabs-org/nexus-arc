@@ -91,6 +91,11 @@ async def _load_usage_from_completion_storage(issue_number: str) -> UsagePayload
     return None
 
 
+def latest_log_usage(project_key: str, issue_number: str) -> UsagePayload | None:
+    """Token usage parsed from the newest agent log of an issue (best effort)."""
+    return _load_usage_from_recent_log(project_key, issue_number)
+
+
 def _load_usage_from_recent_log(project_key: str, issue_number: str) -> UsagePayload | None:
     project_cfg = PROJECT_CONFIG.get(project_key)
     if not isinstance(project_cfg, dict):
