@@ -380,7 +380,11 @@ def make_studio_handler(
                             else None,
                             "mode": "team" if service.team else "desktop",
                             "workspace": {"name": service.root.name, "path": str(service.root)},
-                            "capabilities": {"expected_artifact_refs": True, "session_title": True},
+                            "capabilities": {
+                                "expected_artifact_refs": True,
+                                "session_title": True,
+                                "model_router": service.workbench.router_client is not None,
+                            },
                             "providers": service.team.providers(
                                 service.providers(), self.actor["nexus_id"]
                             )

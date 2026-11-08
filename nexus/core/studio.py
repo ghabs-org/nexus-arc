@@ -47,6 +47,11 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _attempt(provider: str, model: str | None, reason: str) -> dict:
+    """One skipped provider candidate, as recorded on a run's ``attempts``."""
+    return {"provider": provider, "model": model, "reason": reason}
+
+
 def _session_summary(record):
     return {
         **{key: value for key, value in record.items() if key != "messages"},
@@ -995,7 +1000,8 @@ class StudioService:
                 raise ValueError("Tool arguments must be a list and keyword arguments an object")
             self.media.pin_tool(payload)
         provider = str(payload.get("provider") or "codex")
-        if provider not in {p[0] for p in _PROVIDERS}:
+        auto = provider == "auto" and self.workbench.router_client is not None
+        if provider not in {p[0] for p in _PROVIDERS} and not auto:
             raise ValueError("Unknown provider")
         if payload.get("agent_id"):
             self.definition("agents", payload["agent_id"])
@@ -1246,21 +1252,151 @@ class StudioService:
         )
         if payload.get("studio_assistant"):
             agent = self.assistant.spec()
-        provider_name = str(payload.get("provider") or agent.get("provider") or "codex")
+        requested = str(payload.get("provider") or agent.get("provider") or "codex")
         model = payload.get("model") or agent.get("model")
         raw_effort = payload.get("effort") or agent.get("effort")
         effort = str(raw_effort).strip().lower() if raw_effort else None
         if effort and effort not in EFFORT_LEVELS:
             raise ValueError(f"Effort must be one of {', '.join(EFFORT_LEVELS)}")
-        provider = (
-            self.team.provider(provider_name, payload)
-            if self.team
-            else self.provider_factory(provider_name)
+        from nexus.core.studio_routing import AUTO
+        from nexus.core.studio_workflow_retry import ProviderLimitError
+
+        decision, plan = None, [(requested, model)]
+        if requested == AUTO:
+            decision, plan = await self._auto_plan(payload, task, run_id)
+        if not evaluation_slot:  # evaluations and experiments compare exact providers
+            plan = self._with_fallbacks(plan, payload)
+        attempts, used, result, executed = [], None, None, False
+        started = time.monotonic()
+        try:
+            for index, (provider_name, candidate_model) in enumerate(plan):
+                try:
+                    provider = (
+                        self.team.provider(provider_name, payload)
+                        if self.team
+                        else self.provider_factory(provider_name)
+                    )
+                    if inspect.isawaitable(provider):
+                        provider = await provider
+                except (ValueError, PermissionError):
+                    if len(plan) == 1:
+                        raise
+                    attempts.append(_attempt(provider_name, candidate_model, "unavailable"))
+                    continue
+                if not await provider.check_availability():
+                    attempts.append(_attempt(provider_name, candidate_model, "not ready"))
+                    continue
+                used, executed = (provider_name, candidate_model), True
+                try:
+                    result = await self._invoke_provider(
+                        provider, provider_name, candidate_model, effort, agent, payload, task,
+                        run_id, history, evaluation_slot,
+                    )
+                except ProviderLimitError:
+                    attempts.append(_attempt(provider_name, candidate_model, "limit"))
+                    if index + 1 < len(plan):
+                        continue
+                    raise
+                if attempts:
+                    self._update_run(run_id, fallback_from=plan[0][0], attempts=attempts)
+                return result
+            tried = ", ".join(dict.fromkeys(name for name, _ in plan))
+            if len(plan) == 1:
+                raise ValueError(f"{plan[0][0]} is not ready. Check its setup in Providers.")
+            raise ValueError(f"No provider was ready ({tried}). Check their setup in Providers.")
+        except asyncio.CancelledError:
+            executed = False  # a stop is not a model failure
+            raise
+        finally:
+            if decision and executed:
+                await self._report_router_outcome(
+                    payload, decision, plan, used, attempts, result, started
+                )
+
+    async def _auto_plan(self, payload, task, run_id):
+        """Ask the configured router; returns (decision, [(provider, model), ...])."""
+        from nexus.core import studio_routing
+
+        router = self.workbench.router_client
+        if not router:
+            raise ValueError("Auto needs a model router in the Studio runtime configuration")
+        identity = payload.get("requester_nexus_id")
+        inventory = self.team.providers(self.providers(), identity) if self.team else self.providers()
+        ready = [item["id"] for item in inventory if item.get("configured")]
+        decision, plan, error = None, [], None
+        try:
+            decision = await asyncio.to_thread(
+                router.route,
+                identity,
+                str(task)[:8000],
+                studio_routing.allowed_router_providers(ready),
+                # Stable A/B key: the conversation, so one chat stays in one router variant.
+                payload.get("session_id") or self.run(run_id).get("session_id") or run_id,
+            )
+            plan = studio_routing.candidates(decision, ready)
+        except PermissionError:
+            raise
+        except Exception as exc:  # router down or no eligible model: still answer
+            error = str(exc) or type(exc).__name__
+        if not plan:
+            self._update_run(
+                run_id,
+                provider_requested=studio_routing.AUTO,
+                router_error=error or "The router picked no model that a ready provider can run",
+            )
+            return None, [(name, None) for name in ready] or [("codex", None)]
+        self._update_run(
+            run_id,
+            provider_requested=studio_routing.AUTO,
+            router_decision_id=decision.get("decision_id"),
+            routed_model=decision["selected_model"],
+            router_task_type=decision.get("task_type"),
         )
-        if inspect.isawaitable(provider):
-            provider = await provider
-        if not await provider.check_availability():
-            raise ValueError(f"{provider_name} is not ready. Check its setup in Providers.")
+        return decision, plan
+
+    def _with_fallbacks(self, plan, payload):
+        """Append the user's ordered fallback providers (Controls) not already planned."""
+        names = self.workbench.controls(self.workbench.actor(payload)).get("fallback_providers") or []
+        planned = {name for name, _ in plan}
+        return plan + [(name, None) for name in names if name not in planned]
+
+    async def _report_router_outcome(self, payload, decision, plan, used, attempts, result, started):
+        """Advisory /outcome so the router learns from Studio runs; never fails the run."""
+        from nexus.core.studio_routing import router_model_id
+
+        if not decision.get("decision_id"):
+            return
+        usage = ((result.metadata or {}).get("usage") if result else None) or {}
+        fields = {
+            "success": bool(result and result.success),
+            "latency_ms": int((time.monotonic() - started) * 1000),
+            **{key: usage[key] for key in ("input_tokens", "output_tokens", "total_tokens") if type(usage.get(key)) is int},
+        }
+        if "input_tokens" not in fields and type(usage.get("prompt_tokens")) is int:
+            fields["input_tokens"] = usage["prompt_tokens"]
+        if "output_tokens" not in fields and type(usage.get("completion_tokens")) is int:
+            fields["output_tokens"] = usage["completion_tokens"]
+        if used and used != plan[0]:
+            actual = router_model_id(*used)
+            if any(item["reason"] == "limit" for item in attempts):
+                fields.update(fallback_used=True, fallback_model=actual)
+            else:  # primary was not ready here: a local choice, not a model failure
+                fields.update(user_override=True, user_override_model=actual)
+        try:
+            await asyncio.to_thread(
+                self.workbench.router_client.outcome,
+                payload.get("requester_nexus_id"),
+                decision["decision_id"],
+                **fields,
+            )
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).info("Router outcome not recorded: %s", exc)
+
+    async def _invoke_provider(
+        self, provider, provider_name, model, effort, agent, payload, task, run_id, history, evaluation_slot
+    ):
         self._update_run(
             run_id,
             provider=provider_name,
@@ -1364,11 +1500,16 @@ class StudioService:
                 )
             self.observability.output(result.output, agent.get("guardrails"), run_id, payload)
             if not result.success:
-                from nexus.core.studio_workflow_retry import StudioAgentFailureError
-
-                raise StudioAgentFailureError(
-                    result.error or result.output or "Provider execution failed"
+                from nexus.core.studio_routing import is_limit_error
+                from nexus.core.studio_workflow_retry import (
+                    ProviderLimitError,
+                    StudioAgentFailureError,
                 )
+
+                message = result.error or result.output or "Provider execution failed"
+                if is_limit_error(message) and not (result.metadata or {}).get("streamed_chars"):
+                    raise ProviderLimitError(message)
+                raise StudioAgentFailureError(message)
             from nexus.core.studio_agent_settings import validate_output
 
             validate_output(agent, result.output)

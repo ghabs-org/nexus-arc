@@ -80,6 +80,17 @@ For proactive notifications, first configure a saved, enabled OpenClaw connectio
 with the same fixed channel. Set `notification_connector_id` to that connection's
 ID, then explicitly enable `auto_reply` and/or `approval_notifications`.
 
+### Operator view in Studio
+
+**Workspace tools → OpenClaw** (`GET /api/studio/openclaw`) lists each OpenClaw
+entrypoint with its channels, targets, mapped senders and whether its signing
+secret is set, then the runs it started (task, channel, status, waiting) and how
+many reply gates are open. It also counts receipts that never confirmed dispatch
+(`dispatching`), which need a look in Activity before the sender retries. Owners
+and the desktop see every entrypoint; other members see entrypoints they own and
+runs bound to their own identity. The view is read-only: approvals and replies
+stay in the OpenClaw channel.
+
 ## Security & Protocol Specification
 
 ### Protocol Version & Wire Envelope

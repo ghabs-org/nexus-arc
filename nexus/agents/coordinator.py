@@ -34,7 +34,8 @@ def _call_nexus_router(router_url: str, task: str, task_type: str = "general_cha
         )
         with urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
-            return data.get("model") or data.get("provider_model")
+            # nexus-router answers selected_model; model/provider_model are older shapes.
+            return data.get("selected_model") or data.get("model") or data.get("provider_model")
     except (URLError, OSError, json.JSONDecodeError, KeyError) as exc:
         logger.debug("nexus-router unavailable (%s) — using sub-agent default model", exc)
         return None

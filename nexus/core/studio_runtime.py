@@ -111,13 +111,15 @@ class StudioLokiQuery:
 
 
 class StudioModelRouter:
+    """nexus-router client. URL and credential come only from the server-owned runtime file."""
+
     def __init__(self, config):
         self.url, self.config = endpoint(config), config
         self.studio = None
         if config.get("token_env"):
             env_name(config["token_env"])
 
-    def __call__(self, identity, task, selected_agent):
+    def _headers(self, identity):
         headers = {}
         name = self.config.get("token_env")
         if name:
@@ -130,16 +132,42 @@ class StudioModelRouter:
             if not token:
                 raise PermissionError("Configure your model-router account credential")
             headers["Authorization"] = "Bearer " + token
-        data = request_json(
-            "POST",
-            self.url + "/route",
-            headers=headers,
-            body={"message": task, "task_type": "general_chat"},
-        )
-        model = data.get("model") or data.get("provider_model")
+        return headers
+
+    def _call(self, method, path, identity, **kwargs):
+        return request_json(method, self.url + path, headers=self._headers(identity), **kwargs)
+
+    def route(self, identity, task, allowed_providers=None, experiment_key=None):
+        """POST /route; returns the decision with a validated selected_model."""
+        body = {"message": task, "source_type": "studio", "source_tag": "nexus-studio"}
+        if allowed_providers:
+            body["allowed_providers"] = sorted(allowed_providers)
+        if experiment_key:
+            body["experiment_key"] = experiment_key
+        data = self._call("POST", "/route", identity, body=body)
+        # nexus-router answers selected_model; model/provider_model are older router shapes.
+        model = data.get("selected_model") or data.get("model") or data.get("provider_model")
         if not isinstance(model, str) or not model or len(model) > 200:
             raise ValueError("Model router returned no usable model")
-        return model
+        return {**data, "selected_model": model}
+
+    def __call__(self, identity, task, selected_agent):
+        return self.route(identity, task)["selected_model"]
+
+    def outcome(self, identity, decision_id, **fields):
+        return self._call("POST", "/outcome", identity, body={"decision_id": decision_id, **fields})
+
+    def feedback(self, identity, payload):
+        return self._call("POST", "/feedback", identity, body=payload)
+
+    def diagnostics(self, identity=None):
+        return self._call("GET", "/diagnostics", identity)
+
+    def cli_status(self, identity=None):
+        return self._call("GET", "/v1/nexus/cli-status", identity)
+
+    def stats(self, identity=None):
+        return self._call("GET", "/stats", identity)
 
 
 def load_runtime_configuration(path, root):

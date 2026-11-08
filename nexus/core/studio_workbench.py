@@ -210,8 +210,10 @@ class StudioWorkbench:
                 "max_prompt_chars": 65536,
                 "summary_max_chars": 1200,
                 "cooldown_seconds": 0,
+                "fallback_providers": [],
             }
         )
+        values.setdefault("fallback_providers", [])
         return {**values, "active_cooldowns": self.guard(actor, values).active_count}
 
     def save_controls(self, payload, actor):
@@ -235,6 +237,18 @@ class StudioWorkbench:
                 )
             if type(cooldown) is not int or not 0 <= cooldown <= 3600:
                 raise ValueError("Cooldown must be 0–3600 seconds")
+            from nexus.core.studio import _PROVIDERS
+
+            # Older clients omit the field: keep what is saved.
+            fallbacks = payload.get("fallback_providers", current["fallback_providers"])
+            known = {item[0] for item in _PROVIDERS}
+            if (
+                not isinstance(fallbacks, list)
+                or len(fallbacks) > len(known)
+                or len(set(fallbacks)) != len(fallbacks)
+                or any(name not in known for name in fallbacks)
+            ):
+                raise ValueError("Fallback providers must be distinct Studio provider ids")
             record = {
                 "id": current["id"],
                 "owner_id": self.owner(actor),
@@ -244,6 +258,7 @@ class StudioWorkbench:
                 "max_prompt_chars": maximum,
                 "summary_max_chars": summary,
                 "cooldown_seconds": cooldown,
+                "fallback_providers": fallbacks,
             }
             self.studio._write(self.studio._path("execution-controls", current["id"]), record)
             self.guards.pop(current["id"], None)
@@ -464,6 +479,25 @@ class StudioWorkbench:
             "error": self.audit_error,
         }
 
+    def router_overview(self, actor):
+        """Router panel: /diagnostics, CLI proxy status and model stats, each failure-tolerant."""
+        if self.studio.team and (not actor or actor.get("role") != "owner"):
+            raise PermissionError("Only workspace owners can view the model router")
+        if not self.router_client:
+            return {"configured": False}
+        identity = actor["nexus_id"] if actor else None
+        overview = {"configured": True, "url": self.router_client.url}
+        for name, call in (
+            ("diagnostics", self.router_client.diagnostics),
+            ("cli_status", self.router_client.cli_status),
+            ("stats", self.router_client.stats),
+        ):
+            try:
+                overview[name] = call(identity)
+            except Exception as exc:  # one unreachable endpoint must not hide the others
+                overview[name] = {"error": str(exc) or type(exc).__name__}
+        return overview
+
     def get(self, parts, actor, query=None):
         query = query or {}
         area = parts[0] if parts else ""
@@ -514,6 +548,12 @@ class StudioWorkbench:
                         ("guardrails", "guardrail-events"),
                     ]
                 }
+        if area == "usage":
+            days = int((query.get("days") or ["30"])[0] or 30)
+            self.owner(actor)
+            return self.studio.telemetry.summarize_usage(actor, days)
+        if area == "router":
+            return self.router_overview(actor)
         if area == "memorysources":
             return (
                 {"items": self.memory_sources.list_sources(actor)}

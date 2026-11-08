@@ -7,6 +7,10 @@ class StudioAgentFailureError(RuntimeError):
     """A provider returned an explicit unsuccessful agent result."""
 
 
+class ProviderLimitError(StudioAgentFailureError):
+    """The provider refused for quota/rate limits before streaming anything: safe to try another."""
+
+
 def validate_retry(policy):
     if not isinstance(policy, dict) or set(policy) != {"limit", "policy", "backoff"}:
         raise ValueError("Retry policy requires limit, policy and backoff")

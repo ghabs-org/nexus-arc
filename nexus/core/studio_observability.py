@@ -33,6 +33,41 @@ def check_output(output, policy):
         raise ValueError("Agent output was blocked by its configured phrase guardrail")
 
 
+def normalize_usage(usage) -> dict:
+    """Provider token usage in OpenAI names (prompt/completion/total).
+
+    Claude Code, Antigravity and the Anthropic API report input_tokens/output_tokens;
+    Anthropic cache reads/writes count as prompt tokens.
+    """
+    if not isinstance(usage, dict):
+        return {}
+
+    def count(*keys):
+        values = [usage[k] for k in keys if type(usage.get(k)) is int and usage[k] >= 0]
+        return sum(values) if values else None
+
+    prompt = (
+        count("prompt_tokens")
+        if "prompt_tokens" in usage
+        else count("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+    )
+    completion = (
+        count("completion_tokens") if "completion_tokens" in usage else count("output_tokens")
+    )
+    total = count("total_tokens")
+    if total is None and (prompt is not None or completion is not None):
+        total = (prompt or 0) + (completion or 0)
+    return {
+        key: value
+        for key, value in (
+            ("prompt_tokens", prompt),
+            ("completion_tokens", completion),
+            ("total_tokens", total),
+        )
+        if value is not None
+    }
+
+
 class StudioObservability:
     def __init__(self, studio):
         self.studio = studio
@@ -82,30 +117,27 @@ class StudioObservability:
         if streaming:
             self.studio.conversations.begin(run_id, record["id"])
         result = None
+        streamed = [0]
+
+        def delta(text):
+            streamed[0] += len(text or "")
+            return self.studio.conversations.delta(run_id, text, record["id"])
+
         try:
             result = (
-                await stream(
-                    context,
-                    lambda text: self.studio.conversations.delta(run_id, text, record["id"]),
-                )
-                if streaming
-                else await provider.execute_agent(context)
+                await stream(context, delta) if streaming else await provider.execute_agent(context)
             )
             record.update(
                 status="completed" if result.success else "failed", output_chars=len(result.output)
             )
-            usage = (result.metadata or {}).get("usage", {})
-            if isinstance(usage, dict):
-                record["usage"] = {
-                    key: value
-                    for key, value in usage.items()
-                    if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
-                    and type(value) is int
-                    and value >= 0
-                }
+            usage = normalize_usage((result.metadata or {}).get("usage"))
+            if usage:
+                record["usage"] = usage
             if result.metadata is None:
                 result.metadata = {}
             result.metadata["invocation_id"] = record["id"]
+            # Fallback to another provider is only safe while nothing reached the viewer.
+            result.metadata["streamed_chars"] = streamed[0]
             return result
         except BaseException:
             record["status"] = "interrupted-or-failed"

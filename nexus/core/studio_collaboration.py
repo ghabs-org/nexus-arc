@@ -48,6 +48,52 @@ class StudioCollaboration:
             self.studio._write(path, record)
             return record
 
+    def router_feedback(self, data, actor):
+        """Wrong task / wrong model on an Auto-routed response, sent to nexus-router /feedback.
+
+        The decision id comes from the run record, never from the browser.
+        """
+        from nexus.core.router_feedback import MODEL_VERDICTS, TASK_LABELS, build_feedback_payload
+
+        run = self.owned(self.studio.run(data.get("run_id")), actor)
+        decision_id = run.get("router_decision_id")
+        if not decision_id:
+            raise ValueError("This response was not chosen by the model router")
+        router = self.studio.workbench.router_client
+        if router is None:
+            raise ValueError("No model router is configured")
+        verdict = data.get("verdict")
+        corrected = data.get("corrected_task") or None
+        model_verdict = data.get("model_verdict") or None
+        if verdict not in {"correct", "wrong"}:
+            raise ValueError("Verdict must be correct or wrong")
+        if corrected is not None and corrected not in TASK_LABELS:
+            raise ValueError("Corrected task must be one of " + ", ".join(TASK_LABELS))
+        if model_verdict is not None and model_verdict not in MODEL_VERDICTS:
+            raise ValueError("Model verdict must be one of " + ", ".join(MODEL_VERDICTS))
+        payload = build_feedback_payload(
+            meta={
+                "decision_id": decision_id,
+                "task_type": run.get("router_task_type"),
+                "selected_model": run.get("routed_model"),
+            },
+            verdict=verdict,
+            corrected_task=corrected,
+            source_message_id=run["id"],
+            source_user_id=owner(actor),
+            model_verdict=model_verdict,
+            source_surface="studio",
+        )
+        router.feedback(actor["nexus_id"] if actor else None, payload)
+        record = {
+            "verdict": verdict,
+            "corrected_task": corrected,
+            "model_verdict": model_verdict,
+            "at": datetime.now(UTC).isoformat(),
+        }
+        self.studio._update_run(run["id"], router_feedback=record)
+        return {"run_id": run["id"], "router_feedback": record}
+
     def list_feedback(self, actor):
         return [
             record

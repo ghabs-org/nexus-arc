@@ -103,6 +103,47 @@ class StudioTelemetry:
             "by_agent": by_agent,
         }
 
+    def summarize_usage(self, actor: dict | None = None, days: int = 30) -> dict:
+        """The signed-in user's token usage per day, provider and model (invocation traces).
+
+        Tokens as providers report them. Subscription quota is not measured.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        days = max(1, min(int(days), 90))
+        since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+        owner = actor["nexus_id"] if self.studio.team and actor else None
+        rows = {}
+        providers = {}
+        for inv in self.studio.records("invocation-traces", limit=None):
+            if str(inv.get("created_at") or "") < since:
+                continue
+            if self.studio.team and inv.get("owner_id") != owner:
+                continue
+            usage = inv.get("usage") or {}
+            prompt = usage.get("prompt_tokens", 0)
+            completion = usage.get("completion_tokens", 0)
+            tokens = usage.get("total_tokens", prompt + completion)
+            key = (str(inv["created_at"])[:10], inv.get("provider") or "unknown", inv.get("model") or "default")
+            row = rows.setdefault(key, {
+                "day": key[0], "provider": key[1], "model": key[2], "invocations": 0,
+                "reported": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+            })
+            total = providers.setdefault(
+                key[1], {"provider": key[1], "invocations": 0, "reported": 0, "total_tokens": 0}
+            )
+            for bucket in (row, total):
+                bucket["invocations"] += 1
+                bucket["reported"] += 1 if usage else 0
+                bucket["total_tokens"] += tokens
+            row["prompt_tokens"] += prompt
+            row["completion_tokens"] += completion
+        return {
+            "days": days,
+            "items": sorted(rows.values(), key=lambda r: (r["day"], r["provider"], r["model"]), reverse=True),
+            "providers": sorted(providers.values(), key=lambda r: -r["total_tokens"]),
+        }
+
     def export_opentelemetry_traces(self, run_id: str, actor: dict | None = None) -> dict:
         """Export OpenTelemetry OTLP JSON representation of a run and its hierarchical traces."""
         run = self.studio.collaboration.owned(self.studio.run(run_id), actor)

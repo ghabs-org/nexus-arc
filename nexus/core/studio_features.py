@@ -53,6 +53,8 @@ class StudioFeatures:
             return StudioPromptHistory(studio).compare(
                 parts[1], int(query.get("revision", ["0"])[0])
             )
+        if parts == ["openclaw"]:
+            return studio.openclaw.overview(actor)
         if len(parts) == 2 and parts[0] == "schedules":
             from nexus.core.studio_schedules import StudioSchedules
 
@@ -304,6 +306,8 @@ class StudioFeatures:
             return 202, studio.knowledge.retry(parts[1], parts[3], actor)
         if parts == ["feedback"]:
             return 201, studio.collaboration.feedback(data, actor)
+        if parts == ["router-feedback"]:
+            return 201, studio.collaboration.router_feedback(data, actor)
         if parts == ["feedback", "promote"]:
             if studio.team:
                 studio.team.authorize(actor, "/api/catalog/evaluations")

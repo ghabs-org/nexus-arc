@@ -11,18 +11,14 @@ from typing import Any
 
 from nexus.core.config import NEXUS_STATE_DIR, TELEGRAM_TOKEN, ensure_state_dir
 from nexus.core.interactive.context import Button
+from nexus.core.router_feedback import (  # noqa: F401  (re-exported for existing callers)
+    MODEL_VERDICT_LABELS,
+    MODEL_VERDICTS,
+    TASK_LABELS,
+    build_feedback_payload,
+)
 
 LOGGER = logging.getLogger(__name__)
-TASK_LABELS = [
-    "coding",
-    "code_review",
-    "reasoning",
-    "summarization",
-    "fast_utility",
-    "long_context",
-    "vision",
-    "general_chat",
-]
 PENDING_KEY = "router_feedback_pending"
 SUBMITTED_KEY = "router_feedback_submitted"
 CALLBACK_PREFIX = "routefb:"
@@ -32,13 +28,6 @@ OUTBOX_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_outbox.json")
 TOKEN_MAP_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_tokens.json")
 TOKEN_MAP_TTL_SECONDS = 24 * 3600
 
-# Model-verdict options surfaced in step 2 of the "Wrong" flow
-MODEL_VERDICT_LABELS: dict[str, str] = {
-    "too_cheap": "🔼 Too cheap/fast",
-    "ok": "✅ Model OK",
-    "too_powerful": "🔽 Too powerful/slow",
-}
-MODEL_VERDICTS = list(MODEL_VERDICT_LABELS.keys())
 
 
 def decision_token(decision_id: str | None) -> str:
@@ -325,40 +314,6 @@ def parse_feedback_text(text: str) -> tuple[str, str | None] | None:
         if candidate in TASK_LABELS:
             return ("wrong", candidate)
     return None
-
-
-def build_feedback_payload(
-    *,
-    meta: dict[str, Any],
-    verdict: str,
-    corrected_task: str | None,
-    source_message_id: str | None,
-    source_user_id: str | None,
-    model_verdict: str | None = None,
-) -> dict[str, Any]:
-    metadata = dict(meta.get("metadata") or {}) if isinstance(meta.get("metadata"), dict) else {}
-    metadata.update(
-        {
-            "feedback_mode": meta.get("feedback_mode") or "router",
-            "source_chat_id": str(meta.get("source_chat_id") or "") or None,
-            "feedback_message_id": str(meta.get("feedback_message_id") or "") or None,
-            "task_type": str(meta.get("task_type") or "") or None,
-            "selected_model": str(meta.get("selected_model") or "") or None,
-            "confidence": meta.get("confidence"),
-            "submitted_at": int(time.time()),
-        }
-    )
-    return {
-        "decision_id": meta.get("decision_id"),
-        "verdict": verdict,
-        "corrected_task": corrected_task,
-        "model_verdict": model_verdict or None,
-        "source_surface": "telegram",
-        "source_channel": meta.get("source_channel") or "telegram",
-        "source_message_id": str(source_message_id or meta.get("source_message_id") or "") or None,
-        "source_user_id": str(source_user_id or meta.get("source_user_id") or "") or None,
-        "metadata": metadata,
-    }
 
 
 def _append_fallback_feedback(

@@ -118,6 +118,91 @@ class StudioOpenClaw:
                 result = self.mutate(body, scope, data, actor)
             return {"version": 1, **result}
 
+    def overview(self, actor, limit=20):
+        """Read-only operator view: OpenClaw entrypoints, their bound runs and pending gates.
+
+        Workspace owners (and the desktop) see every entrypoint; other members see
+        entrypoints they own and runs bound to their own Nexus identity.
+        """
+        team = self.studio.team
+        me = actor["nexus_id"] if actor else None
+        everything = not team or (actor or {}).get("role") == "owner"
+        bindings = [
+            b
+            for b in self.studio.records("openclaw-runs", limit=None)
+            if everything or (b.get("scope") or {}).get("requester_nexus_id") == me
+        ]
+        events = {
+            e.get("run_id"): e
+            for e in self.studio.records("channel-events", limit=None)
+            if e.get("openclaw_operator")
+        }
+        now = time.time()
+        open_gates = {}
+        for gate in self.studio.records("openclaw-gates", limit=None):
+            if not gate.get("used") and gate.get("expires", 0) > now:
+                entry = (gate.get("scope") or {}).get("entrypoint_id")
+                open_gates[entry] = open_gates.get(entry, 0) + 1
+        uncertain = (
+            sum(
+                1
+                for r in self.studio.records("openclaw-receipts", limit=None)
+                if r.get("status") != "accepted"
+            )
+            if everything
+            else None
+        )
+        runs_by_entry = {}
+        for binding in bindings:
+            scope = binding.get("scope") or {}
+            try:
+                run = self.studio.run(binding["id"])
+            except (FileNotFoundError, KeyError, ValueError):
+                continue
+            event = events.get(binding["id"]) or {}
+            runs_by_entry.setdefault(scope.get("entrypoint_id"), []).append(
+                {
+                    "run_id": run["id"],
+                    "target": binding.get("target"),
+                    "channel": scope.get("channel"),
+                    "sender": scope.get("sender"),
+                    "status": run.get("status"),
+                    "waiting": bool(run.get("awaiting_approval") or run.get("awaiting_input")),
+                    "task": str(event.get("task") or run.get("task") or "")[:200],
+                    "created_at": run.get("created_at"),
+                    "updated_at": run.get("updated_at"),
+                }
+            )
+        items = []
+        for record in self.studio.catalog.list("entrypoints"):
+            data = record["data"]
+            if data.get("type") != "openclaw":
+                continue
+            runs = sorted(
+                runs_by_entry.get(record["id"], []),
+                key=lambda r: r["updated_at"] or "",
+                reverse=True,
+            )
+            if not everything and record.get("owner_id") != me and not runs:
+                continue
+            items.append(
+                {
+                    "id": record["id"],
+                    "name": record["name"],
+                    "enabled": bool(data.get("enabled")),
+                    "channels": list(data.get("allowed_channels") or []),
+                    "targets": list(data.get("operator_targets") or []),
+                    "mapped_senders": len(data.get("identity_map") or {}),
+                    "token_configured": len(os.getenv(data.get("token_env") or "", "")) >= 32,
+                    "open_gates": open_gates.get(record["id"], 0) if everything else None,
+                    "active_runs": sum(
+                        1 for r in runs if r["status"] in {"queued", "running", "waiting"}
+                    ),
+                    "runs": runs[:limit],
+                }
+            )
+        return {"items": items, "uncertain_receipts": uncertain}
+
     def bound_run(self, identity, scope, data):
         binding = self.studio._read(self.studio._path("openclaw-runs", identity))
         if binding["scope"] != scope or binding["target"] not in data["operator_targets"]:

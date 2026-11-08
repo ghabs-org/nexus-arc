@@ -102,6 +102,17 @@ matches = find_similar_autofix_attempts(
 # matches can be injected into prompt context for safer retries.
 ```
 
+## Consuming the Model Router
+
+Run `python examples/nexus-bot/scripts/check_router_status.py [router_url] [task]`
+against a running nexus-router (default `http://127.0.0.1:7771`). The example
+consumes `nexus.core.studio_runtime.StudioModelRouter` (the client Studio's
+"Auto (model router)" provider uses) and `nexus.core.studio_routing` (router
+provider ids to Studio providers). It prints the router's diagnostics warnings,
+the model `/route` would pick for the task restricted to Codex and Claude Code,
+the ordered Studio candidates and the explain rules. Routing only scores; no model
+request is started and no credential is sent.
+
 ## Consuming Local Provider Status
 
 Run `python examples/nexus-bot/scripts/check_local_provider_status.py` from the
