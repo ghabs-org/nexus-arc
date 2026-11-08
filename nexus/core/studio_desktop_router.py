@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import os
+import secrets
 import sys
 import threading
 from http.server import ThreadingHTTPServer
@@ -37,8 +38,12 @@ def bundled_router_source() -> Path | None:
     return source if (source / "src" / "server.py").is_file() else None
 
 
-def start_bundled_router(source: Path, state_root: Path) -> ThreadingHTTPServer:
-    """Serve the bundled router on 127.0.0.1:<free port> from a daemon thread."""
+def start_bundled_router(source: Path, state_root: Path, token: str) -> ThreadingHTTPServer:
+    """Serve the bundled router on 127.0.0.1:<free port> from a daemon thread.
+
+    ``token`` is required on every call: other local processes cannot use it. It is
+    set on the router module, not the environment, so child CLIs never inherit it.
+    """
     # The router reads its paths from the environment at import time.
     os.environ.update(
         NEXUS_ROUTER_STATE_ROOT=str(state_root),
@@ -59,6 +64,7 @@ def start_bundled_router(source: Path, state_root: Path) -> ThreadingHTTPServer:
         spec.loader.exec_module(package)
     server = importlib.import_module(PACKAGE + ".server")
     server.ensure_schema()
+    server.ROUTER_TOKEN = token
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.RouterHandler)
     threading.Thread(target=httpd.serve_forever, name="nexus-router", daemon=True).start()
     return httpd
@@ -81,12 +87,18 @@ def desktop_options(root) -> dict:
     source = bundled_router_source()
     if source is None:
         return options
+    token = secrets.token_urlsafe(32)
     try:
-        httpd = start_bundled_router(source, get_desktop_dirs()["data"] / "router")
+        httpd = start_bundled_router(source, get_desktop_dirs()["data"] / "router", token)
     except Exception as exc:  # optional: Studio works without Auto
         print(f"Nexus Studio: bundled model router unavailable: {exc}", file=sys.stderr)
         return options
     workbench["router_client"] = StudioModelRouter(
-        {"url": f"http://127.0.0.1:{httpd.server_port}", "allow_private": True, "bundled": True}
+        {
+            "url": f"http://127.0.0.1:{httpd.server_port}",
+            "allow_private": True,
+            "bundled": True,
+            "token": token,
+        }
     )
     return options

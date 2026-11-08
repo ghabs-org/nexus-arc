@@ -53,7 +53,7 @@ def test_unsafe_runtime_file_is_ignored_with_a_warning(dirs, tmp_path, capsys):
 
 def test_bundled_router_failure_never_blocks_startup(dirs, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(desktop_router, "bundled_router_source", lambda: tmp_path)
-    monkeypatch.setattr(desktop_router, "start_bundled_router", lambda *_: 1 / 0)
+    monkeypatch.setattr(desktop_router, "start_bundled_router", lambda *_: 1 / 0)  # noqa: ARG005
     assert desktop_router.desktop_options(tmp_path / "workspace") == {"workbench_options": {}}
     assert "bundled model router unavailable" in capsys.readouterr().err
 
@@ -82,6 +82,12 @@ def test_bundled_router_serves_auto_routing_on_loopback(dirs, tmp_path, monkeypa
         )
         assert decision["selected_model"].split("/")[0] in {"openai-codex", "anthropic"}
         assert client.diagnostics()["policies"]["routing.yaml"] == "ok"
+        # The per-launch token is required: an untokened local caller is refused.
+        import requests
+
+        assert requests.get(client.url + "/diagnostics", timeout=5).status_code == 401
+        assert requests.get(client.url + "/health", timeout=5).status_code == 200
+        assert "NEXUS_ROUTER_TOKEN" not in os.environ
         assert (dirs["data"] / "router" / "data" / "router.sqlite").is_file()
     finally:
         for name in [n for n in sys.modules if n.startswith(desktop_router.PACKAGE)]:

@@ -6,64 +6,14 @@ import json
 import os
 import time
 from pathlib import Path
-from urllib.parse import urlparse
 
+from nexus.core.router_client import (  # noqa: F401  (re-exported: existing importers)
+    RouterClient,
+    RuntimeServiceUnavailableError,
+    endpoint,
+    request_json,
+)
 from nexus.core.studio_connections import env_name
-
-
-class RuntimeServiceUnavailableError(ValueError):
-    """Selected endpoint could not be reached or returned a server failure."""
-
-
-def endpoint(config):
-    url = config.get("url", "")
-    parsed = urlparse(url)
-    if (
-        parsed.scheme not in {"http", "https"}
-        or not parsed.hostname
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ValueError("Runtime service needs an HTTP(S) URL without credentials")
-    if parsed.scheme != "https" and config.get("allow_private") is not True:
-        raise ValueError("HTTP runtime services require explicit allow_private")
-    return url.rstrip("/")
-
-
-def request_json(method, url, *, headers=None, params=None, body=None):
-    import requests
-
-    try:
-        with requests.request(
-            method,
-            url,
-            headers=headers,
-            params=params,
-            json=body,
-            allow_redirects=False,
-            timeout=10,
-            stream=True,
-        ) as response:
-            if response.status_code >= 500:
-                raise RuntimeServiceUnavailableError
-            if response.status_code not in {200, 204}:
-                raise ValueError
-            raw = bytearray()
-            for part in response.iter_content(65536):
-                raw.extend(part)
-                if len(raw) > 1024 * 1024:
-                    raise ValueError
-            return json.loads(raw) if raw else {}
-    except requests.exceptions.SSLError:
-        raise ValueError("Configured runtime service TLS verification failed") from None
-    except (requests.ConnectionError, requests.Timeout, RuntimeServiceUnavailableError):
-        raise RuntimeServiceUnavailableError("Configured runtime service is unavailable") from None
-    except Exception:
-        raise ValueError(
-            "Configured runtime service failed; check its availability and access settings"
-        ) from None
 
 
 class StudioLokiQuery:
@@ -110,11 +60,12 @@ class StudioLokiQuery:
         return events
 
 
-class StudioModelRouter:
-    """nexus-router client. URL and credential come only from the server-owned runtime file."""
+class StudioModelRouter(RouterClient):
+    """The router for Studio. URL and credential come only from the server-owned runtime file."""
 
     def __init__(self, config):
-        self.url, self.config = endpoint(config), config
+        super().__init__(endpoint(config))
+        self.config = config
         self.studio = None
         if config.get("token_env"):
             env_name(config["token_env"])
@@ -122,6 +73,7 @@ class StudioModelRouter:
     def _headers(self, identity):
         headers = {}
         name = self.config.get("token_env")
+        token = self.config.get("token")  # set in-process only (the desktop's built-in router)
         if name:
             if self.studio.team:
                 self.studio.team.assert_execution(identity)
@@ -131,43 +83,24 @@ class StudioModelRouter:
                 token = os.getenv(name)
             if not token:
                 raise PermissionError("Configure your model-router account credential")
+        if token:
             headers["Authorization"] = "Bearer " + token
         return headers
 
-    def _call(self, method, path, identity, **kwargs):
-        return request_json(method, self.url + path, headers=self._headers(identity), **kwargs)
-
-    def route(self, identity, task, allowed_providers=None, experiment_key=None):
-        """POST /route; returns the decision with a validated selected_model."""
-        body = {"message": task, "source_type": "studio", "source_tag": "nexus-studio"}
-        if allowed_providers:
-            body["allowed_providers"] = sorted(allowed_providers)
-        if experiment_key:
-            body["experiment_key"] = experiment_key
-        data = self._call("POST", "/route", identity, body=body)
-        # nexus-router answers selected_model; model/provider_model are older router shapes.
-        model = data.get("selected_model") or data.get("model") or data.get("provider_model")
-        if not isinstance(model, str) or not model or len(model) > 200:
-            raise ValueError("Model router returned no usable model")
-        return {**data, "selected_model": model}
+    def route(self, identity, task, allowed_providers=None, experiment_key=None, **fields):
+        """POST /route as Studio; returns the decision with a validated selected_model."""
+        return super().route(
+            identity,
+            task,
+            source_type="studio",
+            source_tag=fields.pop("source_tag", None) or "nexus-studio",
+            allowed_providers=sorted(allowed_providers) if allowed_providers else None,
+            experiment_key=experiment_key or None,
+            **fields,
+        )
 
     def __call__(self, identity, task, selected_agent):
         return self.route(identity, task)["selected_model"]
-
-    def outcome(self, identity, decision_id, **fields):
-        return self._call("POST", "/outcome", identity, body={"decision_id": decision_id, **fields})
-
-    def feedback(self, identity, payload):
-        return self._call("POST", "/feedback", identity, body=payload)
-
-    def diagnostics(self, identity=None):
-        return self._call("GET", "/diagnostics", identity)
-
-    def cli_status(self, identity=None):
-        return self._call("GET", "/v1/nexus/cli-status", identity)
-
-    def stats(self, identity=None):
-        return self._call("GET", "/stats", identity)
 
 
 def load_runtime_configuration(path, root):

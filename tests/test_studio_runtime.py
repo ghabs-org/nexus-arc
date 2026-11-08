@@ -66,7 +66,7 @@ def test_model_router_never_uses_host_token_for_team_user(monkeypatch):
 
     monkeypatch.setenv("ROUTER_TOKEN", "host-secret")
     remote = Mock(return_value={"model": "selected-model"})
-    monkeypatch.setattr("nexus.core.studio_runtime.request_json", remote)
+    monkeypatch.setattr("nexus.core.router_client.request_json", remote)
     router = StudioModelRouter({"url": "https://router.example.test", "token_env": "ROUTER_TOKEN"})
     router.studio = SimpleNamespace(
         team=SimpleNamespace(

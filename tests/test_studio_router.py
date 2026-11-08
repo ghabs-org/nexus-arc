@@ -428,7 +428,7 @@ def test_model_router_client_contract(monkeypatch):
     from unittest.mock import Mock
 
     remote = Mock(return_value={"selected_model": "openai-codex/gpt-6.1-sol", "decision_id": "d"})
-    monkeypatch.setattr("nexus.core.studio_runtime.request_json", remote)
+    monkeypatch.setattr("nexus.core.router_client.request_json", remote)
     router = StudioModelRouter({"url": "http://127.0.0.1:7771", "allow_private": True})
     router.studio = SimpleNamespace(team=None)
     decision = router.route(None, "task", ["openai-codex", "anthropic"], "session-1")
