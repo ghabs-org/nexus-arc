@@ -79,3 +79,12 @@ def test_model_router_never_uses_host_token_for_team_user(monkeypatch):
     router.studio.team.environment_resolver = lambda _: ({"ROUTER_TOKEN": "alice-token"}, None)
     assert router("alice", "task", "reviewer") == "selected-model"
     assert remote.call_args.kwargs["headers"]["Authorization"] == "Bearer alice-token"
+
+
+def test_model_router_timeout_defaults_and_is_configurable():
+    base = {"url": "http://127.0.0.1:7771", "allow_private": True}
+    assert StudioModelRouter(base).timeout == StudioModelRouter.DEFAULT_TIMEOUT == 20
+    assert StudioModelRouter({**base, "timeout": 30}).timeout == 30
+    for bad in (0, 121, "30", True):
+        with pytest.raises(ValueError, match="timeout"):
+            StudioModelRouter({**base, "timeout": bad})

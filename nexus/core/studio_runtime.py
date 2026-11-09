@@ -63,8 +63,18 @@ class StudioLokiQuery:
 class StudioModelRouter(RouterClient):
     """The router for Studio. URL and credential come only from the server-owned runtime file."""
 
+    # /route can include a remote classifier call, so allow longer than a plain request.
+    DEFAULT_TIMEOUT = 20
+
     def __init__(self, config):
-        super().__init__(endpoint(config))
+        timeout = config.get("timeout", self.DEFAULT_TIMEOUT)
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not 1 <= timeout <= 120
+        ):
+            raise ValueError("Router timeout must be a number of seconds from 1 to 120")
+        super().__init__(endpoint(config), timeout=timeout)
         self.config = config
         self.studio = None
         if config.get("token_env"):

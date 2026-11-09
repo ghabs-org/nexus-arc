@@ -18,6 +18,10 @@ proxy, add `"token_env": "ROUTER_TOKEN"`; in team mode each user's own value of
 that variable is used, never the host's. The URL is server-owned: browsers and
 models cannot point Studio at another router.
 
+`timeout` (seconds, 1–120, default 20) bounds each router call. Keep it above the
+router's own classifier budget (`JEV_TIMEOUT_SECONDS`); a slower answer is treated
+as "router unavailable" and Auto falls back to a ready provider.
+
 ### Desktop app
 
 The built-in router requires a random token generated at every launch; other
