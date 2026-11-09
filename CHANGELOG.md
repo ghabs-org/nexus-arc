@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Bundled Studio release notes** — Versioned product history, reconstructed historical
+  entries with explicit evidence limits, a Release notes menu page, and verified
+  release context for Studio assistant. New desktop versions require matching notes;
+  the macOS updater uses those notes by default. See [release history policy](docs/STUDIO-RELEASE-NOTES.md).
+
 - **Quick Build refresh and delete** — **Refresh from workspace** previews and then records edits made to a build's
   agents, workflows and resources outside Quick Build (changed resources become inactive until activation review;
   stuck drafts can be saved again). **Delete build** removes only the build record and leaves its resources as

@@ -252,6 +252,9 @@ def release_macos(application, output, identity, profile, updater_key, tauri_cli
         r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version
     ):
         raise ValueError("Choose a versioned Nexus Studio application")
+    from nexus.core.studio_release_notes import require_release_notes
+
+    recorded_notes = require_release_notes(version)
     executable = application / "Contents/MacOS" / metadata["CFBundleExecutable"]
     if _run(["/usr/bin/lipo", "-archs", str(executable)]).strip() != b"arm64":
         raise ValueError("This release consumer supports Apple Silicon builds only")
@@ -312,7 +315,7 @@ def release_macos(application, output, identity, profile, updater_key, tauri_cli
     signature = Path(str(update) + ".sig")
     feed = {
         "version": version,
-        "notes": notes or f"Nexus Studio {version}.",
+        "notes": notes or recorded_notes,
         "platforms": {
             "darwin-aarch64": {
                 "signature": signature.read_text().strip(),

@@ -29,3 +29,10 @@ You are responsible for placing code in the correct layer.
 7. If modifying `examples/nexus-bot`, include this explicit line:
     - `Example change justification: "<quoted user request fragment>"`
     - If no quote exists and the change is not required by rule 6, do not modify example files.
+
+## Studio release notes
+
+Keep `nexus/studio_static/release-notes.json` current for user-visible Studio changes.
+Record ongoing work under Unreleased. Every new Studio version needs a substantive,
+evidence-backed entry before packaging; follow `docs/STUDIO-RELEASE-NOTES.md`.
+Never equate source version with deployed version or describe a local build as public.

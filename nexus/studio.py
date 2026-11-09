@@ -21,6 +21,9 @@ from nexus.core.studio_team import TeamAccessError
 from nexus.core.studio_termination import serve_until_stopped, termination_requested
 
 _ASSETS = {
+    "/release-notes.html": ("release-notes.html", "text/html; charset=utf-8"),
+    "/release-notes.js": ("release-notes.js", "text/javascript; charset=utf-8"),
+    "/release-notes.json": ("release-notes.json", "application/json; charset=utf-8"),
     "/agent.html": ("index.html", "text/html; charset=utf-8"),
     "/artifact.html": ("artifact.html", "text/html; charset=utf-8"),
     "/artifact-viewer.js": ("artifact-viewer.js", "text/javascript; charset=utf-8"),

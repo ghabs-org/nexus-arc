@@ -172,7 +172,7 @@ where = ["."]
 include = ["nexus*"]
 
 [tool.setuptools.package-data]
-nexus = ["studio_static/*.html", "studio_static/*.css", "studio_static/*.js", "studio_static/*.webmanifest", "studio_static/*.png", "studio_static/*.ico", "studio_static/vendor/*.js", "studio_static/vendor/*.txt", "studio_static/vendor/*.json", "studio_static/vendor/*.woff2", "studio_static/vendor/*.svg", "studio_static/vendor/**/*.mjs"]
+nexus = ["studio_static/*.html", "studio_static/*.css", "studio_static/*.js", "studio_static/*.json", "studio_static/*.webmanifest", "studio_static/*.png", "studio_static/*.ico", "studio_static/vendor/*.js", "studio_static/vendor/*.txt", "studio_static/vendor/*.json", "studio_static/vendor/*.woff2", "studio_static/vendor/*.svg", "studio_static/vendor/**/*.mjs"]
 
 [tool.black]
 line-length = 100

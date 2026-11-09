@@ -101,6 +101,15 @@ def main() -> int:
     if not verify_frontend_assets(repo_root):
         return 1
 
+    from nexus.core.studio_release_notes import require_release_notes
+
+    version = json.loads((desktop_dir / "src-tauri/tauri.conf.json").read_text())["version"]
+    try:
+        require_release_notes(version)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 1
+
     if args.development_wrapper:
         sidecar = stage_sidecar(desktop_dir)
         print(f"Staged development-only wrapper at: {sidecar}")

@@ -1,0 +1,113 @@
+{
+  "format": "nexus-studio-release-notes/v1",
+  "source_version": "1.0.6",
+  "notice": "These notes describe recorded source and local builds, not the version installed on a particular server or device. No public release or automatic update availability is implied. Historical entries were reconstructed on 2026-11-09; missing evidence is stated explicitly.",
+  "entries": [
+    {
+      "version": "Unreleased",
+      "date": null,
+      "status": "unreleased",
+      "title": "Changes awaiting a new release",
+      "changes": [
+        "Expanded automatic routing: model explanations, model-choice feedback, route previews, model-profile catalogs and per-step routing history.",
+        "Automatic model selection for Quick Build, plus richer usage and cost reporting.",
+        "Bundled release history available to Studio assistant and local help, with a release-notes requirement for future builds.",
+        "Fallback notices say a provider answered only after the run completes."
+      ],
+      "limitations": [
+        "These changes are not evidence that an existing desktop build or hosted Studio includes them.",
+        "The related disabled-provider routing fix belongs to the separate Nexus Router repository and requires its own deployment."
+      ],
+      "evidence": ["git:643a726", "git:dfce427", "nexus/core/studio_release_notes.py", "nexus/studio_static/conversation-content.js"]
+    },
+    {
+      "version": "1.0.6",
+      "date": null,
+      "status": "local-build",
+      "title": "Built-in desktop model router",
+      "changes": [
+        "Desktop source adds a bundled Nexus Router and workspace runtime.json support.",
+        "Studio source adds Auto provider selection, provider fallback, reported token usage, and Router and OpenClaw operational panels."
+      ],
+      "limitations": [
+        "Local signing metadata records accepted app and DMG notarization; no release date or complete frozen source manifest is archived with that record.",
+        "Source version 1.0.6 was recorded on 2026-11-08. This is not a verified release date.",
+        "Later routing improvements remain under Unreleased; the version number alone does not prove they were packaged.",
+        "Release files remain local; no public updater feed was published."
+      ],
+      "evidence": ["git:ddc9c81", "git:43a26b7", "git:53d4db7", "releases/1.0.6/release.json (local artifact record)"]
+    },
+    {
+      "version": "1.0.5",
+      "date": "2026-11-07",
+      "status": "local-release",
+      "title": "Clear loading and subscription status",
+      "changes": [
+        "One conversation loading indicator replaces duplicate Working text; response controls stay hidden while pending, and reduced-motion preferences are respected.",
+        "Providers & models offers Sign in and Reconnect for installed subscription CLIs, with read-only Codex, Claude Code and Antigravity status checks.",
+        "Antigravity model listing can confirm signed-in status without making a generation request.",
+        "The Apple Silicon package includes the full SDK profile and signature-verified update support."
+      ],
+      "limitations": ["Signed and notarized local DMG; public update feed is unpublished.", "Provider CLIs, accounts, Docker and voice model weights are separate prerequisites."],
+      "evidence": ["docs/STUDIO-DESKTOP-1.0.5-CHECKPOINT.json", "releases/1.0.5/Testing.md (local artifact record)"]
+    },
+    {
+      "version": "1.0.4",
+      "date": "2026-11-07",
+      "status": "local-install",
+      "title": "Local provider sign-in and verified badges",
+      "changes": [
+        "The installed Mac application adds provider Sign in and Reconnect actions and verified Codex and Claude Code status badges.",
+        "Local update installation preserves the existing workspace and retains a verified backup of the previous application."
+      ],
+      "limitations": ["This was a signed and notarized local application installation. No new DMG was produced.", "Later Antigravity status and conversation loader fixes are recorded under 1.0.5."],
+      "evidence": ["docs/STUDIO-DESKTOP-1.0.4-LOCAL-INSTALL.json", "docs/STUDIO-DESKTOP-ACCOUNTS.md"]
+    },
+    {
+      "version": "1.0.3",
+      "date": "2026-11-06",
+      "status": "local-release",
+      "title": "Native Nexus account controls",
+      "changes": [
+        "Native Account menu starts browser-based Nexus sign-in with a PKCE-protected return to the Mac and Keychain session storage.",
+        "Account controls include device sign-out, cancellation of pending sign-in, and guided setup for installed Codex, Claude Code and Antigravity CLIs."
+      ],
+      "limitations": ["Nexus sign-in requires compatible desktop authentication endpoints and a registered identity-provider callback on the chosen server.", "Local Studio remains usable without Nexus account sign-in. Nexus identity and provider subscription sign-in are separate.", "Signed and notarized local DMG; not a public updater release."],
+      "evidence": ["docs/STUDIO-DESKTOP-1.0.3-CHECKPOINT.json", "releases/1.0.3/Testing.md (local artifact record)"]
+    },
+    {
+      "version": "1.0.2",
+      "date": "2026-10-29",
+      "status": "local-release",
+      "title": "First recorded Developer ID signed release",
+      "changes": [
+        "Developer ID signed and Apple-notarized Apple Silicon app and DMG with stapled tickets.",
+        "Signature- and version-verified native updates preserve a stopped workspace and the previous app before installation.",
+        "Full SDK packaging includes standalone PDF and MCP runtime checks, MCP cleanup fixes and evaluation report export."
+      ],
+      "limitations": ["The public updater feed was not published. Earlier ad-hoc builds require manual replacement.", "Other physical devices and installed Windows/Linux acceptance were separate checks."],
+      "evidence": ["docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json", "git:0313f7f"]
+    },
+    {
+      "version": "1.0.1",
+      "date": null,
+      "status": "unverified",
+      "title": "No independent release established",
+      "changes": [],
+      "limitations": ["The archived update drill used 1.0.1 as synthetic previous-version metadata. It does not establish a separate shipped release or its features."],
+      "evidence": ["docs/STUDIO-DESKTOP-SIGNED-RELEASE-CHECKPOINT.json"]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-10-25",
+      "status": "beta-checkpoint",
+      "title": "Standalone Mac beta foundation",
+      "changes": [
+        "A native desktop shell runs the Studio UI and a bundled local Python backend.",
+        "Core and connected Apple Silicon packages were checked for standalone startup, workspace locking, backend shutdown and child-process cleanup."
+      ],
+      "limitations": ["The date is the beta verification checkpoint, not an established public release date. Source configuration recorded version 1.0.0.", "These beta packages used ad-hoc signing; Developer ID signing and notarization were added later."],
+      "evidence": ["docs/STUDIO-DESKTOP-MACOS-RELEASE-CHECKPOINT.json", "git:2fe10b0", "git:4ce0ee3"]
+    }
+  ]
+}

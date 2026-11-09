@@ -56,7 +56,7 @@ const ROUTE_TASKS=["coding","code_review","reasoning","summarization","fast_util
 function routeInfoHtml(run){
   const bits=[];
   if(run.router_decision_id)bits.push(`Auto-routed to ${escapeHtml(run.provider)}${run.model?` · ${escapeHtml(run.model)}`:""}`);
-  else if(run.router_error)bits.push(`Model router unavailable, answered by ${escapeHtml(run.provider)}`);
+  else if(run.router_error)bits.push(`Automatic model selection unavailable · ${run.status==="completed"?"Answered by":"Fallback provider:"} ${escapeHtml(run.provider)}`);
   if(run.fallback_from)bits.push(`switched from ${escapeHtml(run.fallback_from)} after a usage or readiness problem`);
   if(!bits.length)return "";
   let actions="";

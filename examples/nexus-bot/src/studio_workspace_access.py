@@ -23,6 +23,12 @@ def exercise(studio):
     assert "agents" in help_result["workspace"]
     assert any(s["id"] == "storage" for s in help_result["sources"])
 
+    # Bundled release history works locally without a model or Git checkout.
+    release_notes = studio.assistant.answer("What is new in Studio 1.0.5?")
+    assert release_notes["release_notes"]["entries"][0]["version"] == "1.0.5"
+    assert "Working" in release_notes["answer"]
+    assert release_notes["release_notes"]["installed_version"] is None
+
     # 2. Upload a regular workspace file
     sample_content = b"Config and workspace data for demonstration."
     upload_res = studio.workspace_files.upload(

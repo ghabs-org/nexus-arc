@@ -45,7 +45,18 @@ test('routed answers show where they ran and ask for feedback once',()=>{
   const done=ctx.routeInfoHtml({...run,router_feedback:{verdict:'wrong'}});
   assert.match(done,/feedback went to the router \(wrong pick\)/);
   assert.doesNotMatch(done,/data-route-feedback/);
-  assert.match(ctx.routeInfoHtml({status:'completed',provider:'codex',router_error:'down'}),/Model router unavailable, answered by codex/);
+  assert.match(ctx.routeInfoHtml({status:'completed',provider:'codex',router_error:'down'}),/Automatic model selection unavailable · Answered by codex/);
+});
+
+test('router fallback never claims an answer before the run completes',()=>{
+  const {ctx}=context();
+  const fallback={provider:'codex',router_error:'down'};
+  for(const status of ['queued','running','failed','interrupted','cancelled']){
+    const html=ctx.routeInfoHtml({...fallback,status});
+    assert.doesNotMatch(html,/Answered by/);
+    assert.match(html,/Automatic model selection unavailable · Fallback provider: codex/);
+  }
+  assert.match(ctx.routeInfoHtml({...fallback,status:'completed'}),/Answered by codex/);
 });
 
 test('usage table separates reported tokens from providers that report none',()=>{
