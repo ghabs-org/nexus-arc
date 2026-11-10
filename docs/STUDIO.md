@@ -6,6 +6,11 @@ resume approved work. **Workspace tools** is the user-facing name for memory,
 checkpoints, coordination, campaigns, analytics, transcription, decisions, file
 storage and execution controls. Existing `#workbench/...` links remain valid.
 
+**Release notes** in the menu opens bundled, versioned product history. Studio
+assistant and **Find local answer** use the same notes for new-feature or
+version-specific questions. Source, installed and deployed versions are distinct;
+see [release history and maintenance](STUDIO-RELEASE-NOTES.md).
+
 ## Start and accounts
 
 ```sh

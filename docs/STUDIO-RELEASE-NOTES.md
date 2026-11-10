@@ -11,6 +11,11 @@ They do not depend on a Git checkout, ignored release folders, network access or
 knowledge-project upload. Rebuilding/deploying Studio is required to update an existing
 installation's bundled history; this source change does not modify old signed artifacts.
 
+The AI path uses the selected provider and can take time even when notes are
+available locally. A routing fallback notice describes model selection, not the
+availability of release notes. Use **Find local answer** for an immediate lookup
+without model usage; see [router deadlines and statuses](STUDIO-ROUTER.md).
+
 ## Historical reconstruction
 
 Entries 1.0.0–1.0.6 were reconstructed from Git history, checked-in verification

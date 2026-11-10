@@ -1,16 +1,18 @@
 # Nexus Studio implementation plan
 
-Updated: **6 November 2026**. Delivery status: **open**.
+Updated: **10 November 2026**. Delivery status: **open**.
 
-Latest addition: optional macOS native Nexus sign-in, PKCE device grants,
-Keychain storage, revocation and guided local Codex/Claude Code/Antigravity setup
-are included in the signed/notarized **1.0.3 Apple Silicon DMG**, built on explicit
-request. See [release evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json). Startup, guide,
-Account-menu presence and clean close were observed. Hosted deployment, provider
-callback registration, manual dialog click-through and real account acceptance
-remain pending in **DESKTOP-05**. Windows/Linux account storage and guided terminal
-launch are implementation gaps. The old release is preserved; rebuild again only
-on an explicit user request.
+Current source includes bundled [release history](STUDIO-RELEASE-NOTES.md),
+read-only subscription status checks, automatic model routing and its configurable
+20-second default deadline. Source version is **1.0.6**. The latest fully
+checkpointed DMG is **1.0.5**; the retained 1.0.6 local build record does not
+establish a release date or complete frozen source contents. Later source fixes
+remain Unreleased until included in an explicitly requested build.
+
+Native account sign-in still needs separately recorded server/callback and real
+account acceptance. A previous local install or synthetic login test does not
+establish those gates. Old artifacts are preserved; rebuild only on an explicit
+user request and keep publication withheld.
 
 This is the current action queue. The [structured task record](STUDIO-ROADMAP.json)
 contains prerequisites, ownership, dependencies and acceptance criteria for every
@@ -28,34 +30,37 @@ The original approved specification remains in the operator-owned
 | Catalog | All 31 pinned identities accounted for: 27 supported entries and four exclusions. Aliases can share an implementation; live vendor accounts are tracked separately. |
 | Added milestones 10–12 | Scoped local acceptance for declarative compatibility, skill distribution and OpenClaw. OpenClaw live channel/gateway checks remain in LIVE-01. |
 | UI and local additions | All ten original design-audit source fixes; System/Light/Dark; local fonts/icons; offline evaluation comparison; chat/Quick Build draft recovery; workflow canvas undo/redo; opt-in desktop notifications. |
-| Browser verification | Scoped phone/tablet/desktop layout, keyboard, viewer and review-flow evidence. Some final save/download actions and performance metrics are not established by that record. |
-| macOS release | Signed/notarized/stapled 1.0.3 exists locally with current source, native accounts and full-SDK packaging. Installed runtime and updater signature/version checks pass. The historical 1.0.2 install/rollback proof retains its original scope. |
+| Browser verification | WEB-01 and WEB-02 local saves/downloads/re-import and lab performance acceptance are recorded complete. Physical device and assistive-technology gates remain separate. |
+| macOS release | 1.0.5 has signed/notarized/stapled local DMG and scoped runtime/update evidence. 1.0.4 was a local install only. Source and retained build metadata now record 1.0.6 with explicitly limited evidence. None establishes that the newest source is packaged or publicly available. |
+| Release history and routing | Bundled notes, assistant version lookup, a menu page and release-note build requirements are implemented. Auto routing, explanations, feedback, usage and fallback states exist in source. Studio's router timeout defaults to 20 seconds and accepts 1–120 seconds. Router deployment remains separate. |
 | Direct browser identity login | GitHub/GitLab plus previously linked LinkedIn/X/Meta accounts, configured-provider buttons, protected callbacks and session-reference fallback. Local acceptance only; deployed provider checks remain pending. See [browser login](STUDIO-BROWSER-LOGIN.md). |
 | LLM subscription connections | Codex, Claude and Antigravity connection buttons on sign-in; guarded per-user pages, selection retention and existing CLI account flows. 178 focused checks and synthetic browser acceptance passed; live provider sign-in and deployment remain pending. |
 | Additional AI account shortcuts | Copilot and OpenCode entry points reuse existing account controls and encrypted API-key saving. 189 focused checks and synthetic browser saves passed; live provider invocation and deployment remain pending. |
 
-Latest recorded feature checks: **320 frontend checks**, including 20 draft checks,
+Historical enhancement checks: **320 frontend checks**, including 20 draft checks,
 7 graph authoring/undo checks, and 8 notification checks, plus **35 backend/bundling checks**,
 with zero failures/skips. These counts come from the
 [enhancements checkpoint](STUDIO-ENHANCEMENTS-CHECKPOINT.json).
 
 ## What is actually missing
 
-**Known product implementation:** Windows/Linux installed native updates. The
-[current updater](../apps/studio-desktop/src-tauri/src/updates.rs) returns early
-outside macOS, and application discovery searches for an `.app` bundle. This needs
-platform-specific adaptation and qualification; calling it only a testing gap is
-incomplete. Keep this work in desktop milestone 9, last.
+**Platform qualification:** Cross-platform application discovery and update backup
+preparation are implemented in the [updater](../apps/studio-desktop/src-tauri/src/updates.rs)
+and framework release service (DESKTOP-01). Installed Windows/Linux behavior still
+requires actual platform qualification in DESKTOP-04. Windows signing configuration
+and native account-store/terminal integration retain their separate task scope.
+Keep desktop milestone 9 last.
 
 **Release configuration/delivery:** Windows signing and timestamping, fresh
 reviewed desktop artifacts, actual cross-platform installed behavior and a genuine
 prior-release upgrade. The existing macOS signing pipeline is already implemented;
 do not repeat certificate setup without evidence that it is broken.
 
-**Acceptance evidence:** final save/download UI flows, measured performance,
-physical devices/assistive technology, selected live accounts/database servers,
+**Acceptance evidence:** physical devices/assistive technology, selected live accounts/database servers,
 and recovered-host/full-machine operation. An unavailable test environment does
 not establish a missing adapter implementation or a successful live check.
+WEB-01 save/download flows and WEB-02 lab performance already have local acceptance;
+do not reopen them from older dated notes.
 
 ## Execution order and task board
 
@@ -66,14 +71,19 @@ not establish a missing adapter implementation or a successful live check.
 | 2 / DEVICE-01 | Physical phone/tablet, screen reader, voice and installed/offline web app | Validation | Ready for operator target-device checks |
 | 2 / LIVE-01 | Selected-account integration matrix, voice/embeddings and OpenClaw channels | Validation | Needs selected accounts and exact action scope |
 | 2 / DB-01 | SQL Server and Oracle real-server contracts | Validation | Needs disposable instances/credentials |
-| 3 / OPS-01 | Recovered-host browser/login | Validation | VM work deferred by user |
-| 3 / OPS-02 | Full-host disaster recovery | Validation | Deferred; follows OPS-01 |
+| 3 / OPS-01 | Recovered-host browser/login | Validation | Needs a separately scoped operational task; not exercised in this audit |
+| 3 / OPS-02 | Full-host disaster recovery | Validation | Follows OPS-01; retains separate recovery acceptance |
 | 4 / DESKTOP-01 | Windows/Linux installed-update lifecycle | Implementation | Code complete; native host qualification in DESKTOP-04 |
 | 4 / DESKTOP-02 | Windows installer signing and timestamping | Release configuration | Needs signing identity and Windows host |
 | 4 / DESKTOP-03 | Package current source into fresh desktop artifacts | Packaging | Held until explicit build request |
 | 4 / DESKTOP-04 | Install/auth/ownership/lifecycle on another Mac and Windows/Linux | Validation | Needs fresh artifacts and actual hosts |
 | 4 / DESKTOP-05 | Genuine previous-release data upgrade and rollback | Validation | Needs actual old/new releases |
 | 4 / DESKTOP-06 | Native menu against chosen signed-update distribution path | Validation | Needs distribution decision and artifacts; publication remains withheld |
+| 4 / DESKTOP-07 | Native Nexus account and subscription qualification | Implementation and validation | Mac live identity acceptance; Windows/Linux credential-store and terminal integration |
+
+`DESKTOP-07` disambiguates the account task formerly assigned the already-used
+`DESKTOP-05`. That original ID remains upgrade/rollback. Historical checkpoints
+retain their recorded labels; no task was added or declared complete by renumbering.
 
 **Phase 1 Complete (WEB-01, WEB-02).** Next available tasks are Phase 2 gates:
 `DEVICE-01` (physical device, voice and assistive tech checks), `LIVE-01`
@@ -175,6 +185,12 @@ A prepared local feed is not a deployed-feed test. **Public publication is a use
 distribution choice, not a missing product feature.** Release files stay local
 unless publication is explicitly requested.
 
+**DESKTOP-07:** qualify native Nexus identity and local provider setup using the
+named installed Mac artifact: browser approval, cancellation, Keychain continuity,
+revocation and reconnect. Server endpoints/callbacks need their own acceptance.
+Windows/Linux account stores and terminal launch require platform implementation
+and qualification before claiming equivalent native sign-in support.
+
 ## Approved additions and enhancements
 
 | ID | Feature | Status | Evidence |
@@ -195,7 +211,7 @@ They leave the remaining release and acceptance gates below open.
   are separate statuses. Preserve exclusions and the frozen 135 flags.
 - Record failures and unavailable prerequisites. Any accepted limitation/exclusion
   requires an explicit recorded decision; do not silently mark it complete.
-- Keep milestone 9 last, VM work deferred, new builds request-only and publication
+- Keep milestone 9 last, VM work separately scoped, new builds request-only and publication
   withheld. Do not ask again for authorization already granted within its scope.
 - Every future framework implementation uses the shared layer, a thin example
   consumer, relevant checks and scoped evidence. No frontend framework rewrite.

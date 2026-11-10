@@ -10,7 +10,7 @@ Add `router` to the Studio runtime configuration file (outside the project,
 mode `0600`, passed to `nexus studio --runtime-config`):
 
 ```json
-{"router": {"url": "http://127.0.0.1:7771", "allow_private": true}}
+{"router": {"url": "http://127.0.0.1:7771", "allow_private": true, "timeout": 20}}
 ```
 
 `allow_private` is required for plain HTTP. For a router behind an authenticating
@@ -20,7 +20,19 @@ models cannot point Studio at another router.
 
 `timeout` (seconds, 1–120, default 20) bounds each router call. Keep it above the
 router's own classifier budget (`JEV_TIMEOUT_SECONDS`); a slower answer is treated
-as "router unavailable" and Auto falls back to a ready provider.
+as "router unavailable" and Auto falls back to a ready provider. This setting is
+Studio-specific (`StudioModelRouter`); the shared `RouterClient` still defaults
+to 10 seconds for other callers unless they select a different timeout. A router
+can be healthy yet miss Studio's deadline while classifying a request; a fallback
+notice alone does not prove a failed generation or missing release notes.
+
+In chat the notice names the fallback provider while a run is pending. It says
+**Answered by** only after completion. **Working…** is the pending state; inspect
+Activity or reopen the saved conversation for the final status and output.
+
+The separate Nexus Router source fix `0e7933d` allows healthy alternatives when
+all preferred candidates belong to unhealthy providers. Updating Studio alone
+does not deploy that router fix; qualify the actual router revision separately.
 
 ### Desktop app
 
@@ -56,7 +68,8 @@ checkout automatically, or the one given with `--router-source` /
 ## Auto (model router)
 
 With a router configured, the chat **Provider** menu and a workflow run's
-**Provider override** offer **Auto (model router)**. Agents keep a fixed provider.
+**Provider override** offer **Auto (model router)**. Saved agents can also select
+`auto`; a workflow override applies to its individual steps.
 
 For each model call Studio:
 

@@ -1,12 +1,20 @@
 # Native desktop accounts
 
-The current source adds optional Nexus identity to the macOS native shell. Local
-Studio remains usable without Nexus sign-in. The signed/notarized 1.0.3 DMG now
-includes this implementation. The new hosted endpoints have not been deployed to
-the personal VM. The signed/notarized **1.0.4 app** is now installed locally with
-the provider sign-in actions and status display described below. No new DMG was
-created. See [installation evidence](STUDIO-DESKTOP-1.0.4-LOCAL-INSTALL.json) and
-[1.0.3 DMG evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
+Documentation checked against source on **10 November 2026**. Native Nexus identity
+is optional; local Studio remains usable without Nexus sign-in. Version 1.0.3
+introduced the native account flow. The 7 November installation record verifies
+provider sign-in actions and status display in the local **1.0.4 app**; it is not
+a claim about the version installed today. No 1.0.4 DMG was created.
+Version **1.0.5** has a signed/notarized DMG including the later Antigravity status
+fix. Source is now **1.0.6**, with subsequent work tracked separately as Unreleased.
+See [release history](STUDIO-RELEASE-NOTES.md),
+[1.0.4 installation evidence](STUDIO-DESKTOP-1.0.4-LOCAL-INSTALL.json) and
+[1.0.5 evidence](STUDIO-DESKTOP-1.0.5-CHECKPOINT.json).
+
+Hosted native sign-in still requires compatible desktop endpoints and registered
+provider callbacks. Historical endpoint-deployment notes below retain their
+recorded scope; this documentation audit does not verify a current VM deployment
+or live identity-provider login.
 
 ## User flow
 
@@ -67,7 +75,7 @@ new routes and preserve device expiry/revocation state.
 
 The installed 1.0.4 app exposes **Sign in** in **Providers & models** and its provider
 configuration dialog for Codex, Claude Code and Antigravity on macOS. These fixes
-are packaged in the local app only. The existing 1.0.3 DMG continues to
+were packaged in the 1.0.4 local app. The older 1.0.3 DMG continues to
 offer subscription setup through the native **Account** menu only.
 
 The new action asks for native confirmation, then reuses the Account menu's local
@@ -95,7 +103,7 @@ authentication shows **Sign-in needed**; timeouts, unsupported output and checke
 failures show **Couldn’t verify sign-in** rather than retaining a green badge.
 Subscription login and API credentials have distinct labels, including API billing.
 
-Pending after the 1.0.4 installation: Antigravity joins these checks using the
+Added after the 1.0.4 installation and packaged in 1.0.5: Antigravity joins these checks using the
 documented [`agy models`](https://antigravity.google/docs/cli/reference/) command,
 also used by the existing Nexus account setup. Both consumers now share the pure
 status checker; server-side checks retain their isolated account environment and
@@ -104,7 +112,7 @@ a recognized tab-separated model catalog. Empty output, help, transport errors
 and timeouts do not establish sign-in. Explicit authentication prompts report
 Sign-in needed. Successful catalog access shows Signed in/Reconnect, with billing
 managed by the CLI; it does not prove a paid subscription or remaining quota. The
-installed 1.0.4 app still needs a new build to include this change.
+1.0.4 artifact does not include this later change; the 1.0.5 DMG does.
 
 The checks use the official [`claude auth status --json`](https://code.claude.com/docs/en/cli-reference)
 and [`codex login status`](https://learn.chatgpt.com/docs/developer-commands) commands,
@@ -116,7 +124,9 @@ authentication metadata. The new
 and origin checks. Shared workspaces reject host CLI status probes and keep their
 existing user-scoped Nexus setup. Cheap bootstrap inventory remains unchanged.
 
-This status display is included in the local 1.0.4 app; no DMG has been rebuilt.
+The Claude/Codex status display was verified in the local 1.0.4 app. The later
+1.0.5 DMG includes those checks and the Antigravity addition; no new installer is
+built by this documentation update.
 
 **Connect Codex/Claude Code/Antigravity** reads framework-owned setup guidance from
 the sidecar, checks the local CLI and opens its sign-in in Terminal. Missing CLIs

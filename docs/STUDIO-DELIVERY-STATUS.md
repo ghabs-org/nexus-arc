@@ -1,6 +1,6 @@
 # Nexus Studio delivery status
 
-Updated: **2 November 2026**. Whole-plan completion: **open**.
+Updated: **10 November 2026**. Whole-plan completion: **open**.
 
 Use the [current implementation plan](STUDIO-NEXT-AGENT-PLAN.md) for next work and
 [structured roadmap](STUDIO-ROADMAP.json) for task IDs, prerequisites and acceptance.
@@ -16,11 +16,17 @@ This status is a summary, not a second task queue.
   milestone 5 and connector/protocol milestone 6 do not need to be rebuilt.
 - The ten original UI source findings, System/Light/Dark, local fonts/icons,
   offline evaluation comparison and chat/Quick Build draft recovery are implemented.
-- Scoped browser checks cover layouts, keyboard, viewers and review flows. Latest
-  recorded draft feature checks pass 309 frontend and 35 backend/bundling tests,
+- Scoped browser checks cover layouts, keyboard, viewers and review flows. Historical
+  draft feature checks pass 309 frontend and 35 backend/bundling tests,
   with zero failures/skips. These suites were not rerun for this plan-only update.
-- macOS 1.0.2 is locally signed/notarized/stapled with scoped installed/update proof.
-  It does not contain later source fixes.
+- Workflow canvas undo/redo and opt-in notifications are implemented additions.
+- Bundled release notes, assistant version lookup, a Release notes menu page and
+  version-note build requirements are implemented. Automatic routing, model
+  explanations/feedback and a configurable Studio router timeout are in source.
+- 1.0.5 is the latest fully checkpointed signed/notarized local DMG. Source and
+  retained local build metadata record 1.0.6 with a missing release date and
+  incomplete frozen-content evidence. Neither proves later source fixes are in an
+  installed artifact. See [versioned release history](STUDIO-RELEASE-NOTES.md).
 
 ## Missing implementation and release work
 
@@ -40,16 +46,18 @@ request. Public publication remains withheld and is not a missing product featur
   web-app behavior on target devices.
 - **LIVE-01 / DB-01:** selected real-account/provider checks, OpenClaw live channels,
   and actual SQL Server/Oracle contracts. Missing accounts do not imply missing adapters.
-- **OPS-01 / OPS-02:** recovered-host browser/login and full-machine recovery.
-  All VM work is still deferred.
+- **OPS-01 / OPS-02:** recovered-host browser/login and full-machine recovery retain
+  their separately recorded acceptance scope. This audit establishes no new VM
+  deployment, login or recovery result.
 
 **Next available work: Phase 2 gates (DEVICE-01, LIVE-01, DB-01).** Phase 1 local
 validation (`WEB-01` reviewed saves/downloads/re-import, `WEB-02` performance baseline)
 is complete. Next work requires target devices, selected live accounts, or disposable
-SQL Server/Oracle databases. VM work stays deferred; desktop milestone 9 stays last.
+SQL Server/Oracle databases. Operational work requires a separately scoped task;
+desktop milestone 9 stays last.
 
-Workflow undo/redo and notifications are optional, unapproved enhancements. They
-are not original-plan blockers. Device/account/release gates require actual
+Workflow undo/redo and notifications are implemented additions rather than
+original-plan blockers. Device/account/release gates require actual
 results or an explicitly accepted scope decision; they are not automatically passes.
 
 ## Evidence boundaries

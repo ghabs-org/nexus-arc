@@ -73,6 +73,7 @@ Nexus ARC is where Jarvis gets safe, reusable access to authenticated systems.
 
 > 📖 **Documentation:**
 > - [Studio guide](docs/STUDIO.md) - setup, providers and execution boundaries
+> - [Studio release history](docs/STUDIO-RELEASE-NOTES.md) - versioned notes, historical evidence and release policy
 > - [Usage Guide](docs/USAGE.md) - framework vs integration layer
 > - [AI authoring skills](docs/STUDIO-AUTHORING-SKILLS.md) - generate and install Studio guides for Codex and Claude Code
 > - [Architecture](docs/ARCHITECTURE.md) - current system split and historical evolution
