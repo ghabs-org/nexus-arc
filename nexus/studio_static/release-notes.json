@@ -12,13 +12,14 @@
         "Expanded automatic routing: model explanations, model-choice feedback, route previews, model-profile catalogs and per-step routing history.",
         "Automatic model selection for Quick Build, plus richer usage and cost reporting.",
         "Bundled release history available to Studio assistant and local help, with a release-notes requirement for future builds.",
-        "Fallback notices say a provider answered only after the run completes."
+        "Fallback notices say a provider answered only after the run completes.",
+        "Studio's model-router deadline is configurable from 1 to 120 seconds, with a 20-second default to accommodate classifier work before falling back."
       ],
       "limitations": [
         "These changes are not evidence that an existing desktop build or hosted Studio includes them.",
         "The related disabled-provider routing fix belongs to the separate Nexus Router repository and requires its own deployment."
       ],
-      "evidence": ["git:643a726", "git:dfce427", "nexus/core/studio_release_notes.py", "nexus/studio_static/conversation-content.js"]
+      "evidence": ["git:643a726", "git:dfce427", "git:797dd81", "nexus/core/studio_release_notes.py", "nexus/studio_static/conversation-content.js", "nexus/core/studio_runtime.py"]
     },
     {
       "version": "1.0.6",

@@ -1,6 +1,12 @@
 # Nexus Studio Standalone Desktop Distribution
 
-Current DMG release **1.0.5, 7 November 2026**, is a full-SDK Apple Silicon build,
+Documentation checked against source on **10 November 2026**. Source version is
+**1.0.6**; its retained local build record includes accepted app/DMG notarization,
+but does not establish a release date or complete frozen source contents. See the
+[release history and evidence limits](STUDIO-RELEASE-NOTES.md). Source version is
+not proof of the version installed on any Mac or server.
+
+The latest fully checkpointed DMG here is **1.0.5, 7 November 2026**, a full-SDK Apple Silicon build,
 Developer ID signed with accepted app/DMG notarization and stapled tickets.
 It packages the single conversation loading status with spinner, reduced-motion
 support, read-only Antigravity `agy models` status check, local provider sign-in
@@ -15,15 +21,19 @@ The signed DMG-installed runtime and Gatekeeper checks pass. The new updater arc
 offline signature/version verification and rejects a relabeled version. The older
 1.0.2 install/rollback fixture remains historical evidence. Publication of the
 release feed and another physical Mac remain separate checks.
-See [1.0.3 release evidence](STUDIO-DESKTOP-1.0.3-CHECKPOINT.json).
+These checks refer to the named artifacts, not every later source revision.
 
 The 1.0.3 DMG includes optional macOS native Nexus sign-in and local subscription
 setup. Hosted bridge deployment and real account acceptance remain pending. See
 [native account flow and acceptance boundaries](STUDIO-DESKTOP-ACCOUNTS.md).
 
+Current source also includes bundled [release notes](STUDIO-RELEASE-NOTES.md) and
+[automatic model routing](STUDIO-ROUTER.md). The catalog separates Unreleased work
+from recorded desktop builds. A new build is required to include subsequent fixes.
+
 Milestone 9 remains open for installed Windows/Linux, Windows signing, other
-physical devices and remaining release-distribution acceptance. No VM work was
-performed. Rebuild another DMG only after an explicit user request.
+physical devices and remaining release-distribution acceptance. This documentation
+audit makes no VM changes. Rebuild another DMG only after an explicit user request.
 
 ## Historical prototype background
 

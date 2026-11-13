@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Automatic model routing deadlines and status** — Studio accepts a router timeout
+  of 1–120 seconds, defaulting to 20 seconds so classifier work can finish before
+  fallback. Chat names the fallback provider while pending and says **Answered by**
+  only after completion. The separate Nexus Router healthy-alternative fix requires
+  that router's own update. See [routing behavior](docs/STUDIO-ROUTER.md).
+
 ### Added
 
 - **Bundled Studio release notes** — Versioned product history, reconstructed historical

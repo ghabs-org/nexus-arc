@@ -1,6 +1,11 @@
 # Signed macOS release and verified updates
 
-Latest DMG release: **1.0.5, 7 November 2026**. Both app and DMG have accepted
+Documentation checked against source on **10 November 2026**. Source is version
+**1.0.6**, with a retained local notarization record but no established release date
+or complete frozen source manifest in that record. The [release catalog](STUDIO-RELEASE-NOTES.md)
+distinguishes that build from Unreleased work and fully checkpointed artifacts.
+
+Latest fully checkpointed DMG: **1.0.5, 7 November 2026**. Both app and DMG have accepted
 Developer ID signing, Apple notarization, and stapled tickets. Gatekeeper and
 runtime profile checks pass. See [1.0.5 evidence](STUDIO-DESKTOP-1.0.5-CHECKPOINT.json).
 
@@ -50,6 +55,12 @@ Docker, subscription CLIs, model weights or account credentials.
 The explicit release consumer accepts an application, a new output directory,
 the installed Developer ID identity, a notarization profile, the private update
 key file path and the installed official Tauri CLI `tauri.js` path:
+
+Before building, add substantive source-controlled notes for the exact version in
+`nexus/studio_static/release-notes.json`, following the [release-note policy](STUDIO-RELEASE-NOTES.md).
+The desktop build consumer and macOS release pipeline reject undocumented versions.
+The updater feed uses that version's changes and limitations by default; `--notes`
+can override its display text but does not bypass the version-entry requirement.
 
 ```sh
 python apps/studio-desktop/release_macos.py \
