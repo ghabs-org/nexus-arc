@@ -501,6 +501,7 @@ def test_auto_sends_catalog_links_and_signals_and_keeps_explain_per_step(tmp_pat
         assert "fix the parser" in fields["conversation_context"]
         run = service.run(second["id"])
         assert run["router_explain"]["task"] == "coding" and len(run["router_explain"]["candidates"]) == 3
+        assert run["router_explain"]["considered"] == 4
         [step] = run["router_decisions"]
         assert step["decision_id"] == "dec-1" and step["outcome"] == "success" and step["provider"] == "claude-code"
     finally:

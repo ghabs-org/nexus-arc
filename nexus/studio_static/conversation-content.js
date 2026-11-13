@@ -53,26 +53,46 @@ function renderRunMessage(node,run){
   renderRouteInfo(node,run);
 }
 const ROUTE_TASKS=["coding","code_review","reasoning","summarization","fast_utility","long_context","vision","general_chat"];
+const ROUTE_RULES={static_weights:"standard scoring",fitted_weights:"learned scoring weights",bandit_exploit:"past results",bandit_explore:"trying an alternative",provider_filter:"only your ready providers",caller_catalog:"Studio's model list",routing_policy:"task policy",quota_penalty:"low quota penalised",model_cooldown:"cooling-down models skipped",confidence_gate:"low-confidence fallback"};
+function routeLabel(value){const text=String(value||"").replace(/_/g," ");return text.charAt(0).toUpperCase()+text.slice(1);}
+function routeTaskText(explain){
+  if(!explain?.task)return "";
+  const parts=[routeLabel(explain.task)];
+  if(explain.complexity)parts.push(`${explain.complexity} complexity`);
+  if(Number.isFinite(explain.confidence))parts.push(`${Math.round(explain.confidence*100)}% sure`);
+  return parts.join(" · ");
+}
 function routeInfoHtml(run){
-  const bits=[];
-  if(run.router_decision_id)bits.push(`Auto-routed to ${escapeHtml(run.provider)}${run.model?` · ${escapeHtml(run.model)}`:""}`);
-  else if(run.router_error)bits.push(`Automatic model selection unavailable · ${run.status==="completed"?"Answered by":"Fallback provider:"} ${escapeHtml(run.provider)}`);
-  if(run.fallback_from)bits.push(`switched from ${escapeHtml(run.fallback_from)} after a usage or readiness problem`);
-  if(!bits.length)return "";
+  const explain=run.router_explain;let head="";
+  if(run.router_decision_id){
+    const model=[run.provider,run.model].filter(Boolean).map(escapeHtml).join(" · ");
+    const task=routeTaskText(explain);
+    head=`<span class="route-badge">Auto</span>${model?`<span class="route-model">${model}</span>`:""}${task?`<span class="route-task" title="How the router read this request">${escapeHtml(task)}</span>`:""}`;
+  }else if(run.router_error)head=`<span class="route-badge is-warning">Auto unavailable</span><span>Automatic model selection unavailable · ${run.status==="completed"?"Answered by":"Fallback provider:"} ${escapeHtml(run.provider)}</span>`;
+  if(run.fallback_from)head+=`<span class="route-note">switched from ${escapeHtml(run.fallback_from)} after a usage or readiness problem</span>`;
+  if(!head)return "";
   let actions="";
   if(run.router_decision_id&&run.status==="completed"){
     const id=escapeHtml(run.id);
+    const current=explain?.task&&ROUTE_TASKS.includes(explain.task)?explain.task:"";
     actions=run.router_feedback?`<p class="route-feedback-done" role="status">Thanks, your feedback went to the router (${escapeHtml(run.router_feedback.verdict==="correct"?"good pick":"wrong pick")}).</p>`
-      :`<div class="route-feedback" role="group" aria-label="Was this the right model?"><button class="secondary" data-route-feedback="correct" data-run-id="${id}">Good pick</button><button class="secondary" data-route-feedback="too_cheap" data-run-id="${id}">Needed a stronger model</button><button class="secondary" data-route-feedback="too_powerful" data-run-id="${id}">A lighter model would do</button><label>Wrong kind of task?<select data-route-task="${id}"><option value="">It was…</option>${ROUTE_TASKS.map(task=>`<option value="${task}">${task.replace("_"," ")}</option>`).join("")}</select></label></div>`;
+      :`<div class="route-feedback" role="group" aria-label="Was this the right model?"><span class="route-feedback-label">Right model?</span><button class="secondary" data-route-feedback="correct" data-run-id="${id}">Good pick</button><button class="secondary" data-route-feedback="too_cheap" data-run-id="${id}">Needed stronger</button><button class="secondary" data-route-feedback="too_powerful" data-run-id="${id}">Lighter would do</button><label class="route-task-fix">Task<select data-route-task="${id}" data-current="${current}" aria-label="Correct the task type">${current?"":`<option value="">Pick…</option>`}${ROUTE_TASKS.map(task=>`<option value="${task}"${task===current?" selected":""}>${routeLabel(task)}${task===current?" (router)":""}</option>`).join("")}</select></label></div>`;
   }
-  return `<p class="route-summary">${bits.join(" · ")}</p>${routeWhyHtml(run.router_explain)}${actions}`;
+  return `<p class="route-summary">${head}</p>${routeWhyHtml(explain)}${actions}`;
 }
 function routeWhyHtml(explain){
   if(!explain||!Array.isArray(explain.candidates)||!explain.candidates.length)return "";
-  const task=explain.task?`Read as <strong>${escapeHtml(String(explain.task).replace("_"," "))}</strong>${Number.isFinite(explain.confidence)?` (confidence ${Math.round(explain.confidence*100)}%)`:""}${explain.classifier?` by the ${escapeHtml(explain.classifier)} classifier`:""}.`:"";
-  const candidates=explain.candidates.map(item=>`<li>${escapeHtml(item.model)}${Number.isFinite(item.score)?` · ${Number(item.score).toFixed(2)}`:""}</li>`).join("");
-  const rules=(explain.rules||[]).length?`<p>Rules: ${explain.rules.map(rule=>escapeHtml(rule)).join(", ")}</p>`:"";
-  return `<details class="route-why"><summary>Why this model?</summary>${task?`<p>${task}</p>`:""}<p>Top candidates:</p><ol>${candidates}</ol>${rules}${explain.policy?`<p>Policy: ${escapeHtml(explain.policy)}</p>`:""}</details>`;
+  const facts=[];
+  if(explain.task)facts.push(["Task",`${routeLabel(explain.task)}${Number.isFinite(explain.confidence)?` (${Math.round(explain.confidence*100)}% confidence)`:""}`]);
+  if(explain.complexity)facts.push(["Complexity",routeLabel(explain.complexity)]);
+  if(explain.classifier)facts.push(["Classifier",routeLabel(explain.classifier)]);
+  if(explain.policy)facts.push(["Policy",explain.policy]);
+  const dl=facts.length?`<dl class="route-facts">${facts.map(([k,v])=>`<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`).join("")}</dl>`:"";
+  const rows=explain.candidates.map((item,index)=>`<li${index===0?' class="is-picked"':""}><span class="route-cand-model">${escapeHtml(item.model)}</span><span class="route-cand-score">${Number.isFinite(item.score)?Number(item.score).toFixed(2):"n/a"}</span>${index===0?'<span class="route-cand-tag">picked</span>':""}</li>`).join("");
+  const more=Number(explain.considered)-explain.candidates.length;
+  const extra=more>0?`<p class="route-more">+${more} more model${more===1?"":"s"} scored lower</p>`:"";
+  const rules=(explain.rules||[]).length?`<p class="route-rules"><span>How:</span>${explain.rules.map(rule=>`<span class="route-rule" title="${escapeHtml(rule)}">${escapeHtml(ROUTE_RULES[rule]||routeLabel(rule))}</span>`).join("")}</p>`:"";
+  return `<details class="route-why"><summary>Why this model?</summary><div class="route-why-body">${dl}<p class="route-section">Top candidates</p><ol class="route-candidates">${rows}</ol>${extra}${rules}</div></details>`;
 }
 function renderRouteInfo(node,run){
   const html=routeInfoHtml(run);let info=node.querySelector(".route-info");
@@ -86,5 +106,5 @@ async function sendRouteFeedback(runId,body,host){
 }
 if(typeof document!=="undefined"&&typeof document.addEventListener==="function"){
   document.addEventListener("click",event=>{const button=event.target.closest?.("[data-route-feedback]");if(!button)return;const verdict=button.dataset.routeFeedback;sendRouteFeedback(button.dataset.runId,verdict==="correct"?{verdict:"correct"}:{verdict:"wrong",model_verdict:verdict},button);});
-  document.addEventListener("change",event=>{const select=event.target.closest?.("select[data-route-task]");if(!select||!select.value)return;sendRouteFeedback(select.dataset.routeTask,{verdict:"wrong",corrected_task:select.value},select);});
+  document.addEventListener("change",event=>{const select=event.target.closest?.("select[data-route-task]");if(!select||!select.value||select.value===select.dataset.current)return;sendRouteFeedback(select.dataset.routeTask,{verdict:"wrong",corrected_task:select.value},select);});
 }

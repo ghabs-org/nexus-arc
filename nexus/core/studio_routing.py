@@ -141,19 +141,23 @@ def estimate_cost(table, provider, model, prompt_tokens, completion_tokens):
 
 
 def trim_explain(explain) -> dict | None:
-    """What Studio keeps of a router explanation: rules, task, top three candidates."""
+    """What Studio keeps of a router explanation: rules, task, top three candidates.
+
+    ``considered`` counts every model the router scored, so the UI can say how
+    many lost out beyond the three it shows.
+    """
     if not isinstance(explain, dict):
         return None
     classifier = explain.get("classifier") or {}
+    scores = explain.get("model_scores") or []
     return {
         "rules": list(explain.get("rules_triggered") or [])[:12],
         "task": classifier.get("effective_task_type") or classifier.get("task_type"),
+        "complexity": classifier.get("complexity"),
         "confidence": classifier.get("confidence"),
         "classifier": classifier.get("source"),
-        "candidates": [
-            {"model": item.get("model"), "score": item.get("total")}
-            for item in (explain.get("model_scores") or [])[:3]
-        ],
+        "candidates": [{"model": item.get("model"), "score": item.get("total")} for item in scores[:3]],
+        "considered": len(scores),
         "policy": explain.get("policy_id"),
     }
 
