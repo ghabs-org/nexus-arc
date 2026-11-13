@@ -141,3 +141,45 @@ async def test_route_feedback_handler_delegates_ok_verdict():
         "corrected_task": None,
         "model_verdict": None,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('task', [*feedback_service.TASK_LABELS, 'skip'])
+async def test_back_restores_complete_task_menu_without_submitting(task):
+    calls = []
+
+    async def action(*args):
+        calls.append(args)
+
+    deps = _deps()
+    deps.route_feedback_action = action
+    decision_ref = 'abc123def0'
+    ctx = _DummyCtx(
+        action_data=f'routefb:wrong:{decision_ref}', user_id='user-1', user_state={}
+    )
+    await route_feedback_handler(ctx, deps)
+    original = ctx.edits[-1]
+    original_buttons = [button for row in original['buttons'] for button in row]
+    assert {b.callback_data.rsplit(':', 1)[-1] for b in original_buttons} >= set(
+        feedback_service.TASK_LABELS
+    )
+
+    # Follow rendered callbacks, including repeated Back visits.
+    for _ in range(2):
+        ctx.query.action_data = next(
+            b.callback_data for b in original_buttons
+            if b.callback_data == f'routefb:wrong_task:{decision_ref}:{task}'
+        )
+        await route_feedback_handler(ctx, deps)
+        assert ctx.edits[-1]['text'].startswith('❌ Step 2/2')
+        ctx.query.action_data = next(
+            b.callback_data for row in ctx.edits[-1]['buttons'] for b in row
+            if b.label == '⬅️ Back'
+        )
+        await route_feedback_handler(ctx, deps)
+        restored = ctx.edits[-1]
+        assert restored['text'] == original['text']
+        assert [[(b.label, b.callback_data) for b in row] for row in restored['buttons']] == [
+            [(b.label, b.callback_data) for b in row] for row in original['buttons']
+        ]
+    assert calls == []
