@@ -246,6 +246,35 @@ MODEL_VERDICT_LABELS: dict[str, str] = {
 }
 
 
+def _build_wrong_task_buttons(decision_id: str):
+    """Use the same task choices for initial entry and Back navigation."""
+    from nexus.adapters.notifications.base import Button  # type: ignore
+
+    buttons = [
+        [
+            Button("coding", callback_data=f"routefb:wrong_task:{decision_id}:coding"),
+            Button("review", callback_data=f"routefb:wrong_task:{decision_id}:code_review"),
+        ],
+        [
+            Button("reasoning", callback_data=f"routefb:wrong_task:{decision_id}:reasoning"),
+            Button("chat", callback_data=f"routefb:wrong_task:{decision_id}:general_chat"),
+        ],
+        [
+            Button("summarization", callback_data=f"routefb:wrong_task:{decision_id}:summarization"),
+            Button("fast_utility", callback_data=f"routefb:wrong_task:{decision_id}:fast_utility"),
+        ],
+        [
+            Button("long_context", callback_data=f"routefb:wrong_task:{decision_id}:long_context"),
+            Button("vision", callback_data=f"routefb:wrong_task:{decision_id}:vision"),
+        ],
+        [
+            Button("⏭ Skip", callback_data=f"routefb:wrong_task:{decision_id}:skip"),
+            Button("⬅️ Back", callback_data=f"routefb:back:{decision_id}:initial"),
+        ],
+    ]
+    return buttons
+
+
 async def route_feedback_handler(ctx: InteractiveContext, deps: CallbackHandlerDeps):
     await ctx.answer_callback_query()
     query = ctx.query
@@ -274,21 +303,7 @@ async def route_feedback_handler(ctx: InteractiveContext, deps: CallbackHandlerD
         elif target == "wrong_task":
             # Show the wrong task selection again
             try:
-                from nexus.adapters.notifications.base import Button  # type: ignore
-
-                buttons = [
-                    [
-                        Button("coding", callback_data=f"routefb:wrong_task:{decision_id}:coding"),
-                        Button("review", callback_data=f"routefb:wrong_task:{decision_id}:code_review"),
-                    ],
-                    [
-                        Button("reasoning", callback_data=f"routefb:wrong_task:{decision_id}:reasoning"),
-                        Button("chat", callback_data=f"routefb:wrong_task:{decision_id}:general_chat"),
-                    ],
-                    [
-                        Button("⏭ Skip", callback_data=f"routefb:wrong_task:{decision_id}:skip"),
-                    ],
-                ]
+                buttons = _build_wrong_task_buttons(decision_id)
                 await ctx.edit_message_text(
                     message_id=query.message_id,
                     text="❌ Step 1/2 — Which task was it?",
@@ -309,30 +324,7 @@ async def route_feedback_handler(ctx: InteractiveContext, deps: CallbackHandlerD
     # ── ❌ Wrong - Step 1/2: ask which task was correct ────────────────
     if verdict == "wrong" and len(parts) == 3:
         try:
-            from nexus.adapters.notifications.base import Button  # type: ignore
-
-            buttons = [
-                [
-                    Button("coding", callback_data=f"routefb:wrong_task:{decision_id}:coding"),
-                    Button("review", callback_data=f"routefb:wrong_task:{decision_id}:code_review"),
-                ],
-                [
-                    Button("reasoning", callback_data=f"routefb:wrong_task:{decision_id}:reasoning"),
-                    Button("chat", callback_data=f"routefb:wrong_task:{decision_id}:general_chat"),
-                ],
-                [
-                    Button("summarization", callback_data=f"routefb:wrong_task:{decision_id}:summarization"),
-                    Button("fast_utility", callback_data=f"routefb:wrong_task:{decision_id}:fast_utility"),
-                ],
-                [
-                    Button("long_context", callback_data=f"routefb:wrong_task:{decision_id}:long_context"),
-                    Button("vision", callback_data=f"routefb:wrong_task:{decision_id}:vision"),
-                ],
-                [
-                    Button("⏭ Skip", callback_data=f"routefb:wrong_task:{decision_id}:skip"),
-                    Button("⬅️ Back", callback_data=f"routefb:back:{decision_id}:initial"),
-                ],
-            ]
+            buttons = _build_wrong_task_buttons(decision_id)
             await ctx.edit_message_text(
                 message_id=query.message_id,
                 text="❌ Step 1/2 — Which task was it?",
