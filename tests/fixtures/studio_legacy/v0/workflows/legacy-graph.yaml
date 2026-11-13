@@ -1,0 +1,13 @@
+apiVersion: nexus-arc/v1
+kind: Workflow
+metadata:
+  name: Legacy graph
+graph:
+  nodes:
+    - id: review
+      name: Review
+      agent_id: reviewer
+      prompt: Review {task}
+  edges:
+    - source: START
+      target: review

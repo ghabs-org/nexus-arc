@@ -161,6 +161,9 @@ from nexus.core.issue_finalize import (
     find_existing_pr as _finalize_find_existing_pr,
 )
 from nexus.core.issue_finalize import (
+    find_existing_pr_details as _finalize_find_existing_pr_details,
+)
+from nexus.core.issue_finalize import (
     verify_workflow_terminal_before_finalize as _verify_workflow_terminal_before_finalize,
 )
 from nexus.core.issue_lifecycle import (
@@ -213,9 +216,8 @@ from nexus.core.runtime.agent_launcher import (
 from nexus.core.runtime_mode import is_issue_process_running, is_postgres_backend
 from nexus.core.startup_recovery import (
     build_startup_workflow_payload_loader as _build_startup_workflow_payload_loader,
-)
-from nexus.core.startup_recovery import (
     reconcile_completion_signals_on_startup as _startup_reconcile_completion_signals,
+    reconcile_openclaw_affinity_on_startup as _startup_reconcile_openclaw_affinity,
 )
 from nexus.core.state_manager import HostStateManager
 from nexus.core.task_archive import (
@@ -548,10 +550,11 @@ def reconcile_completion_signals_on_startup() -> None:
     Safe startup check only: emits alerts when signals diverge, does not mutate
     workflow state or completion files.
     """
+    mappings_loader = lambda: _get_wf_state().load_all_mappings()
     _startup_reconcile_completion_signals(
         logger=logger,
         emit_alert=emit_alert,
-        get_workflow_state_mappings=lambda: _get_wf_state().load_all_mappings(),
+        get_workflow_state_mappings=mappings_loader,
         nexus_core_storage_dir=NEXUS_CORE_STORAGE_DIR,
         load_workflow_payload=_build_startup_workflow_payload_loader(
             db_only_task_mode=lambda: is_postgres_backend(NEXUS_STORAGE_BACKEND),
@@ -566,6 +569,12 @@ def reconcile_completion_signals_on_startup() -> None:
         is_terminal_agent_reference=_is_terminal_agent_reference,
         complete_step_for_issue=complete_step_for_issue,
         local_completions_enabled=lambda: not is_postgres_backend(NEXUS_STORAGE_BACKEND),
+    )
+    _startup_reconcile_openclaw_affinity(
+        logger=logger,
+        emit_alert=emit_alert,
+        get_workflow_state_mappings=mappings_loader,
+        nexus_core_storage_dir=NEXUS_CORE_STORAGE_DIR,
     )
 
 
@@ -677,8 +686,8 @@ def _verify_workflow_terminal_before_finalize_local(
     return allowed
 
 
-def _finalize_workflow(issue_num: str, repo: str, last_agent: str, project_name: str) -> None:
-    _svc_finalize_workflow(
+def _finalize_workflow(issue_num: str, repo: str, last_agent: str, project_name: str) -> dict:
+    return _svc_finalize_workflow(
         issue_num=str(issue_num),
         repo=repo,
         last_agent=last_agent,
@@ -710,6 +719,16 @@ def _finalize_workflow(issue_num: str, repo: str, last_agent: str, project_name:
             str(kwargs.get("repo", "")),
         ),
         find_existing_pr_fn=lambda **kwargs: _finalize_find_existing_pr(
+            project_name=project_name,
+            repo=kwargs["repo"],
+            issue_number=str(kwargs["issue_number"]),
+            token_override=_resolve_issue_requester_token(
+                project_name,
+                kwargs["repo"],
+                str(kwargs["issue_number"]),
+            ),
+        ),
+        find_existing_pr_details_fn=lambda **kwargs: _finalize_find_existing_pr_details(
             project_name=project_name,
             repo=kwargs["repo"],
             issue_number=str(kwargs["issue_number"]),

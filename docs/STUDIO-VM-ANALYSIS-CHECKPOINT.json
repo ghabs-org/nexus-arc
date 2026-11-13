@@ -1,0 +1,215 @@
+{
+  "format": "nexus-studio-vm-analysis-acceptance/v1",
+  "date": "2026-10-27",
+  "status": "configured-and-live-verified",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "scope": "Enable existing pinned data/python/media analysis profiles on the personal VM and verify them through the deployed controller and filtered proxy. Fix a reproduced cross-process cleanup identity defect; no frontend rewrite, new provider, account test or desktop build.",
+  "configuration": {
+    "profiles": {
+      "data": {
+        "image": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
+        "timeout": 60,
+        "memory_mb": 768,
+        "pids_limit": 256,
+        "open_files": 256
+      },
+      "python": {
+        "image": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
+        "timeout": 60,
+        "memory_mb": 768,
+        "pids_limit": 256,
+        "open_files": 256
+      },
+      "media": {
+        "image": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
+        "timeout": 60,
+        "memory_mb": 768,
+        "pids_limit": 256,
+        "open_files": 256
+      }
+    },
+    "configured_actions": [
+      "create_database",
+      "query_sql",
+      "transform_jq",
+      "chart",
+      "python",
+      "imagemagick"
+    ],
+    "worker_user": "65534:65534",
+    "worker_network": "none",
+    "host_mounts": false,
+    "automatic_image_pulls": false,
+    "api_billing": false,
+    "state_and_other_runtime_settings_preserved": true,
+    "runtime_mode": "0600",
+    "vision_profile": "not configured; model-dependent and outside this data/media activation"
+  },
+  "analysis_image": {
+    "id": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9",
+    "retained_tag": "nexus-analysis:vm-5e56e7fa6625",
+    "architecture": "arm64",
+    "os": "linux",
+    "size_bytes": 1490326566,
+    "archive_bytes": 357207831,
+    "archive_sha256": "31c867199c49bfcae9bf2e2fc82440f926f2d99dcc15a40282c9acb019fffcbb",
+    "provenance": "Exact image from STUDIO-FULL-ANALYSIS-WORKER-CHECKPOINT.json; no dependency rebuild/download."
+  },
+  "server_fix": {
+    "base_image_id": "sha256:14a2805d35a3414ce03d6c7f5fc2c5fa9fe4176b66d76b3c3a872bb39a3b0966",
+    "image_id": "sha256:a786869f8718f9c98f45d59ba42f205f1db717f2f007246febf12e4696d72fce",
+    "tag": "nexus-studio:recovery-host-60ba858a914b",
+    "archive_bytes": 108627859,
+    "archive_sha256": "b82197768e98f79eb2b4db1e52d64e5addba6356057e638fd55ed072ecde459a",
+    "module": "nexus/core/studio_container_recovery.py",
+    "module_sha256": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
+    "packaging": "Derived from the exact previously deployed server; only the recovery module is replaced. No dependency changes.",
+    "reproduction": "The deployed slim image used Python random fallback nodes. A stopped owner SIGKILL left a valid known worker, but new-process host hashes differed while route hashes matched. Cleanup refused that mismatch.",
+    "fix": "Preserve legacy real-MAC hashes. For random nodes on Linux, hash the validated kernel boot UUID with the controller hostname. Store only the hash. Missing/invalid kernel metadata retains the legacy conservative behavior.",
+    "migration": "Record format/schema unchanged; no bulk rewrite or adoption. Old random-node records, changed boot UUIDs and changed hostnames still require explicit review. Production cleanup records were empty before replacing the image.",
+    "primary_references": [
+      "https://docs.python.org/3.13/library/uuid.html#uuid.getnode",
+      "https://docs.kernel.org/admin-guide/sysctl/kernel.html#random"
+    ]
+  },
+  "validation": {
+    "required": {
+      "tests": 162,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 2.804,
+      "report": "/private/tmp/nexus-vm-analysis-host-required.xml",
+      "sha256": "27a738edae1645b216bd97641dcc459334c9f0a468803123c2219a410212a689"
+    },
+    "real_local_workers": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.734,
+      "report": "/private/tmp/nexus-vm-analysis-host-real.xml",
+      "sha256": "0f33c07ff45bf334723600e1a7de1c274cc266d9b5cb1c4fa65fbef3d07a19a2"
+    },
+    "isolated_vm_trial": {
+      "report": "/private/tmp/nexus-vm-analysis-trial-report.json",
+      "sha256": "5532ab77a13010218f7ffe25335ff191e3349d7cb5aa622fb6a57cb0ad22b615"
+    },
+    "patched_vm_trial": {
+      "report": "/private/tmp/nexus-vm-analysis-patch-trial-report.json",
+      "sha256": "7d9f72d16606b8f1f9ae05b5e49869229744769039debd2639cf38c91b6d9591"
+    },
+    "live": {
+      "report": "/private/tmp/nexus-vm-analysis-final-live-report.json",
+      "sha256": "02028e0d2bc5d62fa5a6fe29aab21e0a70f7be12b01fc0028c6a97ed4d33e700",
+      "result": {
+        "identity": {
+          "host_identity_stable": true,
+          "independent_processes": 2
+        },
+        "owner_recovery": {
+          "acknowledged_stopped_work_preserved": true,
+          "daemon_restarted": false,
+          "disposable_owner_sigkill": true,
+          "explicit_cleanup_confirmed": true,
+          "extra_artifacts": 0,
+          "extra_runs": 0,
+          "replayed_create_or_start": false,
+          "studio_or_proxy_restarted": false,
+          "unresolved_cleanup": 0
+        },
+        "tools": {
+          "chart_dimensions": [
+            1200,
+            800
+          ],
+          "configured_tools": 6,
+          "image_dimensions": [
+            2,
+            2
+          ],
+          "jq_total": 7,
+          "mounted_runtime_profiles_used": true,
+          "networkless_readonly_no_host_mounts": true,
+          "private_artifacts": 6,
+          "production_state_used": false,
+          "provider_calls": 0,
+          "read_only_sql_total": 7,
+          "unresolved_cleanup": 0,
+          "unsafe_outputs_rejected": 3,
+          "worker_uid_gid": "65534:65534",
+          "workflow_operations": [
+            "database",
+            "sql",
+            "jq",
+            "chart",
+            "image",
+            "python"
+          ]
+        },
+        "source_sha256": "6170dc792a7629aa1456d9e5e21dfd876214e8da9b6febca972afac6fe405a1d",
+        "server_image_id": "sha256:a786869f8718f9c98f45d59ba42f205f1db717f2f007246febf12e4696d72fce",
+        "analysis_image_id": "sha256:5e56e7fa6625fa1e3f6c302a52acd6100bd87fa5b0e72007608d93fd4fe709b9"
+      }
+    },
+    "postcheck": {
+      "report": "/private/tmp/nexus-vm-analysis-postcheck.json",
+      "sha256": "a3ab4dd0566dc5a238fa736169480c697a441ed780abe6663bd6c6593f09d263",
+      "result": {
+        "source_files_checked": 653,
+        "source_files_missing": [],
+        "source_files_changed": [],
+        "failed_fixture_workspaces_removed_after_confirmed_absence": 1,
+        "production_cleanup_records": 0,
+        "host_layout_passed": true,
+        "host_layout_checks": 12,
+        "anonymous_https_passed": 15,
+        "signed_in_identity": "pending",
+        "uuid_workers_remaining": 0,
+        "other_services": {
+          "nexus-bridge": "active",
+          "nexus-health": "active",
+          "nexus-processor": "active",
+          "nexus-telegram": "active",
+          "nexus-webhook": "active"
+        },
+        "router_running": true
+      }
+    }
+  },
+  "operations": {
+    "before_profile_activation_backup_verified": true,
+    "before_profile_activation_inactive_restore": true,
+    "before_server_fix_backup_verified": true,
+    "before_server_fix_inactive_restore": true,
+    "live_sql_overwritten": false,
+    "auth_configuration_changed": false,
+    "other_five_nexus_services_active": true,
+    "router_running": true,
+    "source_checkout_on_vm_changed": false,
+    "docker_daemon_restarted": false,
+    "proxy_restarted_for_configuration": true,
+    "proxy_restarted_for_server_fix": false,
+    "rollback": "Private runtime snapshot and previous server image retained; patch rollback prepared but not exercised in this slice. Never automatically overwrite live SQL.",
+    "private_operator_directory": "Versioned private operator artifact retained on the selected VM; no hostname or server path published here."
+  },
+  "pending": [
+    "Signed-in Nexus session and real user-facing tool invocation/permissions remain separate. Live consumer uses a disposable file-state workspace, not production SQL or a substitute for authenticated API acceptance.",
+    "Live running-worker owner death, interrupted create/remove, proxy restart with a live ownership receipt, daemon restart and power-loss remain separate deployed gates. The stopped-worker owner SIGKILL case is now verified.",
+    "Kernel boot fallback deliberately changes on a new host boot; controller recreation can change hostname. Prior grants require manual review rather than automatic adoption.",
+    "Object detection needs a separately installed and selected model/vision image. API image generation, voice/model/device/account quality and billing checks are not included.",
+    "Full-host/auth-store recovery, physical mobile checks and native installed-platform delivery remain open. No DMG rebuild."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_container_recovery.py": "60ba858a914b3ab959f916534173a9cb1c5df2a2b5e673db460c3e23cc087fd3",
+    "tests/test_studio_container_recovery.py": "e57f62a555a8032563b9e2ce85a2532fedc6b9e3116d93a704eec7f3a57929bd",
+    "tests/studio_deployed_analysis_acceptance.py": "59b6a17f6b8012fa80decae7cf9951ce6b773bafd857d354ae8e07877099d4cd",
+    "examples/nexus-bot/src/studio_recovery_identity.py": "5483baca72cce5ec64795315a0ccb3ae1e7752ef47bdf8591792c0ee3e182168",
+    "examples/nexus-bot/src/studio_data_workers.py": "a093c2178f85d4a1d7cd24317c0dcfc8dbe941c0b021e2da0a7a9648480b28cf",
+    "nexus/core/studio_sandbox.py": "1e4992584f452ae687390e4cd0c3091a73dd9693f09625025b2cdebc191d3c00",
+    "nexus/core/studio_data_tools.py": "fa4c7576d08021a92d84727e4e06562240218b20a75c165221a4e682055006fa"
+  },
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

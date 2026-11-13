@@ -118,6 +118,7 @@ def register_application_handlers(
         ("stop", "stop_handler", "execute"),
         ("agents", "agents_handler", "execute"),
         ("direct", "direct_handler", "execute"),
+        ("doctor", "doctor_handler", "execute"),
         ("respond", "respond_handler", "execute"),
         ("assign", "assign_handler", "execute"),
         ("implement", "implement_handler", "execute"),
@@ -128,6 +129,7 @@ def register_application_handlers(
         ("feature_forget", "feature_forget_handler", "execute"),
         ("chat", "chat_menu_handler", "execute"),
         ("chatagents", "chat_agents_handler", "execute"),
+        ("sessions", "sessions_handler", "execute"),
     ]
     visible_commands = set(
         filter_visible_commands((cmd for cmd, _handler_name, _action in command_specs), local_task_files=local_task_files)
@@ -154,7 +156,17 @@ def register_application_handlers(
         CallbackQueryHandler(_wrap(handlers["monitor_project_picker_handler"]), pattern=r"^pickmonitor:")
     )
     app.add_handler(CallbackQueryHandler(_wrap(handlers["close_flow_handler"]), pattern=r"^flow:close$"))
+    if "login_callback_handler" in handlers:
+        app.add_handler(
+            CallbackQueryHandler(
+                _wrap(handlers["login_callback_handler"], command="login", action="onboarding"),
+                pattern=r"^login:",
+            )
+        )
     app.add_handler(CallbackQueryHandler(_wrap(handlers["feature_callback_handler"]), pattern=r"^feat:"))
+    app.add_handler(
+        CallbackQueryHandler(_wrap(handlers["route_feedback_callback_handler"]), pattern=r"^routefb:")
+    )
     app.add_handler(
         CallbackQueryHandler(
             _wrap(handlers["task_confirmation_callback_handler"]),
@@ -208,6 +220,7 @@ def build_command_handler_map(**handlers):
         "continue": handlers["continue_handler"],
         "forget": handlers["forget_handler"],
         "respond": handlers["respond_handler"],
+        "doctor": handlers["doctor_handler"],
         "kill": handlers["kill_handler"],
         "assign": handlers["assign_handler"],
         "implement": handlers["implement_handler"],

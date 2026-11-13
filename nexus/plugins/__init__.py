@@ -5,10 +5,10 @@ from nexus.plugins.builtin import (
     AgentLaunchPolicyPlugin,
     AIOrchestrator,
     AIProvider,
-    GitHubIssuePlugin,
     GitHubIssueCLIPlugin,
-    GitLabIssuePlugin,
+    GitHubIssuePlugin,
     GitLabIssueCLIPlugin,
+    GitLabIssuePlugin,
     JsonStateStorePlugin,
     RateLimitedError,
     RuntimeOpsPlugin,
@@ -19,6 +19,7 @@ from nexus.plugins.builtin import (
     WorkflowPolicyPlugin,
     WorkflowStateEnginePlugin,
 )
+from nexus.plugins.catalog import PluginSetup
 from nexus.plugins.registry import (
     PluginNotFoundError,
     PluginRegistrationError,
@@ -28,6 +29,7 @@ from nexus.plugins.registry import (
 __all__ = [
     "PluginKind",
     "PluginSpec",
+    "PluginSetup",
     "make_plugin_spec",
     "AIOrchestrator",
     "AIProvider",

@@ -94,7 +94,7 @@ telegram_integration = "nexus_telegram_plugin:register_plugins"
 
 - AI runtime orchestrator plugin: `nexus.plugins.builtin.ai_runtime_plugin`
     - Classes: `AIOrchestrator`, `AIProvider`
-    - Description: Copilot/Gemini/Codex/Ollama orchestration with fallback and cooldown handling
+    - Description: Copilot/Claude/Codex/Ollama orchestration with fallback and cooldown handling
     - Registration entry: `register_plugins(registry)`
 - Agent launch policy plugin: `nexus.plugins.builtin.agent_launch_policy_plugin`
     - Class: `AgentLaunchPolicyPlugin`

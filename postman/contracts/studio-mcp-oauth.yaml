@@ -1,0 +1,51 @@
+openapi: 3.1.0
+info:
+  title: Nexus Studio delegated MCP accounts
+  version: 1.0.0
+  description: >-
+    Explicit per-user authorization-code consent with S256 PKCE. Pre-registered
+    OAuth clients only. OAuth/OIDC discovery does not establish Nexus identity.
+    Requires existing Studio CSRF/session checks and encrypted credential storage.
+    Start derives callback from trusted server origin; caller cannot choose it.
+    No interactive consent or replay on tool execution. Disconnect is local:
+    previously dispatched external effects are not undone. Grants and pending
+    requests are excluded from configuration export and workspace backup.
+paths:
+  /api/studio/connectors/{id}/oauth:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: delegatedAccountStatus
+      responses:
+        '200': {description: Own grant status only; never tokens or ciphertext}
+        '403': {description: Connector or execution permission denied}
+  /api/studio/connectors/{id}/oauth/start:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: startDelegatedAccount
+      responses:
+        '200':
+          description: Authorization URL and expiring HttpOnly SameSite=Lax flow cookie
+        '400': {description: Invalid metadata or missing encryption configuration}
+        '403': {description: Session or connector permission denied}
+  /api/studio/oauth/callback:
+    get:
+      operationId: completeDelegatedAccount
+      parameters:
+        - {name: state, in: query, required: true, schema: {type: string}}
+        - {name: code, in: query, schema: {type: string}}
+        - {name: iss, in: query, schema: {type: string}}
+        - {name: error, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Connected; no code or token returned}
+        '400': {description: Expired, replayed, mismatched or failed authorization}
+        '403': {description: Browser cookie or Nexus session mismatch}
+  /api/studio/connectors/{id}/oauth/disconnect:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: disconnectDelegatedAccount
+      responses:
+        '200': {description: Own grant cleared and pending consent invalidated}
+        '403': {description: Connector permission denied}

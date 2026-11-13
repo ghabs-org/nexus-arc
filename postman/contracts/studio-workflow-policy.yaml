@@ -1,0 +1,36 @@
+openapi: 3.0.3
+info:
+  title: Nexus structured workflow policy
+  version: 1.0.0
+  description: Additive read-only capability descriptor. Existing workflow create/update/run/resume routes and graph v1/ARC YAML formats remain readable. New graphs use version 2. Only the private administrator runtime configuration can change limits; clients cannot override pinned run policy.
+paths:
+  /api/studio/workflow-policy:
+    get:
+      operationId: getWorkflowPolicy
+      responses:
+        '200':
+          description: Version 1, effective limits, defaults, hard ceilings and configuration scope. No mutation and no provider calls. In shared mode, existing Nexus authentication is required.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, effective, defaults, ceilings, configuration]
+                properties:
+                  version: {type: integer, enum: [1]}
+                  effective: {$ref: '#/components/schemas/Limits'}
+                  defaults: {$ref: '#/components/schemas/Limits'}
+                  ceilings: {$ref: '#/components/schemas/Limits'}
+                  configuration: {type: string}
+        '401': {description: Nexus sign-in required in shared mode}
+components:
+  schemas:
+    Limits:
+      type: object
+      additionalProperties: false
+      required: [map_items, map_concurrency, loop_iterations, nesting_depth, node_instances]
+      properties:
+        map_items: {type: integer, minimum: 1, maximum: 10000}
+        map_concurrency: {type: integer, minimum: 1, maximum: 32}
+        loop_iterations: {type: integer, minimum: 1, maximum: 10000}
+        nesting_depth: {type: integer, minimum: 1, maximum: 32}
+        node_instances: {type: integer, minimum: 1, maximum: 100000}

@@ -26,6 +26,7 @@ layer).
 | Issue → Workflow mapping               |           | ✅           |
 | Inbox routing logic                    |           | ✅           |
 | Agent chain config                     |           | ✅           |
+| Autofix learning retrieval             | ✅         | ✅           |
 
 ## Why This Matters
 
@@ -70,6 +71,63 @@ Someone else using nexus-arc could use GitLab + Slack + completely different wor
 2. **Create the integration helper** in `nexus_core_helpers.py`
 3. **Wire up the Telegram command** in `telegram_bot.py`
 4. The framework handles orchestration, persistence, retries — you don't modify nexus-arc.
+
+## Consuming Autofix Learning
+
+The framework now emits structured autofix learning audit events:
+
+- `AUTOFIX_ATTEMPTED`
+- `AUTOFIX_FAILED`
+- `AUTOFIX_VALIDATED`
+
+The integration layer can query these events and add the most relevant lessons
+to the next repair attempt context.
+
+```python
+from nexus.core.audit_store import AuditStore
+from nexus.core.autofix_learning import (
+	build_error_fingerprint,
+	find_similar_autofix_attempts,
+)
+
+# In integration code before retrying a repair step.
+events = AuditStore.get_audit_history(issue_num=123, limit=200)
+matches = find_similar_autofix_attempts(
+	events,
+	agent_type="developer",
+	error_fingerprint=build_error_fingerprint(raw_error_text),
+	limit=3,
+)
+
+# matches can be injected into prompt context for safer retries.
+```
+
+## Consuming the Model Router
+
+Run `python examples/nexus-bot/scripts/check_router_status.py [task]` against a
+running nexus-router (`NEXUS_ROUTER_URL`, default `http://127.0.0.1:7771`, plus
+`NEXUS_ROUTER_TOKEN` when the router requires one). The example consumes
+`nexus.core.router_client.RouterClient` — the client shared by ARC workflow agents
+(`NEXUS_ROUTER_ROUTE_AGENTS=true`), the coordinator and Studio — and
+`nexus.core.studio_routing` (router provider ids to Studio providers). It prints the
+router's diagnostics warnings, the model a dry-run `/route` would pick for the task
+restricted to Codex and Claude Code, the ordered Studio candidates and the explain
+rules. A dry run records nothing; no model request is started and no provider
+credential is sent.
+
+## Consuming Local Provider Status
+
+Run `python examples/nexus-bot/scripts/check_local_provider_status.py` from the
+repository root with Nexus installed. The example consumes
+`nexus.core.provider_account_status` and the framework's executable resolver. It
+prints only sanitized sign-in state and authentication method for the process
+user's Codex, Claude and Antigravity CLI installations. It does not start login or model requests,
+read credential files directly, or export account identifiers and tokens.
+
+This local diagnostic must not be used as a shared Nexus user's account status.
+Shared Studio continues to use its existing per-user Nexus credentials and worker
+permissions. Local Studio exposes the same framework checks through the protected
+`POST /api/providers/status` endpoint.
 
 ## Further Reading
 

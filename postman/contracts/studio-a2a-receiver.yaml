@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: Nexus external-agent callback receiver
+  version: 1.0.0
+paths:
+  /api/a2a-callbacks/{grant}:
+    post:
+      description: >-
+        Opt-in per-run Bearer credential, encrypted at rest and valid for 24 hours.
+        Accepts A2A task/status/artifact notifications as hints. Records only digest,
+        task/context identity and receipt time. Existing scheduler performs GetTask;
+        notification content never directly becomes task output. No task submission.
+        Identical delivery IDs deduplicate; conflicting reuse is rejected. Revoked,
+        expired, cross-task or changed-profile grants reject. Early notifications
+        cannot establish the acknowledged remote task ID.
+      security: [{callbackBearer: []}]
+      parameters:
+        - {name: grant, in: path, required: true, schema: {type: string}}
+        - {name: X-Nexus-Delivery-ID, in: header, schema: {type: string, maxLength: 200}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, description: 'A2A 1.0 StreamResponse or 0.3 Task/status/artifact event; 24 MiB maximum'}
+      responses:
+        '202': {description: Durable receipt or duplicate; no synchronous network calls}
+        '400': {description: Invalid notification or conflicting delivery identifier}
+        '403': {description: Invalid credential or inactive grant}
+        '413': {description: Body exceeds limit}
+  /api/studio/external-runs/{run}/callbacks:
+    get:
+      description: Owner-only status without secrets or callback body.
+      parameters: [{name: run, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Opt-in state, expiry, receipt/recovery status}
+  /api/studio/external-runs/{run}/callbacks/revoke:
+    post:
+      description: Owner-only, normal Nexus session and CSRF; irreversible credential revocation.
+      parameters: [{name: run, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Revoked locally; future callbacks rejected}
+components:
+  securitySchemes:
+    callbackBearer: {type: http, scheme: bearer}

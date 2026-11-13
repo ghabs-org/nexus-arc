@@ -1,0 +1,113 @@
+openapi: 3.1.0
+info:
+  title: Nexus browser identity sign-in
+  version: 1.2.2
+  description: >-
+    GitHub/GitLab may establish Nexus identity using existing project ACL rules.
+    LinkedIn, X and Meta resolve only previously linked immutable user subjects.
+    Configured providers appear on the login page. Session-reference login remains
+    compatible. This contract does not claim live provider acceptance.
+    LLM subscription connections require an existing Nexus identity and do not
+    grant project permissions.
+paths:
+  /auth/setup:
+    get:
+      operationId: showExistingAIAccountSetup
+      description: >-
+        With connection=copilot or opencode, require the current Nexus cookie and
+        retain the chosen account through identity login. Ignore session query
+        arguments for these shortcuts. Reuse the complete existing setup form and
+        save operations. Copilot without linked GitHub shows an explicit linking
+        action; OpenCode uses the existing API-key field. Legacy session-reference
+        setup links without connection retain their previous behavior.
+      parameters:
+        - {in: query, name: connection, schema: {enum: [copilot, opencode]}}
+        - {in: query, name: next, schema: {type: string, default: /}}
+      responses:
+        '200': {description: Existing account setup with selected section}
+        '302': {description: Nexus login required before account setup}
+        '400': {description: Unknown account connection}
+        '404': {description: Authentication disabled or legacy session missing}
+        '503': {description: Account service unavailable; private error detail omitted}
+  /auth/subscription:
+    get:
+      operationId: showSubscriptionAccountConnection
+      description: >-
+        Connect an LLM subscription to the existing Nexus user. Requires a current
+        post-OAuth Nexus cookie; incomplete AI setup is allowed. Without that cookie,
+        redirects to Nexus identity login and retains the selected provider. Opening
+        this page never starts a CLI login. Connect/code/status controls reuse the
+        existing /auth/provider-connect operations and private per-user runtime homes.
+      parameters:
+        - {in: query, name: provider, required: true, schema: {enum: [codex, claude, agy]}}
+        - {in: query, name: next, schema: {type: string, default: /}}
+      responses:
+        '200': {description: 'Connection instructions, existing status or missing server CLI message'}
+        '302': {description: Nexus login required before connecting a subscription}
+        '400': {description: Invalid provider}
+        '404': {description: Authentication disabled}
+  /login:
+    get:
+      operationId: showNexusLogin
+      parameters:
+        - {in: query, name: next, schema: {type: string}, description: Same-origin return path}
+      responses:
+        '200':
+          description: Provider buttons and optional session-reference form
+          headers:
+            Referrer-Policy:
+              description: Preserve Origin on native same-site form POSTs; hide external referrers.
+              schema: {type: string, const: same-origin}
+        '302': {description: Existing ready session continues to local return path}
+        '404': {description: Authentication disabled}
+    post:
+      operationId: exchangeExistingSessionReference
+      responses:
+        '200': {description: Invalid or incomplete session; login form remains available}
+        '302': {description: Existing ready session cookie set and local redirect}
+  /auth/browser/start:
+    post:
+      operationId: startNexusBrowserLogin
+      description: >-
+        Requires the selected provider's configured callback origin when Origin is
+        present. A provider-specific callback override takes precedence over the
+        global public base URL. Normalize host casing and default HTTP(S) ports;
+        reject opaque/malformed origins and cross-site Fetch Metadata. Never trust
+        client-supplied forwarded-host/protocol headers to widen allowed origins.
+        Creates a fresh attempt, ignoring supplied session IDs. Sets an encrypted,
+        HttpOnly, SameSite=Lax, host-only /auth context cookie for at most 900 seconds;
+        Secure on HTTPS. Responses are no-store. A context is not an authenticated session.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider: {enum: [github, gitlab, linkedin, x, meta]}
+                next: {type: string, default: /}
+      responses:
+        '303': {description: Redirect to configured OAuth authorization endpoint}
+        '400': {description: Unsupported/unconfigured provider or unavailable account infrastructure}
+        '403': {description: Cross-origin initiation rejected}
+        '404': {description: Authentication disabled}
+  /auth/{provider}/callback:
+    get:
+      operationId: completeNexusBrowserLogin
+      parameters:
+        - {in: path, name: provider, required: true, schema: {enum: [github, gitlab, linkedin, x, meta]}}
+        - {in: query, name: code, schema: {type: string}}
+        - {in: query, name: state, required: true, schema: {type: string}}
+        - {in: query, name: error, schema: {type: string}}
+      description: >-
+        Browser-created attempts require the encrypted initiating-browser context,
+        matching provider, state, session and expiry before token exchange.
+        Successful attempts remain subject to existing setup readiness and project
+        permissions. Social login never replaces publishing credentials. Clear context
+        on completion/error. Existing bot linking callbacks keep their prior contract.
+      responses:
+        '200': {description: Identity verified but account setup still required}
+        '303': {description: Ready account; HttpOnly Nexus session and same-origin redirect}
+        '400': {description: 'Invalid/missing/expired/used/foreign callback, provider denial or unlinked social identity'}
+        '404': {description: Authentication disabled}

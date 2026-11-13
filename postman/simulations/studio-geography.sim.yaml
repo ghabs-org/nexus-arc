@@ -1,0 +1,5 @@
+simulation: studio-geography
+routing: path
+mocks:
+  - routeKey: geography
+    path: ../mocks/studio-geography/config.yaml

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "reviewed-openapi-connector-node-import",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "source_evidence_blobs": [
+    "711862ef9e2836d4f459228c72dcbc45118bcb6c",
+    "bc2490766ebfc8906a34a24e8d854cf66558dbd8"
+  ],
+  "contract": "Existing owner-only conversion: explicit connector/tool aliases, existing selected OpenAPI operations, body/parameters input choice, authored direct approval gates for writes, explicit workflow toolset membership.",
+  "validation": {
+    "regressions": {
+      "passed": 215,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_interop_connector_nodes.py",
+        "tests/test_studio_interop_skill_refs.py",
+        "tests/test_studio_interop_capabilities.py",
+        "tests/test_studio_interop_configuration.py",
+        "tests/test_studio_interop_workflows.py",
+        "tests/test_studio_interop_policies.py",
+        "tests/test_studio_interop_exit_routes.py",
+        "tests/test_studio_interop_shared_loops.py",
+        "tests/test_studio_interop_shared_handlers.py"
+      ]
+    },
+    "final_connector_subset": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "reason": "Final tightening rejects non-JSON request bodies before import."
+    },
+    "http_simulation": {
+      "tool": "Postman CLI 1.75.0",
+      "path": "postman/simulations/studio-interop-connectors.sim.yaml",
+      "history_recorded": false,
+      "success": {
+        "conversion_requests": 0,
+        "reads": 1,
+        "writes_before_approval": 0,
+        "writes_after_approval": 1,
+        "agent_calls": 1
+      },
+      "received_503": {
+        "reads": 1,
+        "writes_before_approval": 0,
+        "writes_after_approval": 1,
+        "agent_calls": 1,
+        "effect_status": "attempting"
+      },
+      "request_logs_inspected": true
+    },
+    "static": "Affected ruff, OpenAPI YAML parse, JavaScript syntax and diff whitespace passed"
+  },
+  "limits": [
+    "OpenAPI node bindings only; other connector protocols remain outside this import profile",
+    "Combined required parameters/body and non-JSON bodies require manual native adaptation",
+    "Unmodified external deployment flags and ungated mutations reject",
+    "Live service accounts, models and deployment not validated"
+  ],
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "migration": "Additive conversion fields map to existing native integration/approval nodes; no persisted schema migration.",
+  "next": "Bounded dataset CSV sibling-file and evaluator-template imports"
+}

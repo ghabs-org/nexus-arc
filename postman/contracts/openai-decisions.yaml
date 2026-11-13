@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: OpenAI native decisions dependency subset
+  version: 2026-10-19
+  description: Task-specific contract from official Decisions guide and API reference. Orbit discovery returned HTTP 403; no Orbit resource or owning mock was available. This documents the dependency subset Nexus calls, not the entire vendor API. Account validation is separate.
+  x-source: https://developers.openai.com/api/docs/guides/decisions
+servers: [{url: 'https://api.openai.com'}]
+paths:
+  /v1/decisions:
+    post:
+      security: [{bearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, input, questions]
+              properties:
+                model: {type: string}
+                input:
+                  oneOf:
+                    - {type: string}
+                    - type: array
+                      items:
+                        type: object
+                        required: [role, content]
+                        properties:
+                          role: {type: string, enum: [user]}
+                          content: {type: array, items: {type: object}}
+                questions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, name, instructions]
+                    properties:
+                      type: {type: string, enum: [choice, predicate, score]}
+                      name: {type: string}
+                      instructions: {type: string}
+                      options: {type: array, items: {type: object}}
+                      levels: {type: array, items: {type: object}}
+      responses:
+        '200': {description: Named answers array with choice distributions, predicate probability, ordered score distributions or refusal. Optional model/usage metadata.}
+        '401': {description: Authentication failure; never fallback or escalate automatically}
+        '429': {description: Rate limit is transient; insufficient_quota is a configuration failure}
+        '500': {description: Transient service failure within the same bounded call budget}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer}

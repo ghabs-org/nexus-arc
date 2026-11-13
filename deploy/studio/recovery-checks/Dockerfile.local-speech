@@ -1,0 +1,18 @@
+# Explicit local Linux voice acceptance; model files are never built into this image.
+ARG CHECK_IMAGE
+FROM ${CHECK_IMAGE}
+USER 0:0
+ARG TORCH_VERSION=2.14.1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch==${TORCH_VERSION}" \
+    && pip install --no-cache-dir "openai-whisper==20250625" "piper-tts==1.8.0"
+COPY nexus /checks/nexus
+COPY examples/nexus-bot/src/studio_local_speech.py /checks/studio_local_speech.py
+RUN mkdir -p /models && chmod 0755 /models
+ENV PYTHONPATH=/checks PYTHONDONTWRITEBYTECODE=1 HOME=/tmp \
+    OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+WORKDIR /checks
+USER 65534:65534
+ENTRYPOINT ["python", "/checks/studio_local_speech.py"]

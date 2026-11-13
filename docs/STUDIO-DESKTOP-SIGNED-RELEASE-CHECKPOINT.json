@@ -1,0 +1,122 @@
+{
+  "format": "nexus-studio-signed-macos-release/v1",
+  "date": "2026-10-29",
+  "status": "signed-notarized-local-delivery-verified",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "artifact": {
+    "path": "releases/Nexus-Studio-1.0.2-apple-silicon.dmg",
+    "sha256": "fa8c23c8b8910077e4fcd8568e7d47b3424b12f8eae529e2fc69d8ecfa7bb00c",
+    "size_bytes": 534270203,
+    "architecture": "arm64",
+    "minimum_macos": "14.0",
+    "version": "1.0.2",
+    "profile": "full",
+    "developer_id_team": "CFV8SVV467"
+  },
+  "apple": {
+    "signing": {
+      "native_files_signed": 211,
+      "identity_sha1": "5E99CB84198CEC0E07A84ABA2555D7DE20433BFC"
+    },
+    "signed_profile": {
+      "passed": true,
+      "profile": "full",
+      "sdk_imports": 44
+    },
+    "app_notarization": {
+      "id": "76fe2775-c183-45cf-bbd4-20c521cae898",
+      "status": "Accepted"
+    },
+    "dmg_notarization": {
+      "id": "79f4b534-26c8-488a-a81d-bb692bc9b8e2",
+      "status": "Accepted"
+    }
+  },
+  "final_asset_sha256": {
+    "Nexus-Studio-1.0.2-apple-silicon.dmg": "fa8c23c8b8910077e4fcd8568e7d47b3424b12f8eae529e2fc69d8ecfa7bb00c",
+    "Nexus-Studio-1.0.2-aarch64.app.tar.gz": "e103e1aae4fe23f6d56e65c2a05263a679bde220fccb0858ac7f2fc98041f7fa",
+    "Nexus-Studio-1.0.2-aarch64.app.tar.gz.sig": "4e6190502898852a276287be56be0c3491df9664598be99c095c8e52df790d05",
+    "nexus-studio-latest.json": "5759905dbb5a133a41a449e843709cbfbc1e8e5565a0f774fe43d53831ba425d"
+  },
+  "validation": {
+    "source_regressions": {
+      "tests": 78,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "7c0c08dfa6e193f0c67cdd29c6adaa9d447be222fe13664bcfbe28697d7ce9b1"
+    },
+    "signed_runtime": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "6a0c5c76ab147cb0ae3f52118a8275465f08aab09ebd60abafe8c8900a8ef5f7"
+    },
+    "signed_dmg_installed_runtime": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "3a0a419e1453433574009a083cbe57c8ce656b4219a52da4614f26bf6aa99894"
+    }
+  },
+  "native_tests": {
+    "tests": 15,
+    "failed": 0,
+    "ignored": 0,
+    "report_sha256": "2fa32d8f9a916abe92122871905b903b7be44e09375bd40b9cd04d1fc94a2c56"
+  },
+  "gatekeeper_and_tickets": {
+    "dmg_integrity": true,
+    "dmg_stapled_ticket_valid": true,
+    "installed_signature_integrity": true,
+    "app_stapled_ticket_valid": true,
+    "gatekeeper_assessment_passed": true,
+    "team_id": "CFV8SVV467",
+    "another_physical_mac_tested": false
+  },
+  "actual_update_install_and_rollback": {
+    "synthetic_prior_version": "1.0.1",
+    "prior_code_is_current_candidate_fixture": true,
+    "new_actual_notarized_release": "1.0.2",
+    "bad_signature_rejected_without_app_change": true,
+    "official_installer_applied_archive": true,
+    "new_app_gatekeeper_and_stapled_ticket_passed": true,
+    "new_frozen_backend_started": true,
+    "previous_app_rollback_byte_identical": true,
+    "private_workspace_snapshot_verified_and_restored": true,
+    "workspace_schema_migration_tested": false,
+    "native_menu_clicked": false,
+    "public_feed_used": false,
+    "vm_contacted": false
+  },
+  "hardened_runtime_fix": {
+    "hardened_sdk_profile_passed": true,
+    "sdk_imports": 44,
+    "entitlements": {
+      "com.apple.security.cs.allow-unsigned-executable-memory": true
+    },
+    "library_validation_disabled": false,
+    "native_shell_entitlements_changed": false
+  },
+  "updater_archive_fix": "Producer excludes AppleDouble metadata and validates one application root. Accepted app/DMG bytes unchanged. Actual native installer now passes.",
+  "frozen_source_manifest": "releases/Nexus-Studio-1.0.2-build-manifest.json",
+  "frozen_source_scope": "Full frozen per-file source/native hashes retained. Only the release producer module differs from current source (optional release notes and archive packing); packaged prepare_update matches current AST. No product runtime rebuild is needed for the producer-only packing fix.",
+  "delivery_scope": "Apple Silicon/macOS 14+ on this Mac. Account/device and installed Windows/Linux checks remain separate. No VM contact.",
+  "remaining": [
+    "Public release/feed publication is not authorized or performed.",
+    "Another physical Mac and native-menu click-through against the published feed.",
+    "Actual old-release/schema migration compatibility; rollback fixture uses synthetic prior-version metadata on current candidate code.",
+    "Installed Linux/Windows and Windows signing."
+  ],
+  "published": false,
+  "vm_contacted": false,
+  "dmg_build_explicitly_authorized": true,
+  "lint": {
+    "python": "passed",
+    "native_tests_examples": "passed",
+    "native_report_sha256": "dcabc23e9bffdb12591ac7dcd0712fbf9fdd83bf6e7290033118cbd00bb4d8b3"
+  }
+}

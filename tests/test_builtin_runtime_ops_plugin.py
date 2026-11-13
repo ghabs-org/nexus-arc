@@ -129,15 +129,15 @@ def test_find_issue_processes_accepts_wrapped_cli_invocation(monkeypatch):
 
 
 def test_build_issue_pattern_groups_process_alternation():
-    plugin = RuntimeOpsPlugin({"process_name": "copilot|codex|gemini"})
+    plugin = RuntimeOpsPlugin({"process_name": "copilot|codex|claude"})
 
     pattern = plugin.build_issue_pattern("42")
 
-    assert pattern == "(?:copilot|codex|gemini).*issues/42(?:[^0-9]|$)"
+    assert pattern == "(?:copilot|codex|claude).*issues/42(?:[^0-9]|$)"
 
 
 def test_find_issue_processes_does_not_match_unrelated_issue_with_alternation(monkeypatch):
-    plugin = RuntimeOpsPlugin({"process_name": "copilot|codex|gemini"})
+    plugin = RuntimeOpsPlugin({"process_name": "copilot|codex|claude"})
 
     def _fake_run(cmd, text, capture_output, timeout, check):
         assert cmd[0].endswith("pgrep")

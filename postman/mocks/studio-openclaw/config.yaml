@@ -1,0 +1,10 @@
+version: 1
+name: Studio OpenClaw operator transport failures
+slug: studio-openclaw
+protocol: http
+port: 49672
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

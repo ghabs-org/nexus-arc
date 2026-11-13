@@ -73,7 +73,6 @@ def mock_env_vars(monkeypatch, tmp_path):
     """Auto-use fixture to set required environment variables for all tests."""
     monkeypatch.setenv("TELEGRAM_TOKEN", "test_token_123")
     monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
-    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
     monkeypatch.setenv("ALLOWED_USER", "12345")
     monkeypatch.setenv("BASE_DIR", "/tmp/test_nexus")
     monkeypatch.setenv("DATA_DIR", str(_TEST_DATA_DIR))

@@ -34,6 +34,8 @@ _TERMINAL_AGENT_REFERENCES = frozenset(
         "",
     }
 )
+_NON_LAUNCHABLE_AGENT_REFERENCES = frozenset({"human"})
+_COMPLETED_WORKFLOW_STATES = frozenset({"completed"})
 
 
 def _run_coro_sync(coro_factory):
@@ -87,6 +89,24 @@ def _read_latest_completion_from_storage(issue_num: str) -> dict[str, Any] | Non
     }
 
 
+def _read_workflow_status_snapshot(issue_num: str) -> dict[str, Any] | None:
+    async def _load():
+        from nexus.core.orchestration.nexus_core_helpers import get_workflow_status
+
+        return await get_workflow_status(str(issue_num))
+
+    payload = _run_coro_sync(_load)
+    if not isinstance(payload, dict):
+        return None
+
+    return {
+        "state": str(payload.get("state") or "").strip().lower(),
+        "current_agent_type": str(payload.get("current_agent_type") or "").strip().lower(),
+        "current_step_name": str(payload.get("current_step_name") or "").strip(),
+        "summary": payload,
+    }
+
+
 def prepare_continue_context(
     *,
     issue_num: str,
@@ -108,12 +128,21 @@ def prepare_continue_context(
 ) -> dict[str, Any]:
     """Build context for /continue and return either a terminal state or launch payload."""
 
-    def _normalize_routable_agent(value: Any) -> str | None:
+    def _normalized_agent_text(value: Any) -> str:
         normalized = normalize_agent_reference(value)
-        if not normalized:
+        return str(normalized or "").strip().lower()
+
+    def _is_non_launchable_agent(value: Any) -> bool:
+        return _normalized_agent_text(value) in _NON_LAUNCHABLE_AGENT_REFERENCES
+
+    def _normalize_routable_agent(value: Any) -> str | None:
+        normalized_text = _normalized_agent_text(value)
+        if not normalized_text:
             return None
-        normalized_text = str(normalized).strip()
-        if normalized_text.lower() in _TERMINAL_AGENT_REFERENCES:
+        if (
+            normalized_text in _TERMINAL_AGENT_REFERENCES
+            or normalized_text in _NON_LAUNCHABLE_AGENT_REFERENCES
+        ):
             return None
         return normalized_text
 
@@ -190,6 +219,17 @@ def prepare_continue_context(
     if not forced_agent and filtered_rest and _looks_like_agent_ref(filtered_rest[0]):
         forced_agent = filtered_rest[0]
         filtered_rest = filtered_rest[1:]
+
+    if forced_agent and _is_non_launchable_agent(forced_agent):
+        normalized_forced = _normalized_agent_text(forced_agent)
+        return {
+            "status": "error",
+            "message": (
+                f"⚠️ `/continue` cannot launch `{normalized_forced}` because it is a human handoff, "
+                "not a runnable agent.\n\n"
+                f"Choose a real agent with `/continue {project_key} {issue_num} from:<agent>` instead."
+            ),
+        }
 
     continuation_prompt = (
         " ".join(filtered_rest) if filtered_rest else "Please continue with the next step."
@@ -329,11 +369,28 @@ def prepare_continue_context(
     if details.get("state", "").lower() == "closed":
         return {"status": "error", "message": f"⚠️ Issue #{issue_num} is closed."}
 
+    def _awaiting_human_status(last_agent: Any) -> dict[str, Any]:
+        resumed_from = str(last_agent or "").strip().lower() or None
+        last_agent_text = resumed_from or "unknown"
+        return {
+            "status": "awaiting_human",
+            "message": (
+                f"⏸️ Issue #{issue_num} is waiting for human action, not another agent launch.\n"
+                f"Last agent: `{last_agent_text}`\n\n"
+                "Use the workflow approval or review flow to proceed, "
+                f"or run `/continue {project_key} {issue_num} from:<agent>` to force a specific agent."
+            ),
+            "repo": repo,
+            "resumed_from": resumed_from,
+            "project_name": project_name or project_key,
+        }
+
     agent_type = None
     agent_from_completion = False
     resumed_from = None
     workflow_already_done = False
     sync_workflow_to_agent = False
+    awaiting_human_from = None
 
     if not is_postgres_backend(NEXUS_STORAGE_BACKEND):
         try:
@@ -346,6 +403,9 @@ def prepare_continue_context(
                     resumed_from = latest.summary.agent_type
                 else:
                     raw_next = latest.summary.next_agent
+                    if _is_non_launchable_agent(raw_next):
+                        resumed_from = latest.summary.agent_type or resumed_from
+                        awaiting_human_from = resumed_from or awaiting_human_from
                     normalized = _normalize_routable_agent(raw_next)
                     if normalized:
                         agent_type = normalized
@@ -378,6 +438,9 @@ def prepare_continue_context(
             ):
                 workflow_already_done = True
                 resumed_from = latest_completion.get("agent_type") or resumed_from
+            elif _is_non_launchable_agent(latest_completion.get("next_agent")):
+                resumed_from = latest_completion.get("agent_type") or resumed_from
+                awaiting_human_from = resumed_from or awaiting_human_from
             elif has_next_agent:
                 agent_type = normalized
                 agent_from_completion = True
@@ -394,6 +457,32 @@ def prepare_continue_context(
         agent_from_completion = False
         workflow_already_done = False
         logger.info("Continue issue #%s: overriding agent to %s (from: arg)", issue_num, agent_type)
+
+    workflow_status = None if forced_agent else _read_workflow_status_snapshot(str(issue_num))
+    workflow_state = str((workflow_status or {}).get("state") or "").strip().lower()
+    if workflow_state in _COMPLETED_WORKFLOW_STATES:
+        completed_resumed_from = (
+            str((workflow_status or {}).get("current_agent_type") or "").strip().lower()
+            or str((workflow_status or {}).get("current_step_name") or "").strip()
+            or resumed_from
+            or "unknown"
+        )
+        if awaiting_human_from:
+            logger.info(
+                "Continue issue #%s: ignoring stale human handoff because workflow is already %s",
+                issue_num,
+                workflow_state,
+            )
+        if resumed_from and completed_resumed_from != resumed_from:
+            logger.info(
+                "Continue issue #%s: preferring completed workflow terminal agent '%s' "
+                "over recovered completion agent '%s'",
+                issue_num,
+                completed_resumed_from,
+                resumed_from,
+            )
+        workflow_already_done = True
+        resumed_from = completed_resumed_from
 
     if workflow_already_done and not forced_agent:
         if details.get("state", "").lower() == "open":
@@ -415,6 +504,11 @@ def prepare_continue_context(
     if not agent_type:
         agent_type_match = re.search(r"\*\*Agent Type:\*\*\s*(.+)", content)
         raw_agent_type = agent_type_match.group(1).strip() if agent_type_match else "triage"
+        if _is_non_launchable_agent(raw_agent_type):
+            awaiting_human_from = resumed_from or awaiting_human_from or _normalized_agent_text(
+                raw_agent_type
+            )
+            raw_agent_type = ""
         agent_type = _normalize_routable_agent(raw_agent_type) or "triage"
         if raw_agent_type != agent_type:
             logger.warning(
@@ -432,6 +526,23 @@ def prepare_continue_context(
     normalized_expected = (
         normalize_agent_reference(expected_running_agent) if expected_running_agent else None
     )
+    if (
+        not forced_agent
+        and str(normalized_expected or "").strip().lower() in _NON_LAUNCHABLE_AGENT_REFERENCES
+    ):
+        return _awaiting_human_status(awaiting_human_from or resumed_from or normalized_expected)
+    if not forced_agent and awaiting_human_from:
+        if normalized_expected:
+            logger.info(
+                "Continue issue #%s: ignoring stale human handoff from completion/context; "
+                "workflow currently expects '%s'",
+                issue_num,
+                normalized_expected,
+            )
+            agent_type = normalized_expected
+            agent_from_completion = False
+        else:
+            return _awaiting_human_status(awaiting_human_from)
     normalized_requested = normalize_agent_reference(agent_type) if agent_type else None
     if (
         not forced_agent

@@ -1,0 +1,13 @@
+openapi: 3.0.3
+info:
+  title: Nexus authenticated A2A agent discovery
+  version: 1.0.0
+paths:
+  /api/a2a/{id}/agent-card.json:
+    get:
+      description: Existing bearer-authorized discovery advertises validated metadata from the entrypoint's agent target. Agent skills, description, version, provider and documentation URL may customize discovery. Endpoint identity, security, protocol interfaces, streaming/push capabilities and accepted message modes remain server-controlled. Workflow targets retain their configured-target skill. Discovery never invokes an agent or fetches metadata URLs.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: A2A 0.3 or 1.0 card with effective routing metadata}
+        '403': {description: Disabled exposure, inactive resource, missing bearer or revoked execution access}

@@ -1,0 +1,285 @@
+"""
+nexus/agents/coordinator.py — Coordinator agent with LLM-driven delegation and nexus-router model selection.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import time
+from typing import TYPE_CHECKING, Any
+
+from nexus.core.router_client import RouterClient, endpoint
+
+from .base import AgentContext, AgentOutput, BaseAgent, propagate_requester, run_child
+from .context import slice_context
+
+if TYPE_CHECKING:
+    pass  # AIProvider imported lazily to avoid nexus.plugins bootstrap
+
+logger = logging.getLogger(__name__)
+
+
+DEFAULT_ROUTER_URL = "http://127.0.0.1:7771"
+
+
+def _router_client(router_url: str | None) -> RouterClient | None:
+    """Explicit URL, else NEXUS_ROUTER_URL, else the local default; NEXUS_ROUTER_TOKEN if set."""
+    if router_url:
+        token = (os.getenv("NEXUS_ROUTER_TOKEN") or "").strip() or None
+        return RouterClient(endpoint({"url": router_url, "allow_private": True}), token, timeout=3)
+    return RouterClient.from_env(default_url=DEFAULT_ROUTER_URL, timeout=3)
+
+
+def _call_nexus_router(router_url: str | None, task: str) -> dict | None:
+    """
+    Ask nexus-router (POST /route) for the best model for a task.
+    Returns the decision ({selected_model, decision_id, fallbacks, explain, ...}),
+    or None if the router is unavailable.
+    """
+    try:
+        client = _router_client(router_url)
+        return client.route(None, task[:8000], source_type="coordinator") if client else None
+    except Exception as exc:
+        logger.debug("nexus-router unavailable (%s) — using sub-agent default model", exc)
+        return None
+
+
+def _report_coordinator_outcome(router_url: str | None, decision: dict, success: bool, started: float):
+    try:
+        client = _router_client(router_url)
+        if client and decision.get("decision_id"):
+            client.outcome(
+                None,
+                decision["decision_id"],
+                success=success,
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
+    except Exception as exc:
+        logger.debug("nexus-router outcome not recorded (%s)", exc)
+
+
+class LLMSubAgent(BaseAgent):
+    """
+    A sub-agent that delegates execution to an AIProvider.
+    The AIProvider is passed in at construction time; imports are lazy
+    to avoid triggering the full nexus plugin bootstrap at import time.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        ai_provider: Any,
+        workspace_path: str = "/tmp",
+        model_override: str | None = None,
+        instructions: str = "",
+    ) -> None:
+        super().__init__(name=name, description=description)
+        self.ai_provider = ai_provider
+        self.workspace_path = workspace_path
+        self.model_override = model_override
+        self.instructions = instructions
+
+    async def run(self, context: AgentContext) -> AgentOutput:
+        from pathlib import Path
+
+        from nexus.adapters.ai.base import ExecutionContext
+
+        prior = context.prior_summary()
+        prompt = context.task
+        if prior:
+            prompt = f"Previous context:\n{prior}\n\nYour task:\n{context.task}"
+        if self.instructions:
+            prompt = f"{self.instructions}\n\n{prompt}"
+
+        # Prefer model injected by Coordinator via context metadata over the instance default.
+        model_override = context.metadata.get("_router_model") or self.model_override
+
+        exec_ctx = ExecutionContext(
+            agent_name=self.name,
+            prompt=prompt,
+            workspace=Path(self.workspace_path),
+            metadata=context.metadata,
+            model_override=model_override,
+        )
+        result = await self.ai_provider.execute_agent(exec_ctx)
+        content = result.output if result.success else f"[{self.name} failed]: {result.output}"
+        return AgentOutput(
+            content=content,
+            metadata={"success": result.success, "agent": self.name},
+        )
+
+
+class Coordinator(BaseAgent):
+    """
+    Coordinator agent with LLM-driven delegation.
+
+    Given a task and a list of sub-agents (each with name + description),
+    the Coordinator:
+    1. Uses its own LLM call to decide which sub-agent handles the task
+    2. Calls nexus-router to pick the best model for the chosen sub-task
+    3. Runs the selected sub-agent with a sliced context
+    4. Returns the sub-agent's output
+
+    Falls back gracefully if nexus-router is unavailable or LLM delegation fails.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        sub_agents: list[BaseAgent],
+        ai_provider: Any,
+        router_url: str | None = None,
+        workspace_path: str = "/tmp",
+        description: str = "",
+        timeout: float | None = None,
+    ) -> None:
+        super().__init__(name=name, description=description or "Coordinator that delegates tasks to sub-agents", timeout=timeout)
+        if not sub_agents:
+            raise ValueError("Coordinator requires at least one sub-agent")
+        self.sub_agents = sub_agents
+        self.ai_provider = ai_provider
+        self.router_url = router_url
+        self.workspace_path = workspace_path
+        for agent in sub_agents:
+            agent._parent = self
+
+    def _build_delegation_prompt(self, context: AgentContext) -> str:
+        agent_list = "\n".join(
+            f"- {a.name}: {a.description}" for a in self.sub_agents
+        )
+        prior = context.prior_summary()
+        prior_section = f"\nPrevious context:\n{prior}\n" if prior else ""
+        return (
+            f"You are a coordinator. Given the following task and available agents, "
+            f"respond with ONLY the name of the most suitable agent to handle the task. "
+            f"Do not explain — output just the agent name.\n"
+            f"{prior_section}"
+            f"\nAvailable agents:\n{agent_list}"
+            f"\n\nTask: {context.task}"
+            f"\n\nAgent name:"
+        )
+
+    async def _select_agent_via_jev(self, context: AgentContext) -> BaseAgent | None:
+        """Typed delegation choice; None when unkeyed, unsure, or failing.
+
+        Runs in a thread (blocking HTTP) and never raises: any doubt falls
+        through to the LLM path in :meth:`_select_agent`.
+        """
+        import asyncio as _asyncio
+        import os as _os
+
+        if not (
+            (_os.getenv("OPENROUTER_API_KEY") or "").strip()
+            or (_os.getenv("OPENCODE_API_KEY") or "").strip()
+        ):
+            return None
+        if _os.getenv("JEV_DELEGATION", "true").strip().lower() != "true":
+            return None
+        try:
+            from nexus.adapters.decisions.jev import decide_choice
+
+            options = {
+                agent.name: agent.description or agent.name for agent in self.sub_agents
+            }
+            choice, confidence, sure = await _asyncio.to_thread(
+                decide_choice,
+                context.task,
+                options,
+                "Which sub-agent should handle this task?",
+                min_confidence=float(_os.getenv("JEV_MIN_CONFIDENCE", "0.6")),
+                default=self.sub_agents[0].name,
+            )
+            if not sure:
+                logger.info(
+                    "Coordinator Jev unsure (confidence %.2f) — using LLM delegation",
+                    confidence,
+                )
+                return None
+            for agent in self.sub_agents:
+                if agent.name.lower() == str(choice).lower():
+                    logger.info(
+                        "Coordinator selected agent via Jev: %s (confidence %.2f)",
+                        agent.name,
+                        confidence,
+                    )
+                    return agent
+            logger.warning(
+                "Coordinator Jev chose unknown agent %r — using LLM delegation", choice
+            )
+            return None
+        except Exception as exc:
+            logger.debug("Coordinator Jev delegation failed (%s) — using LLM delegation", exc)
+            return None
+
+    async def _select_agent(self, context: AgentContext) -> BaseAgent:
+        """Use Jev typed choice first, falling back to LLM selection."""
+        jev_pick = await self._select_agent_via_jev(context)
+        if jev_pick is not None:
+            return jev_pick
+        from pathlib import Path
+
+        from nexus.adapters.ai.base import ExecutionContext
+
+        prompt = self._build_delegation_prompt(context)
+        exec_ctx = ExecutionContext(
+            agent_name=self.name,
+            prompt=prompt,
+            workspace=Path(self.workspace_path),
+            metadata={"coordinator": True},
+            max_tokens=32,
+        )
+        try:
+            result = await self.ai_provider.execute_agent(exec_ctx)
+            chosen_name = result.output.strip().strip('"').strip("'").split("\n")[0]
+            for agent in self.sub_agents:
+                if agent.name.lower() == chosen_name.lower():
+                    return agent
+            logger.warning(
+                "Coordinator chose unknown agent %r — falling back to first sub-agent", chosen_name
+            )
+        except Exception as exc:
+            logger.warning("Coordinator LLM delegation failed (%s) — falling back to first sub-agent", exc)
+
+        return self.sub_agents[0]
+
+    async def run(self, context: AgentContext) -> AgentOutput:
+        # 1. LLM-driven agent selection
+        selected = await self._select_agent(context)
+        logger.info("Coordinator selected agent: %s", selected.name)
+
+        # 2. Ask nexus-router for the best model for this sub-task (non-blocking)
+        loop = asyncio.get_running_loop()
+        decision = await loop.run_in_executor(
+            None, lambda: _call_nexus_router(self.router_url, context.task)
+        )
+        model = decision.get("selected_model") if isinstance(decision, dict) else None
+        if model:
+            logger.info("nexus-router selected model: %s for agent: %s", model, selected.name)
+
+        # 3. Run selected agent with sliced context; inject router model via metadata
+        #    to avoid mutating the shared sub-agent object. An explicit agent
+        #    model pin always wins over the router suggestion.
+        sliced = slice_context(context)
+        explicit_model = (
+            selected.model_override if isinstance(selected, LLMSubAgent) else None
+        )
+        if model and isinstance(selected, LLMSubAgent) and not explicit_model:
+            sliced = AgentContext(
+                task=sliced.task,
+                prior_outputs=sliced.prior_outputs,
+                metadata={**sliced.metadata, "_router_model": model},
+            )
+        started = time.monotonic()
+        output = await run_child(selected, sliced, self.timeout)
+        output.metadata["coordinator_selected_agent"] = selected.name
+        output.metadata["coordinator_model"] = explicit_model or model
+        if model and not explicit_model:
+            output.metadata["router_decision_id"] = decision.get("decision_id")
+            success = bool(output.metadata.get("success", True)) and not output.metadata.get("timeout")
+            await loop.run_in_executor(
+                None,
+                lambda: _report_coordinator_outcome(self.router_url, decision, success, started),
+            )
+        return propagate_requester(sliced, output)

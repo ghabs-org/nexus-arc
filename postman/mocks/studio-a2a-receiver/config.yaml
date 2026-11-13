@@ -1,0 +1,10 @@
+version: 1
+name: Synthetic callback-producing A2A agent
+slug: studio-a2a-receiver
+protocol: http
+port: 49653
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

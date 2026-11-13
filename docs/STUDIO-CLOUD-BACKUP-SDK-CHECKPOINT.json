@@ -1,0 +1,144 @@
+{
+  "format": "nexus-studio-cloud-backup-sdk/v1",
+  "date": "2026-10-27",
+  "status": "fixture-verified-with-real-vendor-sdks",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Current framework backup and real installed GCS/Azure SDKs over local Postman HTTP simulations. No HTTP clients are mocked; no cloud account, VM or existing workspace is used.",
+  "implementation": "Existing product adapters and snapshot/restore implementation pass unchanged. Added explicit opt-in acceptance, independent read-only HTTP contracts and execution context.",
+  "validation": {
+    "sdk": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 3.37,
+      "report": "/private/tmp/nexus-cloud-backup-sdk.xml",
+      "sha256": "e0d73f1879a40bfc5a5cb1662139297d18358fde10ce7e76b9c351f9552e50ea",
+      "cases": [
+        {
+          "failure_shapes": [
+            "missing",
+            "denied",
+            "corrupt",
+            "oversize",
+            "changed",
+            "outage"
+          ],
+          "kind": "gcs",
+          "offline_revisions": 2,
+          "provider_mutations": 0,
+          "real_accounts": false,
+          "retained_citation_revision": 1,
+          "sdk_http_requests": 17,
+          "source_records_sha256": "98588ce828ce3248429b913d37b1f6a5c2bd7c4feafc9787e3841789541497c9"
+        },
+        {
+          "failure_shapes": [
+            "missing",
+            "denied",
+            "corrupt",
+            "oversize"
+          ],
+          "kind": "azure",
+          "offline_revisions": 2,
+          "provider_mutations": 0,
+          "real_accounts": false,
+          "retained_citation_revision": 1,
+          "sdk_http_requests": 13,
+          "source_records_sha256": "13b052e1c02f2cd4072401756ce0f49ea85a3d707f538c2313f51a90b883379c"
+        }
+      ]
+    },
+    "existing_regressions": {
+      "tests": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 12.859,
+      "report": "/private/tmp/nexus-cloud-backup-required.xml",
+      "sha256": "aa76c8c3c3322f22049fab4cd2d75ddd4d65b02de83716661bfa55e47c7a7831",
+      "cases": []
+    }
+  },
+  "sdk_versions": {
+    "google-cloud-storage": "3.17.1",
+    "google-auth": "2.62.0",
+    "azure-storage-blob": "12.31.0",
+    "azure-core": "1.41.0"
+  },
+  "simulation": {
+    "cli_version": "1.75.0",
+    "log": "/private/tmp/nexus-cloud-backup-simulation-final.ndjson",
+    "sha256": "46dbe43b822338dd32536380dbc58216289dcda72e0c4c74cbcf5f30cfeec899",
+    "requests": 38,
+    "members": {
+      "gcs": {
+        "requests": 21,
+        "methods": {
+          "GET": 21
+        },
+        "statuses": {
+          "200": 14,
+          "206": 3,
+          "404": 1,
+          "403": 1,
+          "412": 1,
+          "503": 1
+        }
+      },
+      "azure": {
+        "requests": 17,
+        "methods": {
+          "GET": 8,
+          "HEAD": 9
+        },
+        "statuses": {
+          "200": 11,
+          "206": 4,
+          "404": 1,
+          "403": 1
+        }
+      }
+    },
+    "note": "Totals include fixture-only observation GETs. Reported SDK case counts exclude those. Non-success responses are intentional failure cases; no 501 or mutating request occurred in the final run.",
+    "stopped": true,
+    "listener_absent": true,
+    "credentials": "Anonymous GCS emulator credentials and a synthetic Azure SharedKey. No ADC, real account keys or cloud endpoints required.",
+    "owner_mock_search": "Unavailable: Postman CLI unauthenticated. Repository-owned fixtures derive from vendor primary contracts linked in the operator contract."
+  },
+  "verified": [
+    "Both actual SDK paths capture two revisions, restore exact bytes and original document citation revision offline, preserve private file modes and retain source metadata.",
+    "Missing, denied, corrupt or oversized objects publish no snapshot; empty objects need no media read, and deliberately overlong responses are rejected.",
+    "Actual download requests carry bounded ranges. GCS download requests pin observed generation; 412 generation change and 503 service failure reject publication without retry.",
+    "Azure requests use real SDK SharedKey signing with synthetic credentials. This verifies request construction only, not cloud signature validation.",
+    "No object writes, deletes, bucket/object listing or provider requests during offline restore and reopened Studio. GCS SDK bucket metadata reads are separately modeled."
+  ],
+  "fixture_correction": "Log inspection found optional GCS SDK bucket metadata reads initially returned 501. Final fixture serves documented Buckets.get; final SDK acceptance and logs contain no unsupported requests.",
+  "pending": [
+    "Selected cloud-account authentication, IAM/permissions, retention/history and actual account restore drills.",
+    "Azure transient retry/backoff and slow/unreachable cloud-provider timing; only the stated failure shapes were tested.",
+    "Personal VM/account-store, physical device and installed-platform validation remain separate."
+  ],
+  "migration": "No runtime, authentication, schema, API payload or stored configuration changes. New prerequisite-dependent acceptance is opt-in; normal required test discovery does not silently skip missing SDKs.",
+  "source_sha256": {
+    "tests/studio_cloud_backup_acceptance.py": "bcbb5b9aef918db3bdf4eced942fcc93dc81a226aa8034ecc041ab3cbea3a93d",
+    "postman/simulations/studio-cloud-backup.sim.yaml": "e635e1358d0d19fbca4d5b276b90222bdb87eda95ff6172afd3b8490deaa6ec9",
+    "postman/simulations/studio-cloud-backup.context.md": "a4b0a6273ff6276ee799573d1a5255463ea5ee26b9c83c114c885c369889ecab",
+    "postman/mocks/studio-gcs-backup/config.yaml": "7820df93ffded16c52ab67672bb0fb9f905a48bec250680aee2d256b04cc9de7",
+    "postman/mocks/studio-gcs-backup/default.js": "18e8a18ddabbc487e7dc0aba9866c39fd46eea975b8a12168a1162e3fc9fdc33",
+    "postman/mocks/studio-azure-backup/config.yaml": "0be93808ffa2b113cae80349ef50475455d00f0d760077c4b64fa393f7d85d8d",
+    "postman/mocks/studio-azure-backup/default.js": "25a524d7a629c3c421086cbdc2b706ca288d8fe501fe930438d3b80c9a3bf137",
+    "postman/contracts/studio-object-backup.md": "6906e6046a6fc5623c96f1b5785e542c98fb4f4de85fd64ec872deb4906bf171",
+    "nexus/adapters/artifacts/__init__.py": "9f6126c737b73ddeeecaaaf58cfaf99392a55865c490ae71466d7fbd65c03baf",
+    "nexus/core/studio_backup_artifacts.py": "65ef442f29912e2c5470dcf76d7546747bdacc2b20afe32892d9f7ce0e7b728d",
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819"
+  },
+  "vm_contacted": false,
+  "vm_changed": false,
+  "real_accounts_used": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75"
+}

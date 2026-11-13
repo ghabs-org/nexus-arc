@@ -1,0 +1,20 @@
+openapi: 3.0.3
+info:
+  title: Synthetic A2A notification receiver
+  version: 1.0.0
+  description: Local compatibility fixture derived from A2A 1.0 sections 4.3 and 13.2, inspected 2026-10-20. No vendor-specific receiver or live account claim. Authenticated StreamResponse task snapshot, X-Nexus-Delivery-ID for deduplication. The receiver deliberately returns 502 or redirects to exercise bounded failure handling.
+paths:
+  /callback:
+    post:
+      responses:
+        '204': {description: Valid authenticated snapshot acknowledged}
+        '400': {description: Invalid task snapshot or missing delivery ID}
+        '401': {description: Incorrect Bearer credential}
+  /failure:
+    post:
+      responses:
+        '502': {description: Proxy HTML failure; retry same snapshot/event ID}
+  /redirect:
+    post:
+      responses:
+        '302': {description: Location must never be followed by sender}

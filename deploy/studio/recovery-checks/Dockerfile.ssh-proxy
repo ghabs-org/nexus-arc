@@ -1,0 +1,16 @@
+# Disposable SSH transport acceptance. No host credentials or published ports.
+ARG CHECK_IMAGE=nexus-private-proxy-checks:20261026
+FROM ${CHECK_IMAGE}
+USER 0:0
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-client openssh-server \
+    && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
+    && groupadd --gid 1001 nexus \
+    && useradd --uid 1001 --gid 1001 --create-home --shell /bin/sh nexus \
+    && usermod --password '*' nexus \
+    && mkdir -p /run/sshd /ssh-server /ssh-client \
+    && chown 1001:1001 /ssh-server /ssh-client \
+    && chmod 700 /ssh-server /ssh-client
+COPY examples/nexus-bot/src/studio_proxy_ssh.py /checks/examples/nexus-bot/src/studio_proxy_ssh.py
+ENV HOME=/home/nexus
+USER 1001:1001

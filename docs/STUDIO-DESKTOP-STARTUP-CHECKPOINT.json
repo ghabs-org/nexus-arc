@@ -1,0 +1,165 @@
+{
+  "format": "nexus-studio-desktop-startup-checkpoint/v1",
+  "date": "2026-10-25",
+  "milestone": 9,
+  "status": "partial-native-startup-acceptance",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Native owned-sidecar startup and fail-closed bootstrap readiness. Not portable packaging or authenticated native session acceptance.",
+  "implemented": [
+    "Retain owned sidecar handle until shutdown; stop process group on window close, app quit, failed readiness/navigation and rejected late/duplicate spawn. Drain child output without displaying raw errors.",
+    "Use native application data/workspace directory and explicit --dir argument instead of implicit working directory. Reserve loopback port with no fallback to a fixed unrelated service.",
+    "Wait at most 20 seconds for 200 JSON desktop bootstrap matching canonical workspace with bounded CSRF-token shape; no proxy/redirects, one-second request timeout and 256 KiB body limit. Check child ownership before navigation.",
+    "Bundle a small local startup/error view; navigate to full existing server UI only after verified response shape. No UI/backend rewrite or new server API."
+  ],
+  "validation": {
+    "rust": {
+      "tests": 6,
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "report": "/private/tmp/nexus-native-startup-rust.log",
+      "scope": "Ownership, close-before-spawn, duplicate spawn, terminated leader cleanup, wrong bootstrap shape and exited-child guards."
+    },
+    "python": {
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-native-startup-required.xml",
+      "suites": [
+        "tests/studio_desktop_native_acceptance.py",
+        "tests/test_studio_desktop.py",
+        "tests/test_studio_completion_audit.py"
+      ]
+    },
+    "actual_http": "Rust probe accepts actual disposable Studio bootstrap and rejects wrong workspace. Four Postman failure variants reject redirects, HTML, oversized responses and team mode.",
+    "simulation": {
+      "requests": 55,
+      "bootstrap_reads": 47,
+      "control_posts": 4,
+      "diagnostic_reads": 4,
+      "statuses": {
+        "200": 43,
+        "302": 12
+      },
+      "members_served": [
+        "api"
+      ],
+      "members_silent": [],
+      "redirect_followed": false,
+      "log": "/private/tmp/nexus-native-startup-simulation.ndjson"
+    },
+    "native_build": {
+      "target": "aarch64-apple-darwin",
+      "status": "passed",
+      "command": "cargo build --manifest-path apps/studio-desktop/src-tauri/Cargo.toml --offline",
+      "report": "/private/tmp/nexus-native-startup-build.log",
+      "scope": "Development executable builds; no native window or clean installer executed."
+    },
+    "browser": {
+      "scope": "Local startup/error assets previewed in browser, not a native installed webview.",
+      "startup_text": "Starting your workspace",
+      "failure_text": "Studio could not start",
+      "console_errors": 0,
+      "console_warnings": 0,
+      "screenshot": "/private/tmp/nexus-native-startup-error.png",
+      "temporary_tab_closed": true
+    },
+    "openclaw_reverification": {
+      "transport": "postman",
+      "http_cases": 8,
+      "unreachable": "passed",
+      "logged_requests": 8,
+      "automatic_retries": 0,
+      "former_dataset_blocker": "resolved"
+    },
+    "claims": {
+      "format": "nexus-studio-completion-audit/v1",
+      "scope": "Recorded-claim consistency only; this command does not run acceptance tests or certify runtime behavior.",
+      "total": 135,
+      "accepted": 135,
+      "open": 0,
+      "open_ids": [],
+      "milestones": {
+        "1": {
+          "accepted": 6,
+          "total": 6
+        },
+        "2": {
+          "accepted": 8,
+          "total": 8
+        },
+        "3": {
+          "accepted": 8,
+          "total": 8
+        },
+        "4": {
+          "accepted": 7,
+          "total": 7
+        },
+        "5": {
+          "accepted": 10,
+          "total": 10
+        },
+        "6": {
+          "accepted": 9,
+          "total": 9
+        },
+        "7": {
+          "accepted": 10,
+          "total": 10
+        },
+        "8": {
+          "accepted": 9,
+          "total": 9
+        }
+      },
+      "checkpoints_complete": {
+        "7": true,
+        "8": true,
+        "9": false,
+        "10": true,
+        "11": true,
+        "12": true
+      },
+      "plan_complete": false,
+      "inconsistencies": []
+    }
+  },
+  "migration": "Native default workspace is now the application data directory/workspace child. Existing workspaces are not moved, deleted or imported automatically. Existing Python/CLI storage formats and server/bootstrap request formats stay unchanged. Native workspace chooser/locking integration remains pending.",
+  "remaining": [
+    "Authenticated native backend identity and session handshake; shape matching alone is not authentication.",
+    "Native/CLI cross-process workspace ownership and actual native-window close/quit/restart drills.",
+    "Replace absolute build-machine Python wrappers with a bundled portable runtime containing server UI/assets and dependencies.",
+    "Clean macOS/Linux/Windows installed builds, signing, update and permissions acceptance."
+  ],
+  "guide": "docs/STUDIO-DESKTOP.md",
+  "handoff": "docs/STUDIO-NEXT-AGENT-PLAN.md",
+  "example": "examples/nexus-bot/src/studio_desktop_readiness.py",
+  "contract": "postman/contracts/studio-desktop-readiness.md",
+  "user_studio_restarted": false,
+  "real_account_requests_performed": false,
+  "personal_vm_changed": false,
+  "temporary_services_stopped": {
+    "simulation_59977": true,
+    "preview_60002": true
+  },
+  "native_app_launched": false,
+  "source_sha256": {
+    "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
+    "apps/studio-desktop/src-tauri/src/backend.rs": "fe7f223d64460e5b05a48eef7a26b1ee3fd33bea80fa12e3a0a92cc054f3f1b9",
+    "apps/studio-desktop/src-tauri/examples/backend_probe.rs": "556112f6c09f0c7443976753713afb7b3a1e0d5b8ea6ba09bafd06d07629c960",
+    "apps/studio-desktop/src-tauri/tauri.conf.json": "9781e977a1d897df2b7bce459f59b94b7155323e6fd01491ee3fbf9059f6bcbe",
+    "apps/studio-desktop/ui/index.html": "82f458e52af4c37e54fe5badee61d588b18114b9f90141e6826809cac6c61905",
+    "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
+    "apps/studio-desktop/ui/startup.css": "d635f9ca2a288cde66fca420725605c51a9708b3a5dacebe94b9dd5d210f0223",
+    "tests/studio_desktop_native_acceptance.py": "39ceb77d46717d6cf6aa5d31b4e556efebbabe911a716e758df330792636dcfa",
+    "examples/nexus-bot/src/studio_desktop_readiness.py": "cdc8e104f48921a3d514ee14cd33691cf79bd4bded840615bbcecbe3b76fddc6",
+    "postman/contracts/studio-desktop-readiness.md": "6fc640dd8b65652b486f5ea79743225c2c97f9ef939f4c99be0f96cac56ec67d",
+    "postman/mocks/studio-desktop-readiness/default.js": "ccb93645430ce4a248a730a01a376d1a586c5229d5f9ad741a66be852bd3a300",
+    "postman/mocks/studio-desktop-readiness/config.yaml": "f498a6537cdde9c93baaca31db3a0078c828d01c41123f3ecde8ec42de59002b",
+    "postman/simulations/studio-desktop-readiness.sim.yaml": "73c1a78387a714448475447a26218c40d2c3b0b26121fda2755acca0e54af114",
+    "postman/simulations/studio-desktop-readiness.context.md": "72147bc2c938626ab550dd19b194612e1ed71039412bd5d17247a795608616f7"
+  }
+}

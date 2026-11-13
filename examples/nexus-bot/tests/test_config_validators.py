@@ -5,8 +5,8 @@ from nexus.core.config.validators import validate_project_config
 
 def test_validate_project_config_rejects_invalid_tool_pref_shape():
     payload = {
-        "model_profiles": {"small": {"gemini": "gemini-2.0-flash"}},
-        "ai_tool_preferences": {"triage": "gemini"},
+        "model_profiles": {"small": {"claude": "claude-sonnet"}},
+        "ai_tool_preferences": {"triage": "claude"},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     with pytest.raises(ValueError):
@@ -15,8 +15,8 @@ def test_validate_project_config_rejects_invalid_tool_pref_shape():
 
 def test_validate_project_config_rejects_unknown_profile_reference():
     payload = {
-        "model_profiles": {"small": {"gemini": "gemini-2.0-flash"}},
-        "ai_tool_preferences": {"writer": {"provider": "gemini", "profile": "large"}},
+        "model_profiles": {"small": {"claude": "claude-sonnet"}},
+        "ai_tool_preferences": {"writer": {"provider": "claude", "profile": "large"}},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     with pytest.raises(ValueError):
@@ -25,9 +25,9 @@ def test_validate_project_config_rejects_unknown_profile_reference():
 
 def test_validate_project_config_rejects_invalid_profile_priority_provider():
     payload = {
-        "model_profiles": {"fast": {"gemini": "gemini-2.0-flash"}},
+        "model_profiles": {"fast": {"claude": "claude-sonnet"}},
         "profile_provider_priority": {"fast": ["invalid-provider"]},
-        "ai_tool_preferences": {"writer": {"provider": "gemini", "profile": "fast"}},
+        "ai_tool_preferences": {"writer": {"provider": "claude", "profile": "fast"}},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     with pytest.raises(ValueError):
@@ -39,6 +39,16 @@ def test_validate_project_config_accepts_claude_provider_in_profiles_and_priorit
         "model_profiles": {"balanced": {"claude": "claude-sonnet-4"}},
         "profile_provider_priority": {"balanced": ["claude"]},
         "ai_tool_preferences": {"writer": {"provider": "claude", "profile": "balanced"}},
+        "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
+    }
+    validate_project_config(payload)
+
+
+def test_validate_project_config_accepts_opencode_provider_in_profiles_and_priority():
+    payload = {
+        "model_profiles": {"fast": {"opencode": "opencode/muse-spark-1.3-contributor-free"}},
+        "profile_provider_priority": {"fast": ["opencode"]},
+        "ai_tool_preferences": {"triage": {"provider": "opencode", "profile": "fast"}},
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     validate_project_config(payload)
@@ -59,6 +69,20 @@ def test_validate_project_config_accepts_copilot_permissions():
             }
         },
         "model_profiles": {"fast": {"copilot": "gpt-4o-mini"}},
+        "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
+    }
+    validate_project_config(payload)
+
+
+def test_validate_project_config_accepts_execution_mode_cli_config():
+    payload = {
+        "execution_mode_cli_config": {
+            "codex": {
+                "planning": {
+                    "args": ["-c", 'model_reasoning_effort="high"'],
+                }
+            }
+        },
         "nexus": {"workspace": "x", "agents_dir": "a", "git_platform": "github"},
     }
     validate_project_config(payload)

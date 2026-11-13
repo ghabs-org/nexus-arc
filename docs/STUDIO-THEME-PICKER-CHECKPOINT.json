@@ -1,0 +1,98 @@
+{
+  "format": "nexus-studio-theme-picker-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "implemented-interface-fixture-verified",
+  "whole_plan_complete": false,
+  "whole_design_audit_complete": false,
+  "scope": "Explicit System/Light/Dark selection for the served Studio UI and standalone viewers",
+  "source_head": "f486e6d73c3544e424e41c4f164e55f70bb479c1",
+  "working_tree_snapshot": true,
+  "source_sha256": {
+    "nexus/studio.py": "a78d1c91eb979b587c3fccb9a0d06cb6e3b0c0260dfa702cb568e7c69703e3fa",
+    "nexus/studio_static/theme.js": "2a2e9cb856eec183f63bcd0205b9fa71de4f149247f624469bfb4c403ecf79db",
+    "nexus/studio_static/studio.css": "b396f2556da575a73657b3d713bac210cd542033e5827fb831e203451f642bf6",
+    "nexus/studio_static/studio.js": "f0f66400dda0b00baa2637373701c2534dcd17f0bdb0e03e82f14729dffebe86",
+    "nexus/studio_static/content.js": "b55b81001ac868c495bbef6be35fab6366ce5a1c2eeef93c752e7cd2242bf76e",
+    "nexus/studio_static/service-worker.js": "2e91c9b16d1768ab472e6c59f0d4bfcec0291578407ec1c21e912b99c0be7355",
+    "nexus/studio_static/index.html": "4fe93bb72ea40363fb31d0646c2dd63dd489a860eb7c79a06971bfc9006b1eec",
+    "nexus/studio_static/shared.html": "0e05adc0328e546da4dbe337cae1aec3c5850fc9e81e0197b9058dff14c8a702",
+    "nexus/studio_static/artifact.html": "00ae1e530290e06ed3e0cc46a9e20cfef9417dbfe8bedfbe4f990edf206be4d0",
+    "examples/nexus-bot/src/studio.py": "0bced545ae717217f6cedb96fda793ece6de2efc7ddcdf4f7d4c702b010ad278",
+    "tests/studio_theme.test.cjs": "d70ed1b915e8b825fbc4afa012cb5c03a7acf3f7ff35bedc4093c0a04de2e376",
+    "tests/studio_theme_picker.test.cjs": "8a781e673414b1a148f9ade724819b243762b20c6ac260aa6fdcc81fb1ed51fb"
+  },
+  "behavior": [
+    "System default follows OS; explicit Light/Dark override OS changes",
+    "Stored choice applies through a local head script before stylesheet rendering; actual first paint remains unmeasured",
+    "Bounded localStorage preference per origin; storage failures retain current-page functionality",
+    "Same-origin tabs and all static picker controls synchronize without storage-event write loops",
+    "Wide desktop header, narrow desktop sidebar, mobile Menu, embedded header and shared/source viewer controls",
+    "Mobile navigation focus trap includes selects; touch minimum height retained",
+    "Explicit and automatic dark declarations match; explicit light excludes automatic dark; print remains light",
+    "Only registered inert HTML previews update owned scheme metadata; unchanged or unrelated frames do not reload",
+    "Public static route and cache v67 include theme.js; private-data caching policy unchanged"
+  ],
+  "storage": {
+    "key": "nexus-studio-theme",
+    "values": [
+      "system",
+      "light",
+      "dark"
+    ],
+    "default": "system",
+    "scope": "Browser origin, not account or workspace",
+    "native_startup": "Still OS-controlled; no cross-origin/native preference store added"
+  },
+  "validation": {
+    "focused": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_theme.test.cjs",
+        "tests/studio_theme_picker.test.cjs"
+      ],
+      "note": "Included in full gate; do not sum"
+    },
+    "frontend": {
+      "tests": 279,
+      "passed": 279,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "command": "node --test tests/studio_*.test.cjs",
+      "report_sha256": "80b54741239b4d9e1177625bc7124b5914ba668e9e0815c450b07ef37252a186",
+      "scope": "Node fixtures/source contracts, not browser-rendered acceptance"
+    },
+    "coverage": [
+      "Saved preference and reload",
+      "System changes and fixed overrides",
+      "Invalid values, blocked reads/writes",
+      "Cross-tab choice/clear events and no write-back",
+      "Registered-preview preservation and unchanged-frame behavior",
+      "Matched explicit/automatic dark palette",
+      "Existing declared text/control contrast and HTML isolation"
+    ],
+    "static": [
+      "Changed JavaScript syntax",
+      "Backend asset-map/example Python compilation and Ruff",
+      "Three HTML surfaces: unique IDs, one local theme script and expected picker count",
+      "git diff --check"
+    ],
+    "browser": "Not attempted; earlier access denial not retried or bypassed"
+  },
+  "compatibility": "No account/state schema, provider, workflow, run submission or approval changes. New endpoint is a public static script in the existing asset map.",
+  "pending": [
+    "Actual first-paint, header/sidebar/mobile layout and native dropdown behavior",
+    "Rendered keyboard/screen-reader/mobile/PWA and print acceptance",
+    "Cross-origin/native desktop startup synchronization is outside this browser preference slice",
+    "Existing broader design audit and device/integration/deployment gates"
+  ],
+  "vm_contacted": false,
+  "provider_invoked": false,
+  "dmg_rebuilt": false,
+  "release_published": false,
+  "dependencies_installed": false,
+  "next": "Locally packaged fonts and a documented icon family; preserve no-VM/no-new-DMG and desktop-last instructions."
+}

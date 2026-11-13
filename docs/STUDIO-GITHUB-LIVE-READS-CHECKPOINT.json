@@ -1,0 +1,87 @@
+{
+  "format": "nexus-github-live-read-acceptance/v1",
+  "date": "2026-10-28",
+  "status": "selected-account-repository-reads-live-verified",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Existing authenticated account, selected public repository, temporary single-user Studio connector and native REST adapter. No real workspace/VM connector changed.",
+  "target": "https://api.github.com/repos/ghabs-org/nexus-arc",
+  "result": {
+    "repository": "ghabs-org/nexus-arc",
+    "authenticated_account_verified": true,
+    "studio_native_rest_adapter": true,
+    "issues_returned": 1,
+    "pull_requests_returned": 5,
+    "detail_checks": {
+      "get_issue": true,
+      "get_pr": true
+    },
+    "read_only_requests": [
+      {
+        "method": "GET",
+        "path": "user"
+      },
+      {
+        "method": "GET",
+        "path": "repos/ghabs-org/nexus-arc"
+      },
+      {
+        "method": "GET",
+        "path": "repos/ghabs-org/nexus-arc/issues?state=open&per_page=5"
+      },
+      {
+        "method": "GET",
+        "path": "repos/ghabs-org/nexus-arc/pulls?state=closed&per_page=5"
+      },
+      {
+        "method": "GET",
+        "path": "repos/ghabs-org/nexus-arc/issues/151"
+      },
+      {
+        "method": "GET",
+        "path": "repos/ghabs-org/nexus-arc/pulls/162"
+      }
+    ],
+    "remote_mutations": 0,
+    "unselected_write_blocked_before_transport": true,
+    "credential_persisted": false,
+    "pending": []
+  },
+  "authenticated_report_sha256": "29bdb6b3c7370874de4accf010aa505853e5f8b7881f06cc94be0d1d06de9784",
+  "public_contract": {
+    "runner": "Postman request",
+    "authenticated": false,
+    "assertions": 4,
+    "failures": 0,
+    "exit_code": 0,
+    "remote_report_events": false,
+    "report_sha256": "ce991df589b00ff0751e24c8f91466b05aadb80e7d0799dcc50c1a3d99b130d0",
+    "scope": "Public repository HTTP status, exact identity, positive numeric ID and public flag. Not authenticated account or application traffic capture proof."
+  },
+  "regressions": {
+    "tests": 31,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "report_sha256": "7c2b415f190627e372e24fcb55896729927299f9c5e8f51f49467fe025b541e4"
+  },
+  "credential_handling": "The existing gh credential was obtained in memory by the explicit local acceptance launcher, passed through a temporary environment reference, never printed/written, and removed before Postman execution. The consumer verifies no token bytes were persisted. No authenticated request capture or raw account response is retained.",
+  "source_sha256": {
+    "examples/nexus-bot/src/studio_github_readonly.py": "918b162a521c7b32e28ea373a2238da89902d86de282670dcec3240a3da75904",
+    "tests/fixtures/studio_github_public_contract.js": "730f95de3c353ecf7e012cb47bff2ccc974b0483108baba008039f1ece649149",
+    "nexus/core/studio_connections.py": "c859ca9a40fca252c2becfca51296d8dd38416320e18ced7c8b81e8032565c76",
+    "nexus/adapters/git/github.py": "cbe1737e943f969afcaf3b358a4c3de354e73ebcef9cfa55171d56e04fe050ec",
+    "nexus/core/studio.py": "2fbafdc769f58b2b05b04283d57fd7d408fdbd9f637f363d20b2566656df1fa3"
+  },
+  "guide": "docs/STUDIO-GITHUB-LIVE-READS.md",
+  "pending": [
+    "GitHub remote mutations and webhook delivery, which were not authorized or executed in this read-only slice.",
+    "Shared-team account isolation, private repository permissions and VM credentials.",
+    "Other selected integration/API accounts, physical devices and final installed desktop acceptance."
+  ],
+  "references": [
+    "https://docs.github.com/en/rest/users/users#get-the-authenticated-user",
+    "https://docs.github.com/en/rest/repos/repos#get-a-repository"
+  ],
+  "migration": "Acceptance consumer/docs only. No product runtime, API routes, credential storage, state schemas, workspace configuration or installer changes."
+}

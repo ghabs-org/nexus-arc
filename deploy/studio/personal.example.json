@@ -1,0 +1,8 @@
+{
+  "project_key": "your-existing-nexus-project",
+  "public_url": "https://studio.example.com",
+  "login_url": "https://studio.example.com/login?next=/",
+  "bindings": {"your-existing-nexus-id": "owner"},
+  "allowed_tools": ["text:wordcount", "text:grep", "data:query"],
+  "broker": {"kind": "memory"}
+}

@@ -1,0 +1,56 @@
+kind: workflow
+name: control-review
+description: Map entries, repeat a review and select one local branch.
+spec:
+  appConfig:
+    tools:
+      - tool_type: builtin
+        tool_name: count_words
+    nodes:
+      - id: each
+        type: map
+        node: count_one
+        items: '{{workflow.input.entries}}'
+        concurrency_limit: 2
+      - id: count_one
+        type: tool
+        tool_name: count_words
+        input:
+          text: '{{_map_item}}'
+      - id: repeat
+        type: loop
+        node: review_step
+        condition: '{{_loop_iteration}} < 1'
+        max_iterations: 3
+      - id: review_step
+        type: tool
+        tool_name: count_words
+        input:
+          text: '{{workflow.input.review}}'
+      - id: choose
+        type: switch
+        cases:
+          - condition: "'{{workflow.input.route}}' == 'short'"
+            node: short
+        default: long
+      - id: short
+        type: tool
+        tool_name: count_words
+        depends_on: [choose]
+        input:
+          text: one
+      - id: long
+        type: tool
+        tool_name: count_words
+        depends_on: [choose]
+        input:
+          text: one two three
+    output_mapping:
+      counts: '{{each.output}}'
+      loop: '{{repeat.output}}'
+      last: '{{review_step.output}}'
+      route: '{{choose.output}}'
+      answer:
+        coalesce:
+          - '{{short.output}}'
+          - '{{long.output}}'

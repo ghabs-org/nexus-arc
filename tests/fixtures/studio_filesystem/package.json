@@ -1,0 +1,7 @@
+{
+  "name": "nexus-studio-filesystem-fixture",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/server-filesystem": "2.0.0"
+  }
+}

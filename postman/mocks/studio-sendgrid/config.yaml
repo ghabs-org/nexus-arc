@@ -1,0 +1,10 @@
+version: 1
+name: SendGrid mail contract fixture
+slug: studio-sendgrid
+protocol: http
+port: 49871
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: Nexus Teams basic-notification entrypoint
+  version: 1.0.0
+paths:
+  /api/channel-events/{entrypoint_id}:
+    post:
+      operationId: receiveTeamsNotification
+      description: >-
+        A saved Teams entrypoint echoes Graph validationToken as plain text, even
+        while disabled during setup. Actual notifications require explicit enabling,
+        selected tenant/subscription/channel and a matching server-held clientState.
+        Receipts contain hints only. Existing scheduler reads authoritative Graph
+        messages using the entrypoint owner's credential reference, rechecks roles
+        and maps the remote sender before invoking the shared task service.
+        Created message IDs deduplicate durably. Edits/deletes do not restart tasks.
+        No token, message body or sender from resourceData is trusted or persisted.
+      parameters:
+        - {name: entrypoint_id, in: path, required: true, schema: {type: string}}
+        - {name: validationToken, in: query, schema: {type: string, maxLength: 4096}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [subscriptionId, tenantId, clientState, changeType, resource]
+                    properties:
+                      subscriptionId: {type: string, format: uuid}
+                      tenantId: {type: string, format: uuid}
+                      clientState: {type: string, writeOnly: true}
+                      changeType: {enum: [created, updated, deleted]}
+                      resource: {type: string}
+      responses:
+        '200':
+          description: Plain-text validation token or durable JSON receipt
+          content:
+            text/plain: {schema: {type: string}}
+            application/json: {schema: {type: object, properties: {ok: {const: true}}}}
+        '400': {description: Invalid body, resource or unsupported rich notification}
+        '403': {description: Invalid secret, subscription, tenant or disabled service}
+# Primary wire evidence: Microsoft Graph Teams chatMessage basic notifications
+# and change-notifications-delivery-webhooks, inspected 20 October 2026.
+# Subscription creation/renewal, encrypted resource data, bot JWTs, direct chats
+# and in-channel approval buttons are outside this selected basic-channel adapter.

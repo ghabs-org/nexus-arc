@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "bounded-parallel-agent-experiments",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "contract": "Saved experiments accept integer maxWorkers 1-4, default 1; named run preparation pins the limit; workflow targets reject values above 1 before queueing; declaration import preserves the agent worker count.",
+  "validation": {
+    "python": {
+      "passed": 219,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_experiment_workers.py",
+        "tests/test_studio_experiments.py",
+        "tests/test_studio_experiment_import.py",
+        "tests/test_studio_experiment_continuation.py",
+        "tests/test_studio_evaluation_import.py",
+        "tests/test_studio_evaluation_gate.py",
+        "tests/test_studio_evaluation_files.py",
+        "tests/test_studio_retrieval_evidence.py",
+        "tests/test_studio_resources.py",
+        "tests/test_studio_durable.py",
+        "tests/test_studio_execution.py"
+      ]
+    },
+    "interface_logic": {
+      "passed": 42,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_experiments.test.cjs",
+        "tests/studio_experiment_import.test.cjs",
+        "tests/studio_evaluation_import.test.cjs",
+        "tests/studio_datasets.test.cjs",
+        "tests/studio_evaluators.test.cjs",
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/studio_evaluation_gate.test.cjs"
+      ]
+    },
+    "examples": [
+      "Experiment import saved a reviewed suite and experiment without starting AI.",
+      "Parallel example executed six synthetic cases with maximum two concurrent workers and no external model calls."
+    ],
+    "static": "New/affected focused Python lint, new-file format checks, JavaScript syntax and diff whitespace pass. Existing studio_operations.py:83 B904 remains; the identical warning was confirmed on HEAD and was not changed.",
+    "browser": "Pending. The prior localhost permission denial was not retried or bypassed.",
+    "live_provider": "Not invoked; synthetic in-process provider concurrency only."
+  },
+  "guarantees": [
+    "Worker bounds include target and judge as a single in-flight pair",
+    "Out-of-order completion produces canonical variant/case/repetition result order",
+    "Per-variant thresholds cannot be hidden by a stronger variant",
+    "Invocation traces attach target and judge to case checkpoints without parent text-stream races",
+    "File and SQL restart retain completed results and dispatched ordinals",
+    "SQL child tasks inherit one parent job lease and fencing token",
+    "Errors stop new dispatch; already-started slots drain and retain outcomes",
+    "Cancellation waits for owned task cleanup; external effects may still complete",
+    "Dispatched slots with missing or failed results cannot replay on accidental executor reentry",
+    "Queued source edits and forged incoming settings cannot expand the pinned worker count",
+    "Native import, plan/apply and export preserve maxWorkers without starting runs"
+  ],
+  "limits": [
+    "Parallelism supports agent targets; workflow experiments require one worker",
+    "Multiple evaluators and external-format experiment export remain pending",
+    "No generic retry for uncertain agent/tool effects; starting a new run is deliberate repetition",
+    "Worker limit is per experiment, within existing Studio job scheduling",
+    "Account-specific provider concurrency, visual browser and physical-device checks remain pending"
+  ],
+  "migration": "Additive optional maxWorkers field; old records default to one. Older runtimes require an update before accepting configurations with the new field.",
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "release_published": false,
+  "next": "Reviewed multi-evaluator configuration and aggregation retaining primary evaluator identity and individual results."
+}

@@ -3,6 +3,10 @@ import contextlib
 import logging
 import os
 import time
+import json
+import urllib.error
+import urllib.request
+from datetime import UTC, datetime
 from typing import Any
 
 from src.alerting import init_alerting_system
@@ -111,6 +115,10 @@ from nexus.core.handlers.callback_command_handlers import (
     inline_keyboard_handler as callback_inline_keyboard_handler,
 )
 from nexus.core.handlers.callback_command_handlers import (
+    route_feedback_handler as callback_route_feedback_handler,
+)
+from nexus.core.telegram.telegram_router_feedback_service import resolve_feedback_token
+from nexus.core.handlers.callback_command_handlers import (
     issue_picker_handler as callback_issue_picker_handler,
 )
 from nexus.core.handlers.callback_command_handlers import (
@@ -141,6 +149,10 @@ from nexus.core.handlers.feature_registry_command_handlers import (
     feature_done_handler as core_feature_done_handler,
     feature_forget_handler as core_feature_forget_handler,
     feature_list_handler as core_feature_list_handler,
+)
+from nexus.core.handlers.session_command_handlers import (
+    SessionsHandlerDeps,
+    sessions_handler as core_sessions_handler,
 )
 from nexus.core.handlers.hands_free_routing_handler import (
     HandsFreeRoutingDeps,
@@ -609,7 +621,7 @@ def _permission_denied_message(user_id: int, *, action: str = "execute") -> str:
         missing.append("Git provider login (GitHub or GitLab)")
     if not setup.get("ai_provider_ready"):
         missing.append(
-            "AI provider credentials (Codex/OpenAI, Gemini, Claude, or GitHub for Copilot)"
+            "AI provider credentials (Codex/OpenAI, Claude, or GitHub for Copilot)"
         )
     if not setup.get("org_verified"):
         missing.append("allowed org/group membership")
@@ -915,7 +927,95 @@ def _callback_handler_deps() -> CallbackHandlerDeps:
             plan_handler=plan_handler,
         ),
         report_bug_action=_report_bug_action_wrapper,
+        route_feedback_action=_route_feedback_action,
     )
+
+
+async def _route_feedback_action(ctx, decision_id: str, action: str, corrected_task: str | None, model_verdict: str | None = None):
+    callback_ref = str(decision_id or "").strip()
+    # Handle `skip` sentinel from task-selection step — treat as no correction
+    if corrected_task == "skip":
+        corrected_task = None
+    if model_verdict == "skip":
+        model_verdict = None
+
+    # This function is now only called for final submission (ok, wrong with task+model_verdict)
+    # The intermediate steps (task selection, model verdict) are handled by the core callback handler
+
+    decision_id = resolve_feedback_token(
+        user_id=str(ctx.user_id),
+        decision_ref=callback_ref,
+    )
+    verdict = "correct" if action == "ok" else "wrong"
+    payload = {
+        "decision_id": decision_id,
+        "verdict": verdict,
+        "corrected_task": corrected_task,
+        "model_verdict": model_verdict,
+        "source_surface": "telegram_feedback_card",
+        "source_channel": "telegram",
+        "source_user_id": str(ctx.user_id),
+        "source_message_id": str(ctx.query.message_id) if ctx.query else None,
+    }
+    router_url = os.getenv("NEXUS_ROUTER_URL", "http://127.0.0.1:7771").rstrip("/")
+
+    def post_feedback() -> tuple[int, str]:
+        request = urllib.request.Request(
+            f"{router_url}/feedback",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return response.status, response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read().decode("utf-8")
+
+    if not decision_id:
+        confirmation = "⚠️ This feedback card has expired or is invalid. Please use a newer card."
+        status, response_body = 0, "feedback_token_not_found"
+    else:
+        status, response_body = await asyncio.to_thread(post_feedback)
+
+    if status == 200:
+        label = "correct" if verdict == "correct" else (
+            f"wrong, corrected to {corrected_task}" if corrected_task else "wrong"
+        )
+        confirmation = f"Feedback recorded: {label}."
+    else:
+        logger.warning(
+            "Router feedback failed: status=%s decision_id=%s body=%s",
+            status,
+            decision_id,
+            response_body[:500],
+        )
+        if "decision_id_not_found" in response_body:
+            confirmation = "⚠️ This feedback card has expired or is invalid. Please use a newer card."
+        else:
+            confirmation = "❌ Could not record routing feedback. Please try again."
+
+    # Feedback cards can outlive their Telegram message (or be delivered by a
+    # different Telegram path/account). Never turn an otherwise handled click
+    # into a callback error when Telegram refuses the edit. Send confirmation
+    # as a new message instead.
+    try:
+        if ctx.query and ctx.query.message_id:
+            await ctx.edit_message_text(
+                text=confirmation,
+                message_id=ctx.query.message_id,
+            )
+        else:
+            raise ValueError("feedback callback has no message_id")
+    except Exception:
+        logger.exception(
+            "Could not edit feedback card; falling back to new message: "
+            "user_id=%s message_id=%s decision_id=%s",
+            ctx.user_id,
+            ctx.query.message_id if ctx.query else None,
+            decision_id,
+        )
+        await ctx.reply_text(confirmation)
 
 
 def _feature_ideation_handler_deps() -> FeatureIdeationHandlerDeps:
@@ -944,6 +1044,16 @@ def _feature_registry_command_deps() -> FeatureRegistryCommandDeps:
         get_project_label=_get_project_label,
         feature_registry=feature_registry_service,
         ensure_project=_ctx_ensure_project,
+    )
+
+
+def _sessions_handler_deps() -> SessionsHandlerDeps:
+    from nexus.adapters.ai.opencode_provider import list_recent_sessions
+
+    return SessionsHandlerDeps(
+        logger=logger,
+        allowed_user_ids=TELEGRAM_ALLOWED_USER_IDS,
+        list_sessions=list_recent_sessions,
     )
 
 
@@ -1576,6 +1686,123 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+_ACCOUNT_LOGIN_PROVIDERS = ("claude", "codex", "agy")
+_ACCOUNT_LOGIN_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity"}
+# Providers whose sign-in ends with a code that is pasted on the account page.
+_ACCOUNT_LOGIN_CODE_HOSTS = {"claude": "claude.com", "agy": "antigravity.google"}
+
+
+def _account_setup_url(session_ref: str) -> str:
+    return f"{NEXUS_PUBLIC_BASE_URL}/auth/setup?session={session_ref}"
+
+
+def _ready_login_session(nexus_id: str) -> dict | None:
+    """The latest login session if Git OAuth finished and it has not expired."""
+    latest = _svc_get_latest_login_session_status(nexus_id)
+    if not isinstance(latest, dict) or not latest.get("exists"):
+        return None
+    if str(latest.get("status") or "") not in {"oauth_done", "completed"}:
+        return None
+    try:
+        expires_at = datetime.fromisoformat(str(latest.get("expires_at") or ""))
+    except ValueError:
+        return None
+    if expires_at.tzinfo is None or expires_at <= datetime.now(UTC):
+        return None
+    return latest
+
+
+async def _reply_login_menu(message, session: dict) -> None:
+    """`/login` once Git is linked: one button per AI account, plus the account page."""
+    buttons = [
+        InlineKeyboardButton(f"Connect {_ACCOUNT_LOGIN_LABELS[p]}", callback_data=f"login:{p}")
+        for p in _ACCOUNT_LOGIN_PROVIDERS
+    ]
+    keyboard = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+    keyboard.append(
+        [InlineKeyboardButton("Open account page", url=_account_setup_url(str(session.get("session_ref") or "")))]
+    )
+    await message.reply_text(
+        (
+            "🔐 Your Nexus account is linked.\n"
+            "Connect an AI account, or open the account page to see all of them.\n"
+            "To link a different Git account, use /login github."
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        disable_web_page_preview=True,
+    )
+
+
+async def _reply_provider_account_login(message, user, provider: str) -> bool:
+    """Start a provider account login and reply with its steps. False when Git OAuth is needed."""
+    label = _ACCOUNT_LOGIN_LABELS.get(provider, provider.title())
+    try:
+        provider_login = _svc_start_provider_account_login_for_nexus(
+            nexus_id=str(user.nexus_id),
+            provider=provider,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Provider login bootstrap failed for %s (nexus_id=%s): %s", provider, user.nexus_id, exc
+        )
+        return False
+
+    state = str(provider_login.get("state") or "").strip().lower()
+    provider_message = str(provider_login.get("message") or "").strip()
+    verify_url = str(provider_login.get("verify_url") or "").strip()
+    user_code = str(provider_login.get("user_code") or "").strip()
+    session_ref = str(provider_login.get("session_ref") or "").strip()
+    setup_url = _account_setup_url(session_ref) if session_ref else ""
+
+    if bool(provider_login.get("started")) or state in {"starting", "pending"}:
+        lines = [f"🔐 {label} sign-in started."]
+        code_host = _ACCOUNT_LOGIN_CODE_HOSTS.get(provider)
+        if code_host and setup_url:
+            lines.append(f"Open your account page and follow the {label} row: {setup_url}")
+            lines.append(f"It shows the sign-in link and a box for the code {code_host} gives you.")
+        else:
+            if verify_url:
+                lines.append(f"1. Open: {verify_url}")
+            if user_code:
+                lines.append(f"2. Enter code: {user_code}")
+            lines.append("3. Approve the sign-in in the browser")
+            if setup_url:
+                lines.append(f"Account page: {setup_url}")
+        lines.append("Then run /setup_status.")
+        await message.reply_text("\n".join(lines), disable_web_page_preview=True)
+        return True
+    if state == "connected":
+        await message.reply_text(
+            f"✅ {label} account already connected. Run /setup_status to check setup.",
+            disable_web_page_preview=True,
+        )
+        return True
+    if state and state != "oauth_required":
+        lines = [f"⚠️ {provider_message or label + ' sign-in failed.'}"]
+        if state == "rate_limited":
+            lines.append("Wait 1-2 minutes and try again.")
+        if setup_url:
+            lines.append(f"Account page: {setup_url}")
+        await message.reply_text("\n".join(lines), disable_web_page_preview=True)
+        return True
+    return False
+
+
+async def login_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Buttons of the /login menu: `login:<provider>` starts that account's sign-in."""
+    query = update.callback_query
+    await query.answer()
+    provider = str(query.data or "").split(":", 1)[-1].strip().lower()
+    if not NEXUS_AUTH_ENABLED or provider not in _ACCOUNT_LOGIN_PROVIDERS:
+        return
+    user = _get_or_create_telegram_user(query.from_user)
+    if not await _reply_provider_account_login(query.message, user, provider):
+        await query.message.reply_text(
+            "Your Git sign-in has expired. Run /login to sign in again.",
+            disable_web_page_preview=True,
+        )
+
+
 async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not NEXUS_AUTH_ENABLED:
         await update.effective_message.reply_text("ℹ️ Auth onboarding is disabled in this environment.")
@@ -1589,14 +1816,15 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     requested_provider = str((context.args[0] if context.args else "") or "").strip().lower()
     provider_aliases = {
         "codex-account": "codex",
-        "gemini-account": "gemini",
         "claude-account": "claude",
         "copilot-account": "copilot",
+        "agy-account": "agy",
+        "antigravity": "agy",
     }
     requested_provider = provider_aliases.get(requested_provider, requested_provider)
     account_provider_target = (
         requested_provider
-        if requested_provider in {"codex", "gemini", "claude", "copilot"}
+        if requested_provider in {"codex", "claude", "copilot", "agy"}
         else ""
     )
     github_oauth_ready = bool(NEXUS_GITHUB_CLIENT_ID and NEXUS_GITHUB_CLIENT_SECRET)
@@ -1631,69 +1859,14 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if account_provider_target in {"codex", "gemini", "claude"}:
-        try:
-            provider_login = _svc_start_provider_account_login_for_nexus(
-                nexus_id=str(user.nexus_id),
-                provider=account_provider_target,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Provider login bootstrap failed for %s (nexus_id=%s): %s",
-                account_provider_target,
-                user.nexus_id,
-                exc,
-            )
-            provider_login = {"started": False, "state": "oauth_required"}
-
-        provider_state = str(provider_login.get("state") or "").strip().lower()
-        provider_message = str(provider_login.get("message") or "").strip()
-        verify_url = str(provider_login.get("verify_url") or "").strip()
-        user_code = str(provider_login.get("user_code") or "").strip()
-
-        if bool(provider_login.get("started")) or provider_state in {"starting", "pending"}:
-            steps = [
-                "🔐 Provider account login started.",
-                f"Provider: {account_provider_target.title()}",
-            ]
-            if verify_url:
-                steps.append(f"1. Open: {verify_url}")
-            if user_code:
-                steps.append(f"2. Enter code: {user_code}")
-            steps.append("3. Complete provider authorization in the browser")
-            steps.append("4. Run `/setup_status`")
-            await update.effective_message.reply_text(
-                "\n".join(steps),
-                disable_web_page_preview=True,
-            )
+    if account_provider_target in _ACCOUNT_LOGIN_PROVIDERS:
+        if await _reply_provider_account_login(update.effective_message, user, account_provider_target):
             return
-        if provider_state == "connected":
-            await update.effective_message.reply_text(
-                "\n".join(
-                    [
-                        f"✅ {account_provider_target.title()} account already connected.",
-                        "Run `/setup_status` to verify setup readiness.",
-                    ]
-                ),
-                disable_web_page_preview=True,
-            )
-            return
-        if provider_state and provider_state != "oauth_required":
-            lines = [
-                f"⚠️ {provider_message or 'Provider account login failed.'}",
-                f"Provider: {account_provider_target.title()}",
-            ]
-            if verify_url:
-                lines.append(f"Open: {verify_url}")
-            if user_code:
-                lines.append(f"Code: {user_code}")
-            if provider_state == "rate_limited":
-                lines.append("Wait 1-2 minutes and retry `/login` for this provider.")
-            lines.append("Run `/setup_status` after retry.")
-            await update.effective_message.reply_text(
-                "\n".join(lines),
-                disable_web_page_preview=True,
-            )
+
+    if not requested_provider:
+        ready_session = _ready_login_session(str(user.nexus_id))
+        if ready_session:
+            await _reply_login_menu(update.effective_message, ready_session)
             return
 
     session_id = create_login_session_for_user(
@@ -1738,7 +1911,7 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if requested_provider and not account_provider_target and requested_provider not in {"github", "gitlab"}:
         await update.effective_message.reply_text(
-            "⚠️ Invalid provider. Use `/login github`, `/login gitlab`, `/login codex`, `/login gemini`, `/login claude`, or `/login copilot`.",
+            "⚠️ Invalid provider. Use `/login github`, `/login gitlab`, `/login codex`, `/login claude`, or `/login copilot`.",
             parse_mode="Markdown",
         )
         return
@@ -1755,7 +1928,7 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     setup_step = (
         f"3. In setup, enable {account_provider_target.title()} account login, then Save Setup\n"
         if account_provider_target
-        else "3. Save provider setup: API keys and/or account login toggles for Codex, Gemini, Claude, Copilot\n"
+        else "3. Save provider setup: API keys and/or account login toggles for Codex, Claude, Copilot\n"
     )
     if account_provider_target == "copilot":
         setup_step = (
@@ -1802,10 +1975,8 @@ async def setup_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         f"- GitHub login: `{status.get('github_login') or 'n/a'}`",
         f"- GitLab username: `{status.get('gitlab_username') or 'n/a'}`",
         f"- Codex key set: {'✅' if status.get('codex_key_set') else '❌'}",
-        f"- Gemini key set: {'✅' if status.get('gemini_key_set') else '❌'}",
         f"- Claude key set: {'✅' if status.get('claude_key_set') else '❌'}",
         f"- Codex account login enabled: {'✅' if status.get('codex_account_enabled') else '❌'}",
-        f"- Gemini account login enabled: {'✅' if status.get('gemini_account_enabled') else '❌'}",
         f"- Claude account login enabled: {'✅' if status.get('claude_account_enabled') else '❌'}",
         f"- Copilot account mode enabled: {'✅' if status.get('copilot_account_enabled') else '❌'}",
         f"- Copilot ready (GitHub OAuth or Copilot Token): {'✅' if status.get('copilot_ready') else '❌'}",
@@ -2017,7 +2188,7 @@ async def type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# --- 3. SAVING THE TASK (Uses Gemini only if Voice) ---
+# --- 3. SAVING THE TASK (Transcribes voice when needed) ---
 async def save_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = int(getattr(update.effective_user, "id", 0) or 0)
     if not check_permission_for_action(user_id, action="execute"):
@@ -2336,6 +2507,13 @@ async def feature_forget_handler(update: Update, context: ContextTypes.DEFAULT_T
     )
 
 
+async def sessions_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List recent OpenCode sessions with per-session model and cost."""
+    await core_sessions_handler(
+        _build_telegram_interactive_ctx(update, context), _sessions_handler_deps()
+    )
+
+
 async def comments_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View recent comments on an issue."""
     await issue_comments_handler(
@@ -2353,6 +2531,11 @@ async def respond_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def inline_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline keyboard button presses from notifications."""
     await _call_core_callback_handler(update, context, callback_inline_keyboard_handler)
+
+
+async def route_feedback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle routing feedback cards from the router plugin."""
+    await _call_core_callback_handler(update, context, callback_route_feedback_handler)
 
 
 async def _report_bug_action_wrapper(ctx, issue_num: str, project_key: str):
@@ -2453,6 +2636,7 @@ def main():
             "help_handler": help_handler,
             "menu_handler": menu_handler,
             "login_handler": login_handler,
+            "login_callback_handler": login_callback_handler,
             "setup_status_handler": setup_status_handler,
             "whoami_handler": whoami_handler,
             "rename_handler": rename_handler,
@@ -2494,6 +2678,7 @@ def main():
             "feature_done_handler": feature_done_handler,
             "feature_list_handler": feature_list_handler,
             "feature_forget_handler": feature_forget_handler,
+            "sessions_handler": sessions_handler,
             "chat_menu_handler": chat_menu_handler,
             "chat_agents_handler": chat_agents_handler,
             "chat_callback_handler": chat_callback_handler,
@@ -2504,6 +2689,7 @@ def main():
             "close_flow_handler": close_flow_handler,
             "feature_callback_handler": feature_callback_handler,
             "task_confirmation_callback_handler": task_confirmation_callback_handler,
+            "route_feedback_callback_handler": route_feedback_handler,
             "inline_keyboard_handler": inline_keyboard_handler,
             "hands_free_handler": hands_free_handler,
             "telegram_error_handler": telegram_error_handler,

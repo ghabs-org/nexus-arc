@@ -1,0 +1,77 @@
+{
+  "format": "nexus-studio-signed-macos-release/v1",
+  "date": "2026-11-07",
+  "verified_at": "2026-11-07T14:17:04Z",
+  "status": "signed-notarized-local-delivery-verified",
+  "whole_plan_complete": false,
+  "artifact": {
+    "path": "releases/1.0.5/Nexus-Studio-1.0.5-apple-silicon.dmg",
+    "version": "1.0.5",
+    "architecture": "arm64",
+    "minimum_macos": "14.0",
+    "size_bytes": 536088952,
+    "sha256": "5a242bd19c861d18abe4f9de5047242d7eaf148afcbab79067cce82011878393"
+  },
+  "apple": {
+    "signing": {
+      "native_files_signed": 211,
+      "identity_sha1": "5E99CB84198CEC0E07A84ABA2555D7DE20433BFC"
+    },
+    "signed_profile": {
+      "passed": true,
+      "profile": "full",
+      "sdk_imports": 44
+    },
+    "app_notarization": {
+      "id": "bbee43f4-d5e0-470c-8b5c-7001621b8a42",
+      "status": "Accepted"
+    },
+    "dmg_notarization": {
+      "id": "150a408f-ca53-42bb-9cf3-a0572777190a",
+      "status": "Accepted"
+    }
+  },
+  "validation": {
+    "source_regressions": {
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0
+    },
+    "native_tests": {
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0
+    },
+    "frontend_tests": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "gatekeeper": "accepted, Notarized Developer ID",
+    "app_and_dmg_stapled_tickets": "valid",
+    "dmg_integrity": "passed",
+    "updater_signature_verified_offline": true,
+    "installed_app_in_applications_replaced": false
+  },
+  "source_manifest": "releases/1.0.5/build-manifest.json",
+  "source_head": "c41fdac0fbe9f8130f3832b9b3f9346888531965",
+  "source_is_working_tree": true,
+  "sha256": {
+    "Nexus-Studio-1.0.5-apple-silicon.dmg": "5a242bd19c861d18abe4f9de5047242d7eaf148afcbab79067cce82011878393",
+    "Nexus-Studio-1.0.5-aarch64.app.tar.gz": "96e16eda3e2e4080c2d2b5908189eb0b81ea2639266b351f7d5353fa3aa286e2",
+    "Nexus-Studio-1.0.5-aarch64.app.tar.gz.sig": "dc4648c73a1572fe9905b04d894d7af5845712ea948fbb1d9b3cf77d59aa6a25",
+    "nexus-studio-latest.json": "cb036a7ecd9f541935f67a4259f9f2bb99de7ec99d13bd94da5aa07dd072763f"
+  },
+  "distribution": "local-only",
+  "published": false,
+  "public_update_feed_available": false,
+  "vm_changed": false,
+  "old_release_preserved": true,
+  "remaining": [
+    "Deploy native account bridge and register identity-provider callback.",
+    "Manual native Account dialog actions and actual identity/subscription login.",
+    "Signed-app Keychain continuity on another physical Mac.",
+    "Installed Windows/Linux and their credential stores/signing/release acceptance.",
+    "Public release/feed publication requires a separate request."
+  ]
+}

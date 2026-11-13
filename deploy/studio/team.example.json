@@ -1,0 +1,19 @@
+{
+  "project_key": "your-existing-nexus-project",
+  "public_url": "https://studio.example.com",
+  "login_url": "https://studio.example.com/login?next=/",
+  "bindings": {"existing-nexus-owner-id": "owner", "existing-nexus-builder-id": "builder"},
+  "runner_image": "registry.example.com/nexus-studio-worker@sha256:REPLACE_WITH_REVIEWED_IMAGE_DIGEST",
+  "allowed_tools": ["text:wordcount", "text:grep", "data:query"],
+  "broker": {
+    "kind": "mqtt",
+    "options": {
+      "host": "broker.example.com",
+      "port": 8883,
+      "tls": true,
+      "client_id": "nexus-studio-project-one",
+      "username": {"env": "NEXUS_STUDIO_MQTT_USER"},
+      "password": {"env": "NEXUS_STUDIO_MQTT_PASSWORD"}
+    }
+  }
+}

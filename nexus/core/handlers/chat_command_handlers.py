@@ -12,6 +12,7 @@ from nexus.core.chat.chat_context_service import (
 )
 from nexus.core.handlers.inbox_routing_handler import PROJECTS
 from nexus.core.interactive.context import InteractiveContext
+from nexus.core.config import get_chat_agent_types
 from nexus.core.memory import (
     create_chat,
     delete_chat,
@@ -28,6 +29,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 CHAT_RENAME_INPUT = 10
+
+
+def _chat_persistence_notice(platform: str | None = None) -> str:
+    from nexus.core.config import NEXUS_CHAT_TRANSCRIPT_OWNER, NEXUS_RUNTIME_MODE
+    from nexus.core.config.runtime import normalize_chat_transcript_owner
+
+    owner = normalize_chat_transcript_owner(NEXUS_CHAT_TRANSCRIPT_OWNER, NEXUS_RUNTIME_MODE)
+    if owner == "nexus":
+        if platform == "openclaw":
+            return "_(Nexus is saving the shared chat transcript for this workspace chat.)_"
+        return "_(All conversational history is saved under this thread)_"
+
+    if platform == "openclaw":
+        return (
+            "_(OpenClaw owns transcript history for this workspace chat. "
+            "Nexus keeps chat context and operational metadata here.)_"
+        )
+
+    return (
+        "_(Nexus is only persisting chat context and operational metadata in this mode; "
+        "full transcript history is not durably stored here.)_"
+    )
 
 
 def _build_main_menu_keyboard(active_chat_id: str) -> list[list[Button]]:
@@ -74,7 +97,7 @@ async def _render_menu(ctx: InteractiveContext, user_id: int, notice: str = "") 
         text += f"{notice}\n"
     text += f"*Active Chat:* {active_chat_title}\n"
     text += f"{chat_context_summary(active_chat, PROJECTS)}\n"
-    text += "_(All conversational history is saved under this thread)_"
+    text += _chat_persistence_notice()
 
     if ctx.query:
         await ctx.edit_message_text(
@@ -158,8 +181,17 @@ async def chat_menu_handler(ctx: InteractiveContext):
     text = "🗣️ *Nexus Chat Menu*\n\n"
     text += f"*Active Chat:* {active_chat_title}\n"
     text += f"{chat_context_summary(active_chat, PROJECTS)}\n"
+    if ctx.platform == "openclaw":
+        text += (
+            f"{_chat_persistence_notice('openclaw')}\n"
+            "_In OpenClaw, continue the conversation with `/chat <message>`._\n"
+            "_Use `/chatagents [project]` to inspect the available workspace agent roster._"
+        )
+        await ctx.reply_text(text=text, buttons=[])
+        return
+
     text += (
-        "_(All conversational history is saved under this thread)_\n"
+        f"{_chat_persistence_notice()}\n"
         "_Plain text now stays in chat mode. Exit chat mode to use hands-free task creation._"
     )
 

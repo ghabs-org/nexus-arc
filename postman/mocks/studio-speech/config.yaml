@@ -1,0 +1,10 @@
+version: 1
+name: Queued speech API fixture
+slug: studio-speech
+protocol: http
+port: 49832
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

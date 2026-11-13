@@ -1,0 +1,61 @@
+{
+  "format": "nexus-studio-browser-login-live-fix/v1",
+  "verified_at": "2026-11-06T01:14:37.799199+00:00",
+  "status": "live-browser-initiation-verified",
+  "supersedes": "STUDIO-BROWSER-ORIGIN-CHECKPOINT.json for live deployment status only",
+  "causes": [
+    "Webhook process had not loaded current source.",
+    "GitHub callback used the account host instead of the Studio host.",
+    "Login page no-referrer policy made real form POSTs send Origin: null."
+  ],
+  "fix": [
+    "Reload webhook service with current source.",
+    "Set service-specific GitHub callback to the Studio origin.",
+    "Use framework-owned same-origin referrer policy on the login page; continue rejecting opaque and foreign origins."
+  ],
+  "deployment": {
+    "host": "ghabs-hq",
+    "service": "nexus-webhook.service",
+    "public_origin": "https://arc.ghabs.me",
+    "callback_override": "https://arc.ghabs.me/auth/github/callback",
+    "other_services_restarted": false,
+    "original_environment_files_unchanged": true,
+    "rollback_backup": "/var/backups/nexus-auth-signin-20261106T010405Z",
+    "runtime_patch_applied": true,
+    "committed_or_pushed": false
+  },
+  "validation": {
+    "focused_tests": {
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0
+    },
+    "auth_regressions": {
+      "passed": 205,
+      "failed": 0,
+      "skipped": 0
+    },
+    "public_login": {
+      "status": 200,
+      "referrer_policy": "same-origin"
+    },
+    "public_foreign_origin": {
+      "status": 403
+    },
+    "public_same_origin_post": {
+      "status": 303,
+      "secure_httponly_context_cookie": true
+    },
+    "real_browser": "Continue with GitHub reaches GitHub login for Nexus; no account credentials entered.",
+    "full_provider_account_completion": "pending user login",
+    "api_tool_note": "Postman 1.75.0 truncated colon-containing -H values; Origin was set using pre-request headers.upsert. Expected HTTP 403 returned CLI exit 1 despite a passing assertion. CLI status command unavailable.",
+    "evidence_directory": "/private/tmp/nexus-auth-signin-20261106"
+  },
+  "source_sha256": {
+    "nexus/core/auth/browser_login.py": "43205af4ba965dc1761917e37d33936f7e807af2a8805f394960ccfb8966d746",
+    "examples/nexus-bot/src/webhook_server.py": "7a84af7f4332b0c4c186caa0f6125ac2c5506e725b06dd6c002019e22a4b70ba",
+    "examples/nexus-bot/tests/test_browser_login_routes.py": "bbd23d56e555a25f2ec1c06b0901b6748aa44eb5a3434d0d6c60ef99c3442707",
+    "postman/contracts/nexus-browser-login.yaml": "a8f26d6264439c81b838674f5f3a1911bef21e33d0d3cc42708d5c105033d49e"
+  },
+  "desktop_build_performed": false
+}

@@ -1,0 +1,134 @@
+{
+  "format": "nexus-studio-recovered-host-preparation/v1",
+  "date": "2026-10-29",
+  "status": "local-preparation-verified-vm-connection-pending",
+  "whole_plan_complete": false,
+  "dns": {
+    "user_confirmed_record_added": true,
+    "cname_resolves_to_existing_studio_ingress": true,
+    "tailnet_destination": true,
+    "agent_changed_dns": false
+  },
+  "ingress": {
+    "guard_attempt": {
+      "status": "failed",
+      "dns_verified": true,
+      "recovered_application_started": false,
+      "production_nexus_restarted": false,
+      "error": "",
+      "rollback": true
+    },
+    "persistent_recovery_route_installed": false,
+    "corrected_guard_executed": false,
+    "corrected_attempt": "SSH connection timed out before remote execution.",
+    "cause_of_first_guard_readiness_failure": "Not established. An intermediary cache response was observed; direct private-network verification is pending."
+  },
+  "connectivity": {
+    "macos_tailscale_application_state": "Stopped",
+    "homebrew_daemon_state": "NoState",
+    "ssh": "timeout",
+    "user_reconnect_requested": true
+  },
+  "auth_runtime": {
+    "image": "sha256:5b3984eaa987b6e79dbfb1c6a930c98366e6bb88f2aa6865bdad5d4c50d496b9",
+    "archived_base": "sha256:8d442def46f3f2aeae905c42be3990d9a7160d8c08983ae12e4eac0c2249a21e",
+    "public_dependencies": {
+      "Flask": "3.1.3",
+      "gunicorn": "26.2.0",
+      "python-dotenv": "1.2.4",
+      "Flask-SocketIO": "5.7.0"
+    },
+    "smoke": {
+      "actual_auth_app_imported": true,
+      "required_auth_routes_present": true,
+      "network": "none",
+      "user_credentials_used": false
+    },
+    "real_credentials_in_image": false,
+    "http_listener_started": false
+  },
+  "inactive_recovery": {
+    "status": "passed-inactive-runtime-conversion",
+    "date": "2026-10-29",
+    "source": "personal Linux VM",
+    "target": "independent Apple Silicon Mac Docker runtime",
+    "scope": "Selected Nexus service copy, not an OS/disk image",
+    "live_vm_modified": false,
+    "external_provider_calls": 0,
+    "production_session_used": false,
+    "dmg_rebuilt": false,
+    "authenticated_decryption_passed": true,
+    "encrypted_parts_verified": 2,
+    "restored_files_verified": 723,
+    "unsafe_links_not_activated": 1,
+    "sensitive_plaintext_outside_git": true,
+    "archived_service_images_loaded": 4,
+    "recovered_key_canary": true,
+    "restore_postgresql_version": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "postgres_network_mode": "none",
+    "postgres_published_ports": {},
+    "restored_databases": [
+      {
+        "tables": 15,
+        "invalid_indexes": 0
+      },
+      {
+        "tables": 3,
+        "invalid_indexes": 0
+      }
+    ],
+    "inactive_runtime_conversion": {
+      "sql_records_imported": 1420,
+      "jobs_not_enqueued": 40,
+      "target_executable_jobs": 0,
+      "catalog_activation_flags_disabled": 0,
+      "restored_backend": "sql",
+      "new_empty_namespace_used": true,
+      "review_required": true,
+      "definition_files": {
+        "agents": 18,
+        "workflows": 4
+      },
+      "application_started": false
+    },
+    "restored_authorization": {
+      "new_isolated_session_authorized": true,
+      "restored_project_access_verified": true,
+      "unknown_and_pending_sessions_denied": true,
+      "production_sessions_used": false,
+      "browser_oauth_login_tested": false
+    },
+    "application_started": false,
+    "existing_provider_tokens_decrypted": false,
+    "temporary_plaintext_removed": true,
+    "test_container_absent": true,
+    "test_volumes_absent": true
+  },
+  "activation_boundary": "The snapshot contained no matching explicit catalog activation flags (count zero). Converted records and jobs were inspected; no queued/running restored run or executable job was present. Positive active-resource inactivation retains its separate fixture evidence.",
+  "operator_corrections": [
+    "BuildKit treated a raw image ID in FROM as a registry name; a verified local alias fixed the disposable image build.",
+    "Initial init helper lacked permission to traverse copied private directories and also attempted chmod after losing ownership. A synthetic fixture reproduced traversal skipping; a short-lived init container received only CHOWN/DAC_OVERRIDE over its own named volume. Runtime stayed UID:GID 1001:1001 with no network.",
+    "Initial staging failures and the ingress rollback are retained privately; none are promoted to a successful browser/OAuth check."
+  ],
+  "evidence_sha256": {
+    "guard-result.json": "0f49b9fc7a5e1f6a054b623f2c1e45985bba5c5d6182865a480ae84d80068002",
+    "auth-import.json": "23f99089813d61551aaa966d82d819c7bb8793b86a87d2724bf207904f534710",
+    "semantic-stage-output.json": "c7b6bed60d7521e1d9b65157c3027f5d844541289dba864d9d0f20a014f43362",
+    "semantic-stage-corrected-output.json": "a23f0268763f715b55dce1d550d852171f7143b2cc942959ee803644db81906f",
+    "semantic-stage-verified-output.json": "7639fc33bd376c1976b461a2b5abf54488f3548baf37aebd2794e4238a5d6bee",
+    "semantic-stage.py": "2ecaa0ee7953786f17f62c0d853ac834dcd2a4fe5965ef377c4cb8612abbc8b9"
+  },
+  "source_sha256": {
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
+    "nexus/core/studio_sql_restore.py": "6c806af57abc4afdd0123fda83c45fed4125192ff0061aef3a936ded5a6448de",
+    "examples/nexus-bot/src/webhook_server.py": "c134cc6a5c6aaa6a7c1624930ea4bb94db03dabb40c74630706d3b6d2965cdd6",
+    "examples/nexus-bot/src/auth_pages.py": "102e71718b79c40d9c8a8dce315a887ecc54a7de88c1c2431ec08bd04357f521"
+  },
+  "pending": [
+    "Reconnect Tailscale and recheck actual VM/ingress state.",
+    "Install and verify distinct recovery UI/auth routing only after isolated backends are ready.",
+    "Fresh user-driven browser/OAuth login and compatible provider callback.",
+    "Host/daemon/power-loss, physical devices, selected API accounts and signed installed desktop gates."
+  ],
+  "dmg_rebuilt": false
+}

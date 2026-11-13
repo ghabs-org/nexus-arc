@@ -1,0 +1,5 @@
+simulation: studio-openclaw
+routing: path
+mocks:
+  - routeKey: studio
+    path: ../mocks/studio-openclaw/config.yaml

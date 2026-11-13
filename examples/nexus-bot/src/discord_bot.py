@@ -94,6 +94,7 @@ from nexus.core.handlers.monitoring_command_handlers import (
 from nexus.core.handlers.ops_command_handlers import inboxq_handler as ops_inboxq_handler
 from nexus.core.handlers.ops_command_handlers import audit_handler as ops_audit_handler
 from nexus.core.handlers.ops_command_handlers import agents_handler as ops_agents_handler
+from nexus.core.handlers.ops_command_handlers import doctor_handler as ops_doctor_handler
 from nexus.core.handlers.ops_command_handlers import direct_handler as ops_direct_handler
 from nexus.core.handlers.ops_command_handlers import stats_handler as ops_stats_handler
 from nexus.core.handlers.issue_command_handlers import assign_handler as issue_assign_handler
@@ -207,6 +208,9 @@ from nexus.core.auth import (
 )
 from nexus.core.auth import (
     get_latest_login_session_status as _svc_get_latest_login_session_status,
+)
+from nexus.core.auth import (
+    import_openclaw_local_provider_credentials as _svc_import_openclaw_local_provider_credentials,
 )
 from nexus.core.auth import (
     get_setup_status as _svc_get_setup_status,
@@ -2255,14 +2259,14 @@ async def help_command(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="login", description="Link GitHub/GitLab and configure provider auth (keys or account)")
-@app_commands.describe(provider="Provider (github, gitlab, codex, gemini, claude, copilot)")
+@app_commands.describe(provider="Provider (github, gitlab, codex, claude, copilot)")
 @app_commands.choices(
     provider=[
         app_commands.Choice(name="GitLab", value="gitlab"),
         app_commands.Choice(name="GitHub", value="github"),
         app_commands.Choice(name="Codex Account", value="codex"),
-        app_commands.Choice(name="Gemini Account", value="gemini"),
         app_commands.Choice(name="Claude Account", value="claude"),
+        app_commands.Choice(name="Antigravity Account", value="agy"),
         app_commands.Choice(name="Copilot Account", value="copilot"),
     ]
 )
@@ -2282,6 +2286,39 @@ async def login_command(
             ephemeral=True,
         )
         return
+
+    selected_provider = str(provider.value if provider else "").strip().lower()
+    account_provider_target = (
+        selected_provider
+        if selected_provider in {"codex", "claude", "copilot", "agy"}
+        else ""
+    )
+    user = _get_or_create_discord_user(interaction.user)
+
+    if account_provider_target in {"codex", "claude", "copilot", "agy"}:
+        imported = _svc_import_openclaw_local_provider_credentials(
+            nexus_id=str(user.nexus_id),
+            provider=account_provider_target,
+        )
+        import_state = str(imported.get("state") or "").strip().lower()
+        if bool(imported.get("imported")):
+            await interaction.response.send_message(
+                "\n".join(
+                    [
+                        f"✅ {imported.get('message') or f'Imported saved {account_provider_target.title()} credentials.'}",
+                        "Use `/setup-status` to verify readiness.",
+                    ]
+                ),
+                ephemeral=True,
+            )
+            return
+        if import_state in {"invalid", "error"}:
+            await interaction.response.send_message(
+                f"⚠️ {imported.get('message') or 'Saved provider credentials could not be imported.'}",
+                ephemeral=True,
+            )
+            return
+
     if not NEXUS_PUBLIC_BASE_URL:
         await interaction.response.send_message(
             "⚠️ NEXUS_PUBLIC_BASE_URL is not configured. Ask an admin to configure auth.",
@@ -2289,12 +2326,6 @@ async def login_command(
         )
         return
 
-    selected_provider = str(provider.value if provider else "").strip().lower()
-    account_provider_target = (
-        selected_provider
-        if selected_provider in {"codex", "gemini", "claude", "copilot"}
-        else ""
-    )
     github_oauth_ready = bool(NEXUS_GITHUB_CLIENT_ID and NEXUS_GITHUB_CLIENT_SECRET)
     gitlab_oauth_ready = bool(NEXUS_GITLAB_CLIENT_ID and NEXUS_GITLAB_CLIENT_SECRET)
     available_providers: list[str] = []
@@ -2302,9 +2333,15 @@ async def login_command(
         available_providers.append("github")
     if gitlab_oauth_ready:
         available_providers.append("gitlab")
+    if bool(os.getenv("NEXUS_LINKEDIN_CLIENT_ID") and os.getenv("NEXUS_LINKEDIN_CLIENT_SECRET")):
+        available_providers.append("linkedin")
+    if bool(os.getenv("NEXUS_X_CLIENT_ID") and os.getenv("NEXUS_X_CLIENT_SECRET")):
+        available_providers.append("x")
+    if bool(os.getenv("NEXUS_META_CLIENT_ID") and os.getenv("NEXUS_META_CLIENT_SECRET")):
+        available_providers.append("meta")
     if not available_providers:
         await interaction.response.send_message(
-            "⚠️ No OAuth providers are configured. Ask an admin to configure GitHub/GitLab OAuth.",
+            "⚠️ No OAuth providers are configured. Ask an admin to configure GitHub/GitLab/LinkedIn/X/Meta OAuth.",
             ephemeral=True,
         )
         return
@@ -2315,9 +2352,7 @@ async def login_command(
         )
         return
 
-    user = _get_or_create_discord_user(interaction.user)
-
-    if account_provider_target in {"codex", "gemini", "claude"}:
+    if account_provider_target in {"codex", "claude", "agy"}:
         try:
             provider_login = _svc_start_provider_account_login_for_nexus(
                 nexus_id=str(user.nexus_id),
@@ -2405,7 +2440,7 @@ async def login_command(
             sent = await dm_channel.send(
                 "🔐 Setup required before task execution.\n\n"
                 f"Session reference: `{session_ref}`\n"
-                "Choose your Git provider to continue OAuth onboarding.",
+                "Choose your OAuth provider to continue onboarding.",
                 view=view,
             )
             await interaction.response.send_message(
@@ -2430,13 +2465,13 @@ async def login_command(
             logger.warning("Failed to register Discord onboarding message for session %s: %s", session_id, exc)
         return
 
-    if selected_provider and not account_provider_target and selected_provider not in {"github", "gitlab"}:
+    if selected_provider and not account_provider_target and selected_provider not in {"github", "gitlab", "linkedin", "x", "meta", "instagram"}:
         await interaction.response.send_message(
-            "⚠️ Invalid provider. Use github, gitlab, codex, gemini, claude, or copilot.",
+            "⚠️ Invalid provider. Use github, gitlab, linkedin, x, meta, codex, claude, or copilot.",
             ephemeral=True,
         )
         return
-    if not account_provider_target and selected_provider not in available_providers:
+    if not account_provider_target and selected_provider not in {"linkedin", "x", "meta", "instagram"} and selected_provider not in available_providers:
         await interaction.response.send_message(
             f"⚠️ {selected_provider.title()} OAuth is not configured in this environment.",
             ephemeral=True,
@@ -2449,7 +2484,7 @@ async def login_command(
     setup_step = (
         f"3. In setup, enable **{account_provider_target.title()} account login** (and Save Setup)\n"
         if account_provider_target
-        else "3. Save provider setup: API keys and/or account login toggles for Codex, Gemini, Claude, Copilot\n"
+        else "3. Save provider setup: API keys and/or account login toggles for Codex, Claude, Copilot\n"
     )
     if account_provider_target == "copilot":
         setup_step = (
@@ -2513,13 +2548,18 @@ async def setup_status_command(interaction: discord.Interaction):
         f"- CLI auth mode: `{status.get('cli_auth_mode') or 'account'}`",
         f"- GitHub linked: {'✅' if status.get('github_linked') else '❌'}",
         f"- GitLab linked: {'✅' if status.get('gitlab_linked') else '❌'}",
+        f"- LinkedIn linked: {'✅' if status.get('linkedin_linked') else '❌'}",
+        f"- X linked: {'✅' if status.get('x_linked') else '❌'}",
+        f"- Meta linked: {'✅' if status.get('meta_linked') else '❌'}",
+        f"- Instagram linked: {'✅' if status.get('instagram_linked') else '❌'}",
         f"- GitHub login: `{status.get('github_login') or 'n/a'}`",
         f"- GitLab username: `{status.get('gitlab_username') or 'n/a'}`",
+        f"- LinkedIn author URN: `{status.get('linkedin_author_urn') or 'n/a'}`",
+        f"- Meta page ID: `{status.get('meta_page_id') or 'n/a'}`",
+        f"- Instagram account ID: `{status.get('meta_ig_account_id') or 'n/a'}`",
         f"- Codex key set: {'✅' if status.get('codex_key_set') else '❌'}",
-        f"- Gemini key set: {'✅' if status.get('gemini_key_set') else '❌'}",
         f"- Claude key set: {'✅' if status.get('claude_key_set') else '❌'}",
         f"- Codex account login enabled: {'✅' if status.get('codex_account_enabled') else '❌'}",
-        f"- Gemini account login enabled: {'✅' if status.get('gemini_account_enabled') else '❌'}",
         f"- Claude account login enabled: {'✅' if status.get('claude_account_enabled') else '❌'}",
         f"- Copilot account mode enabled: {'✅' if status.get('copilot_account_enabled') else '❌'}",
         f"- Copilot ready (GitHub OAuth or Copilot Token): {'✅' if status.get('copilot_ready') else '❌'}",
@@ -2611,6 +2651,18 @@ async def stats_command(interaction: discord.Interaction, args: str = ""):
         command_name="stats",
         args=args,
         handler=ops_stats_handler,
+        deps_factory=_ops_bridge_deps,
+    )
+
+
+@bot.tree.command(name="doctor", description="Diagnose OpenClaw runtime/session health and recover when possible")
+@app_commands.describe(args="Optional: [project] [issue] [fix|--fix]")
+async def doctor_command(interaction: discord.Interaction, args: str = ""):
+    await _run_bridge_handler(
+        interaction,
+        command_name="doctor",
+        args=args,
+        handler=ops_doctor_handler,
         deps_factory=_ops_bridge_deps,
     )
 
@@ -3083,12 +3135,11 @@ async def prepare_command(
     )
 
 
-@bot.tree.command(name="plan", description="Request an implementation plan")
-@app_commands.describe(project="Project key", issue="Issue number")
+@bot.tree.command(name="plan", description="Create a new planning task")
+@app_commands.describe(project="Project key")
 async def plan_command(
     interaction: discord.Interaction,
     project: str | None = None,
-    issue: str | None = None,
 ):
     await _run_bridge_with_picker(
         interaction,
@@ -3096,7 +3147,14 @@ async def plan_command(
         handler=issue_plan_handler,
         deps_factory=_issue_bridge_deps,
         project=project,
-        issue=issue,
+        require_issue=False,
+        text_modal={
+            "title": "Create Planning Task",
+            "label": "Planning request",
+            "placeholder": "Describe what you want planned",
+            "multiline": True,
+            "parse_mode": "append",
+        },
     )
 
 

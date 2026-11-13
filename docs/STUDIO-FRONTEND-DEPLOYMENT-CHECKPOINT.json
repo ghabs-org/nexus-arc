@@ -1,0 +1,78 @@
+{
+  "format": "nexus-studio-frontend-deployment/v1",
+  "date": "2026-10-28",
+  "status": "deployed-verified-and-authenticated-ui-run-passed",
+  "whole_plan_complete": false,
+  "candidate_verification": {
+    "candidate_image": "sha256:4bbdeb3ab2c8304d9e98401d47b70e783465211348d2a95da7fcfba025046532",
+    "base_image": "sha256:8d442def46f3f2aeae905c42be3990d9a7160d8c08983ae12e4eac0c2249a21e",
+    "installed_files_compared": 654,
+    "changed_files": [
+      "studio_static/service-worker.js",
+      "studio_static/studio.js"
+    ],
+    "exact_source_hashes_match": true,
+    "server_started": false,
+    "live_deployed": true
+  },
+  "deployment": {
+    "status": "deployed-verified",
+    "source_assets_changed": 2,
+    "dmg_rebuilt": false,
+    "credentials_exported": false,
+    "database_migrated": false,
+    "proxy_restarted": false,
+    "resolved_config_only_image_changed": true,
+    "image": "sha256:4bbdeb3ab2c8304d9e98401d47b70e783465211348d2a95da7fcfba025046532",
+    "served_asset_hashes_match": true,
+    "environment_unchanged": true,
+    "original_proxy_unchanged": true,
+    "maintenance_seconds": 4.704,
+    "rollback_used": false
+  },
+  "earlier_attempt": {
+    "status": "failed",
+    "source_assets_changed": 2,
+    "dmg_rebuilt": false,
+    "credentials_exported": false,
+    "database_migrated": false,
+    "proxy_restarted": false,
+    "resolved_config_only_image_changed": true,
+    "error": "",
+    "rollback_used": true,
+    "original_image_restored": true
+  },
+  "operator_correction": "Environment values were unchanged, but Docker Compose reordered the list. The original strict list-order assertion triggered successful rollback. Comparison now checks key/value equality. Corrected reapply passed; initial failure remains retained.",
+  "authenticated_browser": {
+    "shell_update_activated": true,
+    "existing_login_survived": true,
+    "provider": "Codex subscription",
+    "effort": "Low",
+    "tools": "No tools",
+    "synthetic_request_only": true,
+    "expected_and_observed_output": "STUDIO_ACCEPTANCE_OK",
+    "screenshot_sha256": "633c3b16f03cbafdccedbd90601e558fbf2d7dbe455cdb6ef9d2b23c162893a3",
+    "session_material_retrieved": false,
+    "http_response_headers_verified": false
+  },
+  "final_postcheck": {
+    "host_checks": 12,
+    "anonymous_https_passed": 15,
+    "nexus_units_active": 5,
+    "selected_containers_running": 3,
+    "generated_workers_remaining": 0,
+    "authenticated_headers": "not tested without existing session material"
+  },
+  "source_sha256": {
+    "nexus/studio_static/studio.js": "59c323e3f560db0379ae3d9be04fef02e6de6441fc5d38122625d6249a3800f9",
+    "nexus/studio_static/service-worker.js": "bc6d0fe90615360e945860eb79d8827eccef87a0dca1a818c8194bccd04b3f55"
+  },
+  "reports_sha256": {
+    "candidate-verification.json": "2b6e8be9446719a7998d9a39e72f4be1dcddd76dea9df6696895d25327a91d85",
+    "deployment-result.json": "2c1e18b865279f9e6d14a1d530efdf1240c18fcc7c0e2222ab6513d9bcaed6ef",
+    "deployment-corrected-result.json": "16d305868e69590907e3347c0282d5e995fc97428bd2d33e3572b125175827a4",
+    "deploy.py": "3f61792a9c13ee30deeeb591301543f6c1681a6a99e753b79e8686327ebde6fe"
+  },
+  "deployment_note": "A private selected Compose override pins the candidate image. VM source checkout remains unchanged. The existing example server consumes the shared static assets.",
+  "dmg_rebuilt": false
+}

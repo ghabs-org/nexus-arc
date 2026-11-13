@@ -1,0 +1,128 @@
+{
+  "format": "nexus-studio-browser-and-evaluation-comparison-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "implemented-fixture-and-broadened-browser-verified",
+  "whole_plan_complete": false,
+  "whole_design_audit_complete": false,
+  "source_head": "ea7fab681231de17a8e9b59ad459dededbaec651",
+  "shell_cache": "nexus-studio-shell-v71",
+  "source_sha256": {
+    "nexus/core/studio_evaluation_gate.py": "382e6cec2e506477835f00d71221a7650a1ffbac549ff53515cde5c425fdcb98",
+    "examples/nexus-bot/src/studio_evaluation_gate.py": "cc35ddb0a94720965b4459742da8f848120c2b236fe6ade38aea409632a1f8c2",
+    "examples/nexus-bot/src/studio.py": "fb621a0f1983950f7a3ca5194ba602e8df0ab84c19a614c7361db5b13bd4a24f",
+    "nexus/studio_static/index.html": "169956c0263743a525125686788ecbc845cb7241534f83d72156fd1f5c41b764",
+    "nexus/studio_static/artifact.html": "0bf096c8e3367779d943ab72a0b1acf8d30f5546c6d0e786742a88f827847ea5",
+    "nexus/studio_static/shared.html": "b1ea2ca8fe5140158b70bef60383ecedb4d09ae2242bdeac446b85ab135da763",
+    "nexus/studio_static/theme.js": "c3d84baccf9e68ee7027538e0c3b7f1c8655f2de5cf5795f50718daa4b447562",
+    "nexus/studio_static/studio.css": "6f39bb6a59fde2a9b763228ebaa6bd4b8edc8201f5d4d05a95e5828d8babe540",
+    "nexus/studio_static/studio.js": "bccc7ebf19d536a074be624f1d94aaf76a877661e11dce0e9da97128fa88b125",
+    "nexus/studio_static/operations.js": "3c59e7789da78c248d016523b843c1bb21745759f2e71f20a1651c99bd6b8f50",
+    "nexus/studio_static/graph.js": "683d564076fda70bdb8ba149d2a050127ac04ccf3963ed8722b2f679706f5f6d",
+    "nexus/studio_static/workbench.js": "67baa2eac3eba2c3de77003d601fa673dc969141f79b84c16d7fed3adc57551a",
+    "nexus/studio_static/service-worker.js": "34ce41cad7e41e1f4e78d157e83bed2f1c5f3de6042d9df29417ff38aa104cb9",
+    "tests/test_studio_evaluation_gate.py": "569c6b1c553486b8e9963cd110078eb6fa1f5935b4a5eb67e01507780d9e7eca",
+    "tests/studio_evaluation_gate.test.cjs": "c47a5da6d33a4f1ef5a8f600ccc6ebb912fffff3940e938d12d38f435234e71b",
+    "tests/studio_theme.test.cjs": "027832afa3badfe6ca2c5500f47ccd9657e49f2ee1459085f3a4a39446381364",
+    "docs/STUDIO-EVALUATION-GATE.md": "6873281fd7519edcb128acfa2d69a05b33457612f99c379b67df6b6d9139b227",
+    "docs/STUDIO-DESIGN-TASTE-AUDIT.md": "993703ffba1157880c0d142d3b7d010ca9a0fab05a7ef5ac6ce746ccfa4f122c",
+    "docs/STUDIO-NEXT-AGENT-PLAN.md": "f9e1fd7e63db6f9bb1a27a0131951e33d6f8f5a83c0ccf0a18b6fcefa6c9e4f8",
+    "docs/STUDIO-IMPLEMENTATION-PLAN.md": "4ad8bf8a22e101b368bef888e10e1e4d7e70b15f8efc49ac280aabb3f7d81def"
+  },
+  "validation": {
+    "frontend_node": {
+      "command": "node --test tests/studio_*.test.cjs",
+      "tests": 289,
+      "passed": 289,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_focused": {
+      "command": ".venv/bin/python -m pytest -o addopts=\"\" tests/test_studio_source_map.py tests/test_studio_completion_audit.py tests/test_studio_requirements.py tests/test_studio_catalog_closure.py tests/test_studio_evaluation_gate.py",
+      "tests": 43,
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0
+    },
+    "browser": {
+      "workspace": "disposable local only (127.0.0.1:5094, removed after verification)",
+      "viewports": [
+        [
+          1280,
+          720
+        ],
+        [
+          1024,
+          768
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          360,
+          780
+        ]
+      ],
+      "themes_checked": [
+        "light",
+        "dark",
+        "system"
+      ],
+      "lighthouse": {
+        "desktop_navigation": {
+          "accessibility": 100,
+          "best_practices": 100,
+          "seo": 100
+        },
+        "mobile_navigation": {
+          "accessibility": 100,
+          "best_practices": 100,
+          "seo": 100
+        },
+        "artifact_viewer_snapshot": {
+          "accessibility": 100,
+          "best_practices": 100
+        },
+        "shared_viewer_snapshot": {
+          "accessibility": 100,
+          "best_practices": 100
+        }
+      },
+      "verified_flows": [
+        "DT-08 role-based radius/elevation/layer tokens and primary/secondary/quiet :active states",
+        "DT-09 zero first-party long dashes in interface literals",
+        "DT-10 immediate #detail full-view geometry resize without width/height transitions",
+        "CSP script-src and style-src clean console on navigation (early desktop-app detection in theme.js; studio.js inline styles moved to studio.css)",
+        "Evaluations report list, single report view, and offline before/after report comparison dialog",
+        "Experiment declaration export review (experiment.yaml + experiment-handoff.json prepared without auto-download)",
+        "Dataset + judge package export review (dataset.yaml + evaluator.yaml + cases.csv + evaluation-handoff.json prepared without auto-download)",
+        "Evaluation handoff import conversion -> Review save changes -> Save reviewed dataset and judge plan preview",
+        "Structured diagnostics on unsupported/stale revision export (stale_revision)",
+        "Shared conversation snapshot viewer (/shared.html) with .table-container wrapping and explicit artifact download button",
+        "Pinned document source viewer (/artifact.html) with iframe[sandbox=\"\"] and live color-scheme sync",
+        "Workflow graph SVG node fill adaptation in Light and Dark themes",
+        "Zero horizontal overflow across 1280x720, 1024x768, 390x844, and 360x780",
+        "WEB-01: Reviewed dataset and judge save applied through UI and read back as revision 2 in DOM",
+        "WEB-01: Explicit single and multi-file downloads validated with exact filenames and byte counts (report, 4-file package, 2-file declaration) with zero automatic downloads",
+        "WEB-01: Handoff re-import into fresh destination workspace validated with complete definition parity",
+        "WEB-01: Zero unintended runs created or dispatched across all operations (runCount: 0)",
+        "WEB-02: Performance baseline recorded (FCP 112ms, LCP 85ms, CLS 0.00-0.01, tab transitions ~21ms)",
+        "WEB-02: Large history stress table (100 runs) rendered in 81.1ms; 20-node DAG canvas rendered in 9.8ms; all within declared budgets"
+      ],
+      "preview_runs_created": 0,
+      "preview_server_stopped": true
+    }
+  },
+  "open_roadmap_items": [
+    "3. Real devices: microphone permissions, recording/playback, touch controls, installed/offline web-app behavior, and physical assistive-tech/screen-reader voiceover.",
+    "4. Live integrations: account permissions, API voice/embeddings, provider behavior, and real-server SQL Server/Oracle acceptance.",
+    "5. Recovery acceptance: recovered-host browser/login and full machine/service recovery (VM work deferred).",
+    "6. Desktop milestone 9 last: another physical Mac, installed Linux/Windows testing, Windows signing, genuine older-release upgrades (new builds and public update publication withheld until explicitly requested)."
+  ],
+  "constraints": {
+    "vm_contacted": false,
+    "provider_invoked": false,
+    "dmg_rebuilt": false,
+    "release_published": false
+  }
+}

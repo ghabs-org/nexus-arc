@@ -208,8 +208,8 @@ Searchable forever in Git ✅
      ▼          ▼
 ┌─────────┐  ┌──────────┐
 │Git API  │  │ AI APIs  │
-│Issues   │  │Copilot/Gemini│
-│PRs      │  │Gemini    │
+│Issues   │  │Copilot   │
+│PRs      │  │Codex     │
 │Comments │  │Copilot   │
 └─────────┘  └──────────┘
      │
@@ -338,8 +338,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 ## Learn More
 
 - **Quick Start**: [QUICKSTART.md](../QUICKSTART.md)
-- **Architecture**: [ARCHITECTURE-DIAGRAM.md](../ARCHITECTURE-DIAGRAM.md)
-- **Commercial Analysis**: [COMMERCIAL-ANALYSIS.md](../../nexus/COMMERCIAL-ANALYSIS.md)
+- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
 

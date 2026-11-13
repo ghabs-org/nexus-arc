@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info:
+  title: Nexus OpenAPI connector health configuration extension
+  version: 1.0.0
+  description: Additive health_operation on existing connector data. Saving/importing/reviewing never contacts a service. Only an explicit owned build health request invokes the selected operation through the existing OpenAPI client and credential policy. Health records retain revision and status metadata only. Omitted health_operation preserves older normalized records exactly.
+paths: {}
+components:
+  schemas:
+    OpenAPIHealthSelection:
+      type: object
+      properties:
+        health_operation:
+          type: string
+          maxLength: 200
+          description: Optional operation ID from the connector's selected operations. Requires read action, GET/HEAD/OPTIONS, no required/path parameters and no requestBody. Empty string disables the check. Unknown, unselected, mutating or argument-dependent operations reject before saving. Authentication stays in server credential references, not health arguments. Redirects are never followed; non-2xx, network errors and oversized responses yield sanitized failed health results without replay.

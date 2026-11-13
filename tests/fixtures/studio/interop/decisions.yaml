@@ -1,0 +1,67 @@
+kind: workflow
+name: decision-review
+description: Typed ticket triage with explicit review fallback.
+spec:
+  appConfig:
+    decision:
+      model_alias: triage
+      timeout_seconds: 2
+    tools:
+      - tool_type: builtin
+        tool_name: count_words
+    nodes:
+      - id: triage
+        type: decision
+        input: {ticket: '{{workflow.input.ticket}}'}
+        questions:
+          team:
+            type: choice
+            instructions: Which team should review this ticket?
+            criteria:
+              billing: Payments and invoices
+              technical: Bugs and outages
+              other: Any other question
+          urgent:
+            type: boolean
+            instructions: Does this ticket need immediate attention?
+          detail:
+            type: score
+            instructions: How much useful detail does this ticket contain?
+            criteria:
+              - low: Incomplete
+              - high: Complete
+        route_on: team
+        routes: {billing: billing, technical: technical}
+        default: general
+        min_confidence: 0.8
+        escalate: review
+        escalation_mode: handoff
+        on_provider_error: escalate
+      - id: billing
+        type: tool
+        tool_name: count_words
+        depends_on: [triage]
+        input: {text: one two}
+      - id: technical
+        type: tool
+        tool_name: count_words
+        depends_on: [triage]
+        input: {text: one two three}
+      - id: general
+        type: tool
+        tool_name: count_words
+        depends_on: [triage]
+        input: {text: one}
+      - id: review
+        type: tool
+        tool_name: count_words
+        depends_on: [triage]
+        input: {text: one two three four}
+    output_mapping:
+      decision: '{{triage.output}}'
+      count:
+        coalesce:
+          - '{{billing.output}}'
+          - '{{technical.output}}'
+          - '{{general.output}}'
+          - '{{review.output}}'

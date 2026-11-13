@@ -52,18 +52,18 @@ All configuration lives in environment variables (loaded from `.env`) and `confi
 | `NEXUS_AGENT_TIMEOUT`         | ❌        | `3600`    | Core engine default timeout fallback                    |
 | `COPILOT_PROVIDER`            | ❌        | `copilot` | AI CLI provider binary name                             |
 | `NEXUS_CLI_AUTH_MODE`         | ❌        | `account` | Provider CLI auth mode: `account`, `api-key`, or `auto` |
-| `NEXUS_FULL_WORKFLOW_CONTEXT` | ❌        | `false`   | Set `true` to inject full step schema                   |
 | `INBOX_CHECK_INTERVAL`        | ❌        | `10`      | Polling interval for completions                        |
 | `AUTO_CHAIN_CYCLE`            | ❌        | `60`      | Polling interval for auto-chaining                      |
 
 ## Project Config (`project_config.yaml`)
 
-AI tool preference provider values support `copilot`, `gemini`, `codex`, and `claude`.
+AI tool preference provider values support `copilot`, `codex`, and `claude`.
 This applies to:
 
 - `model_profiles.<profile>.<provider>`
 - `profile_provider_priority.<profile>[]`
 - `ai_tool_preferences.<agent>.provider`
+- `execution_mode_cli_config.<provider>.<mode>`
 
 ```yaml
 # Each key is a project identifier (used in inbox routing)
@@ -99,11 +99,17 @@ model_profiles:
   balanced:
     claude: "claude-sonnet-4"
 profile_provider_priority:
-  balanced: [ "claude", "codex", "gemini", "copilot" ]
+  balanced: [ "claude", "codex", "copilot" ]
 ai_tool_preferences:
   writer:
     provider: "claude"
     profile: "balanced"
+execution_mode_cli_config:
+  codex:
+    planning:
+      args:
+        - -c
+        - model_reasoning_effort="high"
 ```
 
 `git_branches` applies to both startup sync and PR/MR base branch selection.

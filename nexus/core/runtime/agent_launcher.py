@@ -28,6 +28,10 @@ from nexus.core.auth.access_domain import (
     check_repo_access,
 )
 from nexus.core.auth.credential_store import get_issue_requester, get_issue_requester_by_url
+from nexus.core.auth.execution_env_resolver import (
+    requester_scoped_execution_enabled,
+    resolve_execution_env,
+)
 from nexus.core.config import (
     BASE_DIR,
     NEXUS_WEBHOOK_INTERNAL_URL,
@@ -43,6 +47,11 @@ from nexus.core.config import (
     get_nexus_dir_name,
     get_project_platform,
     get_tasks_logs_dir,
+)
+from nexus.core.execution_mode import (
+    infer_execution_mode_from_labels,
+    normalize_execution_mode,
+    parse_execution_mode_from_text,
 )
 # Nexus Core framework imports
 from nexus.core.guards import LaunchGuard
@@ -158,25 +167,40 @@ def _resolve_requester_token_for_issue(
     repo: str,
     project_name: str | None,
 ) -> str | None:
-    if not auth_enabled():
+    if not bool(auth_enabled()):
         return None
-    requester_nexus_id = get_issue_requester(str(repo), str(issue_number))
-    if not requester_nexus_id:
-        # Fallback to URL-bound requester lookup for cases where repo-key
-        # formatting differs from stored bindings.
+
+    requester_nexus_id = None
+    try:
+        requester_nexus_id = str(get_issue_requester(str(repo), str(issue_number)) or "").strip() or None
+    except Exception:
+        requester_nexus_id = None
+
+    issue_url = None
+    try:
+        platform = str(get_project_platform(str(project_name or "")) or "").strip().lower()
+        issue_url = build_issue_url(
+            str(repo),
+            str(issue_number),
+            {"git_platform": platform or "github"},
+        )
+    except Exception:
+        issue_url = None
+
+    if not requester_nexus_id and issue_url:
         try:
-            platform = str(get_project_platform(str(project_name or "")) or "").strip().lower()
-            issue_url = build_issue_url(
-                str(repo),
-                str(issue_number),
-                {"git_platform": platform or "github"},
-            )
-            requester_nexus_id = get_issue_requester_by_url(issue_url)
+            requester_nexus_id = str(get_issue_requester_by_url(issue_url) or "").strip() or None
         except Exception:
             requester_nexus_id = None
+
     if not requester_nexus_id:
         return None
-    user_env, env_error = build_execution_env(str(requester_nexus_id))
+
+    try:
+        user_env, env_error = build_execution_env(str(requester_nexus_id), purpose="git")
+    except TypeError:
+        user_env, env_error = build_execution_env(str(requester_nexus_id))
+
     if env_error:
         logger.warning(
             "Requester token unavailable for issue #%s repo=%s project=%s requester=%s: %s",
@@ -187,6 +211,7 @@ def _resolve_requester_token_for_issue(
             env_error,
         )
         return None
+
     platform = str(get_project_platform(str(project_name or "")) or "").strip().lower()
     if platform == "gitlab":
         return str(user_env.get("GITLAB_TOKEN") or user_env.get("GITHUB_TOKEN") or "").strip() or None
@@ -900,6 +925,7 @@ def _start_agent_quota_watchdog(
     exclude_tools: list[str] | None,
     tier_name: str,
     mode: str,
+    execution_mode: str | None,
     workflow_name: str,
     tool_name: str,
 ) -> None:
@@ -930,6 +956,27 @@ def _start_agent_quota_watchdog(
 
             merged_exclusions = _merge_excluded_tools(exclude_tools or [], [tool_name])
             _persist_issue_excluded_tools(issue_num, [tool_name])
+
+            from nexus.core.runtime import agent_routing
+
+            try:
+                tracker = HostStateManager.load_launched_agents(recent_only=False)
+                limited = tracker.get(str(issue_num))
+                if isinstance(limited, dict) and agent_routing.report_outcome(
+                    limited, False, rate_limited=True, issue_num=issue_num
+                ):
+                    HostStateManager.save_launched_agents(tracker)
+            except Exception as exc:
+                logger.debug("Router quota outcome skipped for #%s: %s", issue_num, exc)
+            route_pick = agent_routing.route_agent(
+                orchestrator,
+                prompt=prompt,
+                agent_type=agent_type,
+                project_name=str(log_subdir or "nexus"),
+                issue_num=issue_num,
+                workflow_name=workflow_name,
+                exclude_tools=merged_exclusions,
+            )
 
             logger.warning(
                 "Quota detected for %s on issue #%s (pid=%s). Auto-fallback with exclusions=%s",
@@ -968,10 +1015,12 @@ def _start_agent_quota_watchdog(
                     ),
                     agent_name=agent_type,
                     project_name=str(log_subdir or "nexus"),
-                    preferred_tool=None,
+                    preferred_tool=route_pick["tool"] if route_pick else None,
                     exclude_tools=merged_exclusions,
                     log_subdir=log_subdir,
                     env=agent_env,
+                    execution_mode=execution_mode,
+                    model_override=route_pick["model"] if route_pick else None,
                 )
                 if pid_new:
                     new_tool = str(getattr(tool_new, "value", tool_new))
@@ -980,19 +1029,24 @@ def _start_agent_quota_watchdog(
                     if not isinstance(prev, dict):
                         prev = {}
                     requester_nexus_id = str(prev.get("requester_nexus_id") or "").strip() or None
-                    launched_agents[str(issue_num)] = {
-                        **prev,
-                        "timestamp": time.time(),
-                        "pid": int(pid_new or 0),
-                        "requester_nexus_id": requester_nexus_id,
-                        "tier": tier_name,
-                        "mode": mode,
-                        "tool": new_tool,
-                        "agent_type": agent_type,
-                        "exclude_tools": _merge_excluded_tools(
-                            prev.get("exclude_tools", []), merged_exclusions
-                        ),
-                    }
+                    launched_agents[str(issue_num)] = agent_routing.record_pick(
+                        {
+                            **prev,
+                            "timestamp": time.time(),
+                            "pid": int(pid_new or 0),
+                            "requester_nexus_id": requester_nexus_id,
+                            "tier": tier_name,
+                            "mode": mode,
+                            "tool": new_tool,
+                            "agent_type": agent_type,
+                            "execution_mode": resolved_execution_mode,
+                            "exclude_tools": _merge_excluded_tools(
+                                prev.get("exclude_tools", []), merged_exclusions
+                            ),
+                        },
+                        route_pick,
+                        new_tool,
+                    )
                     HostStateManager.save_launched_agents(launched_agents)
                     record_agent_launch(issue_num, agent_type=agent_type, pid=int(pid_new or 0))
                     AuditStore.audit_log(
@@ -1023,6 +1077,7 @@ def _start_agent_quota_watchdog(
                         exclude_tools=merged_exclusions,
                         tier_name=tier_name,
                         mode=mode,
+                        execution_mode=execution_mode,
                         workflow_name=workflow_name,
                     )
                 else:
@@ -1117,6 +1172,7 @@ def _attach_post_launch_watchdog(
     exclude_tools: list[str] | None,
     tier_name: str,
     mode: str,
+    execution_mode: str | None,
     workflow_name: str,
     issue_url: str,
 ) -> None:
@@ -1136,6 +1192,7 @@ def _attach_post_launch_watchdog(
         exclude_tools=exclude_tools,
         tier_name=tier_name,
         mode=mode,
+        execution_mode=execution_mode,
         workflow_name=workflow_name,
     )
     _start_completion_recovery_watchdog(
@@ -1379,14 +1436,15 @@ def _normalize_step_ref(value: str) -> str:
     return normalized.strip("-")
 
 
-def _resolve_step_requires_worktree(
+def _find_workflow_step(
     *,
     workflow_path: str,
     tier_name: str,
     workflow_name: str,
     step_id: str,
     step_num: int,
-) -> bool | None:
+) -> dict | None:
+    """The workflow step (YAML dict) matching *step_id*, else the *step_num*-th step."""
     path = str(workflow_path or "").strip()
     if not path or not os.path.isfile(path):
         return None
@@ -1444,14 +1502,53 @@ def _resolve_step_requires_worktree(
             }
             normalized_refs = {_normalize_step_ref(ref) for ref in refs if ref}
             if normalized_target in normalized_refs or step_id in refs:
-                return _coerce_optional_bool(step.get("requires_worktree"))
+                return step
 
     if step_num > 0 and step_num <= len(steps):
         selected_step = steps[step_num - 1]
         if isinstance(selected_step, dict):
-            return _coerce_optional_bool(selected_step.get("requires_worktree"))
+            return selected_step
 
     return None
+
+
+def _resolve_step_requires_worktree(
+    *,
+    workflow_path: str,
+    tier_name: str,
+    workflow_name: str,
+    step_id: str,
+    step_num: int,
+) -> bool | None:
+    step = _find_workflow_step(
+        workflow_path=workflow_path,
+        tier_name=tier_name,
+        workflow_name=workflow_name,
+        step_id=step_id,
+        step_num=step_num,
+    )
+    return _coerce_optional_bool(step.get("requires_worktree")) if step else None
+
+
+def _resolve_step_routing(
+    *,
+    workflow_path: str,
+    tier_name: str,
+    workflow_name: str,
+    step_id: str,
+    step_num: int,
+) -> dict | None:
+    """The step's optional ``routing: {task_type, cost_profile}`` hint for the model router."""
+    from nexus.core.runtime.agent_routing import step_hint
+
+    step = _find_workflow_step(
+        workflow_path=workflow_path,
+        tier_name=tier_name,
+        workflow_name=workflow_name,
+        step_id=step_id,
+        step_num=step_num,
+    )
+    return step_hint(step.get("routing")) if step else None
 
 
 def _resolve_step_context_policy(
@@ -1687,6 +1784,14 @@ def _ensure_agent_definition(
     yaml_path = find_agent_definition(agent_type, search_dirs)
 
     if not yaml_path:
+        normalized = str(agent_type or "").strip().lower()
+        provider_names = {"copilot", "claude", "codex", "cursor", "opencode", "pi"}
+        if normalized in provider_names:
+            logger.warning(
+                "Skipping agent YAML lookup for provider-like agent_type '%s'; treating it as a runtime provider label",
+                agent_type,
+            )
+            return True
         msg = f"Missing agent YAML for agent_type '{agent_type}' in {search_dirs}"
         logger.error(msg)
         emit_alert(msg, severity="error", source="agent_launcher")
@@ -1772,6 +1877,35 @@ def get_sop_tier_from_issue(issue_number, project="nexus", repo_override: str | 
         return None
 
 
+def get_execution_mode_from_issue(issue_number, project="nexus", repo_override: str | None = None):
+    """Resolve persistent execution mode from issue labels."""
+    from nexus.core.orchestration.nexus_core_helpers import get_git_platform
+
+    repo = str(repo_override or "")
+    try:
+        repo = repo or get_repo(project)
+        token_override = _resolve_requester_token_for_issue(
+            str(issue_number),
+            repo,
+            project,
+        )
+        issue = _run_coro_sync(
+            lambda: get_git_platform(
+                repo,
+                project_name=project,
+                token_override=token_override,
+            ).get_issue(str(issue_number))
+        )
+        if not issue:
+            return None
+        return infer_execution_mode_from_labels(getattr(issue, "labels", None) or [])
+    except Exception as e:
+        logger.error(
+            f"Failed to get execution mode from issue #{issue_number} in {project} ({repo}): {e}"
+        )
+        return None
+
+
 def get_workflow_name(tier_name):
     """Returns the workflow slash-command name for the tier."""
     policy = _get_launch_policy_plugin()
@@ -1828,6 +1962,7 @@ def invoke_ai_agent(
     agent_type="triage",
     project_name=None,
     requester_nexus_id=None,
+    execution_mode=None,
 ):
     """Invokes an AI agent on the agents directory to process the task.
 
@@ -1842,7 +1977,7 @@ def invoke_ai_agent(
         task_content: Task description
         continuation: If True, this is a continuation of previous work
         continuation_prompt: Custom prompt for continuation
-        preferred_tool: If provided, prefer this tool (e.g. 'gemini', 'claude'); otherwise use best available (default: None)
+        preferred_tool: If provided, prefer this tool (e.g. 'codex', 'claude'); otherwise use best available (default: None)
         agent_type: Agent type to route to (triage, design, analysis, etc.)
         project_name: Project name for resolving workflow definition
 
@@ -1851,6 +1986,9 @@ def invoke_ai_agent(
     """
     pid = None
     tool_name: str | None = None
+    resolved_execution_mode = normalize_execution_mode(execution_mode) or parse_execution_mode_from_text(
+        str(task_content or "")
+    )
     workflow_name = get_workflow_name(tier_name)
     workflow_path = _resolve_workflow_path(project_name)
     step_id, step_num = _resolve_issue_step_context(issue_url)
@@ -1896,7 +2034,13 @@ def invoke_ai_agent(
         )
 
     mode = "continuation" if continuation else "initial"
-    logger.info(f"🤖 Launching {agent_type} agent in {agents_dir} (mode: {mode})")
+    logger.info(
+        "🤖 Launching %s agent in %s (mode: %s%s)",
+        agent_type,
+        agents_dir,
+        mode,
+        f", execution_mode: {resolved_execution_mode}" if resolved_execution_mode else "",
+    )
     logger.info(f"   Workspace: {workspace_dir}")
     logger.info(f"   Workflow: /{workflow_name} (tier: {tier_name})")
 
@@ -1906,10 +2050,11 @@ def invoke_ai_agent(
     # Use orchestrator to launch agent
     orchestrator = get_orchestrator(ORCHESTRATOR_CONFIG)
     auth_is_enabled = bool(auth_enabled())
+    requester_scoped_execution_is_required = requester_scoped_execution_enabled()
     provided_requester_nexus_id = str(requester_nexus_id or "").strip() or None
     bound_requester_nexus_id = _lookup_bound_issue_requester_nexus_id(str(issue_url or ""))
     if (
-        auth_is_enabled
+        requester_scoped_execution_is_required
         and provided_requester_nexus_id
         and bound_requester_nexus_id
         and provided_requester_nexus_id != bound_requester_nexus_id
@@ -1922,9 +2067,10 @@ def invoke_ai_agent(
         )
         return None, None
 
-    if auth_is_enabled and not bound_requester_nexus_id:
+    if requester_scoped_execution_is_required and not bound_requester_nexus_id:
         logger.error(
-            "Auth is enabled but issue requester binding is missing for launch (issue=%s provided=%s). Refusing launch.",
+            "Requester-scoped execution is enabled but issue requester binding is missing for launch "
+            "(issue=%s provided=%s). Refusing launch.",
             issue_url,
             provided_requester_nexus_id or "<none>",
         )
@@ -1942,9 +2088,9 @@ def invoke_ai_agent(
     token = os.getenv(token_var) if not auth_is_enabled else None
 
     agent_env = None
-    if auth_is_enabled:
+    if requester_scoped_execution_is_required:
         if effective_requester_nexus_id:
-            if project_name:
+            if auth_is_enabled and project_name:
                 allowed_project, error_project = check_project_access(
                     str(effective_requester_nexus_id),
                     str(project_name),
@@ -1976,7 +2122,13 @@ def invoke_ai_agent(
                         )
                         return None, None
 
-            resolved_env, env_error = build_execution_env(str(effective_requester_nexus_id))
+            resolved_env, env_error = resolve_execution_env(
+                str(effective_requester_nexus_id),
+                project_name=project_name,
+                repo_name=repo_name,
+                issue_url=issue_url,
+                purpose="agent_run",
+            )
             if env_error:
                 logger.error(
                     "Requester credential resolution failed for nexus_id=%s: %s",
@@ -1989,7 +2141,7 @@ def invoke_ai_agent(
             agent_env = resolved_env
         else:
             logger.error(
-                "Auth is enabled but no requester identity is available for launch "
+                "Requester-scoped execution is enabled but no requester identity is available for launch "
                 "(project=%s issue=%s).",
                 project_name,
                 issue_url,
@@ -2176,6 +2328,29 @@ def invoke_ai_agent(
                 agent_type,
             )
 
+        from nexus.core.runtime import agent_routing
+
+        route_pick = None
+        if not preferred_tool and not agent_routing.model_pinned(
+            orchestrator, agent_type, project_name
+        ):
+            route_pick = agent_routing.route_agent(
+                orchestrator,
+                prompt=prompt,
+                agent_type=agent_type,
+                project_name=project_name,
+                issue_num=issue_num,
+                workflow_name=workflow_name,
+                exclude_tools=exclude_tools,
+                hint=_resolve_step_routing(
+                    workflow_path=workflow_path,
+                    tier_name=tier_name,
+                    workflow_name=workflow_name,
+                    step_id=step_id,
+                    step_num=step_num,
+                ),
+            )
+
         pid, tool_used = orchestrator.invoke_agent(
             agent_prompt=prompt,
             workspace_dir=isolated_workspace,
@@ -2184,10 +2359,12 @@ def invoke_ai_agent(
             issue_url=issue_url,
             agent_name=agent_type,
             project_name=project_name,
-            preferred_tool=preferred_tool,
+            preferred_tool=route_pick["tool"] if route_pick else preferred_tool,
             exclude_tools=exclude_tools,
             log_subdir=log_subdir,
             env=agent_env,
+            execution_mode=resolved_execution_mode,
+            model_override=route_pick["model"] if route_pick else None,
         )
 
         tool_name = str(getattr(tool_used, "value", tool_used))
@@ -2221,6 +2398,7 @@ def invoke_ai_agent(
                         "mode": mode,
                         "tool": tool_name,
                         "agent_type": agent_type,
+                        "execution_mode": resolved_execution_mode,
                         "exclude_tools": _merge_excluded_tools(
                             previous_entry.get("exclude_tools", []),
                             list(exclude_tools) if exclude_tools else [],
@@ -2228,6 +2406,7 @@ def invoke_ai_agent(
                         ),
                     }
                 )
+                agent_routing.record_pick(entry, route_pick, tool_name)
                 launched_agents[str(issue_num)] = entry
                 HostStateManager.save_launched_agents(launched_agents)
 
@@ -2256,6 +2435,7 @@ def invoke_ai_agent(
                     exclude_tools=list(exclude_tools) if exclude_tools else [],
                     tier_name=str(tier_name),
                     mode=str(mode),
+                    execution_mode=resolved_execution_mode,
                     workflow_name=str(workflow_name),
                     issue_url=str(issue_url or ""),
                 )
@@ -2456,6 +2636,19 @@ def launch_next_agent(
 
     # Merge caller-provided exclude_tools with any persisted ones from previous runs.
     launched_agents = HostStateManager.load_launched_agents(recent_only=False)
+    persisted_execution_mode = normalize_execution_mode(
+        str(launched_agents.get(str(issue_number), {}).get("execution_mode") or "")
+    )
+    label_execution_mode = get_execution_mode_from_issue(
+        issue_number,
+        project_root,
+        repo_override=repo,
+    )
+    execution_mode = (
+        parse_execution_mode_from_text(body)
+        or persisted_execution_mode
+        or label_execution_mode
+    )
     persisted = launched_agents.get(str(issue_number), {}).get("exclude_tools", [])
     merged_exclusions = _merge_excluded_tools(persisted, exclude_tools or [])
     if merged_exclusions:
@@ -2547,6 +2740,7 @@ def launch_next_agent(
         agent_type=next_agent,
         project_name=project_root,
         requester_nexus_id=requester_nexus_id,
+        execution_mode=execution_mode,
     )
 
     if pid:

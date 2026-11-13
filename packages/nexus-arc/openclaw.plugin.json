@@ -1,0 +1,116 @@
+{
+  "id": "nexus-arc",
+  "name": "Nexus ARC Command Bridge",
+  "description": "Adds /nexus, /chat, and /chatagents commands that forward requests to a Nexus ARC command bridge.",
+  "version": "0.2.0",
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {"tools": ["nexus_studio"]},
+  "toolMetadata": {"nexus_studio": {"optional": true}},
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "studioUrl": {"type": "string", "minLength": 1},
+      "studioEntrypoint": {"type": "string", "minLength": 1},
+      "studioSecretEnv": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+      "bridgeUrl": {
+        "type": "string",
+        "minLength": 1
+      },
+      "authToken": {
+        "type": "string"
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 120000
+      },
+      "sourcePlatform": {
+        "type": "string",
+        "minLength": 1
+      },
+      "defaultProject": {
+        "type": "string",
+        "minLength": 1
+      },
+      "renderMode": {
+        "type": "string",
+        "enum": [
+          "text",
+          "rich"
+        ]
+      },
+      "sessionMemory": {
+        "type": "boolean"
+      },
+      "requireConfirmFor": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "autoPollAccepted": {
+        "type": "boolean"
+      },
+      "acceptedPollDelayMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 120000
+      },
+      "acceptedPollAttempts": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10
+      }
+    }
+  },
+  "uiHints": {
+    "studioUrl": {"label": "Studio HTTPS or local URL"},
+    "studioEntrypoint": {"label": "Studio OpenClaw entrypoint ID"},
+    "studioSecretEnv": {"label": "Studio signing secret environment variable"},
+    "bridgeUrl": {
+      "label": "Nexus Bridge URL",
+      "placeholder": "http://127.0.0.1:8091"
+    },
+    "authToken": {
+      "label": "Nexus Bridge Token",
+      "sensitive": true
+    },
+    "timeoutMs": {
+      "label": "Timeout (ms)",
+      "placeholder": "15000"
+    },
+    "sourcePlatform": {
+      "label": "Source Platform",
+      "placeholder": "openclaw"
+    },
+    "defaultProject": {
+      "label": "Default Project",
+      "placeholder": "demo"
+    },
+    "renderMode": {
+      "label": "Render Mode",
+      "placeholder": "rich"
+    },
+    "sessionMemory": {
+      "label": "Remember Session Context"
+    },
+    "requireConfirmFor": {
+      "label": "Commands Requiring Confirmation"
+    },
+    "autoPollAccepted": {
+      "label": "Poll Accepted Workflows"
+    },
+    "acceptedPollDelayMs": {
+      "label": "Accepted Poll Delay (ms)",
+      "placeholder": "1500"
+    },
+    "acceptedPollAttempts": {
+      "label": "Accepted Poll Attempts",
+      "placeholder": "1"
+    }
+  }
+}

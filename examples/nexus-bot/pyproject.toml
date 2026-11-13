@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Nexus chat runtimes - production deployment of nexus-arc with Telegram and Discord adapters"
 requires-python = ">=3.11"
 dependencies = [
-    "nexus-arc[nexus-bot]",
+    "nexus-arc[nexus-bot-runtime]",
 ]
 
 [project.scripts]
@@ -19,6 +19,11 @@ nexus-bot = "src.telegram_bot:main"
 nexus-processor = "src.inbox_processor:main"
 nexus-webhook = "src.webhook_server:main"
 nexus-health = "src.health_check:main"
+nexus-studio = "src.studio:main"
+nexus-quick-build = "src.quick_build:main"
+nexus-import-skill = "src.import_skill:main"
+nexus-studio-workspace = "src.studio_workspace:main"
+nexus-studio-advanced = "src.studio_advanced:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

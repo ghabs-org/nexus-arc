@@ -1,0 +1,5 @@
+simulation: nexus-browser-identity
+routing: path
+mocks:
+  - routeKey: identity
+    path: ../mocks/nexus-browser-identity/config.yaml

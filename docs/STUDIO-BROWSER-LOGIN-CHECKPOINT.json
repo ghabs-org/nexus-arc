@@ -1,0 +1,68 @@
+{
+  "format": "nexus-studio-browser-login-acceptance/v1",
+  "date": "2026-11-04",
+  "status": "fixture-verified",
+  "live_verified": false,
+  "deployment_performed": false,
+  "desktop_build_performed": false,
+  "providers": [
+    "github",
+    "gitlab",
+    "linkedin",
+    "x",
+    "meta"
+  ],
+  "automated": {
+    "passed": 147,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "/private/tmp/nexus-browser-login-final-tests.txt"
+  },
+  "http_simulation": {
+    "providers": [
+      "linkedin",
+      "x",
+      "meta"
+    ],
+    "cases_passed": 12,
+    "real_http_requests": 21,
+    "live_accounts_used": false,
+    "publishing_credentials_unchanged": true
+  },
+  "api_contract": "postman/contracts/nexus-browser-login.yaml",
+  "contract_syntax": "passed using Postman CLI 1.75.0 with --no-report-events",
+  "browser": {
+    "desktop": [
+      1280,
+      800
+    ],
+    "phone": [
+      390,
+      844
+    ],
+    "phone_horizontal_overflow": false,
+    "minimum_observed_button_height_css_px": 44.5,
+    "keyboard_reference_expansion": true,
+    "console_errors": [],
+    "screenshot": "/private/tmp/nexus-login-mobile-20261104.png"
+  },
+  "boundaries": [
+    "No real provider accounts or live callback acceptance",
+    "No VM access/deployment",
+    "No desktop build",
+    "Social sign-in requires one verified account reconnect after upgrade",
+    "Meta OAuth defaults to v26.0; unrelated publishing adapters unchanged"
+  ],
+  "source_sha256": {
+    "nexus/core/auth/browser_login.py": "8e0ea5e66ee1b18e13b9bc59646a8ca48f9dbc7cda95c90709db9157bc281c0a",
+    "nexus/core/auth/oauth_onboarding_domain.py": "449d9498d067ba2575088972bd0480819bfbf51bca81bafbd6bda3b317529c54",
+    "nexus/core/auth/credential_store.py": "aa1153e70b4761250a25f5fe92cd5f3720c08e3e125f32df18e9b6203d0f3cf7",
+    "examples/nexus-bot/src/webhook_server.py": "91aa64f6494bd8d8f956fb41041d037fbda82e2b42b223aa1f73364b3d6893b8",
+    "examples/nexus-bot/src/auth_pages.py": "dd11369c37a65ba2291447c9910a0243906ce0d174287f57ec6bfd244c23cfb4",
+    "tests/test_browser_login.py": "8134f45d7fd0258cca4e4a03635eaf046f49c1bc58d97e52354471ec57e1c0a7",
+    "examples/nexus-bot/tests/test_browser_login_routes.py": "95c492dcc0a9347ccd9e574fcad77a1b61ab202e6d93de3b4d3cd3ea53823e4c",
+    "tests/studio_browser_identity_http_check.py": "74af8cdac35aa9258d70286cbdfc907b09919916fcec2ca2e691f533e84b39d3",
+    "postman/contracts/nexus-browser-login.yaml": "0759fa4114f2453339f75f2c3afa50e54b541217018e5573f3010426c4aad73a",
+    "postman/mocks/nexus-browser-identity/default.js": "340744105092a6cd34f2e87d995c7387e15f2132c9e00c5e2f78bcb3b16ff19b"
+  }
+}

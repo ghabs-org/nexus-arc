@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: Nexus Studio external configuration conversion
+  version: 1.13.0
+  description: Non-executing owner-only conversion. Imports use existing native validate/plan/apply after review; no external deployment or secret expansion. Declarative agent skills map to routing capabilities, distinct from additionalConfigurations.skills knowledge bundles. Missing capability IDs get stable content-derived local IDs; original source remains unchanged on export. Declarative skillRefs accepts up to twenty skill aliases explicitly mapped through bindings.skills to existing unarchived knowledge bundles. Routing skills remain separate. The ordered union with additionalConfigurations.skills is deduplicated and limited to twenty resources; conversion never reads a referenced path or URL. Dedicated toolsets require explicit existing-resource bindings. Transport modes and execution permissions are never expanded by descriptive metadata. One exit-handler template may serve multiple outcome phases; always runs first, followed by the matching outcome phase, each with its own durable checkpoint. Routed handler roots compile their bounded branches and joins into a scoped graph; acknowledged child results are published by source node ID, and pruned branches clear earlier-phase values. Existing distinct-handler checkpoint paths remain unchanged. Shared loop controllers keep isolated iteration receipts and pinned initial values. Concurrent controllers start independently; dependent controllers inherit the last declared maximal completed upstream controller. Joined aliases use the same dependency-first, declaration-order rule, independent of wall-clock finish order. Alias readers must join all concurrent writers. Mixed map/loop ownership rejects before saving. Older completed-loop checkpoints reconstruct per-controller body receipts from acknowledged final iteration outputs; incomplete evidence fails without replay.
+paths:
+  /api/studio/configuration/interop/convert:
+    post:
+      operationId: convertPortableConfiguration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                text: {type: string, maxLength: 1048576}
+                documents: {type: array, maxItems: 100, items: {type: object}}
+                bindings: {$ref: '#/components/schemas/Bindings'}
+              description: Supply text or documents, exactly one. Text accepts bounded multi-document YAML/JSON or a nexus-interop-bundle/v1 export. Bind every agent/model alias to an explicit Nexus provider; tool names require explicit bindings. Nuclia Python descriptors require bindings.nuclia keyed by tool_name (default NucliaRagTool), with an existing connector_id and explicit nexus-strict-v1 policy. Descriptor endpoint, knowledge box, credential reference, template and fixed ask settings must match that connection. The connection must expose ask only. Conversion never imports Python, expands environment references, calls a provider or enables a connection. Unsupported settings produce diagnostics and a null document.
+      responses:
+        '200':
+          description: Conversion report, valid false on unsupported constructs; document is null on any diagnostic. Supports bounded map/loop/switch, when, coalesce/concat, deterministic conditions, bounded OnError/OnFailure/Always retries for generation-only API agents, and success/failure/always/cancellation exit handlers in interop-template/v1; typed text decisions with explicit decision bindings, choice/boolean/score answers, direct/default/escalation/reroute behavior; explicit image-capable decision profiles accept pinned owned artifact references with configured count/byte bounds; unsupported syntax/settings reject the whole document. No state writes or provider/tool calls.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Report'}
+        '403': {description: Workspace owner required}
+        '400': {description: Invalid request envelope or size}
+  /api/studio/configuration/interop/export:
+    post:
+      operationId: exportPortableConfiguration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                document: {type: object}
+              description: Optional native nexus-studio-config/v1 document; omitted exports current workspace. Unsupported resources/fields produce diagnostics without a partial bundle.
+      responses:
+        '200':
+          description: Report with valid, diagnostics and bundle. Successful bundle contains external declarative documents and explicit Nexus provider/tool bindings, never credentials.
+        '403': {description: Workspace owner required}
+components:
+  schemas:
+    Bindings:
+      type: object
+      additionalProperties: false
+      properties:
+        models: {type: object, additionalProperties: {$ref: '#/components/schemas/Provider'}}
+        agents: {type: object, additionalProperties: {$ref: '#/components/schemas/Provider'}}
+        tools: {type: object, additionalProperties: {type: string}}
+        skills: {type: object, additionalProperties: {type: string}}
+        toolsets: {type: object, additionalProperties: {type: string}}
+        connectors: {type: object, additionalProperties: {type: string}}
+        operations:
+          type: object
+          description: Explicit connectorAlias/toolAlias mappings; no credential or endpoint import.
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            required: [operation_id, input]
+            properties:
+              operation_id: {type: string, minLength: 1, maxLength: 200}
+              input: {type: string, enum: [body, parameters]}
+        decisions: {type: object, additionalProperties: {$ref: '#/components/schemas/DecisionBinding'}}
+        nuclia: {type: object, additionalProperties: {$ref: '#/components/schemas/NucliaBinding'}}
+    NucliaBinding:
+      type: object
+      additionalProperties: false
+      required: [connector_id, policy]
+      properties:
+        connector_id: {type: string}
+        policy: {type: string, enum: [nexus-strict-v1]}
+    DecisionBinding:
+      type: object
+      additionalProperties: false
+      required: [backend, model]
+      properties:
+        backend: {type: string, enum: [openrouter, opencode, openai]}
+        model: {type: string, maxLength: 200}
+    Provider:
+      type: object
+      additionalProperties: false
+      required: [provider]
+      properties:
+        provider: {type: string, enum: [codex, claude-code, copilot, gemini, opencode, openai, claude]}
+        model: {type: string, maxLength: 200}
+    Report:
+      type: object
+      required: [format, valid, diagnostics, document]
+      properties:
+        format: {type: string, enum: [nexus-interop-conversion/v1]}
+        valid: {type: boolean}
+        diagnostics:
+          type: array
+          items:
+            type: object
+            required: [path, code, message]
+            properties:
+              path: {type: string}
+              code: {type: string}
+              message: {type: string}
+        document: {type: object, nullable: true}
+        adaptations:
+          type: array
+          description: Present on successful explicit Nuclia adaptation; review before planning. Omitted for legacy lossless imports or failed conversion.
+          items:
+            type: object
+            required: [path, policy, changes]
+            properties:
+              path: {type: string}
+              policy: {type: string, enum: [nexus-strict-v1]}
+              changes: {type: array, items: {type: string}}
+# Collection routing extension: body switch/decision targets and their dependent
+# join nodes compile into a bounded nested graph, preserving first-match routing,
+# per-item scope, retries, approvals and checkpoint paths. The collection returns
+# its named root body's output. Body-internal references use local node outputs;
+# references outside the body capture only acknowledged upstream outputs.
+# Exit routing extension: an on_exit root can own switch/decision branches and
+# dependent joins. The root stays first in its scoped graph; legacy one-node
+# handler shapes and checkpoint paths remain unchanged. Each intentional phase
+# has separate receipts. Acknowledged branch outputs are exposed by source node
+# ID after the phase; pruned branches cannot retain an earlier phase's output.
+# Cleanup failure is nonfatal to the main outcome, and paused/uncertain effects
+# never trigger automatic re-execution. Cross-scope dependencies reject preflight.
+# Image evidence uses separate local-node and captured-node acknowledgement
+# scopes. Exit phases may capture completed main/earlier-phase results; a failed,
+# unresolved or unfinished source fails before model invocation, even if an older
+# phase left a value. Intentionally pruned sources omit the entire image entry.
+# Restart reconstructs acknowledgement from existing scoped checkpoint receipts.
+
+# Connector-node extension: type:tool with connector/tool aliases maps only to an
+# existing selected OpenAPI operation. bindings.connectors resolves the connector;
+# bindings.operations["connectorAlias/toolAlias"] fixes operation_id and whether
+# mapped node input supplies body or parameters. Native method metadata determines
+# read versus invoke; writes require an authored direct type:approval predecessor.
+# No gate, enabled action, operation or retry permission is inferred or installed.
+# Workflow-level toolsets require bindings.toolsets; builtin tool_name still needs
+# bindings.tools and membership in a declared tools/toolset collection. Conversion
+# remains non-executing, owner-only and source-preserving. Combined required body
+# and required parameters need manual native adaptation in this bounded profile.

@@ -1,0 +1,17 @@
+{
+  "state": {
+    "url_env": "NEXUS_STUDIO_DATABASE_URL",
+    "namespace": "your-existing-nexus-project",
+    "workers": 4
+  },
+  "memory_sources": {
+    "legacy-bot": {
+      "name": "Existing ARC conversations",
+      "kind": "redis",
+      "url_env": "NEXUS_LEGACY_REDIS_URL",
+      "identities": {
+        "existing-nexus-user-id": "123456789"
+      }
+    }
+  }
+}

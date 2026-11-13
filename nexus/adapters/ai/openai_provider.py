@@ -10,7 +10,7 @@ Uses the ``openai`` Python SDK (v1+) with async support.
 import logging
 import time
 
-from nexus.adapters.ai.base import AIProvider, ExecutionContext
+from nexus.adapters.ai.base import AIProvider, ExecutionContext, split_model_effort
 from nexus.core.models import AgentResult, RateLimitStatus
 
 try:
@@ -104,7 +104,8 @@ class OpenAIProvider(AIProvider):
     async def execute_agent(self, context: ExecutionContext) -> AgentResult:
         """Send the prompt to the Chat Completions API and return the reply."""
         start = time.time()
-        model = context.model_override or self._model
+        raw_model, effort = split_model_effort(context.model_override, context.effort)
+        model = raw_model or self._model
         messages = [
             {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": context.prompt},
@@ -113,6 +114,21 @@ class OpenAIProvider(AIProvider):
         if context.issue_url:
             messages[1]["content"] = f"{context.prompt}\n\nIssue: {context.issue_url}"
 
+        attachments = (context.metadata or {}).get("attachments", [])
+        if attachments:
+            parts = [{"type": "text", "text": messages[1]["content"]}]
+            for attachment in attachments:
+                encoded = f"data:{attachment['media_type']};base64,{attachment['data']}"
+                if attachment["media_type"] == "application/pdf":
+                    parts.append(
+                        {
+                            "type": "file",
+                            "file": {"filename": attachment["filename"], "file_data": encoded},
+                        }
+                    )
+                else:
+                    parts.append({"type": "image_url", "image_url": {"url": encoded}})
+            messages[1]["content"] = parts
         try:
             create_kwargs: dict = {
                 "model": model,
@@ -121,6 +137,8 @@ class OpenAIProvider(AIProvider):
             }
             if context.max_tokens is not None:
                 create_kwargs["max_tokens"] = context.max_tokens
+            if effort is not None:
+                create_kwargs["reasoning_effort"] = effort
             response = await self._client.chat.completions.create(**create_kwargs)
             elapsed = time.time() - start
             output = response.choices[0].message.content or ""

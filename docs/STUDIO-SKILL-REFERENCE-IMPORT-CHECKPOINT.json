@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "declarative-skill-reference-import",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "verified_reference_blob_sha": "dbaa3c23ff119798dbac344f7e03f2ce662a2fb8",
+  "contract": "Owner-only existing conversion route accepts spec.skillRefs alias strings; bindings.skills maps to existing unarchived native skills. Ordered deduplicated union with older knowledge references; at most twenty distinct resources.",
+  "validation": {
+    "python": {
+      "passed": 146,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_interop_skill_refs.py",
+        "tests/test_studio_interop_capabilities.py",
+        "tests/test_studio_interop_configuration.py",
+        "tests/test_studio_interop_workflows.py",
+        "tests/test_studio_interop_policies.py"
+      ]
+    },
+    "example": "PYTHONPATH=. .venv/bin/python examples/nexus-bot/src/studio_interop_skill_refs.py passed",
+    "static": "Affected ruff, OpenAPI YAML parse and diff whitespace passed"
+  },
+  "verified": [
+    "source-preserving import/export including empty lists",
+    "invalid and unbound aliases reject the whole document",
+    "existing archived resources reject",
+    "routing descriptions remain distinct from skill content",
+    "existing reviewed plan/apply and synthetic native invocation",
+    "queued native skill context survives later skill edits",
+    "HTTP conversion remains owner-only"
+  ],
+  "not_claimed": [
+    "Current connector/tool node syntax conversion",
+    "Workflow-level toolsets and whole-bundle fixture",
+    "Dynamic external skill loading or knowledge-search tool equivalence",
+    "Live provider/account validation"
+  ],
+  "conversion_side_effects": false,
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "migration": "No persisted schema change; additive source field maps to existing native skill IDs",
+  "next": "Explicit connector/tool node mappings and reviewed whole-bundle conversion fixture"
+}

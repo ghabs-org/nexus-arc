@@ -1,0 +1,725 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import time
+import urllib.error
+import urllib.request
+from typing import Any
+
+from nexus.core.config import NEXUS_STATE_DIR, TELEGRAM_TOKEN, ensure_state_dir
+from nexus.core.interactive.context import Button
+from nexus.core.router_feedback import (  # noqa: F401  (re-exported for existing callers)
+    MODEL_VERDICT_LABELS,
+    MODEL_VERDICTS,
+    TASK_LABELS,
+    build_feedback_payload,
+)
+
+LOGGER = logging.getLogger(__name__)
+PENDING_KEY = "router_feedback_pending"
+SUBMITTED_KEY = "router_feedback_submitted"
+CALLBACK_PREFIX = "routefb:"
+FALLBACK_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_fallback.jsonl")
+PENDING_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_pending.json")
+OUTBOX_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_outbox.json")
+TOKEN_MAP_STORE_PATH = os.path.join(NEXUS_STATE_DIR, "router_feedback_tokens.json")
+TOKEN_MAP_TTL_SECONDS = 24 * 3600
+
+
+
+def decision_token(decision_id: str | None) -> str:
+    """Compact decision reference safe for Telegram callback_data (<=64 bytes)."""
+    raw = str(decision_id or "").strip()
+    if not raw:
+        return ""
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
+
+
+def feedback_enabled(config: dict[str, Any] | None, *, surface: str) -> bool:
+    cfg = config or {}
+    if not cfg.get("enabled"):
+        return False
+    if surface == "telegram":
+        return bool(cfg.get("telegram_enabled", True))
+    if surface == "discord":
+        return bool(cfg.get("discord_enabled", False))
+    return False
+
+
+def _synthetic_decision_id(
+    *,
+    result: dict[str, Any],
+    source_message_id: str | None,
+    source_user_id: str | None,
+    source_chat_id: str | None,
+) -> str:
+    seed = {
+        "project": result.get("project"),
+        "content": result.get("content"),
+        "message_id": str(source_message_id or ""),
+        "user_id": str(source_user_id or ""),
+        "chat_id": str(source_chat_id or ""),
+    }
+    digest = hashlib.sha1(json.dumps(seed, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    return f"fallback-{digest}"
+
+
+def _is_handled_task_result(result: dict[str, Any]) -> bool:
+    return (
+        bool(result.get("success")) and bool(result.get("project")) and bool(result.get("content"))
+    )
+
+
+def extract_feedback_meta(
+    result: dict[str, Any] | None,
+    *,
+    source_message_id: str | None = None,
+    source_user_id: str | None = None,
+    source_chat_id: str | None = None,
+    source_channel: str | None = None,
+) -> dict[str, Any] | None:
+    if not isinstance(result, dict):
+        return None
+
+    feedback_meta = result.get("routing_feedback")
+    if isinstance(feedback_meta, dict):
+        decision_id = str(feedback_meta.get("decision_id") or "").strip()
+        if not decision_id:
+            return None
+        return {
+            "decision_id": decision_id,
+            "feedback_mode": "router",
+            "task_type": str(
+                feedback_meta.get("task_type") or feedback_meta.get("predicted_task") or ""
+            ).strip(),
+            "selected_model": str(
+                feedback_meta.get("selected_model") or feedback_meta.get("model") or ""
+            ).strip(),
+            "actual_model": str(feedback_meta.get("actual_model") or "").strip() or None,
+            "shadow_mode": bool(feedback_meta.get("shadow_mode")),
+            "confidence": feedback_meta.get("confidence"),
+            "classifier_source": str(feedback_meta.get("classifier_source") or "").strip().lower()
+            or None,
+            "source_channel": str(
+                feedback_meta.get("source_channel") or source_channel or "telegram"
+            ).strip()
+            or "telegram",
+            "source_user_id": str(
+                feedback_meta.get("source_user_id") or source_user_id or ""
+            ).strip(),
+            "source_sender_name": str(feedback_meta.get("source_sender_name") or "").strip(),
+            "metadata": (
+                feedback_meta.get("metadata")
+                if isinstance(feedback_meta.get("metadata"), dict)
+                else {}
+            ),
+        }
+
+    if not _is_handled_task_result(result):
+        return None
+
+    return {
+        "decision_id": _synthetic_decision_id(
+            result=result,
+            source_message_id=source_message_id,
+            source_user_id=source_user_id,
+            source_chat_id=source_chat_id,
+        ),
+        "feedback_mode": "fallback",
+        "task_type": str(
+            result.get("task_type") or result.get("type") or "inbox_classification"
+        ).strip()
+        or "inbox_classification",
+        "selected_model": str(
+            result.get("selected_model") or result.get("model") or "inbox_route"
+        ).strip()
+        or "inbox_route",
+        "confidence": result.get("confidence"),
+        "source_channel": str(source_channel or "telegram").strip() or "telegram",
+        "source_user_id": str(source_user_id or "").strip(),
+        "source_sender_name": "",
+        "metadata": {
+            "project": result.get("project"),
+            "content": result.get("content"),
+            "success": result.get("success"),
+        },
+    }
+
+
+def build_feedback_prompt(meta: dict[str, Any]) -> tuple[str, list[list[Button]]]:
+    confidence = meta.get("confidence")
+    classifier_source = str(meta.get("classifier_source") or "").strip().lower()
+    confidence_text = "?"
+    confidence_value = None
+    try:
+        if confidence is not None:
+            confidence_value = float(confidence)
+    except (TypeError, ValueError):
+        confidence_value = None
+    if classifier_source in {"fallback", "heuristic"} or confidence_value in {0.60, 0.72}:
+        confidence_text = "fallback"
+    elif confidence_value is not None:
+        confidence_text = f"{confidence_value:.2f}"
+    task = str(meta.get("task_type") or "unknown")
+    model = str(meta.get("selected_model") or "unknown")
+    actual_model = str(meta.get("actual_model") or "").strip()
+    shadow_mode = bool(meta.get("shadow_mode"))
+    metadata = meta.get("metadata") if isinstance(meta.get("metadata"), dict) else {}
+    preview = str(metadata.get("source_message_preview") or "").strip()
+    sender_name = str(meta.get("source_sender_name") or "").strip()
+    sender_id = str(meta.get("source_user_id") or "").strip()
+    source_channel = str(meta.get("source_channel") or "").strip()
+    reason = str(metadata.get("origin") or "").strip()
+    header = (
+        f"🧭 shadow {task} · proposed {model} · {confidence_text}"
+        if shadow_mode
+        else f"🧭 {task} · {model} · {confidence_text}"
+    )
+    details: list[str] = []
+    if shadow_mode and actual_model:
+        details.append(f"actual reply model: {actual_model}")
+    if sender_name or sender_id:
+        details.append(f"from @{sender_name or sender_id}".replace("@@", "@"))
+    if source_channel:
+        details.append(source_channel)
+    if reason:
+        details.append(reason)
+    if preview:
+        preview = preview.replace("\n", " ").strip()
+        if len(preview) > 180:
+            preview = f"{preview[:177]}..."
+        details.append(f'💬 "{preview}"')
+    text = "\n".join([header, *details, "Feedback?"])
+    token = decision_token(str(meta.get("decision_id") or ""))
+    buttons = [
+        [
+            Button("✅ Correct", callback_data=f"{CALLBACK_PREFIX}ok:{token}"),
+            Button("❌ Wrong", callback_data=f"{CALLBACK_PREFIX}wrong:{token}"),
+        ],
+    ]
+    return text, buttons
+
+
+def build_wrong_task_prompt(meta: dict[str, Any]) -> tuple[str, list[list[Button]]]:
+    """Step 1 of 'Wrong' flow: ask which task was correct."""
+    token = decision_token(str(meta.get("decision_id") or ""))
+    text = "❌ Step 1/2 — Which task was it?"
+    buttons: list[list[Button]] = []
+    row: list[Button] = []
+    for label in TASK_LABELS:
+        row.append(Button(label, callback_data=f"{CALLBACK_PREFIX}wrong_task:{token}:{label}"))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    buttons.append(
+        [
+            Button("⬅️ Back", callback_data=f"{CALLBACK_PREFIX}back:{token}:initial"),
+            Button("⏭ Skip", callback_data=f"{CALLBACK_PREFIX}wrong_task:{token}:skip"),
+        ]
+    )
+    return text, buttons
+
+
+def build_wrong_model_prompt(
+    meta: dict[str, Any], corrected_task: str | None
+) -> tuple[str, list[list[Button]]]:
+    """Step 2 of 'Wrong' flow: ask about model quality (too cheap/ok/too powerful)."""
+    token = decision_token(str(meta.get("decision_id") or ""))
+    task_slot = corrected_task or "skip"
+    text = "❌ Step 2/2 — Was the model right?"
+    buttons: list[list[Button]] = [
+        [
+            Button(
+                label_text,
+                callback_data=f"{CALLBACK_PREFIX}wrong_model:{token}:{task_slot}:{verdict_key}",
+            )
+            for verdict_key, label_text in MODEL_VERDICT_LABELS.items()
+        ]
+    ]
+    buttons.append(
+        [
+            Button("⬅️ Back", callback_data=f"{CALLBACK_PREFIX}back:{token}:wrong_task"),
+            Button(
+                "⏭ Skip", callback_data=f"{CALLBACK_PREFIX}wrong_model:{token}:{task_slot}:skip"
+            ),
+        ]
+    )
+    return text, buttons
+
+
+async def maybe_send_feedback_prompt(
+    *,
+    ctx: Any,
+    user_state: dict[str, Any],
+    feedback_config: dict[str, Any] | None,
+    result: dict[str, Any] | None,
+    source_message_id: str | None = None,
+) -> None:
+    if not feedback_enabled(feedback_config, surface="telegram"):
+        return
+    source_user_id = str(getattr(ctx, "user_id", "") or "") or None
+    raw_event = getattr(ctx, "raw_event", None)
+    source_chat_id = str(getattr(getattr(raw_event, "chat", None), "id", "") or "") or None
+    source_channel = str(getattr(getattr(ctx, "client", None), "name", "telegram") or "telegram")
+    meta = extract_feedback_meta(
+        result,
+        source_message_id=source_message_id,
+        source_user_id=source_user_id,
+        source_chat_id=source_chat_id,
+        source_channel=source_channel,
+    )
+    if not meta:
+        return
+    meta["source_message_id"] = str(source_message_id or "") or None
+    meta["source_user_id"] = source_user_id
+    meta["source_chat_id"] = source_chat_id
+    meta["source_channel"] = source_channel
+    user_state[PENDING_KEY] = meta
+    text, buttons = build_feedback_prompt(meta)
+    try:
+        sent_id = await ctx.reply_text(text, buttons=buttons, parse_mode=None)
+        meta["feedback_message_id"] = str(sent_id or "") or None
+        user_state[PENDING_KEY] = meta
+        if source_user_id:
+            store_external_pending_feedback(user_id=source_user_id, meta=meta)
+            register_feedback_token(
+                user_id=source_user_id,
+                decision_id=str(meta.get("decision_id") or ""),
+                meta=meta,
+            )
+    except Exception:
+        LOGGER.debug("Router feedback card send failed", exc_info=True)
+
+
+def parse_feedback_text(text: str) -> tuple[str, str | None] | None:
+    normalized = str(text or "").strip().lower()
+    if not normalized:
+        return None
+    if normalized in {"correct", "✅ correct", "right"}:
+        return ("correct", None)
+    if normalized in {"wrong", "❌ wrong"}:
+        return ("wrong", None)
+    for sep in ("->", "=>"):
+        if sep in normalized:
+            left, right = [part.strip() for part in normalized.split(sep, 1)]
+            if left == "wrong" and right in TASK_LABELS:
+                return ("wrong", right)
+    if normalized.startswith("wrong "):
+        candidate = normalized.split(None, 1)[1].strip()
+        if candidate in TASK_LABELS:
+            return ("wrong", candidate)
+    return None
+
+
+def _append_fallback_feedback(
+    payload: dict[str, Any], *, store_path: str = FALLBACK_STORE_PATH
+) -> tuple[bool, str]:
+    try:
+        ensure_state_dir()
+        os.makedirs(os.path.dirname(store_path), exist_ok=True)
+        with open(store_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        return (True, store_path)
+    except Exception as exc:
+        return (False, str(exc))
+
+
+def _post_feedback_once(*, router_url: str, payload: dict[str, Any], timeout_seconds: float) -> str:
+    """POST one feedback payload; returns response body, raises on failure."""
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{router_url.rstrip('/')}/feedback",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
+        return response.read().decode("utf-8")
+
+
+def submit_feedback(
+    *,
+    router_url: str,
+    payload: dict[str, Any],
+    timeout_seconds: float = 3.0,
+    fallback_store_path: str = FALLBACK_STORE_PATH,
+    outbox_path: str | None = OUTBOX_STORE_PATH,
+) -> tuple[bool, str]:
+    """Submit feedback; failures queue in a durable outbox for retry.
+
+    Previously a failed POST meant lost feedback. Now the outbox drains
+    pending events for this router first, then a failed send enqueues
+    (``outbox_path=None`` restores the old drop-on-failure behavior).
+    Delivery is at-least-once: feedback is advisory signal, duplicates are
+    low-impact.
+    """
+    from nexus.outbox import FileOutbox
+
+    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    feedback_mode = str(metadata.get("feedback_mode") or "router").strip().lower()
+    if feedback_mode == "fallback":
+        return _append_fallback_feedback(payload, store_path=fallback_store_path)
+    if not router_url:
+        return (False, "router feedback disabled")
+    if outbox_path:
+        try:
+            outbox = FileOutbox(outbox_path)
+            outbox.drain(
+                lambda event: _post_feedback_once(
+                    router_url=str(event.payload.get("router_url") or router_url),
+                    payload=event.payload.get("payload") or {},
+                    timeout_seconds=timeout_seconds,
+                )
+            )
+        except Exception as exc:
+            LOGGER.debug("Feedback outbox drain failed: %s", exc)
+    try:
+        return (True, _post_feedback_once(
+            router_url=router_url, payload=payload, timeout_seconds=timeout_seconds
+        ))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore") or str(exc)
+    except Exception as exc:
+        detail = str(exc)
+    if outbox_path:
+        try:
+            event_id = FileOutbox(outbox_path).enqueue(
+                "router.feedback", {"router_url": router_url, "payload": payload}
+            )
+            return (False, f"queued for retry ({event_id}): {detail}")
+        except Exception as exc:
+            LOGGER.debug("Feedback outbox enqueue failed: %s", exc)
+    return (False, detail)
+
+
+def _load_pending_store(*, store_path: str = PENDING_STORE_PATH) -> dict[str, Any]:
+    try:
+        with open(store_path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        LOGGER.debug("Failed to load router feedback pending store", exc_info=True)
+        return {}
+
+
+def _save_pending_store(payload: dict[str, Any], *, store_path: str = PENDING_STORE_PATH) -> None:
+    ensure_state_dir()
+    os.makedirs(os.path.dirname(store_path), exist_ok=True)
+    tmp_path = f"{store_path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, sort_keys=True)
+    os.replace(tmp_path, store_path)
+
+
+def store_external_pending_feedback(
+    *, user_id: str, meta: dict[str, Any], store_path: str = PENDING_STORE_PATH
+) -> None:
+    key = str(user_id or "").strip()
+    if not key:
+        return
+    payload = _load_pending_store(store_path=store_path)
+    payload[key] = meta
+    try:
+        _save_pending_store(payload, store_path=store_path)
+    except Exception:
+        LOGGER.warning(
+            "Failed to persist external router feedback pending store at %s",
+            store_path,
+            exc_info=True,
+        )
+
+
+def load_external_pending_feedback(
+    *, user_id: str, store_path: str = PENDING_STORE_PATH
+) -> dict[str, Any] | None:
+    key = str(user_id or "").strip()
+    if not key:
+        return None
+    payload = _load_pending_store(store_path=store_path)
+    data = payload.get(key)
+    return data if isinstance(data, dict) else None
+
+
+def clear_external_pending_feedback(
+    *, user_id: str, decision_id: str | None = None, store_path: str = PENDING_STORE_PATH
+) -> None:
+    key = str(user_id or "").strip()
+    if not key:
+        return
+    payload = _load_pending_store(store_path=store_path)
+    current = payload.get(key)
+    if not isinstance(current, dict):
+        return
+    if decision_id and str(current.get("decision_id") or "") != str(decision_id):
+        return
+    payload.pop(key, None)
+    try:
+        _save_pending_store(payload, store_path=store_path)
+    except Exception:
+        LOGGER.warning(
+            "Failed to persist external router feedback pending store at %s",
+            store_path,
+            exc_info=True,
+        )
+
+
+def _load_token_map_store(*, store_path: str = TOKEN_MAP_STORE_PATH) -> dict[str, Any]:
+    try:
+        with open(store_path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        LOGGER.debug("Failed to load router feedback token store", exc_info=True)
+        return {}
+
+
+def _save_token_map_store(
+    payload: dict[str, Any], *, store_path: str = TOKEN_MAP_STORE_PATH
+) -> None:
+    ensure_state_dir()
+    os.makedirs(os.path.dirname(store_path), exist_ok=True)
+    tmp_path = f"{store_path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, sort_keys=True)
+    os.replace(tmp_path, store_path)
+
+
+def _prune_token_map(payload: dict[str, Any], now_ts: int) -> None:
+    for user_id, refs in list(payload.items()):
+        if not isinstance(refs, dict):
+            payload.pop(user_id, None)
+            continue
+        for token, entry in list(refs.items()):
+            if not isinstance(entry, dict):
+                refs.pop(token, None)
+                continue
+            expires_at = int(entry.get("expires_at") or 0)
+            decision_id = str(entry.get("decision_id") or "").strip()
+            if not decision_id or expires_at <= now_ts:
+                refs.pop(token, None)
+        if not refs:
+            payload.pop(user_id, None)
+
+
+def register_feedback_token(
+    *,
+    user_id: str,
+    decision_id: str | None,
+    meta: dict[str, Any] | None = None,
+    ttl_seconds: int = TOKEN_MAP_TTL_SECONDS,
+    store_path: str = TOKEN_MAP_STORE_PATH,
+) -> None:
+    uid = str(user_id or "").strip()
+    did = str(decision_id or "").strip()
+    if not uid or not did:
+        return
+    token = decision_token(did)
+    if not token:
+        return
+    now_ts = int(time.time())
+    payload = _load_token_map_store(store_path=store_path)
+    _prune_token_map(payload, now_ts)
+    refs = payload.setdefault(uid, {})
+    entry = {
+        "decision_id": did,
+        "created_at": now_ts,
+        "expires_at": now_ts + max(60, int(ttl_seconds or TOKEN_MAP_TTL_SECONDS)),
+    }
+    if isinstance(meta, dict):
+        entry["meta"] = dict(meta)
+    refs[token] = entry
+    try:
+        _save_token_map_store(payload, store_path=store_path)
+    except Exception:
+        LOGGER.warning(
+            "Failed to persist router feedback token store at %s", store_path, exc_info=True
+        )
+
+
+def resolve_feedback_token(
+    *, user_id: str, decision_ref: str | None, store_path: str = TOKEN_MAP_STORE_PATH
+) -> str | None:
+    uid = str(user_id or "").strip()
+    ref = str(decision_ref or "").strip()
+    if not uid or not ref:
+        return None
+
+    # Full UUID can pass-through for callers that already have it.
+    if len(ref) > 10 and ref.count("-") >= 4:
+        return ref
+
+    now_ts = int(time.time())
+    payload = _load_token_map_store(store_path=store_path)
+    _prune_token_map(payload, now_ts)
+    refs = payload.get(uid)
+    if not isinstance(refs, dict):
+        return None
+    entry = refs.get(ref)
+    decision_id = str(entry.get("decision_id") or "").strip() if isinstance(entry, dict) else ""
+    if not decision_id:
+        return None
+
+    # touch TTL on successful resolve
+    entry["expires_at"] = now_ts + TOKEN_MAP_TTL_SECONDS
+    try:
+        _save_token_map_store(payload, store_path=store_path)
+    except Exception:
+        LOGGER.debug("Failed to refresh token map TTL", exc_info=True)
+    return decision_id
+
+
+def load_feedback_meta_for_ref(
+    *, user_id: str, decision_ref: str | None, store_path: str = TOKEN_MAP_STORE_PATH
+) -> dict[str, Any] | None:
+    uid = str(user_id or "").strip()
+    ref = str(decision_ref or "").strip()
+    if not uid or not ref:
+        return None
+    # UUID decision_id: derive the stored token key deterministically so that
+    # callbacks carrying the full decision_id (older cards) still resolve meta.
+    if len(ref) > 10 and ref.count("-") >= 4:
+        ref = decision_token(ref)
+        if not ref:
+            return None
+
+    now_ts = int(time.time())
+    payload = _load_token_map_store(store_path=store_path)
+    _prune_token_map(payload, now_ts)
+    refs = payload.get(uid)
+    if not isinstance(refs, dict):
+        return None
+    entry = refs.get(ref)
+    if not isinstance(entry, dict):
+        return None
+    meta = entry.get("meta")
+    if not isinstance(meta, dict):
+        return None
+
+    entry["expires_at"] = now_ts + TOKEN_MAP_TTL_SECONDS
+    try:
+        _save_token_map_store(payload, store_path=store_path)
+    except Exception:
+        LOGGER.debug("Failed to refresh token map TTL", exc_info=True)
+    return dict(meta)
+
+
+def send_feedback_prompt_to_telegram_user(
+    *,
+    chat_id: str,
+    text: str,
+    buttons: list[list[Button]],
+    token: str | None = None,
+    timeout_seconds: float = 4.0,
+) -> tuple[bool, str]:
+    api_token = str(token or TELEGRAM_TOKEN or "").strip()
+    if not api_token:
+        return (False, "missing_telegram_token")
+    inline_keyboard = [
+        [
+            {"text": str(button.label), "callback_data": str(button.callback_data)}
+            for button in row
+            if getattr(button, "label", None) and getattr(button, "callback_data", None)
+        ]
+        for row in buttons
+    ]
+    inline_keyboard = [row for row in inline_keyboard if row]
+    payload = {
+        "chat_id": str(chat_id),
+        "text": str(text or ""),
+        "disable_web_page_preview": True,
+        "reply_markup": {"inline_keyboard": inline_keyboard},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{api_token}/sendMessage",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
+            raw = response.read().decode("utf-8")
+        data = json.loads(raw)
+        result = data.get("result") if isinstance(data, dict) else None
+        message_id = ""
+        if isinstance(result, dict):
+            message_id = str(result.get("message_id") or "")
+        return (True, message_id)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        return (False, detail or str(exc))
+    except Exception as exc:
+        return (False, str(exc))
+
+
+async def maybe_send_feedback_prompt_external(
+    *,
+    telegram_user_id: str,
+    feedback_config: dict[str, Any] | None,
+    result: dict[str, Any] | None,
+    source_message_id: str | None = None,
+    source_channel: str = "openclaw",
+) -> bool:
+    if not feedback_enabled(feedback_config, surface="telegram"):
+        return False
+    meta = extract_feedback_meta(
+        result,
+        source_message_id=source_message_id,
+        source_user_id=telegram_user_id,
+        source_chat_id=telegram_user_id,
+        source_channel=source_channel,
+    )
+    if not meta:
+        return False
+
+    meta["source_message_id"] = str(source_message_id or "") or None
+    meta["source_user_id"] = str(telegram_user_id or "") or None
+    meta["source_chat_id"] = str(telegram_user_id or "") or None
+    meta["source_channel"] = source_channel
+
+    text, buttons = build_feedback_prompt(meta)
+    ok, detail = send_feedback_prompt_to_telegram_user(
+        chat_id=telegram_user_id, text=text, buttons=buttons
+    )
+    if not ok:
+        LOGGER.warning(
+            "Router feedback card dispatch failed for telegram_user=%s detail=%s",
+            telegram_user_id,
+            detail,
+        )
+        return False
+
+    meta["feedback_message_id"] = str(detail or "") or None
+    store_external_pending_feedback(user_id=telegram_user_id, meta=meta)
+    register_feedback_token(
+        user_id=telegram_user_id,
+        decision_id=str(meta.get("decision_id") or ""),
+        meta=meta,
+    )
+    return True
+
+
+def remember_feedback_submission(
+    user_state: dict[str, Any], *, decision_id: str, user_id: str | None
+) -> None:
+    submitted = user_state.setdefault(SUBMITTED_KEY, {})
+    key = f"{decision_id}:{user_id or ''}"
+    submitted[key] = True
+
+
+def has_feedback_submission(
+    user_state: dict[str, Any], *, decision_id: str, user_id: str | None
+) -> bool:
+    submitted = user_state.get(SUBMITTED_KEY)
+    if not isinstance(submitted, dict):
+        return False
+    return bool(submitted.get(f"{decision_id}:{user_id or ''}"))

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "reviewed-dataset-csv-evaluator-package-export",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "contracts": [
+    "POST /api/studio/configuration/evaluations/export: owner/CSRF, explicit resource revisions/model alias, inverse CSV/template conversion preflight, four reviewed files or diagnostics without partial files.",
+    "POST /api/studio/configuration/evaluations/handoff/convert: strict self-contained versioned JSON/digest, existing native conversion and review/apply, no source lookup or automatic run."
+  ],
+  "validation": {
+    "python_regressions": {
+      "passed": 410,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_evaluation_export.py",
+        "tests/test_studio_experiment_export.py",
+        "tests/test_studio_experiment_evaluators.py",
+        "tests/test_studio_experiment_workers.py",
+        "tests/test_studio_experiments.py",
+        "tests/test_studio_experiment_import.py",
+        "tests/test_studio_experiment_continuation.py",
+        "tests/test_studio_evaluation_import.py",
+        "tests/test_studio_evaluation_gate.py",
+        "tests/test_studio_evaluation_files.py",
+        "tests/test_studio_retrieval_evidence.py",
+        "tests/test_studio_resources.py",
+        "tests/test_studio_durable.py",
+        "tests/test_studio_execution.py",
+        "tests/test_studio_evaluators.py",
+        "tests/test_studio_datasets.py",
+        "tests/test_studio_configuration.py",
+        "tests/test_studio_interop_configuration.py"
+      ]
+    },
+    "final_package_gate": {
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "files": ["tests/test_studio_evaluation_export.py"],
+      "note": "Overlaps the broad run; adds two final size/metadata boundary checks. Counts must not be summed."
+    },
+    "interface_logic": {
+      "passed": 59,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_evaluation_export.test.cjs",
+        "tests/studio_experiment_export.test.cjs",
+        "tests/studio_experiment_evaluators.test.cjs",
+        "tests/studio_experiments.test.cjs",
+        "tests/studio_experiment_import.test.cjs",
+        "tests/studio_evaluation_import.test.cjs",
+        "tests/studio_datasets.test.cjs",
+        "tests/studio_evaluators.test.cjs",
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/studio_evaluation_gate.test.cjs"
+      ]
+    },
+    "examples": "Dataset package exports, converts and explicitly saves in a fresh workspace without AI; earlier experiment handoff example also passes.",
+    "execution": "Two restored cases grade through a synthetic provider after source archive; target never receives grading references.",
+    "static": "Affected Python lint/format, JavaScript syntax and diff whitespace pass. Library controls use wrapping CSS; visual acceptance remains pending.",
+    "browser": "Not attempted; the prior localhost permission denial was not retried or bypassed.",
+    "live_provider": "Not invoked; account-specific provider quality and usage remain pending."
+  },
+  "guarantees": [
+    "Full supported dataset text, judge settings and metadata survive reimport without original resources",
+    "Codex and Claude Code provider/model/threshold bindings survive the companion round-trip",
+    "Quoted/multiline/Unicode cell text and case order remain exact",
+    "Original source sequence IDs are not invented; row numbers are explicitly regenerated as 1..N",
+    "Unsupported case fields, different judges, arbitrary rubrics and nonportable metadata reject without lossy files",
+    "Current positive integer revision pins and existing owner/CSRF protections apply",
+    "Export/conversion create no plans, saved records or runs; no managed credentials or artifact bytes are read",
+    "Source identity is descriptive; destination needs no access to source resources",
+    "Shared bounded JSON reader rejects duplicate keys, nonfinite numbers, unsupported versions and digest mismatch",
+    "Explicit preview and individual download clicks; native review/plan/apply remain required for import",
+    "Existing experiment handoff format and three-file import remain compatible",
+    "Empty descriptions remain empty; absent descriptions keep the existing default"
+  ],
+  "limits": [
+    "Bounded inverse CSV/template profile and one evaluator per package",
+    "Native phrase/structured checks, contexts, file roles, arbitrary rubrics and numeric-only judges use native JSON export",
+    "Companion required to preserve native provider/model/threshold settings; external-runtime rendering equivalence is not claimed",
+    "Package is self-contained only for dataset/evaluator content, not credentials, agents, workflows or deployment",
+    "900 KiB per external input and 2 MiB complete prepared set; oversized data is rejected, never truncated",
+    "Visual browser, physical-device and live-provider acceptance remain pending"
+  ],
+  "migration": "No persisted-state migration; new handoff format is independently versioned as nexus-studio-evaluation-handoff/v1.",
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "release_published": false,
+  "next": "Reconcile frozen coverage and recent delivery evidence, then identify remaining acceptance gaps."
+}

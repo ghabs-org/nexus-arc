@@ -1,0 +1,8 @@
+# Offline overlay for actual Linux speech child ownership; no application/DMG build.
+ARG CHECK_IMAGE
+FROM ${CHECK_IMAGE}
+USER 0:0
+COPY nexus /checks/nexus
+COPY examples/nexus-bot/src/studio_speech_lifecycle.py /checks/studio_speech_lifecycle.py
+USER 65534:65534
+ENTRYPOINT ["python", "/checks/studio_speech_lifecycle.py"]

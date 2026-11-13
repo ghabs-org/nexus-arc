@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from nexus.adapters.ai.base import AIProvider
 from nexus.adapters.git.base import GitPlatform
@@ -12,6 +12,10 @@ from nexus.adapters.notifications.base import NotificationChannel
 from nexus.adapters.notifications.interactive import InteractiveClientPlugin
 from nexus.adapters.storage.base import StorageBackend
 from nexus.adapters.transcription.base import TranscriptionProvider
+from nexus.plugins.catalog import PluginSetup
+
+if TYPE_CHECKING:
+    from nexus.plugins.registry import PluginRegistry
 
 
 class PluginKind(Enum):
@@ -36,6 +40,7 @@ class PluginSpec:
     version: str
     factory: Callable[[dict[str, Any]], Any]
     description: str = ""
+    setup: PluginSetup | None = None
 
 
 @runtime_checkable
@@ -137,6 +142,8 @@ def make_plugin_spec(
     version: str,
     factory: Callable[[dict[str, Any]], Any],
     description: str = "",
+    *,
+    setup: PluginSetup | None = None,
 ) -> PluginSpec:
     """Create a normalized plugin spec."""
 
@@ -146,4 +153,5 @@ def make_plugin_spec(
         version=version,
         factory=factory,
         description=description,
+        setup=setup,
     )

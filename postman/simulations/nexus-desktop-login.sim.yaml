@@ -1,0 +1,5 @@
+simulation: nexus-desktop-login
+routing: path
+mocks:
+  - routeKey: auth
+    path: ../mocks/nexus-desktop-login/config.yaml

@@ -1,0 +1,106 @@
+{
+  "format": "nexus-studio-independent-recovery/v1",
+  "date": "2026-10-29",
+  "source_snapshot_date": "2026-10-28",
+  "status": "live-verified-independent-selected-service-recovery",
+  "whole_plan_complete": false,
+  "scope": "Owner-approved encrypted export of the existing frozen personal-VM snapshot, then isolated recovery on independent Apple Silicon Mac hardware through Docker. Not a full OS/ingress image or restored browser/OAuth deployment.",
+  "authorization": "Use this Mac as encrypted recovery target",
+  "encryption": {
+    "format": "OpenSSL CMS AuthEnvelopedData streaming BER",
+    "content_cipher": "AES-256-GCM",
+    "recipient": "RSA-3072 OAEP",
+    "synthetic_roundtrip_passed": true,
+    "tamper_rejected": true,
+    "only_public_certificate_sent_to_vm": true,
+    "private_recipient_key_exported": false,
+    "plaintext_backup_transferred_from_vm": false,
+    "encrypted_payload_parts": 2
+  },
+  "validation": {
+    "status": "passed-independent-selected-service-restore",
+    "date": "2026-10-29",
+    "source": "personal Linux VM",
+    "target": "independent Apple Silicon Mac Docker runtime",
+    "scope": "Selected Nexus service copy, not an OS/disk image",
+    "live_vm_modified": false,
+    "external_provider_calls": 0,
+    "production_session_used": false,
+    "dmg_rebuilt": false,
+    "authenticated_decryption_passed": true,
+    "encrypted_parts_verified": 2,
+    "restored_files_verified": 723,
+    "unsafe_links_not_activated": 1,
+    "sensitive_plaintext_outside_git": true,
+    "archived_service_images_loaded": 4,
+    "recovered_key_canary": true,
+    "restore_postgresql_version": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "postgres_network_mode": "none",
+    "postgres_published_ports": {},
+    "restored_databases": [
+      {
+        "tables": 15,
+        "invalid_indexes": 0
+      },
+      {
+        "tables": 3,
+        "invalid_indexes": 0
+      }
+    ],
+    "restored_authorization": {
+      "new_isolated_session_authorized": true,
+      "restored_project_access_verified": true,
+      "unknown_and_pending_sessions_denied": true,
+      "production_sessions_used": false,
+      "browser_oauth_login_tested": false
+    },
+    "application_started": false,
+    "existing_provider_tokens_decrypted": false,
+    "temporary_plaintext_removed": true,
+    "test_container_absent": true,
+    "test_volumes_absent": true
+  },
+  "bundle": {
+    "format": "nexus-encrypted-recovery-bundle/v1",
+    "date": "2026-10-29",
+    "status": "packaged-verified",
+    "bytes": 719620483,
+    "sha256": "78b327bf46028c29a884476b8a4cabb5b7dde29c388cf9858326989895413f0a",
+    "encrypted_parts": 2,
+    "private_key_in_bundle": false,
+    "crc_and_payload_hashes_verified": true,
+    "backup_directory_mode": "0o700",
+    "recovery_key_mode": "0o600",
+    "temporary_plaintext_directories": 0
+  },
+  "operator_correction": {
+    "initial_independent_restore_failed": true,
+    "cause": "Both database dump files were accidentally omitted from the first encrypted payload. Independent restore caught the missing archive before database restoration.",
+    "fix": "A separately authenticated encrypted supplement contains both hash-verified database dumps from the same frozen snapshot. Both parts are required and included in the final checked ZIP. No live resnapshot or source service interruption.",
+    "initial_failure_retained": true
+  },
+  "cleanup": {
+    "temporary_plaintext_removed": true,
+    "test_container_absent": true,
+    "test_volumes_absent": true,
+    "one_snapshot_symlink_not_activated": true,
+    "public_code_images_remain_locally": true
+  },
+  "credential_handling": "Encrypted source export only. Recovery key configuration decrypted solely in private temporary local files and tested using a synthetic canary. No existing provider token decrypted or production login session used. Recipient private key remains in a mode-0600 local file, outside the encrypted ZIP and Git.",
+  "vm_runtime_boundary": "Source production services, databases and configuration were unchanged; only private encrypted export artifacts were created on VM. The validation live_vm_modified=false field concerns production runtime, not private backup-file creation.",
+  "evidence_sha256": {
+    "encryption-preflight.json": "e11b2564ab0ebcf5e2b2ac7868141c2325d85db15817173d1db86eda3ded7505",
+    "transfer.json": "66990d6532277bb05e385cb6805a3b4fd68bd3e940803a0c6d7332ba4ed50fb5",
+    "database-transfer.json": "54b94ff30ca4626b9cf6b967fa5b078912a951a060e9d2364ed37eaf33d7b61a",
+    "restore-first-attempt.json": "c044f07b53a720ad57cfcafe2ee1dc20e13205632e5ff3d5610af21b51845980",
+    "restore-result.json": "54129ebf36cbc91e67e4e829a6c45c4a6747cb17b949b10bd3ed1fa2daf59aeb",
+    "bundle-manifest.json": "f3e78da331546c2853ee41a97f8cf8bad92cd6241752a4d428a9603601d81a3d",
+    "verify_recovery.py": "308de5de60fa8d7b626dbe6fa10ce2400935b1717bc3b1c371063ae41936a70f",
+    "restored_authorization_consumer.py": "3a8b00005cfb0b30a47b4c6b6d8b1efa4c24ff94523cb223d78fb8b2c8e8d7b1"
+  },
+  "remaining": [
+    "Real browser/OAuth login against a newly provisioned recovered host.",
+    "OS/ingress/TLS provisioning, daemon/power-loss and full-host disaster boot.",
+    "Physical devices, additional selected API accounts and final installed desktop/signing acceptance. No DMG rebuilt."
+  ]
+}

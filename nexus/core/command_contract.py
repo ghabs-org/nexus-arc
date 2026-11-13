@@ -34,6 +34,7 @@ TELEGRAM_COMMANDS: set[str] = {
     "reprocess",
     "reconcile",
     "continue",
+    "doctor",
     "forget",
     "kill",
     "pause",
@@ -49,6 +50,7 @@ TELEGRAM_COMMANDS: set[str] = {
     "feature_done",
     "feature_list",
     "feature_forget",
+    "sessions",
 }
 
 
@@ -77,6 +79,7 @@ DISCORD_COMMANDS: set[str] = {
     "reprocess",
     "reconcile",
     "continue",
+    "doctor",
     "forget",
     "kill",
     "pause",
@@ -106,6 +109,51 @@ REQUIRED_PARITY_COMMANDS: set[str] = {
     "tracked",
     "myissues",
     "status",
+}
+
+
+BRIDGE_RENDER_MODES: set[str] = {
+    "text",
+    "rich",
+}
+
+
+BRIDGE_SESSION_CONTEXT_FIELDS: set[str] = {
+    "current_project",
+    "current_workflow_id",
+    "current_issue_ref",
+}
+
+
+OPENCLAW_BRIDGE_COMMANDS: set[str] = {
+    "active",
+    "agents",
+    "audit",
+    "chat",
+    "chatagents",
+    "continue",
+    "doctor",
+    "implement",
+    "kill",
+    "logs",
+    "myissues",
+    "new",
+    "pause",
+    "plan",
+    "prepare",
+    "reconcile",
+    "reprocess",
+    "respond",
+    "resume",
+    "stats",
+    "status",
+    "stop",
+    "summary",
+    "track",
+    "tracked",
+    "untrack",
+    "usage",
+    "wfstate",
 }
 
 

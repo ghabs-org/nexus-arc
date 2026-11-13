@@ -1,0 +1,55 @@
+{
+  "format": "nexus-studio-account-shortcuts-acceptance/v1",
+  "date": "2026-11-05",
+  "status": "fixture-verified",
+  "accounts": {
+    "copilot": "Existing linked-GitHub account controls",
+    "opencode": "Existing encrypted API-key setup"
+  },
+  "automated": {
+    "passed": 189,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "/private/tmp/nexus-account-shortcuts-tests.txt"
+  },
+  "api_contract": "Postman OpenAPI 1.2.0 syntax passed with --no-report-events",
+  "browser": {
+    "environment": "disposable local server with synthetic account metadata",
+    "desktop_viewport": [
+      1280,
+      900
+    ],
+    "phone_viewport": [
+      390,
+      844
+    ],
+    "phone_horizontal_overflow": false,
+    "minimum_shortcut_height_css_px": 44.5,
+    "opencode_selection_retained_through_sign_in": true,
+    "opencode_form_save_completed": true,
+    "copilot_controls_save_completed": true,
+    "synthetic_key_not_rendered_in_save_response": true,
+    "real_provider_calls": 0,
+    "cli_login_starts": 0,
+    "console_errors": [],
+    "screenshot": "/private/tmp/nexus-copilot-opencode-login-20261105.png"
+  },
+  "checks": [
+    "Cookie-owned setup ignores supplied session query argument",
+    "Incomplete AI setup does not lose selected connection",
+    "Copilot without linked GitHub shows explicit linking guidance",
+    "OpenCode key encryption and readback verified in local database fixture",
+    "Other provider account flags preserved during saves",
+    "Legacy account links and subscription flows pass regression checks"
+  ],
+  "live_invocation_verified": false,
+  "vm_work_performed": false,
+  "desktop_build_performed": false,
+  "source_sha256": {
+    "nexus/core/auth/subscription_accounts.py": "f54ae826ae054bcf3181b6dc88048c3fe6acdd453567ddf3953c98919a94c49f",
+    "examples/nexus-bot/src/webhook_server.py": "ba72201b672e65ce87780647794e5fa4dbe0515d364d243e3833a56fb9d40b56",
+    "tests/test_subscription_accounts.py": "ea9f230523a93f8ededb1188ef6ba54b1296961ab20afb76d7ef79ce247eb737",
+    "examples/nexus-bot/tests/test_browser_login_routes.py": "77fe65bb0076ab11e7c575717d8daa834a1fccb7a9bcbe786d6394d4c50208f2",
+    "postman/contracts/nexus-browser-login.yaml": "e8b5bf6ecb4403c4470dddab4df4ddf62ca88271abbe44dc5e3116bff7547ffe"
+  }
+}

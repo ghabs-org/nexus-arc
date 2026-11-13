@@ -1,0 +1,5 @@
+simulation: studio-oauth
+routing: path
+mocks:
+  - routeKey: oauth
+    path: ../mocks/studio-oauth/config.yaml

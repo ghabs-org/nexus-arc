@@ -80,13 +80,13 @@ def run_analysis_attempts(
 
 
 def strip_cli_tool_output(text: str) -> str:
-    """Remove Copilot/Gemini CLI tool-use artifacts from analysis output."""
+    """Remove CLI tool-use artifacts from analysis output."""
     lines = text.splitlines()
     cleaned: list[str] = []
     skip_until_blank = False
     for line in lines:
         stripped = line.lstrip()
-        # Legacy tool transcript blocks (Copilot/Gemini) and newer Codex transcript
+        # Legacy tool transcript blocks (Copilot) and newer Codex transcript
         # entries share the same "header + indented detail lines + blank separator"
         # shape, so strip them uniformly.
         if stripped.startswith("●") or stripped.startswith("✗ ") or stripped.startswith("✓ "):

@@ -1,0 +1,5 @@
+simulation: studio-a2a-push
+routing: path
+mocks:
+  - routeKey: receiver
+    path: ../mocks/studio-a2a-push/config.yaml

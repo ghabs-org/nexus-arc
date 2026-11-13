@@ -3,13 +3,13 @@
 import asyncio
 import logging
 import os
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
-from nexus.adapters.ai.base import AIProvider, ExecutionContext
+from nexus.adapters.ai.base import AIProvider, ExecutionContext, split_model_effort
 from nexus.core.models import AgentResult, RateLimitStatus
+from nexus.core.provider_account_commands import resolve_provider_cli
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,13 @@ class CodexCLIProvider(AIProvider):
         timeout: int = 600,
         binary: str = "codex",
         model: str | None = None,
+        effort: str | None = None,
         extra_args: list[str] | None = None,
     ):
         self._timeout = timeout
         self._binary = binary
         self._model = model
+        self._effort = effort
         self._extra_args = extra_args or []
         self._availability_cache: dict = {}
         self._availability_ttl: int = 300  # seconds
@@ -45,15 +47,18 @@ class CodexCLIProvider(AIProvider):
         if cached and now - cached["at"] < self._availability_ttl:
             return cached["available"]
 
-        available = bool(shutil.which(self._binary))
+        executable = resolve_provider_cli(self._binary)
+        available = bool(executable)
         if available:
             try:
                 result = subprocess.run(
-                    [self._binary, "--version"],
+                    [executable, "--version"],
                     capture_output=True,
                     timeout=10,
                 )
                 available = result.returncode == 0
+                if available:
+                    self._binary = executable
             except Exception:
                 available = False
 
@@ -76,23 +81,29 @@ class CodexCLIProvider(AIProvider):
         start = time.time()
         workspace = Path(context.workspace)
         workspace.mkdir(parents=True, exist_ok=True)
-        self._cleanup_empty_rollout_files()
-
-        cmd = [self._binary, "exec"]
-        if self._model:
-            cmd.extend(["--model", self._model])
+        cmd = [self._binary, "exec", "--skip-git-repo-check"]
+        model, effort = split_model_effort(
+            context.model_override or self._model,
+            context.effort or self._effort,
+        )
+        if model:
+            cmd.extend(["--model", model])
+        if effort:
+            cmd.extend(["-c", f'model_reasoning_effort="{effort}"'])
         cmd.extend(self._extra_args)
-        cmd.append(context.prompt)
+        cmd.append("-")
 
+        process = None
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(workspace),
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(context.prompt.encode()),
                 timeout=context.timeout or self._timeout,
             )
             elapsed = time.time() - start
@@ -126,6 +137,10 @@ class CodexCLIProvider(AIProvider):
                 execution_time=time.time() - start,
                 provider_used=self.name,
             )
+        finally:
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
 
     def _cleanup_empty_rollout_files(self) -> int:
         """Best-effort cleanup for zero-byte Codex rollout files."""

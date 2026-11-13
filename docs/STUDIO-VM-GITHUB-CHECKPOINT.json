@@ -1,0 +1,65 @@
+{
+  "format": "nexus-studio-vm-github-read-acceptance/v1",
+  "date": "2026-10-28",
+  "status": "live-verified-configured-owner",
+  "whole_plan_complete": false,
+  "scope": "Configured Studio owner GitHub credential resolved only inside the personal VM process. Existing example consumer invoked installed native Studio adapter against public psf/requests.",
+  "result": {
+    "status": "passed",
+    "scope": "VM configured owner GitHub credential; public repository reads only",
+    "repository": "psf/requests",
+    "authenticated_account_verified": true,
+    "studio_native_rest_adapter": true,
+    "issues_returned": 5,
+    "pull_requests_returned": 5,
+    "detail_checks": {
+      "get_issue": true,
+      "get_pr": true
+    },
+    "read_only_requests": [
+      {
+        "method": "GET",
+        "path": "user"
+      },
+      {
+        "method": "GET",
+        "path": "repos/psf/requests"
+      },
+      {
+        "method": "GET",
+        "path": "repos/psf/requests/issues?state=open&per_page=5"
+      },
+      {
+        "method": "GET",
+        "path": "repos/psf/requests/pulls?state=closed&per_page=5"
+      },
+      {
+        "method": "GET",
+        "path": "repos/psf/requests/issues/7635"
+      },
+      {
+        "method": "GET",
+        "path": "repos/psf/requests/pulls/7636"
+      }
+    ],
+    "remote_mutations": 0,
+    "unselected_write_blocked_before_transport": true,
+    "credential_persisted": false,
+    "pending": []
+  },
+  "credential_handling": "Only the selected encrypted GitHub field was read for the configured owner. Decryption and temporary environment reference stayed inside the process. No credential value returned, logged or persisted.",
+  "source_sha256": {
+    "examples/nexus-bot/src/studio_github_readonly.py": "918b162a521c7b32e28ea373a2238da89902d86de282670dcec3240a3da75904"
+  },
+  "report_sha256": "ecc35e2984d855f3d986d193812040bb129ef7d3c8a0061407ae63e6685997b8",
+  "other_owner_account_presence": {
+    "gitlab": false,
+    "linkedin": false,
+    "gemini_api": false,
+    "claude_api": false,
+    "openai_api": false
+  },
+  "presence_boundary": "Presence only for selected owner fields. This does not prove absence of every account or integration elsewhere.",
+  "remote_mutations": 0,
+  "dmg_rebuilt": false
+}

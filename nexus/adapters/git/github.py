@@ -62,6 +62,20 @@ class GitHubPlatform(GitPlatform):
         data = await self._post(f"repos/{self.repo}/issues", payload)
         return self._to_issue(data)
 
+    async def list_pull_requests(self, state: str = "open", limit: int = 30) -> list[PullRequest]:
+        if state not in {"open", "closed", "all"} or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Choose open/closed/all and a limit from 1 to 100")
+        return [self._to_pr(item) for item in await self._get(f"repos/{self.repo}/pulls?state={state}&per_page={limit}")]
+
+    async def get_pull_request(self, pr_id: str) -> PullRequest:
+        return self._to_pr(await self._get(f"repos/{self.repo}/pulls/{int(pr_id)}"))
+
+    async def create_pull_request(self, title: str, body: str, head: str, base: str = "main", draft: bool = True) -> PullRequest:
+        return self._to_pr(await self._post(f"repos/{self.repo}/pulls", {"title": title, "body": body, "head": head, "base": base, "draft": draft}))
+
+    async def add_pull_request_comment(self, pr_id: str, body: str) -> Comment:
+        return await self.add_comment(str(int(pr_id)), body)
+
     async def get_issue(self, issue_id: str) -> Issue | None:
         try:
             data = await self._get(f"repos/{self.repo}/issues/{issue_id}")
@@ -128,19 +142,26 @@ class GitHubPlatform(GitPlatform):
             re.IGNORECASE,
         )
 
-        # Prefer direct open-PR scanning over Search API to avoid index lag.
-        try:
-            pulls = await self._get(f"repos/{self.repo}/pulls?state=open&per_page=100")
-            linked_open_prs: list[PullRequest] = []
+        async def _scan_pulls(state: str) -> list[PullRequest]:
+            pulls = await self._get(f"repos/{self.repo}/pulls?state={state}&per_page=100")
+            linked_prs: list[PullRequest] = []
             for item in pulls if isinstance(pulls, list) else []:
                 title = str(item.get("title") or "")
                 body = str(item.get("body") or "")
                 if issue_ref_pattern.search(f"{title}\n{body}"):
-                    linked_open_prs.append(self._to_pr(item, linked_issues=[issue_token]))
-            if linked_open_prs:
-                return linked_open_prs
-        except RuntimeError:
-            pass
+                    linked_prs.append(self._to_pr(item, linked_issues=[issue_token]))
+            return linked_prs
+
+        # Prefer direct PR scans over Search API to avoid index lag. Scan open
+        # first, then closed, then fall back to Search API only if neither list
+        # has a direct match.
+        for state in ("open", "closed"):
+            try:
+                linked_prs = await _scan_pulls(state)
+            except RuntimeError:
+                linked_prs = []
+            if linked_prs:
+                return linked_prs
 
         query = urllib.parse.quote(f'repo:{self.repo} is:pr "#{issue_token}"')
         try:
@@ -375,7 +396,7 @@ class GitHubPlatform(GitPlatform):
                 return json.loads(body)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode(errors="replace")
-            setattr(exc, "_nexus_body", body)
+            exc._nexus_body = body
             normalized_method = str(method or "").strip().upper()
             normalized_path = str(path or "").strip().lstrip("/")
             is_label_exists = (

@@ -1,0 +1,119 @@
+{
+  "format": "nexus-studio-desktop-session-checkpoint/v1",
+  "date": "2026-10-25",
+  "milestone": 9,
+  "status": "partial-authenticated-native-startup",
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Authenticated native startup: the shell verifies the backend it launched and gives only that origin an HttpOnly desktop session. Not workspace ownership, crash cleanup, portable packaging or installed OS acceptance.",
+  "implemented": [
+    "DesktopLaunchCredential (nexus/core/studio_desktop.py): 32-byte per-launch secret read once from standard input as lowercase hex; never argv, environment, URL, frontend asset or log. Invalid input exits with code 2 without echoing it.",
+    "`nexus studio --desktop-launch-stdin` enables GET /api/desktop/handshake, answering a 64-hex challenge with HMAC-SHA256(secret, 'nexus-desktop-launch/v1' | challenge | workspace | port). Workspace and port binding prevents relaying a proof from another instance.",
+    "With a launch credential, every /api/ route without its own authentication requires the nexus_desktop_session cookie (HMAC-derived, constant-time compared) on GET, POST and DELETE, at the same gate team mode uses. /api/bootstrap therefore releases the existing CSRF token only to the session holder. A2A, MCP, public shares, OpenClaw, webhooks/gateway, channel events and callbacks keep their own authentication. Static assets stay public, as in team mode.",
+    "Native shell (ring HMAC/SystemRandom) writes the secret to the owned child's stdin before taking ownership, polls with a fresh random challenge per attempt (4 KiB body limit, no proxy, no redirects), verifies in constant time, then sets a host-only HttpOnly SameSite=Strict cookie for 127.0.0.1, confirms it is in the webview store and only then navigates. Any failure stops the owned child and shows the local 'session' or 'readiness' screen.",
+    "wry 0.57 cookies_for_url never matches IP hosts (url.domain() is None), so confirmation reads the full webview store and filters by name, value and domain."
+  ],
+  "validation": {
+    "rust": {
+      "tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "scope": "Ownership guards plus a cross-language HMAC vector shared with Python; challenge/workspace/port/key binding; derived session never equals the secret.",
+      "clippy_warnings": 0,
+      "fmt": "clean"
+    },
+    "python_desktop": {
+      "suite": "tests/test_studio_desktop.py",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "scope": "Strict stdin parsing without echo, shared vector, handshake proof, 401 without/forged cookie on GET/POST/DELETE, CSRF only with session, static shell public, desktop mode without credential unchanged, CLI exit 2 without echo."
+    },
+    "native_acceptance": {
+      "suite": "tests/studio_desktop_native_acceptance.py",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report": "<temporary>/native-handshake.xml",
+      "real_sidecar": "Real `python -m nexus.cli studio --desktop-launch-stdin` process verified by the compiled Rust probe; wrong workspace, another launch's credential and an unauthenticated Studio rejected; anonymous /api/bootstrap 401 without token; session cookie 200."
+    },
+    "simulation": {
+      "command": "postman simulation run postman/simulations/studio-desktop-readiness.sim.yaml --port 49741 --no-history --output ndjson",
+      "requests": 70,
+      "failed": 0,
+      "members_served": [
+        "api"
+      ],
+      "members_silent": [],
+      "handshake_reads": 60,
+      "statuses": {
+        "200": 58,
+        "302": 12
+      },
+      "fixture_posts": 5,
+      "diagnostic_reads": 5,
+      "impostor_modes": [
+        "html",
+        "redirect",
+        "oversized",
+        "forged",
+        "bootstrap"
+      ],
+      "redirect_followed": false,
+      "cookie_or_bearer_sent": false,
+      "challenge_reused": false,
+      "note": "'bootstrap' returns the unauthenticated shape the previous launcher accepted; it is now rejected."
+    },
+    "http_regression": {
+      "suites": 27,
+      "tests": 504,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "scope": "Every tests/test_*.py using make_studio_handler, serve_studio or nexus.cli, plus the completion audit.",
+      "report": "<temporary>/http-regression.xml"
+    },
+    "native_window_drill": {
+      "platform": "macOS aarch64 development binary, real WKWebView, development sidecar wrapper",
+      "result": "Shell launched sidecar, handshake verified on first answer, cookie installed and confirmed, full Studio UI loaded: 69 requests all HTTP 200 including /api/bootstrap; outside curl without cookie got 401.",
+      "found_and_fixed": "First drill failed closed with 'session' because wry cookies_for_url drops IP-host cookies.",
+      "instrumentation": "Drill-only scratchpad sidecar logged request line and status only (no headers); removed after the drill along with the drill-created app data, WebKit and cache folders.",
+      "graceful_quit": "not exercised; requires an interactive window close",
+      "abnormal_exit": "SIGTERM to the shell left the sidecar running (reparented to PID 1, own process group, still listening). Stopped manually. Belongs to the workspace ownership/crash-cleanup slice."
+    }
+  },
+  "compatibility": "Opt-in. `nexus studio` without --desktop-launch-stdin, browser `nexus desktop launch` and team mode are unchanged. The native shell now requires a sidecar that supports --desktop-launch-stdin; an older bundled sidecar fails closed at the readiness screen. Startup no longer reads /api/bootstrap; the webview UI still does, now with its session cookie. No storage or schema change.",
+  "remaining": [
+    "Native/CLI cross-process workspace ownership; sidecar must not outlive an abnormally terminated shell; interactive close/quit/relaunch drill.",
+    "Replace absolute build-machine Python wrappers with a bundled portable runtime containing server UI/assets and dependencies.",
+    "Clean macOS/Linux/Windows installed builds, signing, update and permissions acceptance; WebView2 and WebKitGTK cookie behaviour is unverified."
+  ],
+  "known_limits": [
+    "Cookies are host-scoped, not port-scoped: another loopback service navigated to inside the same webview would receive the cookie. The shell only navigates to the verified origin; the value is useless against any other launch.",
+    "/api/desktop/handshake answers any local caller; a proof is only meaningful to the secret holder and binds challenge, workspace and port."
+  ],
+  "guide": "docs/STUDIO-DESKTOP.md",
+  "contract": "postman/contracts/studio-desktop-readiness.md",
+  "example": "examples/nexus-bot/src/studio_desktop_readiness.py",
+  "previous": "docs/STUDIO-DESKTOP-STARTUP-CHECKPOINT.json",
+  "real_account_requests_performed": false,
+  "personal_vm_changed": false,
+  "source_sha256": {
+    "nexus/core/studio_desktop.py": "989b6afbd06ddfe02c4b1c43767bd490872d97296b904d93ed772b8a247b7b91",
+    "nexus/studio.py": "91d4420dae277f1a2b140fa003c723ab0a0700179bb3a695267de6cba76d4830",
+    "nexus/cli.py": "b2f53583c840663471a60f8942ad08784519e01331bd5d8df2f17cade5c7357e",
+    "apps/studio-desktop/src-tauri/src/backend.rs": "fe7f223d64460e5b05a48eef7a26b1ee3fd33bea80fa12e3a0a92cc054f3f1b9",
+    "apps/studio-desktop/src-tauri/src/main.rs": "1ff899289c9d0a5069f71e3d8f799e64814a9b6d79ada8a12a57bed69039bdda",
+    "apps/studio-desktop/src-tauri/examples/backend_probe.rs": "556112f6c09f0c7443976753713afb7b3a1e0d5b8ea6ba09bafd06d07629c960",
+    "apps/studio-desktop/src-tauri/Cargo.toml": "4ea969778b14ec26628b598add6181dac9f36916a37695307acc6c92b3eb24f2",
+    "apps/studio-desktop/ui/startup.js": "d3b03e2c081b52c3fcfdc791b43bc45fe7caffea11075a59755206b11b39fa9b",
+    "tests/test_studio_desktop.py": "3b2e79d4cb89eb4d4d3e63b9202bbffd3d2936e1aec025ed808dbb1a3a614368",
+    "tests/studio_desktop_native_acceptance.py": "39ceb77d46717d6cf6aa5d31b4e556efebbabe911a716e758df330792636dcfa",
+    "examples/nexus-bot/src/studio_desktop_readiness.py": "cdc8e104f48921a3d514ee14cd33691cf79bd4bded840615bbcecbe3b76fddc6",
+    "postman/mocks/studio-desktop-readiness/default.js": "ccb93645430ce4a248a730a01a376d1a586c5229d5f9ad741a66be852bd3a300"
+  },
+  "parent_lifetime_followup": "docs/STUDIO-DESKTOP-PARENT-CHECKPOINT.json"
+}
