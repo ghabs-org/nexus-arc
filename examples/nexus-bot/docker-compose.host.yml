@@ -1,0 +1,70 @@
+# Single-host deployment: data stores and the Telegram bot run in Docker,
+# while processor, webhook and bridge stay on systemd because they launch
+# host agent CLIs (codex, claude, copilot, gh) with the host user's logins.
+#
+# Everything binds to 127.0.0.1 with the same ports the host services used,
+# so systemd units and host-network containers (nexus-studio) keep their
+# existing DSNs unchanged.
+#
+#   docker compose -f docker-compose.host.yml --env-file /home/ubuntu/git/ghabs/nexus/.env.db up -d
+name: nexus-host
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${NEXUS_PG_SUPERUSER_PASSWORD:?set NEXUS_PG_SUPERUSER_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - nexus-pg18-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  redis:
+    image: redis:8.0
+    restart: unless-stopped
+    command: ["redis-server", "--save", "900 1", "--save", "300 10", "--save", "60 10000", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - nexus-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  telegram:
+    image: ${NEXUS_BOT_IMAGE:-nexus-bot:local}
+    build:
+      context: ../..
+      dockerfile: examples/nexus-bot/Dockerfile
+      args:
+        NEXUS_ARC_EXTRAS: nexus-bot
+    command: ["nexus-telegram-bot"]
+    restart: unless-stopped
+    # Host network keeps 127.0.0.1 DSNs and NEXUS_WEBHOOK_INTERNAL_URL working.
+    network_mode: host
+    user: "${NEXUS_UID:-1001}:${NEXUS_GID:-1001}"
+    working_dir: /home/ubuntu/git/ghabs/nexus-arc/examples/nexus-bot
+    env_file:
+      - /home/ubuntu/git/ghabs/nexus/.env
+    environment:
+      HOME: /home/ubuntu
+    volumes:
+      # Same paths as the systemd unit so PROJECT_CONFIG_PATH, data/ and logs resolve.
+      - /home/ubuntu:/home/ubuntu
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  nexus-pg18-data:
+  nexus-redis-data:
