@@ -39,6 +39,13 @@ def test_host_bot_shares_bridge_state_without_creating_empty_directory():
     assert state_mount["bind"]["create_host_path"] is False
 
 
+def test_host_bot_prefers_mounted_example_src_over_image_site_packages():
+    assert (
+        _telegram_config()["environment"]["PYTHONPATH"]
+        == "/home/ubuntu/git/ghabs/nexus-arc/examples/nexus-bot"
+    )
+
+
 def test_bridge_token_resolves_from_persisted_shared_state(tmp_path):
     store = tmp_path / "shared-state" / "router_feedback_tokens.json"
     decision_id = "12345678-1234-4234-8234-123456789abc"

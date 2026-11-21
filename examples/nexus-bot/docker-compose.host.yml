@@ -56,6 +56,7 @@ services:
       - /home/ubuntu/git/ghabs/nexus/.env
     environment:
       HOME: /home/ubuntu
+      PYTHONPATH: /home/ubuntu/git/ghabs/nexus-arc/examples/nexus-bot
     volumes:
       # Same paths as the systemd unit so PROJECT_CONFIG_PATH, data/ and logs resolve.
       - /home/ubuntu:/home/ubuntu
