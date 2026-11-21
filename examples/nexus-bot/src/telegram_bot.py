@@ -990,7 +990,10 @@ async def _route_feedback_action(ctx, decision_id: str, action: str, corrected_t
             decision_id,
             response_body[:500],
         )
-        if "decision_id_not_found" in response_body:
+        if (
+            response_body == "feedback_token_not_found"
+            or "decision_id_not_found" in response_body
+        ):
             confirmation = "⚠️ This feedback card has expired or is invalid. Please use a newer card."
         else:
             confirmation = "❌ Could not record routing feedback. Please try again."

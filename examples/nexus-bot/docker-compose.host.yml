@@ -59,6 +59,13 @@ services:
     volumes:
       # Same paths as the systemd unit so PROJECT_CONFIG_PATH, data/ and logs resolve.
       - /home/ubuntu:/home/ubuntu
+      # The host bridge persists callback tokens here. Without this bind,
+      # feedback cards reach a bot with a different, empty container-local map.
+      - type: bind
+        source: /var/lib/nexus/state
+        target: /var/lib/nexus/state
+        bind:
+          create_host_path: false
     depends_on:
       postgres:
         condition: service_healthy
