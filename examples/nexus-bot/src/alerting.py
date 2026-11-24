@@ -5,8 +5,10 @@ Sends alerts for critical issues via the EventBus (emit_alert):
 - Stuck workflows (>1 hour without progress)
 - Repeated agent failures
 - System degradation
+- nexus-router alerts about its OpenClaw plugin (routing or feedback cards silently stopped)
 """
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
@@ -16,6 +18,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from nexus.core.integrations.audit_query_factory import get_audit_query
 from nexus.core.integrations.notifications import emit_alert
+from nexus.core.router_client import RouterClient
 from nexus.core.state_manager import HostStateManager
 
 logger = logging.getLogger(__name__)
@@ -46,6 +49,9 @@ class AlertingSystem:
         # Alert cooldown (prevent spam)
         self.alert_cooldown_minutes = int(os.getenv("ALERT_COOLDOWN_MINUTES", "30"))
         self.last_alerts: dict[str, datetime] = {}
+        # Router alerts already sent, by code and start of the failure streak:
+        # one message per incident, however long it lasts.
+        self.router_alerts_sent: set[str] = set()
 
     def start(self) -> None:
         """Start the alerting scheduler."""
@@ -75,6 +81,7 @@ class AlertingSystem:
             await self._check_error_rates()
             await self._check_stuck_workflows()
             await self._check_agent_failures()
+            await self._check_router_plugin()
         except Exception as e:
             logger.error("Error in alert check: %s", e)
 
@@ -153,6 +160,30 @@ class AlertingSystem:
                     logger.info("Alert sent: %s", alert_key)
         except Exception as e:
             logger.error("Error checking agent failures: %s", e)
+
+    async def _check_router_plugin(self) -> None:
+        """Forward nexus-router's OpenClaw plugin alerts (from GET /diagnostics) once each."""
+        client = RouterClient.from_env(timeout=10)
+        if client is None:
+            return
+        try:
+            diagnostics = await asyncio.to_thread(client.diagnostics)
+        except Exception as e:  # an unreachable router has its own health checks
+            logger.debug("Router diagnostics unavailable: %s", e)
+            return
+        alerts = (diagnostics.get("openclaw_plugin") or {}).get("alerts") or []
+        for alert in alerts:
+            key = f"router_plugin:{alert.get('code')}:{alert.get('since')}"
+            if key in self.router_alerts_sent or not alert.get("message"):
+                continue
+            emit_alert(
+                f"🧭 Nexus Router\n\n{alert['message']}",
+                severity="warning",
+                source="nexus-router",
+                dedup_key=key,
+            )
+            self.router_alerts_sent.add(key)
+            logger.info("Alert sent: %s", key)
 
     # ------------------------------------------------------------------
     # Helpers

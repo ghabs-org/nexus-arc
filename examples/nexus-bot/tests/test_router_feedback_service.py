@@ -54,6 +54,14 @@ def test_build_feedback_prompt_contains_buttons():
     assert buttons[0][1].callback_data == f"{CALLBACK_PREFIX}wrong:dec-1"
 
 
+def test_build_feedback_prompt_says_when_the_task_came_from_corrections():
+    text, _ = build_feedback_prompt(
+        {"decision_id": "dec-2", "task_type": "code_review", "selected_model": "gpt-5",
+         "confidence": 0.75, "classifier_source": "memory"}
+    )
+    assert text.splitlines()[0] == "🧭 code_review · gpt-5 · your corrections"
+
+
 def test_submit_feedback_persists_fallback_record(tmp_path):
     payload = build_feedback_payload(
         meta={

@@ -159,7 +159,10 @@ def build_feedback_prompt(meta: dict[str, Any]) -> tuple[str, list[list[Button]]
             confidence_value = float(confidence)
     except (TypeError, ValueError):
         confidence_value = None
-    if classifier_source in {"fallback", "heuristic"} or confidence_value in {0.60, 0.72}:
+    if classifier_source == "memory":
+        # nexus-router took the task from earlier feedback on similar messages.
+        confidence_text = "your corrections"
+    elif classifier_source in {"fallback", "heuristic"} or confidence_value in {0.60, 0.72}:
         confidence_text = "fallback"
     elif confidence_value is not None:
         confidence_text = f"{confidence_value:.2f}"
