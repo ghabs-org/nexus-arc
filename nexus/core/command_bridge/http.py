@@ -145,8 +145,12 @@ def create_command_bridge_app(
                 source_message_id = str(payload.get("source_message_id") or "").strip() or None
                 confidence = payload.get("confidence")
                 classifier_source = str(payload.get("classifier_source") or "").strip() or None
-                shadow_mode = bool(payload.get("shadow_mode"))
+                # The nexus-router plugin sends provenance_mode; shadow_mode is the older field.
+                shadow_mode = bool(payload.get("shadow_mode")) or (
+                    str(payload.get("provenance_mode") or "").strip().lower() == "shadow"
+                )
                 actual_model = str(payload.get("actual_model") or "").strip() or None
+                pinned_model = str(payload.get("pinned_model") or "").strip() or None
                 source_message_preview = (
                     str(payload.get("source_message_preview") or "").strip() or None
                 )
@@ -157,6 +161,7 @@ def create_command_bridge_app(
                         "task_type": task_type,
                         "selected_model": selected_model,
                         "actual_model": actual_model,
+                        "pinned_model": pinned_model,
                         "shadow_mode": shadow_mode,
                         "confidence": confidence,
                         "classifier_source": classifier_source,

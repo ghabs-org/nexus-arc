@@ -1265,3 +1265,38 @@ def test_operator_linkedin_profile_me_rejects_subpath():
     )
 
     assert status.startswith("404")
+
+
+def test_feedback_card_reads_the_plugin_shadow_flag_and_pinned_model(monkeypatch):
+    captured = {}
+
+    async def _fake_send(**kwargs):
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr("nexus.core.command_bridge.http.maybe_send_feedback_prompt_external", _fake_send)
+    router = _FakeRouter()
+    router.hands_free_deps = None
+    app = create_command_bridge_app(router, config=CommandBridgeConfig(auth_token="secret"))
+
+    status, payload = _call_app(
+        app,
+        method="POST",
+        path="/api/v1/router/feedback-card",
+        auth="Bearer secret",
+        payload={
+            "telegram_user_id": "47168736",
+            "decision_id": "dec-1",
+            "task_type": "general_chat",
+            "selected_model": "openai/gpt-6.2-astra",
+            # What the nexus-router plugin sends for a pinned session.
+            "provenance_mode": "shadow",
+            "actual_model": "openai/gpt-6.2-sol",
+            "pinned_model": "openai/gpt-6.2-sol",
+        },
+    )
+
+    assert status.startswith("200") and payload == {"ok": True}
+    feedback = captured["result"]["routing_feedback"]
+    assert feedback["shadow_mode"] is True
+    assert feedback["pinned_model"] == "openai/gpt-6.2-sol"

@@ -99,6 +99,7 @@ def extract_feedback_meta(
                 feedback_meta.get("selected_model") or feedback_meta.get("model") or ""
             ).strip(),
             "actual_model": str(feedback_meta.get("actual_model") or "").strip() or None,
+            "pinned_model": str(feedback_meta.get("pinned_model") or "").strip() or None,
             "shadow_mode": bool(feedback_meta.get("shadow_mode")),
             "confidence": feedback_meta.get("confidence"),
             "classifier_source": str(feedback_meta.get("classifier_source") or "").strip().lower()
@@ -169,6 +170,7 @@ def build_feedback_prompt(meta: dict[str, Any]) -> tuple[str, list[list[Button]]
     task = str(meta.get("task_type") or "unknown")
     model = str(meta.get("selected_model") or "unknown")
     actual_model = str(meta.get("actual_model") or "").strip()
+    pinned_model = str(meta.get("pinned_model") or "").strip()
     shadow_mode = bool(meta.get("shadow_mode"))
     metadata = meta.get("metadata") if isinstance(meta.get("metadata"), dict) else {}
     preview = str(metadata.get("source_message_preview") or "").strip()
@@ -184,6 +186,11 @@ def build_feedback_prompt(meta: dict[str, Any]) -> tuple[str, list[list[Button]]
     details: list[str] = []
     if shadow_mode and actual_model:
         details.append(f"actual reply model: {actual_model}")
+    if shadow_mode and pinned_model:
+        # The router only suggests while the session has its own /model pin.
+        details.append(
+            f"Pinned with /model to {pinned_model}; send /model default -s to let the router choose."
+        )
     if sender_name or sender_id:
         details.append(f"from @{sender_name or sender_id}".replace("@@", "@"))
     if source_channel:

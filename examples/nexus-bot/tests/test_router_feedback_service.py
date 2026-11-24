@@ -3,6 +3,7 @@ import json
 from nexus.core.telegram.telegram_router_feedback_service import (
     CALLBACK_PREFIX,
     build_feedback_prompt,
+    decision_token,
     build_feedback_payload,
     extract_feedback_meta,
     parse_feedback_text,
@@ -26,8 +27,14 @@ def test_extract_feedback_meta_reads_result_payload():
         "feedback_mode": "router",
         "task_type": "reasoning",
         "selected_model": "gpt-5",
+        "actual_model": None,
+        "pinned_model": None,
+        "shadow_mode": False,
         "confidence": 0.91,
+        "classifier_source": None,
         "source_channel": "telegram",
+        "source_user_id": "",
+        "source_sender_name": "",
         "metadata": {},
     }
 
@@ -50,8 +57,9 @@ def test_build_feedback_prompt_contains_buttons():
         {"decision_id": "dec-1", "task_type": "coding", "selected_model": "gpt-5", "confidence": 0.82}
     )
     assert "coding" in text
-    assert buttons[0][0].callback_data == f"{CALLBACK_PREFIX}ok:dec-1"
-    assert buttons[0][1].callback_data == f"{CALLBACK_PREFIX}wrong:dec-1"
+    # Callback data carries a short token for the decision id (Telegram's 64-byte limit).
+    assert buttons[0][0].callback_data == f"{CALLBACK_PREFIX}ok:{decision_token('dec-1')}"
+    assert buttons[0][1].callback_data == f"{CALLBACK_PREFIX}wrong:{decision_token('dec-1')}"
 
 
 def test_build_feedback_prompt_says_when_the_task_came_from_corrections():
@@ -60,6 +68,23 @@ def test_build_feedback_prompt_says_when_the_task_came_from_corrections():
          "confidence": 0.75, "classifier_source": "memory"}
     )
     assert text.splitlines()[0] == "🧭 code_review · gpt-5 · your corrections"
+
+
+def test_shadow_card_for_a_pinned_session_says_how_to_let_the_router_choose():
+    meta = extract_feedback_meta({"routing_feedback": {
+        "decision_id": "dec-3", "task_type": "general_chat", "selected_model": "openai/gpt-6.2-astra",
+        "confidence": 0.93, "shadow_mode": True, "actual_model": "openai/gpt-6.2-sol",
+        "pinned_model": "openai/gpt-6.2-sol",
+    }})
+    text, _ = build_feedback_prompt(meta)
+    lines = text.splitlines()
+    assert lines[0] == "🧭 shadow general_chat · proposed openai/gpt-6.2-astra · 0.93"
+    assert "actual reply model: openai/gpt-6.2-sol" in lines
+    assert ("Pinned with /model to openai/gpt-6.2-sol; send /model default -s to let the router choose."
+            in lines)
+    # Without a pin (route mode off) there is nothing to clear.
+    text, _ = build_feedback_prompt({**meta, "pinned_model": None})
+    assert "/model default -s" not in text
 
 
 def test_submit_feedback_persists_fallback_record(tmp_path):
