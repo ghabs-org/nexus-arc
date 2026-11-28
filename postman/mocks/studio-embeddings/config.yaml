@@ -1,0 +1,10 @@
+version: 1
+name: Nexus embedding-adapter compatibility subset
+slug: studio-embeddings
+protocol: http
+port: 49641
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

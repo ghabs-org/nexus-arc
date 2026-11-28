@@ -1,0 +1,10 @@
+version: 1
+name: Synthetic Nexus social identity fixture
+slug: nexus-browser-identity
+protocol: http
+port: 49649
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

@@ -31,6 +31,10 @@ class CallbackHandlerDeps:
     workflow_state_plugin_kwargs: dict[str, Any]
     action_handlers: dict[str, Callable[..., Awaitable[None]]]
     report_bug_action: Callable[[InteractiveContext, str, str], Awaitable[None]]
+    # Final feedback submission (ok, or wrong after the task+model steps).
+    # `final` is True only for completed flows; a bare `wrong` must never
+    # record directly — it must ask follow-ups first.
+    route_feedback_action: Callable[..., Awaitable[None]] | None = None
     requester_context_builder: Callable[[int], dict[str, Any]] | None = None
 
 
@@ -60,6 +64,9 @@ async def core_callback_router(ctx: InteractiveContext, deps: CallbackHandlerDep
         "tail:",
         "fuse:",
     )
+    if data.startswith("routefb:"):
+        await route_feedback_handler(ctx, deps)
+        return
     if data.startswith("pickcmd:"):
         await project_picker_handler(ctx, deps)
     elif (
@@ -229,6 +236,157 @@ async def flow_close_handler(ctx: InteractiveContext, deps: CallbackHandlerDeps)
 
 async def menu_callback_handler(ctx: InteractiveContext, deps: CallbackHandlerDeps):
     await service_menu_callback_handler(ctx)
+
+
+# Model verdict labels for Step 2 of Wrong flow
+MODEL_VERDICT_LABELS: dict[str, str] = {
+    "too_cheap": "📉 Too cheap",
+    "ok": "✅ OK",
+    "too_powerful": "📈 Too powerful",
+}
+
+
+def _build_wrong_task_buttons(decision_id: str):
+    """Use the same task choices for initial entry and Back navigation."""
+    from nexus.adapters.notifications.base import Button  # type: ignore
+
+    buttons = [
+        [
+            Button("coding", callback_data=f"routefb:wrong_task:{decision_id}:coding"),
+            Button("review", callback_data=f"routefb:wrong_task:{decision_id}:code_review"),
+        ],
+        [
+            Button("reasoning", callback_data=f"routefb:wrong_task:{decision_id}:reasoning"),
+            Button("chat", callback_data=f"routefb:wrong_task:{decision_id}:general_chat"),
+        ],
+        [
+            Button("summarization", callback_data=f"routefb:wrong_task:{decision_id}:summarization"),
+            Button("fast_utility", callback_data=f"routefb:wrong_task:{decision_id}:fast_utility"),
+        ],
+        [
+            Button("long_context", callback_data=f"routefb:wrong_task:{decision_id}:long_context"),
+            Button("vision", callback_data=f"routefb:wrong_task:{decision_id}:vision"),
+        ],
+        [
+            Button("⏭ Skip", callback_data=f"routefb:wrong_task:{decision_id}:skip"),
+            Button("⬅️ Back", callback_data=f"routefb:back:{decision_id}:initial"),
+        ],
+    ]
+    return buttons
+
+
+async def route_feedback_handler(ctx: InteractiveContext, deps: CallbackHandlerDeps):
+    await ctx.answer_callback_query()
+    query = ctx.query
+    if query is None or deps.route_feedback_action is None:
+        return
+
+    parts = query.action_data.split(":")
+    if len(parts) < 3 or parts[0] != "routefb":
+        await ctx.edit_message_text(query.message_id, "❌ Invalid routing feedback action.")
+        return
+
+    verdict = parts[1]
+    decision_id = parts[2].strip()
+    if not decision_id:
+        await ctx.edit_message_text(query.message_id, "❌ Invalid routing feedback action.")
+        return
+
+    # ── Back navigation ──────────────────────────────────────────────────
+    if verdict == "back":
+        target = parts[3] if len(parts) >= 4 else "initial"
+        if target == "initial":
+            await ctx.edit_message_text(
+                message_id=query.message_id,
+                text="⚠️ Cannot go back from initial feedback card.",
+            )
+        elif target == "wrong_task":
+            # Show the wrong task selection again
+            try:
+                buttons = _build_wrong_task_buttons(decision_id)
+                await ctx.edit_message_text(
+                    message_id=query.message_id,
+                    text="❌ Step 1/2 — Which task was it?",
+                    buttons=buttons,  # type: ignore
+                )
+            except Exception:
+                await ctx.edit_message_text(
+                    message_id=query.message_id,
+                    text="❌ Which task was correct? Reply with e.g. `wrong -> reasoning` or `skip`.",
+                )
+        return
+
+    # ── ✅ Correct ──────────────────────────────────────────────────────
+    if verdict == "ok":
+        await deps.route_feedback_action(ctx, decision_id, "ok", None, None)
+        return
+
+    # ── ❌ Wrong - Step 1/2: ask which task was correct ────────────────
+    if verdict == "wrong" and len(parts) == 3:
+        try:
+            buttons = _build_wrong_task_buttons(decision_id)
+            await ctx.edit_message_text(
+                message_id=query.message_id,
+                text="❌ Step 1/2 — Which task was it?",
+                buttons=buttons,  # type: ignore
+            )
+        except Exception:
+            await ctx.edit_message_text(
+                message_id=query.message_id,
+                text="❌ Which task was correct? Reply with e.g. `wrong -> reasoning` or `skip`.",
+            )
+        return
+
+    # ── Fix/Task selected (also handles wrong_task from router feedback service) - Step 2/2: ask about model quality ──────────
+    if verdict in {"fix", "wrong_task"}:
+        if len(parts) < 4:
+            await ctx.edit_message_text(query.message_id, "❌ Missing corrected task type.")
+            return
+        corrected_task = parts[3].strip()
+        if corrected_task == "skip":
+            corrected_task = None
+        # Show model verdict prompt (Step 2/2)
+        try:
+            from nexus.adapters.notifications.base import Button  # type: ignore
+
+            buttons = [
+                [
+                    Button("📉 Too cheap", callback_data=f"routefb:wrong_model:{decision_id}:{corrected_task or 'skip'}:too_cheap"),
+                    Button("✅ OK", callback_data=f"routefb:wrong_model:{decision_id}:{corrected_task or 'skip'}:ok"),
+                    Button("📈 Too powerful", callback_data=f"routefb:wrong_model:{decision_id}:{corrected_task or 'skip'}:too_powerful"),
+                ],
+                [
+                    Button("⬅️ Back", callback_data=f"routefb:back:{decision_id}:wrong_task"),
+                    Button("⏭ Skip", callback_data=f"routefb:wrong_model:{decision_id}:{corrected_task or 'skip'}:skip"),
+                ],
+            ]
+            await ctx.edit_message_text(
+                message_id=query.message_id,
+                text="❌ Step 2/2 — Was the model right?",
+                buttons=buttons,  # type: ignore
+            )
+        except Exception:
+            await ctx.edit_message_text(
+                message_id=query.message_id,
+                text="❌ Step 2/2 — Was the model right? (too cheap / ok / too powerful)",
+            )
+        return
+
+    # ── Wrong Model verdict selected - submit feedback ─────────────────
+    if verdict == "wrong_model":
+        if len(parts) < 5:
+            await ctx.edit_message_text(query.message_id, "❌ Invalid model verdict.")
+            return
+        corrected_task = parts[3].strip()
+        model_verdict = parts[4].strip()
+        if corrected_task == "skip":
+            corrected_task = None
+        if model_verdict == "skip":
+            model_verdict = None
+        await deps.route_feedback_action(ctx, decision_id, "wrong", corrected_task, model_verdict)
+        return
+
+    await ctx.edit_message_text(query.message_id, "❌ Invalid routing feedback action.")
 
 
 async def inline_keyboard_handler(ctx: InteractiveContext, deps: CallbackHandlerDeps):

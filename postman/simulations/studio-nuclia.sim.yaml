@@ -1,0 +1,5 @@
+simulation: studio-nuclia
+routing: path
+mocks:
+  - routeKey: nuclia
+    path: ../mocks/studio-nuclia/config.yaml

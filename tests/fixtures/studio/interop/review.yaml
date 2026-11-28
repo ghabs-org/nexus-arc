@@ -1,0 +1,35 @@
+kind: agent
+name: reviewer
+description: Review a supplied result without any external action.
+spec:
+  systemPrompt: Return the supplied message as JSON.
+  modelProvider: [subscription]
+---
+kind: workflow
+name: count-review
+description: Count words locally, then pass their result to a reviewer.
+spec:
+  appConfig:
+    description: A local tool followed by a selected agent.
+    input_schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+    tools:
+      - tool_type: builtin
+        tool_name: count_words
+    nodes:
+      - id: count
+        type: tool
+        tool_name: count_words
+        input:
+          text: '{{workflow.input.text}}'
+      - id: review
+        type: agent
+        agent_name: reviewer
+        depends_on: [count]
+        input:
+          message: 'Word count: {{count.output}}'
+    output_mapping:
+      result: '{{review.output}}'

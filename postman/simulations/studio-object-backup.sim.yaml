@@ -1,0 +1,5 @@
+simulation: studio-object-backup
+routing: path
+mocks:
+  - routeKey: objects
+    path: ../mocks/studio-object-backup/config.yaml

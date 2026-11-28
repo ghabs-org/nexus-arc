@@ -92,7 +92,7 @@ class AgentRuntime(ABC):
                 "pid": int,
                 "timestamp": float,   # unix timestamp of launch
                 "agent_type": str,
-                "tool": str,          # "copilot" | "gemini" | …
+                "tool": str,          # "copilot" | "codex" | …
             }
         """
 
@@ -423,6 +423,7 @@ class ProcessOrchestrator:
 
                 completed_agent = summary.agent_type
                 logger.info(f"📋 Agent completed for issue #{issue_num} ({completed_agent})")
+                self._report_router_outcome(issue_num, True)
                 issue_lock = self._get_issue_lock(issue_num)
                 with issue_lock:
                     # Ask the workflow engine what happens next.
@@ -659,7 +660,7 @@ class ProcessOrchestrator:
         log_files = glob.glob(log_pattern, recursive=True)
 
         for log_file in log_files:
-            match = re.search(r"(?:copilot|gemini|codex)_(\d+)_\d{8}_", os.path.basename(log_file))
+            match = re.search(r"(?:copilot|codex)_(\d+)_\d{8}_", os.path.basename(log_file))
             if not match:
                 continue
             issue_num = match.group(1)
@@ -687,7 +688,7 @@ class ProcessOrchestrator:
                     f
                     for f in log_files
                     if re.search(
-                        rf"(?:copilot|gemini|codex)_{issue_num}_\d{{8}}_",
+                        rf"(?:copilot|codex)_{issue_num}_\d{{8}}_",
                         os.path.basename(f),
                     )
                 ],
@@ -798,6 +799,11 @@ class ProcessOrchestrator:
                 f"💀 Dead agent: issue #{issue_num} ({agent_type}, "
                 f"PID {pid}, age {age_min:.0f}min)"
             )
+            if agent_data.get("router_decision_id"):
+                from nexus.core.runtime.agent_routing import report_outcome
+
+                if report_outcome(agent_data, False, issue_num=issue_num):
+                    self._runtime.save_launched_agents(launched)
             self._runtime.audit_log(
                 issue_num,
                 "AGENT_DEAD",
@@ -900,6 +906,20 @@ class ProcessOrchestrator:
         self._runtime.save_launched_agents(tracker)
         self._runtime.finalize_workflow(issue_num, repo, last_agent, project_name)
 
+    def _report_router_outcome(self, issue_num, success: bool) -> None:
+        """Close the issue's routed launch at the model router (once; advisory)."""
+        try:
+            launched = self._runtime.load_launched_agents(recent_only=False)
+            entry = launched.get(str(issue_num))
+            if not isinstance(entry, dict) or not entry.get("router_decision_id"):
+                return
+            from nexus.core.runtime.agent_routing import report_outcome
+
+            if report_outcome(entry, success, issue_num=issue_num):
+                self._runtime.save_launched_agents(launched)
+        except Exception as exc:
+            logger.debug("Router outcome skipped for issue #%s: %s", issue_num, exc)
+
     def _handle_timeout(
         self,
         issue_num: str,
@@ -933,6 +953,7 @@ class ProcessOrchestrator:
                 issue_num,
             )
             return
+        self._report_router_outcome(issue_num, False)
 
         normalized_agent_type = (
             str(agent_type or "").strip().lstrip("@").strip().lower()

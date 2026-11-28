@@ -1,0 +1,10 @@
+version: 1
+name: Nexus delegated OAuth token compatibility fixture
+slug: studio-oauth
+protocol: http
+port: 49646
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

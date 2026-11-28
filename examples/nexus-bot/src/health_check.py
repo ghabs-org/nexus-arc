@@ -126,6 +126,74 @@ def check_service_status(service_name: str) -> dict:
         return {"running": False, "error": str(e)}
 
 
+def check_container_status(container_name: str) -> dict:
+    """
+    Check if a Docker container is running.
+
+    Args:
+        container_name: Name of the Docker container
+
+    Returns:
+        Dict with running flag, state and start time, or found=False when
+        the container does not exist (or Docker is unavailable).
+    """
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                "-f",
+                "{{.State.Status}}|{{.State.StartedAt}}|{{.State.Pid}}",
+                container_name,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception as e:
+        return {"found": False, "running": False, "status": "unknown", "error": str(e)}
+
+    if result.returncode != 0:
+        return {
+            "found": False,
+            "running": False,
+            "status": "missing",
+            "error": (result.stderr.strip() or "Container not found"),
+        }
+
+    state, started_at, pid = (result.stdout.strip().split("|") + ["", "", ""])[:3]
+    info: dict[str, bool | str | int] = {
+        "found": True,
+        "running": state == "running",
+        "status": state,
+        "container": container_name,
+    }
+    if started_at:
+        info["since"] = started_at
+    if pid.isdigit() and int(pid) > 0:
+        info["pid"] = int(pid)
+    if state != "running":
+        info["error"] = "Container not running"
+    return info
+
+
+def check_telegram_status() -> dict:
+    """
+    Check the Telegram bot, which runs as a Docker container on the host
+    deployment (docker-compose.host.yml) and as a systemd unit elsewhere.
+
+    The container named by NEXUS_TELEGRAM_CONTAINER (default
+    ``nexus-host-telegram-1``) wins when it exists; otherwise fall back to
+    the ``nexus-telegram.service`` unit.
+    """
+    container = os.getenv("NEXUS_TELEGRAM_CONTAINER", "nexus-host-telegram-1").strip()
+    if container:
+        status = check_container_status(container)
+        if status.get("found"):
+            return status
+    return check_service_status("nexus-telegram.service")
+
+
 def get_recent_audit_activity(hours: int = 1) -> dict:
     """
     Get activity from audit log in the last N hours.
@@ -217,7 +285,7 @@ def full_status():
     Comprehensive status check of all Nexus services.
 
     Returns detailed information about:
-    - nexus-telegram service status
+    - nexus-telegram status (Docker container, else systemd unit)
     - nexus-discord service status
     - nexus-processor service status
     - Recent audit activity
@@ -225,7 +293,7 @@ def full_status():
     - Rate limiter stats
     """
     # Check services
-    telegram_status = check_service_status("nexus-telegram.service")
+    telegram_status = check_telegram_status()
     discord_status = check_service_status("nexus-discord.service")
     processor_status = check_service_status("nexus-processor.service")
 
@@ -269,7 +337,7 @@ def metrics():
 
     Returns metrics in a format suitable for scraping by monitoring tools.
     """
-    telegram_status = check_service_status("nexus-telegram.service")
+    telegram_status = check_telegram_status()
     discord_status = check_service_status("nexus-discord.service")
     processor_status = check_service_status("nexus-processor.service")
     recent_activity = get_recent_audit_activity(hours=1)

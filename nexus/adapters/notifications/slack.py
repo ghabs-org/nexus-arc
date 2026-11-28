@@ -6,6 +6,7 @@ Requires the ``slack`` optional extra::
 """
 
 import logging
+import re
 
 from nexus.adapters.notifications.base import Message, NotificationChannel
 from nexus.core.models import Severity
@@ -19,6 +20,14 @@ except ImportError:
     _SLACK_SDK_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+def validate_timestamp(value):
+    """Validate Slack timestamp identifiers without accepting paths or numbers."""
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]{1,20}\.[0-9]{1,12}", value):
+        raise ValueError("Use a Slack message timestamp")
+    return value
+
 
 # Severity → Slack colour sidestrip
 _SEVERITY_COLOUR = {
@@ -63,7 +72,8 @@ class SlackNotificationChannel(NotificationChannel):
         webhook_url: str | None = None,
     ):
         _require_slack_sdk()
-        self._client = WebClient(token=token)
+        # A lost response may follow a completed send; never replay a mutation automatically.
+        self._client = WebClient(token=token, retry_handlers=[])
         self._default_channel = default_channel
         self._webhook_url = webhook_url
 
@@ -71,30 +81,47 @@ class SlackNotificationChannel(NotificationChannel):
     def name(self) -> str:
         return "slack"
 
-    async def send_message(self, user_id: str, message: Message) -> str:
+    async def send_message(
+        self,
+        user_id: str,
+        message: Message,
+        *,
+        thread_ts: str | None = None,
+        blocks: list | None = None,
+    ) -> str:
         """Post a message to a Slack user (DM) or channel.
 
         Args:
             user_id: Slack user ID (``U…``) or channel name / ID.
             message: Message to send.
+            thread_ts: Optional parent message timestamp for thread replies.
+            blocks: Optional explicit Block Kit blocks list.
 
         Returns:
             Slack ``ts`` (timestamp) of the posted message, usable as message_id.
         """
-        blocks = self._build_blocks(message)
+        effective_blocks = blocks if blocks is not None else self._build_blocks(message)
+        thread = (
+            {"thread_ts": validate_timestamp(thread_ts), "reply_broadcast": False}
+            if thread_ts is not None
+            else {}
+        )
         try:
             response = self._client.chat_postMessage(
                 channel=user_id,
                 text=message.text,  # fallback for notifications
-                blocks=blocks,
+                blocks=effective_blocks,
                 unfurl_links=False,
+                **thread,
             )
             return response["ts"]
-        except SlackApiError as exc:
-            logger.error("Slack send_message failed: %s", exc.response["error"])
+        except SlackApiError:
+            logger.error("Slack send_message failed; inspect the remote outcome before retrying")
             raise
 
-    async def update_message(self, message_id: str, new_text: str) -> None:
+    async def update_message(
+        self, message_id: str, new_text: str, *, blocks: list | None = None
+    ) -> None:
         """Update a previously posted message by its ``ts``.
 
         Note: requires knowing the channel; encode as ``channel:ts`` in
@@ -106,10 +133,47 @@ class SlackNotificationChannel(NotificationChannel):
         else:
             channel, ts = self._default_channel, message_id
 
+        kwargs: dict = {"channel": channel, "ts": ts, "text": new_text}
+        if blocks is not None:
+            kwargs["blocks"] = blocks
+
         try:
-            self._client.chat_update(channel=channel, ts=ts, text=new_text)
-        except SlackApiError as exc:
-            logger.error("Slack update_message failed: %s", exc.response["error"])
+            self._client.chat_update(**kwargs)
+        except SlackApiError:
+            logger.error("Slack update_message failed; inspect the remote outcome before retrying")
+            raise
+
+    async def upload_file(
+        self,
+        channel: str,
+        content: bytes,
+        filename: str,
+        *,
+        thread_ts: str | None = None,
+        title: str | None = None,
+    ) -> dict:
+        """Upload a file or artifact to a Slack channel or thread."""
+        thread = {"thread_ts": validate_timestamp(thread_ts)} if thread_ts is not None else {}
+        try:
+            if hasattr(self._client, "files_upload_v2"):
+                res = self._client.files_upload_v2(
+                    channel=channel,
+                    file=content,
+                    filename=filename,
+                    title=title or filename,
+                    **thread,
+                )
+            else:
+                res = self._client.files_upload(
+                    channels=channel,
+                    file=content,
+                    filename=filename,
+                    title=title or filename,
+                    **thread,
+                )
+            return {"ok": True, "file_id": res.get("file", {}).get("id", ""), "name": filename}
+        except SlackApiError:
+            logger.error("Slack upload_file failed; inspect remote outcome before retrying")
             raise
 
     async def send_alert(self, message: str, severity: Severity) -> None:
@@ -177,8 +241,9 @@ class SlackNotificationChannel(NotificationChannel):
         blocks: list = [
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": message.text},
+                "text": {"type": "mrkdwn", "text": message.text[offset : offset + 3000]},
             }
+            for offset in range(0, max(1, len(message.text)), 3000)
         ]
         if message.buttons:
             elements = []
@@ -187,6 +252,7 @@ class SlackNotificationChannel(NotificationChannel):
                     "type": "button",
                     "text": {"type": "plain_text", "text": btn.label},
                     "action_id": btn.callback_data,
+                    "value": btn.callback_data,
                 }
                 if btn.url:
                     element["url"] = btn.url

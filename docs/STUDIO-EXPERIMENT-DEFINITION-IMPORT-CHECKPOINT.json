@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "reviewed-single-worker-experiment-definition-import",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "verified_reference_blobs": [
+    "6fb3e1f3775d1a7eded78e025cfee8f5a85a1b30"
+  ],
+  "contract": "POST /api/studio/configuration/experiments/convert; existing owner authorization and CSRF; explicit dataset/evaluator/agent revisions and pass threshold; native draft only.",
+  "validation": {
+    "python": {
+      "passed": 167,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_experiment_import.py",
+        "tests/test_studio_experiments.py",
+        "tests/test_studio_experiment_continuation.py",
+        "tests/test_studio_evaluation_import.py",
+        "tests/test_studio_evaluation_gate.py",
+        "tests/test_studio_datasets.py",
+        "tests/test_studio_evaluators.py"
+      ]
+    },
+    "interface_logic": {
+      "passed": 34,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_experiment_import.test.cjs",
+        "tests/studio_evaluation_import.test.cjs",
+        "tests/studio_datasets.test.cjs",
+        "tests/studio_evaluators.test.cjs",
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/studio_evaluation_gate.test.cjs"
+      ]
+    },
+    "browser": {
+      "status": "pending",
+      "reason": "The browser permission gate denied the disposable localhost origin before navigation. No alternate browser or permission workaround was attempted."
+    },
+    "example": "Bundled synthetic declaration converted, planned and saved with four planned target executions and no run started.",
+    "static": "Affected Python lint/format, operations.js syntax and diff whitespace checks pass.",
+    "live_provider": "Not used. Injected synthetic target and judge exercised repeats and reference isolation."
+  },
+  "guarantees": [
+    "Authorization precedes conversion; existing CSRF is enforced",
+    "No discovery, provider call, plan, resource save or activation during conversion",
+    "Selected current resource revisions must match exactly",
+    "Copied cases and evaluator settings remain independent of source edits",
+    "Existing checks and expected responses remain intact; expected responses reach only the judge",
+    "Reimport retains prior suites and advances the experiment through reviewed native revisions",
+    "Duplicate YAML keys, aliases, unsupported settings and stale bindings reject without saving",
+    "Separate explicit conversion review, save-plan review and save actions"
+  ],
+  "limits": [
+    "Exactly one evaluator matching the primary evaluator; no multi-evaluator aggregation",
+    "Only integer maxWorkers: 1; the reference declaration's maxWorkers: 4 rejects explicitly",
+    "Sequential native execution, 1-20 repetitions, 1-4 variants and 400 target executions maximum",
+    "Target and execution dependencies are pinned when a run queues, not permanently frozen at import",
+    "Canonical native export only; external-format experiment export remains pending",
+    "Visual browser, physical-mobile and account-dependent grading acceptance remain pending"
+  ],
+  "migration": "No persisted-record migration; existing experiment and configuration formats retain their behavior.",
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "next": "Native bounded experiment worker concurrency with cancellation, checkpoint recovery and no replay before accepting maxWorkers > 1."
+}

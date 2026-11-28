@@ -1,0 +1,175 @@
+{
+  "format": "nexus-studio-draft-recovery-checkpoint/v1",
+  "date": "2026-11-02",
+  "status": "implemented-fixture-and-scoped-browser-verified",
+  "whole_plan_complete": false,
+  "scope": "Approved browser-local unsent chat/Quick Build enhancement; not workflow undo or notifications",
+  "source_head": "7a371b26982464d497a7e9706a61f9acd74c57fa",
+  "working_tree_snapshot": true,
+  "source_sha256": {
+    "nexus/studio_static/drafts.js": "f8c8e802f514bbb490c6629fad6984b3e11e3a8f0e0ba3f535ca907eb28f4d2b",
+    "nexus/studio_static/index.html": "6e12f82652ad8e8e6e53ee0fa06a762e173844f4c04d863b1f9d77daadbdf7cf",
+    "nexus/studio_static/studio.js": "15e6fbd1a0495d941712876d9798f15e8fe4ee85e5dc6029b888f1bf03d75754",
+    "nexus/studio_static/quick-build.js": "144384b0c847c0bb96782dd913ad161ade1bb2f952225c2bac9f5a2bcc27382c",
+    "nexus/studio_static/library.js": "d159737f36d1ba7d197777ba2566d0845f775ef9a63694ed6c8451f0be388708",
+    "nexus/studio_static/features.js": "61d003c50ecd4f955a38b1c30fe426ba838831a39e4e7146fc62bc85577091c3",
+    "nexus/studio_static/studio.css": "dd20a8ed2ef2cc8f16990ab754520626242592f8ae14c7d557bad005086fa65d",
+    "nexus/studio_static/service-worker.js": "aa51c2bd60feaa0ce60eed51041e7251636518407490e0b921a47f6da46352b1",
+    "nexus/studio.py": "18c2b5b3a0b2e5ff3e45f37e56ee61cd021a5718a9aa8854ba13c39b62c069e7",
+    "examples/nexus-bot/src/studio.py": "42508ccca2b8d8ef0457534c10c1f0157021691c5ed3dc476d3a35579ff124ad",
+    "tests/studio_drafts.test.cjs": "264336f06b39648df04789a325bab562343847e0d41f8102f987bdd0c00931e6",
+    "tests/studio_attachments.test.cjs": "d4dd2cd649e65f3efc9df328e14ba82dd42c459eacf45cfd3598ac7ae46fce09"
+  },
+  "storage": {
+    "backend": "Browser localStorage, not server or encrypted credential storage",
+    "version": 1,
+    "scope": [
+      "origin",
+      "deployment mode",
+      "Nexus user or local desktop owner",
+      "server workspace path",
+      "embedded agent identity"
+    ],
+    "records": "One per surface/scope",
+    "text_limits": {
+      "chat": 100000,
+      "builder": 16000
+    },
+    "attachment_ids_max": 5,
+    "debounce_ms": 350,
+    "expiry_days": 7,
+    "expiry_removal": "On the next scoped read",
+    "fields": [
+      "literal text",
+      "artifact IDs",
+      "context ID",
+      "allowlisted agent/project/provider/model/effort/tools",
+      "version/id/time",
+      "unconfirmed flag"
+    ],
+    "does_not_collect": [
+      "file bytes",
+      "credential fields",
+      "prompt-variable answers"
+    ],
+    "hard_crash_limit": "Last debounce interval may be lost before save/flush",
+    "cross_tab": "Observed version conflict detection; not transactional collaboration"
+  },
+  "validation": {
+    "frontend": {
+      "command": "node --test tests/studio_*.test.cjs",
+      "tests": 309,
+      "passed": 309,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "report": "/private/tmp/nexus-studio-drafts-20261102/frontend-final.tap",
+      "report_sha256": "4cd9dbb8539266185b3ba9ece5849fa6d6425a07d9d1f47c9bb8df0d551f0ace"
+    },
+    "focused_drafts": {
+      "tests": 20,
+      "included_in_frontend_total": true
+    },
+    "backend_bundling": {
+      "command": ".venv/bin/python -m pytest -o addopts='' -q tests/test_studio.py tests/test_studio_desktop_bundle.py",
+      "tests": 35,
+      "passed": 35,
+      "failed": 0,
+      "skipped": 0
+    },
+    "static": [
+      "Ruff",
+      "Python parse",
+      "six changed JavaScript syntax checks",
+      "git diff --check"
+    ],
+    "browser": {
+      "workspace": "Disposable local only",
+      "viewports": [
+        [
+          1280,
+          720
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          360,
+          780
+        ]
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "verified": [
+        "Chat immediate refresh offers Restore/Discard with an empty composer",
+        "Explicit restore returns text and focus without submission",
+        "Quick Build refresh recovers text and selected High effort",
+        "Keyboard Tab reaches Discard; Enter restores without form submission",
+        "Discard persists across refresh",
+        "No horizontal overflow in measured phone/desktop widths",
+        "Visible mobile draft action is 44px high",
+        "No browser console errors"
+      ],
+      "fixture_only": [
+        "Account/workspace/mode/embed isolation",
+        "Expired/corrupt records",
+        "Quota/storage denial",
+        "Observed cross-tab conflicts",
+        "Unconfirmed submission and queue acknowledgement handling",
+        "Stale file/resource handling",
+        "Final model-input handling"
+      ],
+      "not_claimed": [
+        "Physical-device crash/permission acceptance",
+        "Real screen-reader acceptance",
+        "Browser source-mode auth logout in a live account"
+      ],
+      "preview_runs_created": 0,
+      "preview_server_stopped": true,
+      "viewport_reset": true,
+      "temporary_tab_closed": true
+    },
+    "regression": {
+      "description": "Assigning a new Quick Build ID after queue acknowledgement must not recreate its submitted prompt",
+      "before_report": "/private/tmp/nexus-studio-drafts-20261102/context-regression-before.tap",
+      "before_sha256": "7b98f7dd7d1d86d15ec67cd9b428b39e33b3b11a501da42f0123e0e107278329",
+      "after": "Included in passing focused/full frontend gates"
+    }
+  },
+  "screenshots": [
+    {
+      "path": "/private/tmp/nexus-studio-drafts-20261102/desktop-recovery.jpg",
+      "sha256": "25cba3b3848a87327986377b923b5b319ef882d0cf685887e08ac2e810f215e4"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-drafts-20261102/phone-restore.jpg",
+      "sha256": "795ceee85617568120e9472250478dc3936c829ae27fb7bfa398eb36fb95c315"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-drafts-20261102/phone-saved.jpg",
+      "sha256": "a1319f57bd70d0f7cbc11f723699d2cea02c71da8edc5bb9908f297fa651df29"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-drafts-20261102/phone-light.jpg",
+      "sha256": "9f1516e15dcdd4ce7e5a5f3e8726fb4d47ba3ebf56902003b2abb2e0973ec447"
+    }
+  ],
+  "compatibility": "No server state migration, new mutation API, provider selection fallback or authentication replacement. Same shared UI/example/static packaging. Public shell v72.",
+  "remaining_original_delivery": [
+    "Real devices and assistive technology",
+    "Selected live integration accounts/SQL Server/Oracle",
+    "Deferred recovered-host/full-machine operation",
+    "Desktop milestone 9 last"
+  ],
+  "constraints": {
+    "vm_contacted": false,
+    "provider_invoked": false,
+    "new_runtime_dependency": false,
+    "dmg_rebuilt": false,
+    "release_published": false,
+    "frozen_inventory_flags_changed": false
+  }
+}

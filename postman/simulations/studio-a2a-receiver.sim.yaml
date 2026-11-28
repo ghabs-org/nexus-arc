@@ -1,0 +1,5 @@
+simulation: studio-a2a-receiver
+routing: path
+mocks:
+  - routeKey: agent
+    path: ../mocks/studio-a2a-receiver/config.yaml

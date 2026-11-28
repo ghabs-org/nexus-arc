@@ -1,0 +1,263 @@
+{
+  "format": "nexus-studio-pdf-isolation-checkpoint/v1",
+  "date": "2026-10-27",
+  "scope": "Confirmed PDF/provider startup coupling fix and CPU-contention reproduction of the 25 October missing-pages failure; source and a disposable macOS arm64 core backend. No installed release claim.",
+  "status": "source-and-frozen-core-verified-with-load-reproduction",
+  "milestone_complete": false,
+  "whole_plan_complete": false,
+  "implementation": [
+    "nexus/core/studio_desktop_sidecar.py",
+    "nexus/core/studio_desktop_bundle.py",
+    "tests/test_studio_pdf_failures.py",
+    "tests/test_studio_desktop_bundle.py",
+    "examples/nexus-bot/src/studio_desktop_bundle.py",
+    "tests/studio_desktop_bundle_acceptance.py"
+  ],
+  "documentation": "docs/STUDIO-PDF-PREVIEW.md",
+  "contract": "postman/contracts/studio-pdf-preview.md",
+  "confirmed_defect": {
+    "status": "fixed",
+    "mechanism": "Source module dispatch and the old frozen entry loaded Nexus/AI-provider SDK initializers before entering the PDF extractor. An unrelated provider initialization error could prevent a valid PDF from reaching extraction.",
+    "reproduction": [
+      {
+        "case": "existing_module",
+        "returncode": 1,
+        "valid_pdf_result": false,
+        "unrelated_provider_reached": true
+      },
+      {
+        "case": "isolated_file",
+        "returncode": 0,
+        "valid_pdf_result": true,
+        "unrelated_provider_reached": false
+      }
+    ],
+    "profiling": "Source import profiling captured time in nexus.adapters.ai / anthropic before extraction. The trace contains import timings only, no document content.",
+    "profile_report": "/private/tmp/nexus-pdf-module-imports.log"
+  },
+  "historical_failure": {
+    "status": "reproduced-under-cpu-contention-and-resolved-by-isolation",
+    "note": "Under 8-process CPU contention at concurrency 8 (matching the 25 October 55.43s run during concurrent build activity), the pre-isolation frozen binary (/Applications/Nexus Studio.app/Contents/Resources/sidecar/nexus-sidecar, built before 790fbe3) times out on 16/16 direct worker calls (15.014s-15.034s) and 8/8 StudioService.artifacts.preview calls (15.024s-15.040s), returning extraction_available=false, error_code='pdf_timeout' and omitting 'pages' (reproducing KeyError: 'pages'). Under the exact same 8-process CPU contention and concurrency 8, isolated source dispatch passes 16/16 in 0.743s-0.908s and FROZEN_ENTRYPOINT isolated dispatch passes 16/16 in 0.893s-1.034s.",
+    "baseline_report": "/private/tmp/nexus-pdf-startup-probe.json",
+    "passing_baseline_probes": 30
+  },
+  "changes": [
+    "Source PDF command now uses trusted isolated-file execution, following the existing finance-worker pattern.",
+    "Generated frozen entry dispatches the allowlisted trusted PDF script before Studio initialization; non-PDF commands retain existing dispatch.",
+    "The trusted PDF script is explicitly included in frozen data; source-input stability and packaging self-checks remain.",
+    "Portable consumer now verifies actual text, revision, repeated/concurrent protected HTTP previews, page bounds and existing damaged/encrypted/shutdown cases."
+  ],
+  "validation": {
+    "required": {
+      "report": "/private/tmp/nexus-pdf-isolation-required.xml",
+      "tests": 124,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 24.189
+    },
+    "relocated_frozen": {
+      "report": "/private/tmp/nexus-pdf-isolation-frozen.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 5.15
+    }
+  },
+  "direct_repetitions": {
+    "report": "/private/tmp/nexus-pdf-isolation-repeat.json",
+    "source": 8,
+    "frozen_core": 8,
+    "concurrency": 4,
+    "all_valid": true,
+    "results": [
+      {
+        "runtime": "source_isolated",
+        "index": 0,
+        "seconds": 0.109,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 1,
+        "seconds": 0.106,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 2,
+        "seconds": 0.105,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 3,
+        "seconds": 0.104,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 4,
+        "seconds": 0.106,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 5,
+        "seconds": 0.088,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 6,
+        "seconds": 0.096,
+        "valid": true
+      },
+      {
+        "runtime": "source_isolated",
+        "index": 7,
+        "seconds": 0.101,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 0,
+        "seconds": 0.571,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 1,
+        "seconds": 0.575,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 2,
+        "seconds": 0.573,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 3,
+        "seconds": 0.569,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 4,
+        "seconds": 0.138,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 5,
+        "seconds": 0.156,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 6,
+        "seconds": 0.141,
+        "valid": true
+      },
+      {
+        "runtime": "frozen_isolated",
+        "index": 7,
+        "seconds": 0.145,
+        "valid": true
+      }
+    ]
+  },
+  "frozen_http": {
+    "report": "/private/tmp/nexus-pdf-isolation-frozen-http.json",
+    "result": {
+      "relocated": true,
+      "host_python_on_path": false,
+      "authenticated_startup": true,
+      "workspace_write": true,
+      "frontend_and_favicon": true,
+      "frozen_pdf_worker": true,
+      "frozen_pdf_errors": true,
+      "pdf_preview_repetitions": 8,
+      "pdf_preview_concurrency": 4,
+      "pdf_preview_seconds": [
+        0.162,
+        0.183,
+        0.172,
+        0.181,
+        0.146,
+        0.148,
+        0.143,
+        0.143
+      ],
+      "frozen_pdf_text_and_page_bounds": true,
+      "parent_eof_shutdown": true,
+      "live_providers_used": false,
+      "optional_sdk_presence": {
+        "openai": false,
+        "anthropic": false,
+        "slack_sdk": false,
+        "mcp": false,
+        "sqlalchemy": false,
+        "pypdf": true,
+        "whisper": false,
+        "boto3": false,
+        "pymongo": false
+      },
+      "dependency_profile": {
+        "format": "nexus-desktop-profile/v1",
+        "profile": "core",
+        "passed": true,
+        "packages": {},
+        "offline_checks": {},
+        "scope": "Offline imports and packaged-data checks only; not account, model or service validation"
+      },
+      "sha256": "69c095ed03e71395ff8c96242a442232427b2970d4734634bddb8e2da0142ab2"
+    },
+    "interpretation": "Actual relocated core backend, no host Python on PATH or live provider accounts. Synthetic fixtures only; timings are not a full-profile/old-binary comparison."
+  },
+  "artifact": {
+    "manifest": "/private/tmp/nexus-pdf-isolation-sidecar/nexus-backend-aarch64-apple-darwin.manifest.json",
+    "executable": "/private/tmp/nexus-pdf-isolation-sidecar/nexus-backend-aarch64-apple-darwin/nexus-sidecar",
+    "profile": "core",
+    "target": "aarch64-apple-darwin",
+    "layout": "onedir",
+    "sha256": "69c095ed03e71395ff8c96242a442232427b2970d4734634bddb8e2da0142ab2",
+    "tree_sha256": "1e38bc9dffbfced83face00b871e9e4fb4f7ea6ef3dacd2669f852cdcb83371a",
+    "size_bytes": 34945874,
+    "python": "3.13.16",
+    "pyinstaller": "6.22.3"
+  },
+  "limits": {
+    "wall_seconds": 15,
+    "cpu_seconds": 10,
+    "linux_address_space_mib": 768,
+    "max_input_mib": 16,
+    "max_text_characters": 128000,
+    "unchanged": true
+  },
+  "compatibility": "No new HTTP route, response schema, stored record, credential scope, provider selection or automatic retry. Selected-page and successful/error JSON protocols remain. Source -m invocation remains available for callers, while framework dispatch selects the trusted file.",
+  "pending": [
+    "Connected/full-profile frozen acceptance and installed native app verification for this new entrypoint (deferred until explicit user DMG/installer build request).",
+    "Windows/Linux native and personal VM acceptance; this frozen build is macOS arm64 core only."
+  ],
+  "distribution": {
+    "app_installer_built": false,
+    "dmg_rebuilt": false,
+    "test_backend_only": true,
+    "policy": "Rebuild DMG only on explicit user request.",
+    "checksum_file_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+    "artifact_hashes_reverified": false,
+    "note": "Recorded checksum file unchanged; existing DMG files remain absent from releases."
+  },
+  "source_sha256": {
+    "nexus/core/studio_desktop_sidecar.py": "e583151b55b486958f345c1dba506df98d2bba262d2521df26caccb1835f3f5f",
+    "nexus/core/studio_desktop_bundle.py": "759ca495b9c5706c99f33cddc7637022b653657d8156eac02a83e256ffa30e31",
+    "tests/test_studio_pdf_failures.py": "3ccba8457cec703581c9c3e91257cea33115ef9bb05ab0c9e56404c90096aaec",
+    "tests/test_studio_desktop_bundle.py": "e32e14d7fefd278179cc632310d76b5ca8aa7d6819068813fd508e09916062fe",
+    "examples/nexus-bot/src/studio_desktop_bundle.py": "664f779126ee834198b2ba8deebff6abefafaa0f8b6ec173f0baefd45b7c3854",
+    "tests/studio_desktop_bundle_acceptance.py": "07d1587e643563b3d5ff1560a22551270d9522d919f1d8840e003b614dd18a65"
+  }
+}

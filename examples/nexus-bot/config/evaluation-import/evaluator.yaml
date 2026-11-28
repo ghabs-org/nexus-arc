@@ -1,0 +1,12 @@
+kind: evaluator
+name: Status judge
+spec:
+  type: llm_judge
+  model: general
+  promptTemplate: |
+    Compare the answer with the expected status. Ignore stylistic differences.
+    Question: {{ Prompt }}
+    Expected status: {{ Expected Response }}
+    Answer: {{ Response }}
+    Choose Match or Mismatch.
+  choiceScores: {Match: 1, Mismatch: 0}

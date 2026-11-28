@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "private-snapshot-continuation",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "implementation": [
+    "existing sharing authorization reused for source grant",
+    "private recipient-owned messages and exact byte copies of selected revisions",
+    "UUID request ID with deterministic private session identity",
+    "fresh CSRF and explicit click; no provider action or automatic mutation retry",
+    "new conversation opens through authenticated session read; copied files preview captured revisions"
+  ],
+  "validation": {
+    "python": {
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_snapshot_continuation.py",
+        "tests/test_studio_sharing_viewer.py",
+        "tests/test_studio_execution.py",
+        "tests/test_studio_document_navigation.py"
+      ]
+    },
+    "browser_logic": {
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_shared_viewer.test.cjs",
+        "tests/studio_sharing.test.cjs",
+        "tests/studio_execution_browser.test.cjs"
+      ]
+    },
+    "browser": "Disposable local team fixture as recipient Bob: opened private snapshot, explicitly continued, saw continued chat, previewed selected.txt pinned original evidence. No model run.",
+    "example": "Synthetic local example passed",
+    "static": "Affected ruff, JavaScript syntax and diff whitespace passed"
+  },
+  "activity_audit": {
+    "captured_revisions": "Already implemented; immutable preview request verified by existing server/browser tests",
+    "legacy_no_revision": "UI explicitly labels current-version fallback; original historical revision cannot be reconstructed",
+    "scope": "Artifact previews/page navigation, not a new producing-session jump"
+  },
+  "limits": [
+    "Filesystem interruptions can leave private artifact copies; unchanged explicit retry reuses them",
+    "Physical-device, real identity-provider and multiworker crash-recovery were not tested in this slice",
+    "A completed private copy remains independent after source revocation"
+  ],
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "provider_invoked_by_copy": false,
+  "migration": "Additive session metadata and endpoint; existing sessions/snapshots unchanged"
+}

@@ -1,0 +1,176 @@
+{
+  "format": "nexus-studio-local-assets-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "implemented-fixture-and-scoped-browser-verified",
+  "whole_plan_complete": false,
+  "whole_design_audit_complete": false,
+  "source_head": "f486e6d73c3544e424e41c4f164e55f70bb479c1",
+  "working_tree_snapshot": true,
+  "source_sha256": {
+    "nexus/studio.py": "f5041594cb71ebb4419286b67e9580ddea401bbcec8a7bfbeeea5dcd2e1a752c",
+    "pyproject.toml": "d86834f572273a1e93b7bb6c6d94f53d30c44ee6e29311c54bab51d5af7518af",
+    "examples/nexus-bot/src/studio.py": "38d84d30d0e9d8047708ef61f3fe523858fb1436edd0f5a3d2673e02c151811f",
+    "nexus/studio_static/studio.css": "b3fae17105c2039380458720f64a0719c899171ba7a887606e8034bd56239f99",
+    "nexus/studio_static/index.html": "7fac192ff8b5ed2b7981df8d0dfaad78a9767781eb9b685eae27503d9c6eee35",
+    "nexus/studio_static/studio.js": "07785eaaddfe643582e249fff205922cad1b280c28e1266850b618430eb7789c",
+    "nexus/studio_static/features.js": "23ef85187b9aedc71367cad72b26ae248a6330ba69704cbbe05b104ce7401414",
+    "nexus/studio_static/workspace.js": "d447ee451f789e5c14ce0aa1678e661e366dcde56d73a338c0df07af1b92c1a1",
+    "nexus/studio_static/service-worker.js": "9d1b9de1f37676780311cea31168f6bd938b649369afae8de7f24d20287dfdc6",
+    "nexus/studio_static/vendor/studio-assets.json": "d0b5dd52a7156d79c184396868d2428c5a4672739fc48dcf77a522eb80d14afb",
+    "nexus/studio_static/vendor/packages.json": "433740fe4eb6b53a3c62e7135996721f6fe9ecbf6a2d1f9e6861b683264233cc",
+    "tests/studio_local_assets.test.cjs": "e2649038381e8d5d7e71a70cb379f29cc4b0770fdb69536a4a0c7af0fc3a98e1",
+    "postman/scripts/studio-local-assets.js": "6a4ee3321e391d71db33ce7723da833385a45e8325fc10450830dbce8e8b6a6b"
+  },
+  "inventory": {
+    "font_faces": 8,
+    "font_packages": [
+      "@ibm/plex-sans@1.1.0",
+      "@ibm/plex-mono@2.5.0"
+    ],
+    "icons_package": "@tabler/icons@3.50.0",
+    "sprite_symbols": 20,
+    "literal_ui_instances": 26,
+    "icon_sizes_px": [
+      16,
+      20,
+      24
+    ],
+    "stroke": 1.75,
+    "cache": "v68"
+  },
+  "validation": {
+    "frontend": {
+      "tests": 284,
+      "passed": 284,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "command": "node --test tests/studio_*.test.cjs"
+    },
+    "focused_assets": {
+      "tests": 5,
+      "included_in_frontend_total": true
+    },
+    "http": {
+      "client": "Postman CLI",
+      "requests": 2,
+      "assertions": 12,
+      "failed": 0,
+      "event_reporting": false,
+      "public_static_gets_only": true
+    },
+    "wheel": {
+      "path": "/private/tmp/nexus-studio-assets-20261031/wheel/nexus_arc-0.1.1-py3-none-any.whl",
+      "sha256": "baee0369cfd000f081f157a46763990026ce39167767284c33263a22db401bf0",
+      "verified_files": 14,
+      "font_files": 8,
+      "licenses": 3,
+      "sprite": true
+    },
+    "static": [
+      "Ruff",
+      "Python parse",
+      "six JavaScript syntax checks",
+      "git diff --check"
+    ],
+    "browser": {
+      "workspace": "disposable local only",
+      "viewports": [
+        [
+          1280,
+          720
+        ],
+        [
+          1024,
+          768
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          360,
+          780
+        ]
+      ],
+      "surfaces": [
+        "conversation welcome",
+        "Quick Build",
+        "mobile navigation"
+      ],
+      "passed": [
+        "sampled horizontal fit",
+        "local fonts ready and visible glyphs",
+        "Light/Dark selection",
+        "System selection persisted across reload",
+        "desktop Tab from picker to guide",
+        "mobile Tab containment",
+        "Escape closure and trigger focus return",
+        "empty desktop welcome no longer clipped"
+      ],
+      "not_measured": [
+        "live OS preference change",
+        "first-paint timing",
+        "Core Web Vitals",
+        "every screen",
+        "full screen-reader coverage",
+        "physical devices",
+        "PWA install/offline",
+        "microphone permissions"
+      ]
+    },
+    "preview_runs_created": 0,
+    "preview_server_stopped": true,
+    "browser_viewport_reset": true
+  },
+  "local_evidence": [
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/frontend-final.tap",
+      "sha256": "c990c4b68bfadcde26f26567bfdac2ac610c96e524372b49511e48fc09fb4067"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/postman-font.log",
+      "sha256": "bc3dee3929eba201942248bb6fb027c7bd6d7e79aed76ece816ee414842c15ef"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/postman-icons.log",
+      "sha256": "5f6ead1d9c789c2e52d4a4eac7a16bffcf81e5cf23238f42abffd76e106713bc"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/wheel-verification.json",
+      "sha256": "99b40891591d0d6fecc1e2d5704b6f9b35b6d1a368fa60367442998e7341a938"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/desktop-light.jpg",
+      "sha256": "5aaa1905cd3e716dc37c16ee7b6d1d8ba71435d1dde2460d061298dc9d4ea107"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/desktop-dark.jpg",
+      "sha256": "fa96b9150c64e5d6d9c2bd5365a410341209afec23e1a71ce335a7d24901d7f5"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/tablet-quick-build.jpg",
+      "sha256": "a8f234c5c552081f9680b9a70df393bb394a028202e1372e1a587fc7ecb422b3"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/phone-light-quick-build.jpg",
+      "sha256": "8efb5e9cbc2bd96bf2fc3c073c927e72d86ea3bc79acc90c35da41adf546003d"
+    },
+    {
+      "path": "/private/tmp/nexus-studio-assets-20261031/phone-dark.jpg",
+      "sha256": "ec1f4185a252e097091e1c5c5801a4b06cac5e06096e923e4b9a2b41ed4d105d"
+    }
+  ],
+  "remaining": [
+    "DT-08 broader shape/layer/interaction policy",
+    "DT-09 interface punctuation",
+    "DT-10 dialog layout animation",
+    "remaining visual/device/performance acceptance"
+  ],
+  "no_operations": [
+    "VM",
+    "native installer or DMG build",
+    "release publication",
+    "provider invocation"
+  ]
+}

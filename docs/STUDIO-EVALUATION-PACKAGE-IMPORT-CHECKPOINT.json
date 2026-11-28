@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "explicit-evaluation-package-import",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "verified_reference_blobs": [
+    "3f0e45bd0d3318ac3fb416d5bdf1bc0cfcf0ba27",
+    "a9c1cccbbbfcd0fa12fb7bb1e5557fba8a2faed6",
+    "bdddd9d208c4c0026322d8026753d1bff0d391b7"
+  ],
+  "contract": "POST /api/studio/configuration/evaluations/convert; existing owner authorization/CSRF, explicit file text and judge binding; returns native draft resources without writes.",
+  "validation": {
+    "python": {
+      "passed": 200,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_evaluation_import.py",
+        "tests/test_studio_evaluators.py",
+        "tests/test_studio_datasets.py",
+        "tests/test_studio_evaluation_files.py",
+        "tests/test_studio_dataset_design.py",
+        "tests/test_studio_evaluation_gate.py",
+        "tests/test_studio_resources.py",
+        "tests/test_studio_experiments.py",
+        "tests/test_studio_retrieval_evidence.py"
+      ]
+    },
+    "browser_logic": {
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_evaluation_import.test.cjs",
+        "tests/studio_datasets.test.cjs",
+        "tests/studio_evaluators.test.cjs",
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/studio_evaluation_gate.test.cjs"
+      ]
+    },
+    "browser": "Disposable Studio as synthetic owner: explicitly chose dataset.yaml, evaluator.yaml and status.csv, converted, reviewed save plan, saved two cases and one judge. No model run.",
+    "example": "Thin local conversion/plan/apply example passed without AI calls",
+    "static": "Affected ruff, JavaScript syntax and diff whitespace pass"
+  },
+  "guarantees": [
+    "No implicit server-path/URL or sibling-directory access",
+    "Unknown fields, missing files, duplicate sequence IDs and unsupported placeholders reject",
+    "Expected response is not passed to the target",
+    "One-pass non-executing variable rendering and native JSON choice validation",
+    "Explicit review before saving; existing suite snapshots preserve copied data"
+  ],
+  "adaptations": [
+    "CSV sequence numbers reported; native case order follows source rows",
+    "Template data inserted as JSON strings",
+    "Bare-label response adapted to validated JSON choice/reason",
+    "Explicit native threshold defaults to 0.7"
+  ],
+  "limits": [
+    "External-format export and experiment/maxWorkers conversion not added",
+    "Live grading quality/account billing and physical-mobile acceptance not tested",
+    "Updated runtime is required for new optional template/reference fields"
+  ],
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "migration": "Additive optional fields; no persisted-data migration",
+  "next": "Explicit experiment definition import with reviewed resource bindings"
+}

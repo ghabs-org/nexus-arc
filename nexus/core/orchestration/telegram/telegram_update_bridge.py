@@ -157,6 +157,10 @@ def build_telegram_interactive_ctx(
                 else None
             )
 
+        @property
+        def platform(self) -> str:
+            return str(getattr(self.client, "name", "telegram")).split("-")[0].lower()
+
         async def reply_text(
             self,
             text: str,

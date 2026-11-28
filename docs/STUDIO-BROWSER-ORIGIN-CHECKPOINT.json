@@ -1,0 +1,41 @@
+{
+  "format": "nexus-studio-browser-origin-fix/v1",
+  "date": "2026-11-06",
+  "status": "fixture-verified",
+  "symptom": "Legitimate browser login rejected with Start sign-in from this Nexus site.",
+  "reproductions": {
+    "before": "Two focused route checks returned 403 instead of 303",
+    "evidence": "/private/tmp/nexus-origin-before.txt",
+    "cases": [
+      "Provider callback override differs from global public base URL",
+      "Explicit default HTTPS port omitted by browser Origin"
+    ]
+  },
+  "fix": [
+    "Validate the selected provider callback origin",
+    "Normalize host casing and default HTTP(S) ports",
+    "Reject foreign/opaque/malformed origins and cross-site Fetch Metadata",
+    "Ignore client-forwarded host/protocol headers for origin authorization",
+    "Preserve Secure cookies behind HTTPS-to-HTTP proxy and on session refresh"
+  ],
+  "validation": {
+    "passed": 212,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "/private/tmp/nexus-origin-regressions.txt",
+    "real_provider_accounts_used": false,
+    "contract": "OpenAPI 1.2.1 syntax passed with Postman --no-report-events"
+  },
+  "deployment_origin_provided_by_user": true,
+  "live_configuration_inspected": false,
+  "vm_work_performed": false,
+  "deployment_performed": false,
+  "desktop_build_performed": false,
+  "source_sha256": {
+    "nexus/core/auth/browser_login.py": "f2404d11918972b68626e3ee5c0872313c4b6e0652cb4bf7bdbedde0adfcb705",
+    "examples/nexus-bot/src/webhook_server.py": "6631877a3159d99c20d62f6f7cb394ed0d94063012645b232c9cb1c6e0da7861",
+    "tests/test_browser_login.py": "49d896ed2bfc0a86f149ccfb2874a05ffe65f062786175ea8b5e5100765c74d4",
+    "examples/nexus-bot/tests/test_browser_login_routes.py": "83e558ca7ced729da5b353a9295a67d2fea8b14cdbd3caabbb88104bbab965e3",
+    "postman/contracts/nexus-browser-login.yaml": "d5b5930873351ce7c363db725b008adae9193aacea55f812a85b633b277eeca5"
+  }
+}

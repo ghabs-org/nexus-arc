@@ -73,6 +73,21 @@ class GitLabPlatform(GitPlatform):
         data = await self._post(f"projects/{self._encoded_repo}/issues", payload)
         return self._to_issue(data)
 
+    async def list_pull_requests(self, state: str = "open", limit: int = 30) -> list[PullRequest]:
+        states = {"open": "opened", "closed": "closed", "merged": "merged", "all": "all"}
+        if state not in states or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Choose open/closed/merged/all and a limit from 1 to 100")
+        return [self._to_pr(item) for item in await self._get(f"projects/{self._encoded_repo}/merge_requests?state={states[state]}&per_page={limit}")]
+
+    async def get_pull_request(self, pr_id: str) -> PullRequest:
+        return self._to_pr(await self._get(f"projects/{self._encoded_repo}/merge_requests/{int(pr_id)}"))
+
+    async def create_pull_request(self, title: str, body: str, head: str, base: str = "main", draft: bool = True) -> PullRequest:
+        return self._to_pr(await self._post(f"projects/{self._encoded_repo}/merge_requests", {"title": ("Draft: " if draft and not title.startswith("Draft:") else "") + title, "description": body, "source_branch": head, "target_branch": base}))
+
+    async def add_pull_request_comment(self, pr_id: str, body: str) -> dict:
+        return await self._post(f"projects/{self._encoded_repo}/merge_requests/{int(pr_id)}/notes", {"body": body})
+
     async def get_issue(self, issue_id: str) -> Issue | None:
         try:
             data = await self._get(f"projects/{self._encoded_repo}/issues/{issue_id}")

@@ -7,7 +7,11 @@ import os
 import re
 from datetime import UTC, datetime, timedelta
 
-from nexus.core.auth.access_domain import auth_enabled, build_execution_env
+from nexus.core.auth.execution_env_resolver import (
+    requester_scoped_execution_enabled,
+    resolve_execution_env,
+    select_git_token,
+)
 
 logger = logging.getLogger(__name__)
 _SOURCE_MARKER_PREFIX = "nexus-inbox-source:"
@@ -114,11 +118,16 @@ def create_issue(
     repo_key: str,
     dedupe_key: str | None = None,
     requester_nexus_id: str | None = None,
+    extra_labels: list[str] | None = None,
 ) -> str:
     """Create a provider-backed issue and apply labels with fallback behavior."""
     type_label = f"type:{task_type}"
     project_label = f"project:{project}"
     labels = [project_label, type_label, workflow_label]
+    for label in extra_labels or []:
+        normalized = str(label or "").strip()
+        if normalized and normalized not in labels:
+            labels.append(normalized)
     normalized_dedupe_key = _normalize_dedupe_key(dedupe_key)
     issue_body = str(body or "")
     if normalized_dedupe_key:
@@ -128,13 +137,18 @@ def create_issue(
 
     try:
         token_override = None
-        if auth_enabled() and requester_nexus_id:
-            user_env, env_error = build_execution_env(str(requester_nexus_id))
+        if requester_scoped_execution_enabled() and requester_nexus_id:
+            user_env, env_error = resolve_execution_env(
+                str(requester_nexus_id),
+                project_name=project,
+                repo_name=repo_key,
+                purpose="issue_write",
+            )
             if env_error:
                 raise RuntimeError(f"Requester credentials unavailable: {env_error}")
-            platform = str(get_project_platform(project) or "").strip().lower()
-            token_override = (
-                user_env.get("GITLAB_TOKEN") if platform == "gitlab" else user_env.get("GITHUB_TOKEN")
+            token_override = select_git_token(
+                user_env,
+                platform_name=str(get_project_platform(project) or "").strip().lower(),
             )
 
         platform = get_git_platform(
@@ -189,6 +203,8 @@ def create_issue(
                 label_specs.append((label, "0E8A16", "Workflow tier"))
             elif label.startswith("type:"):
                 label_specs.append((label, "1D76DB", "Task type"))
+            elif label == "agent:plan-requested":
+                label_specs.append((label, "B4A7E5", "Requested Agent Planning"))
             else:
                 label_specs.append((label, "5319E7", "Project key"))
 
@@ -228,13 +244,19 @@ def rename_task_file_and_sync_issue_body(
     corrected_body = issue_body.replace(task_file_path, renamed_path)
     try:
         token_override = None
-        if auth_enabled() and requester_nexus_id:
-            user_env, env_error = build_execution_env(str(requester_nexus_id))
+        if requester_scoped_execution_enabled() and requester_nexus_id:
+            user_env, env_error = resolve_execution_env(
+                str(requester_nexus_id),
+                project_name=project_name,
+                repo_name=repo_key,
+                issue_url=issue_url,
+                purpose="issue_write",
+            )
             if env_error:
                 raise RuntimeError(f"Requester credentials unavailable: {env_error}")
-            platform = str(get_project_platform(project_name) or "").strip().lower()
-            token_override = (
-                user_env.get("GITLAB_TOKEN") if platform == "gitlab" else user_env.get("GITHUB_TOKEN")
+            token_override = select_git_token(
+                user_env,
+                platform_name=str(get_project_platform(project_name) or "").strip().lower(),
             )
 
         platform = get_git_platform(

@@ -29,22 +29,26 @@ RUN apt-get update \
 
 # Install Node.js 24 + AI CLIs used by Nexus runtime checks.
 ARG COPILOT_NPM_PACKAGE="@github/copilot"
-ARG GEMINI_NPM_PACKAGE="@google/gemini-cli"
 ARG CODEX_NPM_PACKAGE="@openai/codex"
 ARG CLAUDE_NPM_PACKAGE="@anthropic-ai/claude-code"
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g "$COPILOT_NPM_PACKAGE" "$GEMINI_NPM_PACKAGE" "$CODEX_NPM_PACKAGE" "$CLAUDE_NPM_PACKAGE" \
+    && npm install -g "$COPILOT_NPM_PACKAGE" "$CODEX_NPM_PACKAGE" "$CLAUDE_NPM_PACKAGE" \
     && npm cache clean --force
 
 WORKDIR /app
+
+ARG NEXUS_ARC_EXTRAS="nexus-bot-runtime"
+
+RUN mkdir -p /home/ubuntu \
+    && chmod 755 /home/ubuntu
 
 # Install nexus-arc from the parent repo (editable so we stay in sync)
 # Install nexus-arc from the parent repo (editable so we stay in sync)
 COPY pyproject.toml /nexus-arc/pyproject.toml
 COPY nexus /nexus-arc/nexus
 COPY README.md /nexus-arc/README.md
-RUN pip install --no-cache-dir "/nexus-arc[nexus-bot]"
+RUN pip install --no-cache-dir "/nexus-arc[${NEXUS_ARC_EXTRAS}]"
 
 # Install the chat runtime package (console scripts: nexus-telegram-bot, nexus-discord-bot, etc.)
 COPY examples/nexus-bot/pyproject.toml /app/pyproject.toml

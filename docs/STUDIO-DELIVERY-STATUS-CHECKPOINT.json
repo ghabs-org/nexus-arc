@@ -1,0 +1,158 @@
+{
+  "format": "nexus-studio-delivery-status-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "current-source-verified-delivery-open",
+  "whole_plan_complete": false,
+  "whole_design_audit_complete": false,
+  "source_head": "7a371b26982464d497a7e9706a61f9acd74c57fa",
+  "scope": "Fresh focused tests and source-hash continuity; reused browser evidence, not a fresh browser or all-integrations run",
+  "product_code_changed": false,
+  "source_sha256": {
+    "nexus/core/studio_evaluation_gate.py": "382e6cec2e506477835f00d71221a7650a1ffbac549ff53515cde5c425fdcb98",
+    "examples/nexus-bot/src/studio_evaluation_gate.py": "cc35ddb0a94720965b4459742da8f848120c2b236fe6ade38aea409632a1f8c2",
+    "examples/nexus-bot/src/studio.py": "fb621a0f1983950f7a3ca5194ba602e8df0ab84c19a614c7361db5b13bd4a24f",
+    "nexus/studio_static/index.html": "169956c0263743a525125686788ecbc845cb7241534f83d72156fd1f5c41b764",
+    "nexus/studio_static/artifact.html": "0bf096c8e3367779d943ab72a0b1acf8d30f5546c6d0e786742a88f827847ea5",
+    "nexus/studio_static/shared.html": "b1ea2ca8fe5140158b70bef60383ecedb4d09ae2242bdeac446b85ab135da763",
+    "nexus/studio_static/theme.js": "c3d84baccf9e68ee7027538e0c3b7f1c8655f2de5cf5795f50718daa4b447562",
+    "nexus/studio_static/studio.css": "6f39bb6a59fde2a9b763228ebaa6bd4b8edc8201f5d4d05a95e5828d8babe540",
+    "nexus/studio_static/studio.js": "bccc7ebf19d536a074be624f1d94aaf76a877661e11dce0e9da97128fa88b125",
+    "nexus/studio_static/operations.js": "3c59e7789da78c248d016523b843c1bb21745759f2e71f20a1651c99bd6b8f50",
+    "nexus/studio_static/graph.js": "683d564076fda70bdb8ba149d2a050127ac04ccf3963ed8722b2f679706f5f6d",
+    "nexus/studio_static/workbench.js": "67baa2eac3eba2c3de77003d601fa673dc969141f79b84c16d7fed3adc57551a",
+    "nexus/studio_static/service-worker.js": "34ce41cad7e41e1f4e78d157e83bed2f1c5f3de6042d9df29417ff38aa104cb9",
+    "tests/test_studio_evaluation_gate.py": "569c6b1c553486b8e9963cd110078eb6fa1f5935b4a5eb67e01507780d9e7eca",
+    "tests/studio_evaluation_gate.test.cjs": "c47a5da6d33a4f1ef5a8f600ccc6ebb912fffff3940e938d12d38f435234e71b",
+    "tests/studio_theme.test.cjs": "027832afa3badfe6ca2c5500f47ccd9657e49f2ee1459085f3a4a39446381364"
+  },
+  "documentation_sha256": {
+    "docs/STUDIO-NEXT-AGENT-PLAN.md": "df149c86970ff647d1b6b6c8497fff3e035d7d86c4c50fe93c98c3f93a04193b",
+    "docs/STUDIO-DELIVERY-STATUS.md": "be008e83798ed5978aa12d2ef907cfebd9824a38ef5bd674dddfaf2bcbc8c0d3",
+    "docs/STUDIO-COVERAGE-RECONCILIATION.md": "aad3e839d1436a366180f838a6297bfb723f438ca562b68632f29ec5575c57f3",
+    "docs/STUDIO-DESIGN-TASTE-AUDIT.md": "64191a0a8a00cb25bc5e26fb42928803fefce420f17869684d975da405f9cf1d"
+  },
+  "previous_browser_evidence": {
+    "path": "docs/STUDIO-BROWSER-CHECKS-CHECKPOINT.json",
+    "sha256": "3a9642bf616e7463be859f0421a56cc617f987f42c292c264b9b8cb8d972d249",
+    "all_recorded_source_paths_matching_before_documentation_followup": 20,
+    "missing": [],
+    "changed_before_followup": [],
+    "browser_rerun": false,
+    "lighthouse_rerun": false,
+    "historical_checkpoint_modified": false
+  },
+  "validation": {
+    "frontend": {
+      "command": "node --test tests/studio_*.test.cjs",
+      "tests": 289,
+      "passed": 289,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "report_path": "/private/tmp/nexus-studio-followup-20261101-node.tap",
+      "report_sha256": "12f20e574c689031a64a8ab14ecda7f2afb85dcb90bd6e145e2c02ebe37c85b6"
+    },
+    "python": {
+      "command": ".venv/bin/python -m pytest -o addopts='' -q tests/test_studio_source_map.py tests/test_studio_completion_audit.py tests/test_studio_requirements.py tests/test_studio_catalog_closure.py tests/test_studio_evaluation_gate.py",
+      "tests": 43,
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0
+    },
+    "completion_audit": {
+      "normal_exit": 0,
+      "require_complete_exit": 1,
+      "require_complete_exit_expected": true,
+      "result": {
+        "format": "nexus-studio-completion-audit/v1",
+        "scope": "Recorded-claim consistency only; this command does not run acceptance tests or certify runtime behavior.",
+        "total": 135,
+        "accepted": 135,
+        "open": 0,
+        "open_ids": [],
+        "milestones": {
+          "1": {
+            "accepted": 6,
+            "total": 6
+          },
+          "2": {
+            "accepted": 8,
+            "total": 8
+          },
+          "3": {
+            "accepted": 8,
+            "total": 8
+          },
+          "4": {
+            "accepted": 7,
+            "total": 7
+          },
+          "5": {
+            "accepted": 10,
+            "total": 10
+          },
+          "6": {
+            "accepted": 9,
+            "total": 9
+          },
+          "7": {
+            "accepted": 10,
+            "total": 10
+          },
+          "8": {
+            "accepted": 9,
+            "total": 9
+          }
+        },
+        "checkpoints_complete": {
+          "7": true,
+          "8": true,
+          "9": false,
+          "10": true,
+          "11": true,
+          "12": true
+        },
+        "plan_complete": false,
+        "inconsistencies": []
+      }
+    }
+  },
+  "completed_source_work": [
+    "DT-01 through DT-10 original source findings",
+    "System/Light/Dark picker",
+    "Local fonts and licensed interface icons",
+    "Offline evaluation report comparison"
+  ],
+  "remaining": [
+    {
+      "id": "real-device-assistive-tech",
+      "status": "pending-target-device-acceptance",
+      "scope": "Physical microphone/playback/stop/touch; screen-reader use; installed/offline PWA"
+    },
+    {
+      "id": "selected-live-integrations",
+      "status": "pending-selected-account-server-acceptance",
+      "scope": "Account permissions, API voice/embeddings/provider quality and billing paths; SQL Server and Oracle"
+    },
+    {
+      "id": "recovery-operation",
+      "status": "deferred-by-user",
+      "scope": "Recovered-host browser/login and full machine/OS/ingress/daemon/power-loss operation"
+    },
+    {
+      "id": "desktop-delivery",
+      "status": "open-and-last",
+      "scope": "Another Mac; installed Linux/Windows; Windows signing; genuine prior-release/workspace upgrade",
+      "builds": "Only on explicit request",
+      "public_release_feed": "Withheld by user"
+    }
+  ],
+  "constraints": {
+    "vm_contacted": false,
+    "provider_invoked": false,
+    "dmg_rebuilt": false,
+    "release_published": false,
+    "example_behavior_changed": false,
+    "frozen_flags_promoted": false
+  }
+}

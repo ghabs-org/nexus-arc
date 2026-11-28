@@ -1,0 +1,62 @@
+{
+  "format": "nexus-studio-subscription-connections-acceptance/v1",
+  "date": "2026-11-05",
+  "status": "fixture-verified",
+  "providers": [
+    "codex",
+    "claude",
+    "agy"
+  ],
+  "identity_policy": "connect to an existing Nexus account; preserve project permissions",
+  "automated": {
+    "passed": 178,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "/private/tmp/nexus-subscriptions-final-tests.txt"
+  },
+  "contract_syntax": "passed; Postman CLI 1.75.0, --no-report-events",
+  "browser": {
+    "environment": "disposable local server with synthetic account services",
+    "explicit_starts": 3,
+    "code_submissions": 2,
+    "real_provider_calls": 0,
+    "codex_device_code_visible": true,
+    "claude_code_submission_saved": true,
+    "antigravity_keyboard_submission_saved_and_persisted": true,
+    "code_fields_cleared": true,
+    "continuation_visible_only_after_connection": true,
+    "desktop_viewport": [
+      1280,
+      800
+    ],
+    "connection_phone_width": 390,
+    "final_login_narrow_width": 532,
+    "horizontal_overflow": false,
+    "minimum_phone_connect_height_css_px": 44,
+    "console_errors": [],
+    "screenshot": "/private/tmp/nexus-subscription-login-20261105.png"
+  },
+  "checks": [
+    "Existing identity and valid session required",
+    "Selection retained through GitLab OAuth with incomplete AI setup",
+    "Missing CLI/auth-mode explanations; discovery never executes commands",
+    "Current-cookie ownership; query session argument ignored",
+    "Expired/pending sessions cannot poll instructions or submit codes",
+    "Local return paths; changing provider retains workspace destination",
+    "Account service errors sanitized",
+    "Existing bot, reference and social browser login regressions passed",
+    "Subscription authentication and Antigravity status probe exclude server API/cloud-auth overrides without changing server settings"
+  ],
+  "live_account_validation": false,
+  "deployment_performed": false,
+  "desktop_build_performed": false,
+  "source_sha256": {
+    "nexus/core/auth/subscription_accounts.py": "1ee9d17de1c6e708db66868facaba08d58ef94999e990f6fb10d9e26d03dc9b6",
+    "nexus/core/auth/oauth_onboarding_domain.py": "98f9a2a198ce72776cd7f32058a7a4701ae92685ebc37915d78d5358606bae30",
+    "examples/nexus-bot/src/auth_pages.py": "132b364f7a82a188427c6b7e66c366915ff18c1b8dee8102b4bbd132d729d081",
+    "examples/nexus-bot/src/webhook_server.py": "7721f6e05e1d4b6b89679833032d1662fb7e50715c4836c9816bc1c68bb73b0f",
+    "tests/test_subscription_accounts.py": "0f2c3232a28c5e3b94d3e65f341e804c2ec4893e64604bd0873ad99e5207ab96",
+    "examples/nexus-bot/tests/test_browser_login_routes.py": "3dd5c69ad1e65f99142359712df8214bb6dfd7e9b589ed3b7453c577b6c85c43",
+    "postman/contracts/nexus-browser-login.yaml": "173f158e8adbdc79c74feb824286d9f714d6ed5e82978e3caa5685479af3636e"
+  }
+}

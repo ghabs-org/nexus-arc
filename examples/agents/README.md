@@ -19,7 +19,7 @@ Use the translator tools to convert to markdown, Python, or Copilot instructions
 
 These agents are referenced by `agent_type` in workflow YAML files (see `../workflows/development_workflow.yaml`).
 
-Configure which AI tool (copilot/gemini) each agent uses in `project_config.yaml`:
+Configure which AI tool (copilot/codex) each agent uses in `project_config.yaml`:
 
 ```yaml
 ai_tool_preferences:
@@ -27,8 +27,8 @@ ai_tool_preferences:
   design: copilot          # Design proposals
   debug: copilot           # Root cause analysis
   code_reviewer: copilot   # PR reviews
-  docs: gemini             # Documentation (faster)
-  summarizer: gemini       # Summaries (faster)
+  docs: auto             # Documentation (faster)
+  summarizer: auto       # Summaries (faster)
 ```
 
 ## Translators

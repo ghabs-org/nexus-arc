@@ -1,0 +1,27 @@
+[Unit]
+Description=Nexus Studio personal workspace
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=nexus
+Group=nexus
+WorkingDirectory=/opt/nexus-arc
+EnvironmentFile=/etc/nexus/studio.env
+Environment=HOME=/var/lib/nexus
+Environment=TMPDIR=/var/lib/nexus/studio-tmp
+ExecStart=/opt/nexus-arc/.venv/bin/nexus studio --dir /srv/nexus/project --host 127.0.0.1 --port 5003 --team-config /etc/nexus/studio-personal.json --state-dir /var/lib/nexus/studio-private
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/nexus/project /var/lib/nexus
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

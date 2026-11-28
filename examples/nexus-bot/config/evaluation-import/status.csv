@@ -1,0 +1,3 @@
+sequence_number,prompt,expected_response
+1,What is the current approval status?,Approved
+2,What is the status before review?,Pending

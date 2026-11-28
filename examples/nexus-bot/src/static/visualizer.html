@@ -4,174 +4,81 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Nexus Workflow Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!--suppress HtmlUnknownTarget -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
 
-        mermaid.initialize({startOnLoad: false, theme: 'dark'});
+        mermaid.initialize({startOnLoad: false, theme: 'base', themeVariables: {fontFamily: 'IBM Plex Sans, system-ui, sans-serif', primaryColor: '#edf5f7', primaryTextColor: '#131416', primaryBorderColor: '#1b6c80', lineColor: '#929da3', secondaryColor: '#f4f6f8', tertiaryColor: '#ffffff'}});
         window.nexusMermaid = mermaid;
     </script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
 
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #0d1117;
-            color: #e6edf3;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
+        :root {
+            color-scheme: light;
+            --ground: #f9fbfc; --surface: #fff; --raised: #f4f6f8; --border: #e8eaec;
+            --ink: #131416; --muted: #5d5f60; --accent: #1b6c80;
+            font: 400 14px/1.5 "IBM Plex Sans", system-ui, sans-serif;
         }
-
-        header {
-            padding: 12px 20px;
-            background: #161b22;
-            border-bottom: 1px solid #30363d;
-            display: flex;
-            align-items: center;
-            gap: 16px;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--ground); color: var(--ink); height: 100dvh; display: flex; flex-direction: column; padding: 0 8px 8px; }
+        header { min-height: 56px; padding: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        .mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--accent); color: white; }
+        header h1 { font-size: 14px; font-weight: 400; color: var(--muted); }
+        header h1::before { content: "/"; color: #a2a9ad; margin-right: 10px; }
+        .connection { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+        #status-dot { width: 7px; height: 7px; border-radius: 50%; background: #c4242a; flex-shrink: 0; }
+        #status-text { font-size: 12px; color: var(--muted); }
+        #workflow-summary-badge { background: #edf5f7; color: var(--accent); padding: 10px 20px; border-radius: 8px; margin-bottom: 8px; }
+        #tabs { display: flex; gap: 20px; padding: 0 24px; background: var(--surface); border: 1px solid var(--border); border-bottom: 0; border-radius: 12px 12px 0 0; }
+        button { font: inherit; cursor: pointer; border: 1px solid #cdced1; border-radius: 6px; padding: 7px 14px; background: var(--surface); color: var(--ink); transition: background .15s, border-color .15s; }
+        button:hover { background: var(--raised); border-color: #929da3; }
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+        .tab { padding: 17px 0; font-size: 13px; color: var(--muted); border: 0; border-bottom: 2px solid transparent; border-radius: 0; }
+        .tab:hover { background: transparent; color: var(--ink); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+        #main { display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 0 0 12px 12px; }
+        #cy, #mermaid-container { flex: 1; min-width: 0; background-color: var(--surface); background-image: radial-gradient(#dce2e5 .8px, transparent .8px); background-size: 22px 22px; }
+        #mermaid-container { display: none; overflow: auto; padding: 24px; }
+        #mermaid-view { width: 100%; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+        #mermaid-view svg { max-width: 100%; }
+        #sidebar { width: 320px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+        #sidebar h2 { padding: 20px; font-size: 14px; font-weight: 500; border-bottom: 1px solid var(--border); }
+        #sidebar h2 span { display: block; font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 4px; }
+        #event-log { flex: 1; overflow-y: auto; padding: 12px; min-height: 0; }
+        #event-log:empty::before { content: "Workflow activity will appear here as agents run."; display: block; padding: 12px 8px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+        .event-item { padding: 12px; margin: 0 0 10px; border-radius: 6px; font: 11px/1.7 "IBM Plex Mono", ui-monospace, monospace; border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--raised); }
+        #controls { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+        #controls button { flex: 1; font-size: 12px; }
+        #controls button:first-child { background: #1d1f20; border-color: #1d1f20; color: #fff; }
+        #controls button:first-child:hover { background: #35393b; }
+        @media (max-width: 700px) {
+            header { gap: 8px; } header h1 { font-size: 12px; } .connection { width: 100%; margin-left: 32px; }
+            #tabs { padding: 0 16px; gap: 20px; } .tab { padding: 13px 0; }
+            #main { flex-direction: column; } #cy, #mermaid-container { min-height: 240px; }
+            #sidebar { width: 100%; height: 32%; min-height: 150px; border-left: 0; border-top: 1px solid var(--border); }
+            #sidebar h2 { padding: 10px 16px; } #sidebar h2 span { display: none; }
+            #controls { padding: 8px 16px; } #event-log { padding: 8px 12px; }
         }
-
-        header h1 {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        #status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #f85149;
-            flex-shrink: 0;
-        }
-
-        #status-text {
-            font-size: 0.8rem;
-            color: #8b949e;
-        }
-
-        #main {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            position: relative;
-        }
-
-        #cy {
-            flex: 1;
-            background: #0d1117;
-        }
-
-        #mermaid-container {
-            flex: 1;
-            background: #0d1117;
-            display: none;
-            overflow: auto;
-            padding: 20px;
-        }
-
-        #mermaid-view {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #sidebar {
-            width: 350px;
-            background: #161b22;
-            border-left: 1px solid #30363d;
-            display: flex;
-            flex-direction: column;
-        }
-
-        #tabs {
-            display: flex;
-            background: #161b22;
-            border-bottom: 1px solid #30363d;
-        }
-
-        .tab {
-            flex: 1;
-            padding: 10px;
-            text-align: center;
-            font-size: 0.8rem;
-            cursor: pointer;
-            color: #8b949e;
-            border-bottom: 2px solid transparent;
-        }
-
-        .tab.active {
-            color: #58a6ff;
-            border-bottom-color: #58a6ff;
-            background: #1c2128;
-        }
-
-        #sidebar h2 {
-            padding: 12px 16px;
-            font-size: 0.85rem;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid #30363d;
-        }
-
-        #event-log {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px;
-        }
-
-        .event-item {
-            padding: 8px 10px;
-            margin: 4px 0;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            border-left: 3px solid #58a6ff;
-            background: #1c2128;
-        }
-
-        #controls {
-            padding: 12px 16px;
-            border-top: 1px solid #30363d;
-            display: flex;
-            gap: 8px;
-        }
-
-        button {
-            flex: 1;
-            padding: 6px 10px;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            background: #21262d;
-            color: #e6edf3;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-
-        button:hover {
-            background: #30363d;
-        }
+        @media (prefers-reduced-motion: reduce) { button { transition: none; } }
     </style>
 </head>
 <body>
 <header>
-    <div id="status-dot"></div>
-    <h1>Nexus Workflow Visualizer</h1>
-    <span id="status-text">Connecting…</span>
+    <div class="brand"><svg class="mark" viewBox="0 0 20 20" aria-hidden="true"><circle cx="6.5" cy="13.5" r="2.4" fill="#fff"/><circle cx="13.5" cy="6.5" r="2.4" fill="#fff"/><path d="M8.2 11.8 11.8 8.2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Nexus</div>
+    <h1>Workflow visualizer</h1>
+    <div class="connection" role="status"><div id="status-dot" aria-hidden="true"></div><span id="status-text">Connecting…</span></div>
 </header>
 <div id="workflow-summary-badge"
-     style="display:none; text-align:center; padding:4px 12px; font-size:0.85rem; font-weight:600;"></div>
-<div id="tabs">
-    <div class="tab active" onclick="showTab('graph')">Network Graph (Cytoscape)</div>
-    <div class="tab" onclick="showTab('mermaid')">Workflow Diagram (Mermaid)</div>
+     role="status" style="display:none;"></div>
+<div id="tabs" role="group" aria-label="Workflow view">
+    <button class="tab active" aria-pressed="true" onclick="showTab('graph')">Network graph</button>
+    <button class="tab" aria-pressed="false" onclick="showTab('mermaid')">Workflow diagram</button>
 </div>
 <div id="main">
     <div id="cy"></div>
@@ -179,10 +86,10 @@
         <div id="mermaid-view"></div>
     </div>
     <div id="sidebar">
-        <h2>Live Events</h2>
+        <h2>Live events<span>Follow each step as it happens.</span></h2>
         <div id="event-log"></div>
         <div id="controls">
-            <button onclick="cy.fit()">Fit</button>
+            <button onclick="if (cy) cy.fit()">Fit to view</button>
             <button onclick="clearGraph()">Clear</button>
         </div>
     </div>
@@ -195,17 +102,17 @@
     let mermaidRenderSeq = 0;
     const cyContainer = document.getElementById('cy');
     const eventColors = {
-        agent_registered: '#3fb950',
-        workflow_mapped: '#d29922',
-        step_status_changed: '#58a6ff',
-        workflow_completed: '#f0883e',
-        mermaid_diagram: '#8b949e',
+        agent_registered: '#1e7b4f',
+        workflow_mapped: '#986b14',
+        step_status_changed: '#1b6c80',
+        workflow_completed: '#986b14',
+        mermaid_diagram: '#5d5f60',
     };
 
     function setConnectionStatus(isConnected) {
         const dot = document.getElementById('status-dot');
         const text = document.getElementById('status-text');
-        dot.style.background = isConnected ? '#3fb950' : '#f85149';
+        dot.style.background = isConnected ? '#1e7b4f' : '#c4242a';
         text.textContent = isConnected ? 'Connected' : 'Disconnected - reconnecting...';
     }
 
@@ -215,14 +122,15 @@
             style: [
                 {
                     selector: 'node', style: {
-                        'background-color': '#21262d',
-                        'border-color': '#58a6ff',
+                        'background-color': '#ffffff',
+                        'border-color': '#1b6c80',
                         'border-width': 2,
-                        'color': '#e6edf3',
+                        'color': '#131416',
                         'label': 'data(label)',
                         'text-valign': 'center',
                         'text-halign': 'center',
-                        'font-size': '11px',
+                        'font-size': '12px',
+                        'font-family': 'IBM Plex Sans, system-ui, sans-serif',
                         'width': 100, 'height': 40,
                         'shape': 'round-rectangle',
                         'text-wrap': 'wrap',
@@ -231,25 +139,25 @@
                 },
                 {
                     selector: 'node.workflow',
-                    style: {'background-color': '#1f2d1f', 'border-color': '#3fb950', 'border-width': 2}
+                    style: {'background-color': '#edf7f0', 'border-color': '#1e7b4f', 'border-width': 2}
                 },
-                {selector: 'node.agent', style: {'background-color': '#1e2538', 'border-color': '#58a6ff'}},
-                {selector: 'node.running', style: {'border-color': '#58a6ff', 'border-width': 3}},
-                {selector: 'node.done', style: {'border-color': '#3fb950', 'border-width': 3}},
-                {selector: 'node.failed', style: {'border-color': '#f85149', 'border-width': 3}},
-                {selector: 'node.skipped', style: {'border-color': '#d29922', 'border-width': 2}},
-                {selector: 'node.pending', style: {'border-color': '#8b949e', 'border-width': 2}},
+                {selector: 'node.agent', style: {'background-color': '#edf5f7', 'border-color': '#1b6c80'}},
+                {selector: 'node.running', style: {'border-color': '#1b6c80', 'border-width': 3}},
+                {selector: 'node.done', style: {'border-color': '#1e7b4f', 'border-width': 3}},
+                {selector: 'node.failed', style: {'border-color': '#c4242a', 'border-width': 3}},
+                {selector: 'node.skipped', style: {'border-color': '#986b14', 'border-width': 2}},
+                {selector: 'node.pending', style: {'border-color': '#5d5f60', 'border-width': 2}},
                 {
                     selector: 'edge', style: {
                         'width': 2,
-                        'line-color': '#30363d',
-                        'target-arrow-color': '#30363d',
+                        'line-color': '#d5dde1',
+                        'target-arrow-color': '#d5dde1',
                         'target-arrow-shape': 'triangle',
                         'curve-style': 'bezier',
                         'label': 'data(label)',
                         'font-size': '9px',
-                        'color': '#8b949e',
-                        'text-background-color': '#0d1117',
+                        'color': '#5d5f60',
+                        'text-background-color': '#ffffff',
                         'text-background-opacity': 1,
                         'text-background-padding': '2px',
                     }
@@ -259,7 +167,7 @@
             elements: [],
         });
     } else {
-        cyContainer.innerHTML = '<div style="padding:16px;color:#8b949e;font-size:14px;">Graph library unavailable; showing workflow list fallback.</div>';
+        cyContainer.innerHTML = '<div style="padding:16px;color:#5d5f60;font-size:14px;">Graph library unavailable; showing workflow list fallback.</div>';
     }
 
     function ensureNode(id, label, cls) {
@@ -303,16 +211,16 @@
         if (cy || !cyContainer) return;
         const rows = Array.from(fallbackRows.values());
         if (!rows.length) {
-            cyContainer.innerHTML = '<div style="padding:16px;color:#8b949e;font-size:14px;">No active workflows in snapshot.</div>';
+            cyContainer.innerHTML = '<div style="padding:16px;color:#5d5f60;font-size:14px;">No active workflows in snapshot.</div>';
             return;
         }
 
         cyContainer.innerHTML = rows.map((row) => (
-            `<div style="margin:10px;padding:10px;border:1px solid #30363d;border-radius:6px;background:#161b22;">`
+            `<div style="margin:10px;padding:10px;border:1px solid #d5dde1;border-radius:6px;background:#f4f6f8;">`
             + `<div style="font-weight:600;">Issue #${row.issue}</div>`
-            + `<div style="color:#8b949e;font-size:12px;">Workflow: ${row.workflowId}</div>`
-            + `<div style="color:#8b949e;font-size:12px;">State: ${row.state || 'unknown'}</div>`
-            + `<div style="color:#8b949e;font-size:12px;">Agent: ${row.agent || 'n/a'}</div>`
+            + `<div style="color:#5d5f60;font-size:12px;">Workflow: ${row.workflowId}</div>`
+            + `<div style="color:#5d5f60;font-size:12px;">State: ${row.state || 'unknown'}</div>`
+            + `<div style="color:#5d5f60;font-size:12px;">Agent: ${row.agent || 'n/a'}</div>`
             + `</div>`
         )).join('');
     }
@@ -401,17 +309,20 @@
         const mermaidEl = document.getElementById('mermaid-container');
         const tabs = document.querySelectorAll('.tab');
 
-        tabs.forEach(t => t.classList.remove('active'));
+        tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-pressed', 'false'); });
 
         if (tab === 'graph') {
             cyEl.style.display = 'block';
             mermaidEl.style.display = 'none';
             tabs[0].classList.add('active');
+            tabs[0].setAttribute('aria-pressed', 'true');
+            if (cy) cy.resize();
             relayout();
         } else {
             cyEl.style.display = 'none';
             mermaidEl.style.display = 'block';
             tabs[1].classList.add('active');
+            tabs[1].setAttribute('aria-pressed', 'true');
         }
     }
 
@@ -420,17 +331,17 @@
         const log = document.getElementById('event-log');
         const item = document.createElement('div');
         item.className = 'event-item';
-        item.style.borderLeftColor = eventColors[type] || '#58a6ff';
+        item.style.borderLeftColor = eventColors[type] || '#1b6c80';
 
         const time = new Date().toLocaleTimeString();
         const timeLine = document.createElement('div');
         timeLine.style.fontSize = '0.7rem';
-        timeLine.style.color = '#8b949e';
+        timeLine.style.color = '#5d5f60';
         timeLine.style.marginBottom = '3px';
         timeLine.innerHTML = `${time} - <strong>${type}</strong>`;
 
         const body = document.createElement('div');
-        body.style.color = '#e6edf3';
+        body.style.color = '#131416';
         body.style.wordBreak = 'break-word';
         body.textContent = JSON.stringify(data);
 
@@ -487,7 +398,7 @@
             if (cy) {
                 const node = cy.getElementById(wfId);
                 if (node.length) {
-                    node.style('border-color', data.status === 'success' ? '#3fb950' : '#f85149');
+                    node.style('border-color', data.status === 'success' ? '#1e7b4f' : '#c4242a');
                     node.data('label', data.summary || `Workflow ${data.status}`);
                 }
             }
@@ -495,7 +406,7 @@
                 const badge = document.getElementById('workflow-summary-badge');
                 if (badge) {
                     badge.textContent = data.summary;
-                    badge.style.color = data.status === 'success' ? '#3fb950' : '#f85149';
+                    badge.style.color = data.status === 'success' ? '#1e7b4f' : '#c4242a';
                     badge.style.display = 'block';
                 }
             }

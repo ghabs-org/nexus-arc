@@ -1,0 +1,548 @@
+"""Studio exercises the real definition loaders, provider boundary and HTTP API."""
+
+import asyncio
+import json
+import threading
+import time
+import urllib.error
+import urllib.request
+from http.server import ThreadingHTTPServer
+
+import pytest
+
+from nexus.core.models import AgentResult
+from nexus.core.studio import StudioService
+from nexus.studio import make_studio_handler
+
+
+class Provider:
+    def __init__(self, name, calls):
+        self.name, self.calls = name, calls
+
+    async def check_availability(self):
+        return True
+
+    async def execute_agent(self, context):
+        self.calls.append((self.name, context))
+        if "fail this task" in context.prompt:
+            return AgentResult(success=False, output="", error="Account usage limit reached")
+        return AgentResult(success=True, output=f"Reply from {self.name}", provider_used=self.name)
+
+
+@pytest.fixture
+def studio(tmp_path):
+    calls = []
+    service = StudioService(tmp_path, provider_factory=lambda name: Provider(name, calls))
+    yield service, calls
+    service.close()
+
+
+def wait_run(service, identity):
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        run = service.run(identity)
+        if run["status"] not in {"queued", "running"}:
+            return run
+        time.sleep(0.01)
+    pytest.fail("Studio task did not finish")
+
+
+def test_agent_selection_model_instructions_and_conversation_survive_restart(studio):
+    from nexus.adapters.ai.registry import AgentRegistry
+
+    service, calls = studio
+    created = service.save_definition(
+        "agents",
+        {
+            "name": 'Reviewer "A"',
+            "provider": "claude-code",
+            "model": "opus",
+            "instructions": "Review for correctness.",
+        },
+    )
+    assert AgentRegistry(service.root / "agents").get_provider_name(created["id"]) == "claude-code"
+    run = service.start_run({"task": "Remember the test project", "agent_id": created["id"]})
+    done = wait_run(service, run["id"])
+    assert done["status"] == "completed"
+    assert calls[0][0] == "claude-code"
+    assert calls[0][1].model_override == "opus"
+    assert "Review for correctness." in calls[0][1].prompt
+    assert calls[0][1].workspace == service.root
+    restored = StudioService(service.root, provider_factory=lambda name: Provider(name, calls))
+    try:
+        assert (
+            restored.session(run["session_id"])["messages"][-1]["content"]
+            == "Reply from claude-code"
+        )
+        second = restored.start_run(
+            {"task": "What did I tell you?", "session_id": run["session_id"], "provider": "codex"}
+        )
+        assert wait_run(restored, second["id"])["status"] == "completed"
+        assert "Remember the test project" in calls[-1][1].prompt
+        assert calls[-1][0] == "codex"
+    finally:
+        restored.close()
+
+
+def test_failed_provider_does_not_fall_back_or_commit_a_successful_reply(studio):
+    service, calls = studio
+    run = service.start_run({"task": "fail this task", "provider": "claude-code"})
+    done = wait_run(service, run["id"])
+    assert done["status"] == "failed"
+    assert "usage limit" in done["error"]
+    assert [name for name, _ in calls] == ["claude-code"]
+    # The failed attempt is kept, marked failed, and never replayed as history.
+    [session] = service.records("sessions")
+    messages = service.session(session["id"])["messages"]
+    assert [(m["role"], m["status"]) for m in messages] == [
+        ("user", "failed"),
+        ("assistant", "failed"),
+    ]
+    assert messages[0]["content"] == "fail this task" and "usage limit" in messages[1]["content"]
+    retry = service.start_run(
+        {"task": "Try again", "provider": "codex", "session_id": session["id"]}
+    )
+    assert wait_run(service, retry["id"])["status"] == "completed"
+    assert "fail this task" not in calls[-1][1].prompt
+    messages = service.session(session["id"])["messages"]
+    assert [m.get("status") for m in messages] == ["failed", "failed", None, None]
+    service.save_unsuccessful_turn(run["id"])
+    assert len(service.session(session["id"])["messages"]) == 4
+
+
+def test_sequential_workflow_uses_real_engine_and_per_agent_providers(studio):
+    service, calls = studio
+    service.save_definition("agents", {"name": "Planner", "provider": "claude-code"})
+    service.save_definition(
+        "agents", {"name": "Builder", "provider": "codex", "model": "test-model"}
+    )
+    service.save_definition(
+        "workflows",
+        {
+            "name": "Build a feature",
+            "steps": [
+                {"id": "plan", "agent_type": "planner", "prompt": "Plan {task}"},
+                {"id": "build", "agent_type": "builder", "prompt": "Implement {task}"},
+            ],
+        },
+    )
+    assert service.validate_workflow("build-a-feature")["valid"]
+    run = service.start_run(
+        {"kind": "workflow", "workflow_id": "build-a-feature", "task": "a task board"}
+    )
+    done = wait_run(service, run["id"])
+    assert done["status"] == "completed", done
+    assert [name for name, _ in calls] == ["claude-code", "codex"]
+    assert "Reply from claude-code" in calls[1][1].prompt
+    assert "Implement a task board" in calls[1][1].prompt
+    assert calls[1][1].model_override == "test-model"
+    records = list((service.state / "workflow-runtime" / "workflows").glob("*.json"))
+    assert len(records) == 1
+    assert json.loads(records[0].read_text())["state"] == "completed"
+
+
+def test_workflow_approval_gate_prevents_provider_execution(studio):
+    service, calls = studio
+    service.save_definition("agents", {"name": "Reviewer", "provider": "codex"})
+    service.save_definition(
+        "workflows",
+        {
+            "name": "Release",
+            "steps": [
+                {"id": "review", "agent_type": "reviewer", "require_human_approval": True},
+            ],
+        },
+    )
+    run = service.start_run(
+        {"kind": "workflow", "workflow_id": "release", "task": "Review release"}
+    )
+    done = wait_run(service, run["id"])
+    assert done["status"] == "waiting", done
+    assert done["awaiting_approval"][0]["name"]
+    assert calls == []
+    resumed = wait_run(service, service.graph.resume(done["id"], "approve")["id"])
+    assert resumed["status"] == "completed" and len(calls) == 1
+
+
+def test_tools_run_through_the_registry(studio):
+    service, _ = studio
+    run = service.start_run({"kind": "tool", "tool": "text:wordcount", "args": ["one two three"]})
+    done = wait_run(service, run["id"])
+    assert done["status"] == "completed"
+    assert done["output"] == "3"
+    assert done["provider"] == "local-tool"
+    with pytest.raises(ValueError, match="Unknown tool"):
+        service.start_run({"kind": "tool", "tool": "unknown"})
+
+
+def test_invalid_definitions_and_paths_never_escape_workspace(studio, tmp_path):
+    service, _ = studio
+    with pytest.raises(ValueError, match="identifier"):
+        service.save_definition("agents", {"id": "../outside", "name": "Bad"})
+    service.save_definition("agents", {"name": "Research", "instructions": "Keep this"})
+    with pytest.raises(FileExistsError):
+        service.save_definition("agents", {"name": "Research", "instructions": "Replace"})
+    assert service.definition("agents", "research")["spec"]["purpose"] == "Keep this"
+    with pytest.raises(ValueError):
+        service.save_definition("workflows", {"name": "Broken", "steps": []})
+    (tmp_path / "agents" / "escape.yaml").symlink_to("/etc/hosts")
+    assert "escape" not in [a["id"] for a in service.definitions("agents")]
+    with pytest.raises(ValueError):
+        service.session("../../outside")
+
+
+def test_provider_inventory_never_claims_authentication_or_unlimited_quota(studio, monkeypatch):
+    service, _ = studio
+    monkeypatch.setattr("nexus.core.provider_account_commands.shutil.which", lambda name: "/usr/local/bin/" + name)
+    providers = service.providers()
+    assert {"codex", "claude-code", "openai", "claude"} <= {p["id"] for p in providers}
+    assert all(p["auth_verified"] is False and p["quota"] is None for p in providers)
+    assert next(p for p in providers if p["id"] == "claude-code")["status"] == "CLI installed"
+
+
+def test_explicit_signin_check_updates_status_without_changing_inventory(studio, monkeypatch):
+    service, _ = studio
+    monkeypatch.setattr("nexus.core.provider_account_commands.resolve_provider_cli", lambda name: "/fixture/" + name)
+    responses = {"codex": {"state": "signed-in", "method": "subscription"},
+                 "claude-code": {"state": "signed-out", "method": None},
+                 "agy": {"state": "signed-in", "method": "other"}}
+    monkeypatch.setattr("nexus.core.provider_account_status.provider_account_status", lambda name, executable: responses[name])
+    providers = {p["id"]: p for p in service.provider_status()}
+    assert providers["codex"]["status"] == "Signed in" and providers["codex"]["auth_verified"] is True
+    assert providers["claude-code"]["status"] == "Sign-in needed"
+    assert providers["claude-code"]["auth_verified"] is False
+    assert providers["agy"]["status"] == "Signed in" and providers["agy"]["auth_verified"] is True
+    assert all(p["quota"] is None for p in providers.values())
+    responses["codex"] = {"state": "unknown", "method": None}
+    responses["claude-code"] = {"state": "signed-in", "method": "api"}
+    refreshed = {p["id"]: p for p in service.provider_status()}
+    assert refreshed["codex"]["status"] == "Couldn’t verify sign-in"
+    assert refreshed["claude-code"]["status"] == "API credentials configured"
+    assert all(p["auth_verified"] is False for p in service.providers())
+
+
+def test_shared_workspace_never_probes_host_cli_logins(studio, monkeypatch):
+    service, _ = studio
+    monkeypatch.setattr(service, "team", object())
+    monkeypatch.setattr("nexus.core.provider_account_status.provider_account_status", lambda *args: pytest.fail("Host login exposed"))
+    with pytest.raises(PermissionError, match="shared workspaces"):
+        service.provider_status()
+
+
+def test_provider_status_http_requires_token_and_same_origin(studio, monkeypatch):
+    service, _ = studio
+    calls = []
+
+    def check():
+        calls.append(True)
+        return [{"id": "claude-code", "status": "Signed in"}]
+
+    monkeypatch.setattr(service, "provider_status", check)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_studio_handler(service, "test-token"))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_port}"
+
+    def request(headers):
+        req = urllib.request.Request(origin + "/api/providers/status", data=b"{}",
+                                     headers={"Content-Type": "application/json", **headers})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            return error.code, json.load(error)
+
+    try:
+        assert request({})[0] == 403
+        assert request({"X-Nexus-Studio-Token": "test-token", "Origin": "https://untrusted.invalid"})[0] == 403
+        assert calls == []
+        code, data = request({"X-Nexus-Studio-Token": "test-token", "Origin": origin})
+        assert code == 200 and data["items"][0]["status"] == "Signed in"
+        assert len(calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_opencode_provider_detects_login_credentials(studio, monkeypatch, tmp_path):
+    service, _ = studio
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_TOKEN", raising=False)
+    monkeypatch.setattr("nexus.adapters.ai.opencode_provider.resolve_opencode_cli", lambda *args: None)
+    monkeypatch.setattr("nexus.core.provider_account_commands.shutil.which", lambda name: None)
+
+    fake_auth = tmp_path / "auth.json"
+    fake_auth.write_text('{"opencode": {"key": "test-key-123"}}', encoding="utf-8")
+    monkeypatch.setattr(
+        "nexus.adapters.ai.opencode_provider.get_opencode_auth",
+        lambda: (str(fake_auth), "test-key-123"),
+    )
+
+    providers = {p["id"]: p for p in service.providers()}
+    opencode = providers["opencode"]
+    assert opencode["configured"] is True
+    assert opencode["status"] == "Logged in"
+    assert "Logged in" in opencode["setup"]
+    assert opencode["auth_verified"] is False
+
+    # When neither CLI nor auth is found
+    monkeypatch.setattr("nexus.adapters.ai.opencode_provider.get_opencode_auth", lambda: None)
+    providers = {p["id"]: p for p in service.providers()}
+    opencode_unconfigured = providers["opencode"]
+    assert opencode_unconfigured["configured"] is False
+    assert opencode_unconfigured["status"] == "Setup needed"
+
+    # When CLI is installed
+    monkeypatch.setattr(
+        "nexus.adapters.ai.opencode_provider.resolve_opencode_cli",
+        lambda *args: "/usr/local/bin/opencode",
+    )
+    providers = {p["id"]: p for p in service.providers()}
+    opencode_cli = providers["opencode"]
+    assert opencode_cli["configured"] is True
+    assert opencode_cli["status"] == "CLI installed"
+
+
+def test_every_provider_lists_default_model_suggestions(studio):
+    service, _ = studio
+    providers = {p["id"]: p for p in service.providers()}
+    assert all(p["models"] for p in providers.values())
+    claude_code = [m["id"] for m in providers["claude-code"]["models"]]
+    assert {"claude-opus-5-5", "claude-sonnet-5-5"} <= set(claude_code)
+    assert providers["claude"]["models"] == providers["claude-code"]["models"]
+    assert providers["codex"]["models"][0] == {"id": "gpt-6.1-sol", "name": "GPT-6.1-Sol"}
+    for provider in providers.values():
+        ids = [m["id"] for m in provider["models"]]
+        assert len(ids) == len(set(ids)) and all(m["name"] for m in provider["models"])
+
+
+def test_claude_code_is_a_framework_adapter():
+    from nexus.adapters.ai.claude_code_provider import ClaudeCodeProvider
+    from nexus.adapters.registry import AdapterRegistry
+
+    assert isinstance(AdapterRegistry().create_ai("claude-code"), ClaudeCodeProvider)
+
+
+def test_agy_provider_and_effort_in_studio(studio):
+    from nexus.adapters.ai.agy_provider import AntigravityProvider
+    from nexus.adapters.registry import AdapterRegistry
+
+    assert isinstance(AdapterRegistry().create_ai("agy"), AntigravityProvider)
+    service, calls = studio
+    assert "agy" in {p["id"] for p in service.providers()}
+    created = service.save_definition(
+        "agents",
+        {
+            "name": "Agy Architect",
+            "provider": "agy",
+            "model": "opus-5-5",
+            "effort": "high",
+            "instructions": "Architect carefully.",
+        },
+    )
+    assert created["document"]["spec"]["provider"] == "agy"
+    assert created["document"]["spec"]["effort"] == "high"
+    run = service.start_run(
+        {"task": "Design API", "agent_id": created["id"], "effort": "xhigh"}
+    )
+    done = wait_run(service, run["id"])
+    assert done["status"] == "completed"
+    assert done["provider"] == "agy"
+    assert done["effort"] == "xhigh"
+    assert calls[-1][0] == "agy"
+    assert calls[-1][1].model_override == "opus-5-5"
+    assert calls[-1][1].effort == "xhigh"
+
+
+def test_local_workspace_does_not_require_bot_configuration():
+    import os
+    import subprocess
+    import sys
+
+    environment = dict(os.environ)
+    environment.pop("PROJECT_CONFIG_PATH", None)
+    process = subprocess.run(
+        [sys.executable, "-m", "nexus.cli", "studio", "--help"],
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert process.returncode == 0, process.stderr
+    assert "--dir" in process.stdout
+
+
+def test_server_serves_workspace_and_rejects_untrusted_mutations(studio):
+    service, _ = studio
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_studio_handler(service, "test-token"))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_port}"
+
+    def request(path, body=None, headers=None):
+        req = urllib.request.Request(
+            origin + path,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={"Content-Type": "application/json", **(headers or {})},
+        )
+        try:
+            return urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as exc:
+            return exc
+
+    try:
+        with request("/") as response:
+            assert response.status == 200
+            assert "Nexus Studio" in response.read().decode()
+            assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+        with request("/api/bootstrap") as response:
+            assert json.load(response)["token"] == "test-token"
+        assert request("/api/agents", {"name": "Bad"}).status == 403
+        assert (
+            request(
+                "/api/agents",
+                {"name": "Bad"},
+                {"X-Nexus-Studio-Token": "test-token", "Origin": "https://untrusted.example"},
+            ).status
+            == 403
+        )
+        assert request("/api/bootstrap", headers={"Host": "untrusted.example"}).status == 403
+        with request(
+            "/api/agents",
+            {"name": "New agent", "provider": "claude-code"},
+            {"X-Nexus-Studio-Token": "test-token"},
+        ) as response:
+            assert response.status == 201
+        assert request("/api/agents", [], {"X-Nexus-Studio-Token": "test-token"}).status == 400
+        assert request("/api/sessions/missing").status == 404
+        for asset in ["/studio.js", "/studio.css"]:
+            assert request(asset).status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_codex_respects_context_model_uses_stdin_and_stops_timed_out_process(tmp_path):
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from nexus.adapters.ai.base import ExecutionContext
+    from nexus.adapters.ai.codex_provider import CodexCLIProvider
+
+    process = MagicMock()
+    process.returncode = None
+    process.communicate = AsyncMock(side_effect=TimeoutError)
+    process.wait = AsyncMock(return_value=-9)
+    with patch(
+        "nexus.adapters.ai.codex_provider.asyncio.create_subprocess_exec",
+        new=AsyncMock(return_value=process),
+    ) as spawn:
+        result = asyncio.run(
+            CodexCLIProvider(model="default").execute_agent(
+                ExecutionContext(
+                    "test", "private prompt", tmp_path, model_override="selected", timeout=1
+                )
+            )
+        )
+    assert not result.success and "Timeout" in result.error
+    assert spawn.call_args.args[-3:] == ("--model", "selected", "-")
+    process.communicate.assert_awaited_once_with(b"private prompt")
+    process.kill.assert_called_once()
+    process.wait.assert_awaited_once()
+
+
+def test_chat_tool_level_defaults_to_web_and_is_validated(studio):
+    service, calls = studio
+    wait_run(service, service.start_run({"task": "Find sources", "provider": "codex"})["id"])
+    assert calls[-1][1].metadata["worker_tools"] == "web"
+    run = service.start_run({"task": "No browsing", "provider": "codex", "worker_tools": "none"})
+    wait_run(service, run["id"])
+    assert calls[-1][1].metadata["worker_tools"] == "none"
+    with pytest.raises(ValueError, match="Tools must be one of"):
+        service.start_run({"task": "x", "provider": "codex", "worker_tools": "root"})
+    with pytest.raises(ValueError, match="chat and Quick Build runs only"):
+        service.start_run({"kind": "workflow", "task": "x", "worker_tools": "web"})
+
+
+def test_workflow_and_agent_delete_and_step_workflow_update(studio):
+    service, _ = studio
+    agent = service.save_definition(
+        "agents",
+        {"name": "Tester", "provider": "codex", "instructions": "Test tasks."},
+    )
+    workflow = service.save_definition(
+        "workflows",
+        {
+            "name": "Pipeline",
+            "description": "Multi-step pipeline",
+            "steps": [
+                {"id": "step_1", "name": "Step 1", "agent_type": "tester", "prompt": "First {task}"},
+                {"id": "step_2", "name": "Step 2", "agent_type": "tester", "prompt": "Second {task}"},
+            ],
+        },
+    )
+    assert len(service.definition("workflows", workflow["id"])["steps"]) == 2
+
+    updated = service.update_definition(
+        "workflows",
+        workflow["id"],
+        {
+            "name": "Pipeline Updated",
+            "description": "Single step pipeline",
+            "revision": workflow["revision"],
+            "steps": [
+                {"id": "step_1", "name": "Step 1", "agent_type": "tester", "prompt": "Only {task}"},
+            ],
+        },
+    )
+    assert len(updated["document"]["steps"]) == 1
+    assert updated["document"]["metadata"]["name"] == "Pipeline Updated"
+    assert len(service.definition("workflows", workflow["id"])["steps"]) == 1
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_studio_handler(service, "test-token"))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_port}"
+
+    def request(path, method="GET", body=None, headers=None):
+        req = urllib.request.Request(
+            origin + path,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={"Content-Type": "application/json", **(headers or {})},
+            method=method,
+        )
+        try:
+            return urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as exc:
+            return exc
+
+    try:
+        assert request(f"/api/workflows/{workflow['id']}", method="DELETE").status == 403
+        with request(
+            f"/api/workflows/{workflow['id']}",
+            method="DELETE",
+            headers={"X-Nexus-Studio-Token": "test-token"},
+        ) as res:
+            assert res.status == 200
+            assert json.load(res)["deleted"] is True
+        assert not (service.root / "workflows" / f"{workflow['id']}.yaml").exists()
+        assert (
+            request(
+                f"/api/workflows/{workflow['id']}",
+                method="DELETE",
+                headers={"X-Nexus-Studio-Token": "test-token"},
+            ).status
+            == 404
+        )
+        with request(
+            f"/api/agents/{agent['id']}",
+            method="DELETE",
+            headers={"X-Nexus-Studio-Token": "test-token"},
+        ) as res:
+            assert res.status == 200
+            assert json.load(res)["deleted"] is True
+        assert not (service.root / "agents" / f"{agent['id']}.yaml").exists()
+    finally:
+        server.shutdown()
+        server.server_close()

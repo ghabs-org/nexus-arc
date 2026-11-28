@@ -27,7 +27,7 @@ merge_queue:
 
 # Global AI tool preferences: which AI tool (and optionally model) to use
 # for each AGENT TYPE.
-# Options: copilot, gemini, codex
+# Options: copilot, codex
 # Model override syntax: tool["model-name"] (e.g., copilot["gpt-4o-mini"])
 # When no model is specified, the tool's default model is used.
 #
@@ -55,8 +55,8 @@ ai_tool_preferences:
   developer: copilot                      # Code implementation
   compliance: copilot["gpt-4o-mini"]      # Checklist-style security review
   deployer: copilot["gpt-4o-mini"]        # Mostly mechanical CLI steps
-  docs: gemini["gemini-2.0-flash"]        # Documentation updates (fast + cheap)
-  summarizer: gemini["gemini-2.0-flash"]  # Workflow summaries (fast + cheap)
+  docs: auto        # Documentation updates (fast + cheap)
+  summarizer: auto  # Workflow summaries (fast + cheap)
   escalation: copilot                     # High-priority escalation
 
 # Global operation task -> agent type mapping.
@@ -152,7 +152,7 @@ custom_project:
   workflow_definition_path: custom-project/workflows/custom_workflow.yaml
   
   # Custom AI tool preferences for this project's agents
-  # Map agent_type (from workflow YAML) to AI tool (copilot/gemini/codex)
+  # Map agent_type (from workflow YAML) to AI tool (copilot/codex/claude)
   # Only list agents that differ from global defaults
   ai_tool_preferences:
     triage: copilot          # Triage agent - issue classification
@@ -160,6 +160,6 @@ custom_project:
     debug: copilot           # Debug agent - root cause analysis
     reviewer: copilot        # Reviewer agent - PR reviews
     developer: copilot       # Developer agent - code implementation
-    docs: gemini             # Docs agent - documentation updates (faster)
-    summarizer: gemini       # Summarizer agent - workflow summaries (faster)
-    OpsCommander: gemini     # Deployment agent (if using Ghabs org agents)
+    docs: auto             # Docs agent - documentation updates (faster)
+    summarizer: auto       # Summarizer agent - workflow summaries (faster)
+    OpsCommander: auto     # Deployment agent (if using Ghabs org agents)

@@ -1,0 +1,10 @@
+version: 1
+name: Nexus portable connector workflow fixture
+slug: studio-interop-connectors
+protocol: http
+port: 49649
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

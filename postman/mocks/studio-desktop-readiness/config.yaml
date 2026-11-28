@@ -1,0 +1,10 @@
+version: 1
+name: Studio native bootstrap readiness
+slug: studio-desktop-readiness
+protocol: http
+port: 49673
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

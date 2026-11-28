@@ -4,12 +4,12 @@ import time
 from types import SimpleNamespace
 
 
-def test_invoke_persists_gemini_exclusion_when_rate_limited(monkeypatch):
+def test_invoke_persists_claude_exclusion_when_rate_limited(monkeypatch):
     from nexus.core.runtime import agent_launcher
 
     class _FakeOrchestrator:
         def __init__(self):
-            self._rate_limits = {"gemini": {"until": time.time() + 300, "retries": 1}}
+            self._rate_limits = {"claude": {"until": time.time() + 300, "retries": 1}}
 
         def invoke_agent(self, **_kwargs):
             return 1234, SimpleNamespace(value="copilot")
@@ -40,19 +40,19 @@ def test_invoke_persists_gemini_exclusion_when_rate_limited(monkeypatch):
 
     assert pid == 1234
     assert tool == "copilot"
-    assert state["55"]["exclude_tools"] == ["gemini"]
+    assert state["55"]["exclude_tools"] == ["claude"]
 
 
-def test_tool_unavailable_persists_gemini_exclusion(monkeypatch):
+def test_tool_unavailable_persists_claude_exclusion(monkeypatch):
     from nexus.core.runtime import agent_launcher
 
     class _FakeOrchestrator:
         def __init__(self):
-            self._rate_limits = {"gemini": {"until": time.time() + 300, "retries": 1}}
+            self._rate_limits = {"claude": {"until": time.time() + 300, "retries": 1}}
 
         def invoke_agent(self, **_kwargs):
             raise agent_launcher.ToolUnavailableError(
-                "All AI tools exhausted. Tried: ['gemini(rate-limited)']"
+                "All AI tools exhausted. Tried: ['claude(rate-limited)']"
             )
 
     state = {}
@@ -80,7 +80,7 @@ def test_tool_unavailable_persists_gemini_exclusion(monkeypatch):
 
     assert pid is None
     assert tool is None
-    assert state["55"]["exclude_tools"] == ["gemini"]
+    assert state["55"]["exclude_tools"] == ["claude"]
 
 
 def test_invoke_logs_requester_user_id_on_agent_launch(monkeypatch):
@@ -91,7 +91,7 @@ def test_invoke_logs_requester_user_id_on_agent_launch(monkeypatch):
             self._rate_limits = {}
 
         def invoke_agent(self, **_kwargs):
-            return 7777, SimpleNamespace(value="gemini")
+            return 7777, SimpleNamespace(value="claude")
 
     state = {}
     audit_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
@@ -125,7 +125,7 @@ def test_invoke_logs_requester_user_id_on_agent_launch(monkeypatch):
     )
 
     assert pid == 7777
-    assert tool == "gemini"
+    assert tool == "claude"
 
     launch_call = next(call for call in audit_calls if call[0][1] == "AGENT_LAUNCHED")
     assert launch_call[1]["user_id"] == "nexus-user-55"

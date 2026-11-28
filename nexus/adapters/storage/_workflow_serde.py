@@ -10,6 +10,8 @@ from typing import Any
 
 from nexus.core.models import (
     Agent,
+    ApprovalGate,
+    ApprovalGateType,
     StepStatus,
     Workflow,
     WorkflowState,
@@ -30,6 +32,8 @@ def workflow_to_dict(workflow: Workflow) -> dict[str, Any]:
         "updated_at": workflow.updated_at.isoformat(),
         "completed_at": workflow.completed_at.isoformat() if workflow.completed_at else None,
         "metadata": workflow.metadata,
+        "require_human_merge_approval": workflow.require_human_merge_approval,
+        "require_approval_for": workflow.require_approval_for,
         "steps": [step_to_dict(step) for step in workflow.steps],
     }
 
@@ -46,11 +50,23 @@ def step_to_dict(step: WorkflowStep) -> dict[str, Any]:
             "provider_preference": step.agent.provider_preference,
             "timeout": step.agent.timeout,
             "max_retries": step.agent.max_retries,
+            "allowed_tools": step.agent.allowed_tools,
         },
         "prompt_template": step.prompt_template,
         "condition": step.condition,
         "timeout": step.timeout,
         "retry": step.retry,
+        "retry_count": step.retry_count,
+        "backoff_strategy": step.backoff_strategy,
+        "initial_delay": step.initial_delay,
+        "parallel_with": step.parallel_with,
+        "require_human_approval": step.require_human_approval,
+        "approval_gates": [
+            {"gate_type": gate.gate_type.value, "required": gate.required,
+             "tool_restrictions": gate.tool_restrictions,
+             "approval_message": gate.approval_message, "metadata": gate.metadata}
+            for gate in step.approval_gates
+        ],
         "inputs": step.inputs,
         "outputs": step.outputs,
         "status": step.status.value,
@@ -75,6 +91,7 @@ def dict_to_workflow(data: dict[str, Any]) -> Workflow:
             provider_preference=step_data["agent"].get("provider_preference"),
             timeout=step_data["agent"].get("timeout", 600),
             max_retries=step_data["agent"].get("max_retries", 3),
+            allowed_tools=step_data["agent"].get("allowed_tools", []),
         )
         step = WorkflowStep(
             step_num=step_data["step_num"],
@@ -84,6 +101,19 @@ def dict_to_workflow(data: dict[str, Any]) -> Workflow:
             condition=step_data.get("condition"),
             timeout=step_data.get("timeout"),
             retry=step_data.get("retry"),
+            retry_count=step_data.get("retry_count", 0),
+            backoff_strategy=step_data.get("backoff_strategy"),
+            initial_delay=step_data.get("initial_delay", 0.0),
+            parallel_with=step_data.get("parallel_with", []),
+            require_human_approval=bool(step_data.get("require_human_approval", False)),
+            approval_gates=[
+                ApprovalGate(gate_type=ApprovalGateType(gate["gate_type"]),
+                             required=gate.get("required", True),
+                             tool_restrictions=gate.get("tool_restrictions", []),
+                             approval_message=gate.get("approval_message"),
+                             metadata=gate.get("metadata", {}))
+                for gate in step_data.get("approval_gates", [])
+            ],
             inputs=step_data.get("inputs", {}),
             outputs=step_data.get("outputs", {}),
             status=StepStatus(step_data.get("status", "pending")),
@@ -119,4 +149,6 @@ def dict_to_workflow(data: dict[str, Any]) -> Workflow:
             datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
         ),
         metadata=data.get("metadata", {}),
+        require_human_merge_approval=data.get("require_human_merge_approval", True),
+        require_approval_for=data.get("require_approval_for", []),
     )

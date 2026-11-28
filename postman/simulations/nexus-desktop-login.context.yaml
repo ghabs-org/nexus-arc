@@ -1,0 +1,23 @@
+purpose:
+  stands_in_for: Nexus hosted desktop account bridge, owned by this repository.
+  unblocks: Native HTTP client and loopback callback checks without accounts or Keychain writes.
+assumptions:
+  - id: native-bridge-contract
+    status: supported
+    claim: The native client can exchange a PKCE-bound code and inspect and revoke the returned device credential.
+    reason: The mock implements the checked-in Nexus contract; real database and browser approval are checked separately.
+    verification: Eight native probe checks passed against the local Postman simulation, including successful exchange, inspect and revoke; wrong-state callback ignored; browser denial; redirects, HTML, oversized replies and foreign destinations rejected; exchange failure not retried. No live account or Keychain used in this simulation.
+    source: postman/contracts/nexus-desktop-login.yaml; apps/studio-desktop/src-tauri/src/accounts.rs
+    updated_at: "2026-11-06"
+  - id: native-errors
+    status: supported
+    claim: Unexpected destinations, malformed replies and denied approvals fail without retrying code exchange.
+    reason: Native sign-in must fail closed without opening an untrusted browser destination.
+    verification: Eight native probe checks passed against the local Postman simulation, including successful exchange, inspect and revoke; wrong-state callback ignored; browser denial; redirects, HTML, oversized replies and foreign destinations rejected; exchange failure not retried. No live account or Keychain used in this simulation.
+    source: tests/studio_desktop_accounts_acceptance.py
+    updated_at: "2026-11-06"
+fingerprints:
+  - id: initial-native-bridge
+    date: "2026-11-06"
+    commit: working-tree
+    cli: Postman 1.75.0

@@ -1,0 +1,50 @@
+{
+  "format": "nexus-studio-evaluation-gate-checkpoint/v1",
+  "date": "2026-10-29",
+  "status": "local-source-and-consumers-verified",
+  "whole_plan_complete": false,
+  "scope": "Offline checking of native Studio evaluation report JSON, explicit browser download, existing authenticated GET route unchanged. No external provider or VM use.",
+  "validation": {
+    "required": {
+      "tests": 73,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "f36dea403463ac796251576f827f6ea135c4c681641dfb2960c3ca5c51b51087"
+    },
+    "browser_logic": {
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_sha256": "0fbaa2236f9bbbce2c35ed565d85772beb835e0d0e8af7409aa2a3d219b9dcf5"
+    }
+  },
+  "proof": [
+    "Actual Studio experiment with a synthetic provider produced a report accepted by both the CLI and thin example; neither consumer changed the file or invoked more tasks.",
+    "Per-variant threshold recomputation, stronger override, incomplete/error evidence, duplicate slots/fields, malformed checks, file bounds and CLI exit statuses exercised.",
+    "Browser logic verifies explicit export, authenticated GET selection, escaped identity, no automatic download and no download after authorization/transport failure.",
+    "Existing experiment continuation, scoped HTTP report access and CLI compatibility pass."
+  ],
+  "source_sha256": {
+    "nexus/core/studio_evaluation_gate.py": "4b2ae4dbeca8836491c26d54bc247c26d9124f769f2aa8bc4558d3b456556d70",
+    "nexus/cli.py": "e045f6152bcb5f33b67933f9f7df84ba623baca9d1d4b84a8c81ed09d98391a9",
+    "nexus/studio_static/operations.js": "4fc185c47a40a2fc398015524e1d4502a6943dfefb0a609505dd7dd8be2c662a",
+    "nexus/studio_static/service-worker.js": "ff15446234f98ea313134db016b3a74dd6dd8c5bb601ef630c63fd86064d57b8",
+    "examples/nexus-bot/src/studio_evaluation_gate.py": "152da85d937240286258c639029c9359874acf98c75a0e794390a85c588437db",
+    "tests/test_studio_evaluation_gate.py": "74ef871404c81cd0225518b7a9d8f2d4fde8f4e27822c2859bd1ad164a3b2650",
+    "tests/studio_evaluation_gate.test.cjs": "26ecd1bbf0a5335fac380f032e17d5c664fe49161fe19957a1b6403fb9693db0"
+  },
+  "documentation": "STUDIO-EVALUATION-GATE.md",
+  "comparison_followup": "STUDIO-REFERENCE-DELTA-REVIEW.md",
+  "limits": [
+    "A local report is not signed; this gate establishes consistency and thresholds, not authenticity or model quality.",
+    "No before/after regression comparison or automatic deployment.",
+    "Browser checks are Node-based logic tests, not real-device or visual browser acceptance.",
+    "Frozen inventory counts are unchanged; new comparison candidates are separate."
+  ],
+  "migration": "None; persisted records, routes and request formats unchanged.",
+  "vm_contacted": false,
+  "vm_changed": false,
+  "dmg_rebuilt": false
+}

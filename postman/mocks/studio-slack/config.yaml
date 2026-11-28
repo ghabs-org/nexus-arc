@@ -1,0 +1,10 @@
+version: 1
+name: Slack selected-channel message contract
+slug: studio-slack
+protocol: http
+port: 49874
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

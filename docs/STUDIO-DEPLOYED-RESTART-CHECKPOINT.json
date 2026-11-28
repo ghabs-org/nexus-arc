@@ -1,0 +1,60 @@
+{
+  "format": "nexus-studio-deployed-restart-acceptance/v1",
+  "date": "2026-10-28",
+  "status": "live-verified-after-readiness-probe-correction",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "authorization": "Approve controlled Studio/proxy recovery check",
+  "scope": "Two disposable analysis workers through the existing deployed filtered socket and installed Studio runtime. Original Studio/proxy containers cooperatively stopped and restarted once; no provider, production task or configuration change.",
+  "validation": {
+    "preflight_host_checks": 12,
+    "worker_stopped_with_owner": true,
+    "recovery": {
+      "restored_start_denied": true,
+      "stopped_work_never_started": true,
+      "running_and_stopped_records_removed": true,
+      "recovery_replayed_create_or_start": false,
+      "unresolved_cleanup": 0,
+      "extra_runs": 0,
+      "extra_artifacts": 0
+    },
+    "post_host_checks": 12,
+    "vm_anonymous_https_passed": 15,
+    "external_anonymous_https_passed": 15,
+    "generated_workers_remaining": 0,
+    "existing_units_active": 5,
+    "router_running": true,
+    "original_images_retained": true
+  },
+  "operator_corrections": [
+    "Initial readiness probe used localhost Host; production host validation returned 403 Unrecognized local host. The service was running. Correct hosted Host returned 200.",
+    "Initial report honestly retained failed health timeout and one stopped synthetic worker. The same saved consumer then completed verification and cleanup without another restart or new workers.",
+    "A read-only postcheck helper initially lacked its Path import; corrected before retaining the successful postcheck."
+  ],
+  "reports": {
+    "postcheck_sha256": "962da9c97fe573118581df9d4944da4e3242f1d5e90151bb967807a86c01f43d",
+    "external_https_sha256": "764df4f77156df58fb8f88e45d36863f475f6eefe1bd2f2be4879d8635a7e360",
+    "private_review_sha256": "5aa4650b72a38030a1b7af57fe46af96bd1812db01fbd6b0f5a0193e770fb344"
+  },
+  "source_sha256": {
+    "tests/studio_deployed_restart_acceptance.py": "63776564cea5188ad784c3857e732c206daa9f2d5d7eaca9df773d4b4a1fbc8f"
+  },
+  "compatibility": {
+    "state_schema_changed": false,
+    "credentials_read_or_exported": false,
+    "providers_called": false,
+    "images_built_or_pulled": false,
+    "services_restarted": [
+      "Studio",
+      "Docker proxy"
+    ],
+    "production_run_created": false,
+    "frontend_fix_deployed": false,
+    "dmg_rebuilt": false
+  },
+  "remaining": [
+    "Signed-in execution and authenticated HTTP-header acceptance are separate from prior read-only signed-in UI.",
+    "Docker daemon/power-loss, full-host/account-store restoration and deployment-specific database recovery remain separate.",
+    "Physical-device/selected-account and final installed desktop gates remain open. Milestone 9 stays last."
+  ]
+}

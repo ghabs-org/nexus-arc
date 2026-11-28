@@ -26,13 +26,16 @@ Or load the whole adapter stack from a YAML/dict config section::
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nexus.adapters.ai.base import AIProvider
 from nexus.adapters.git.base import GitPlatform
 from nexus.adapters.notifications.base import NotificationChannel
 from nexus.adapters.notifications.interactive import InteractiveClientPlugin
 from nexus.adapters.storage.base import StorageBackend
+
+if TYPE_CHECKING:
+    from nexus.adapters.transport import MessageTransport
 from nexus.adapters.transcription.base import TranscriptionProvider
 
 logger = logging.getLogger(__name__)
@@ -68,6 +71,14 @@ def _load_builtin_notifications(type_name: str) -> type[NotificationChannel] | N
         from nexus.adapters.notifications.slack import SlackNotificationChannel
 
         return SlackNotificationChannel
+    if type_name == "discord":
+        from nexus.adapters.notifications.discord import DiscordNotificationChannel
+
+        return DiscordNotificationChannel
+    if type_name == "openclaw":
+        from nexus.adapters.notifications.openclaw import OpenClawNotificationChannel
+
+        return OpenClawNotificationChannel
     return None
 
 
@@ -84,6 +95,14 @@ def _load_builtin_interactive(type_name: str) -> type[InteractiveClientPlugin] |
 
 
 def _load_builtin_ai(type_name: str) -> type[AIProvider] | None:
+    if type_name == "agy":
+        from nexus.adapters.ai.agy_provider import AntigravityProvider
+
+        return AntigravityProvider
+    if type_name == "claude-code":
+        from nexus.adapters.ai.claude_code_provider import ClaudeCodeProvider
+
+        return ClaudeCodeProvider
     if type_name == "codex":
         from nexus.adapters.ai.codex_provider import CodexCLIProvider
 
@@ -92,14 +111,18 @@ def _load_builtin_ai(type_name: str) -> type[AIProvider] | None:
         from nexus.adapters.ai.copilot_provider import CopilotCLIProvider
 
         return CopilotCLIProvider
-    if type_name == "gemini":
-        from nexus.adapters.ai.gemini_provider import GeminiCLIProvider
-
-        return GeminiCLIProvider
     if type_name == "openai":
         from nexus.adapters.ai.openai_provider import OpenAIProvider
 
         return OpenAIProvider
+    if type_name == "opencode":
+        from nexus.adapters.ai.opencode_provider import OpenCodeProvider
+
+        return OpenCodeProvider
+    if type_name == "claude":
+        from nexus.adapters.ai.claude_provider import ClaudeProvider
+
+        return ClaudeProvider
     return None
 
 
@@ -226,7 +249,7 @@ class AdapterRegistry:
         """Instantiate an AIProvider by type name.
 
         Args:
-            type_name: Adapter type (``"codex"``, ``"copilot"``, ``"gemini"``, ``"openai"``).
+            type_name: Adapter type (``"codex"``, ``"copilot"``, ``"openai"``, ``"claude"``).
             **kwargs: Constructor keyword arguments forwarded to the class.
         """
         cls = self._resolve("ai", type_name, _load_builtin_ai)
@@ -247,6 +270,12 @@ class AdapterRegistry:
         """
         cls = self._resolve("transcription", type_name, _load_builtin_transcription)
         return cls(**kwargs)
+
+    def create_transport(self, type_name: str, **kwargs: Any) -> "MessageTransport":
+        """Instantiate a MessageTransport by type name (``"memory"``, ``"mqtt"``)."""
+        from nexus.adapters.transport import create_transport
+
+        return create_transport(type_name, **kwargs)
 
     # ------------------------------------------------------------------
     # Config-driven bulk construction

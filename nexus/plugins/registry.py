@@ -15,6 +15,7 @@ from nexus.plugins.base import (
     make_plugin_spec,
     normalize_plugin_name,
 )
+from nexus.plugins.catalog import PluginSetup
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +86,25 @@ class PluginRegistry:
         description: str = "",
         *,
         force: bool = False,
+        setup: PluginSetup | None = None,
     ) -> None:
         """Convenience method to register a plugin from primitive values."""
-        self.register(make_plugin_spec(kind, name, version, factory, description), force=force)
+        self.register(
+            make_plugin_spec(kind, name, version, factory, description, setup=setup), force=force
+        )
+
+    def catalog(self) -> list[dict[str, Any]]:
+        """Describe registered plugins without constructing or probing instances."""
+        return [
+            {
+                "kind": spec.kind.value,
+                "name": spec.name,
+                "version": spec.version,
+                "description": spec.description,
+                "setup": spec.setup.describe() if spec.setup else None,
+            }
+            for spec in self.list_specs()
+        ]
 
     def create(self, kind: PluginKind, name: str, config: dict[str, Any] | None = None) -> Any:
         """Instantiate a plugin by kind/name."""
@@ -133,7 +150,7 @@ class PluginRegistry:
         with self._lock:
             instances = list(self._instances.items())
 
-        for (kind, name), instance in instances:
+        for (_kind, name), instance in instances:
             if isinstance(instance, PluginLifecycle):
                 try:
                     status = await instance.health_check()

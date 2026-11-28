@@ -1,0 +1,77 @@
+openapi: 3.0.3
+info:
+  title: Nexus prompt history and calendar lifecycle additions
+  version: 1.0.0
+  description: Additive Studio routes. Existing catalog and schedule-state routes retain their formats. Nexus sign-in is required in shared mode; POSTs also require the current Studio CSRF token and builder role. Prompts and schedule definitions follow existing workspace catalog visibility; private run details retain their own authorization.
+paths:
+  /api/studio/prompts/{id}/compare:
+    parameters:
+      - {$ref: '#/components/parameters/identity'}
+    get:
+      operationId: comparePromptRevision
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {type: integer, minimum: 1}
+      responses:
+        '200':
+          description: Selected immutable fields and current fields, changed field names and available revision numbers. No mutation. Version is 1.
+        '400': {description: Invalid revision}
+        '404': {description: Missing prompt or revision}
+  /api/studio/prompts/{id}/restore:
+    parameters:
+      - {$ref: '#/components/parameters/identity'}
+    post:
+      operationId: restorePromptRevision
+      description: Existing compatible route. Revalidates selected content and shortcut uniqueness, then creates a new catalog revision. Rejects stale reviewed revision without writes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision, restore_revision]
+              properties:
+                revision: {type: integer, minimum: 1}
+                restore_revision: {type: integer, minimum: 1}
+      responses:
+        '200': {description: New prompt catalog record}
+        '400': {description: Stale review, archived prompt or validation conflict}
+        '403': {description: Invalid CSRF token or insufficient builder permission}
+  /api/studio/schedules/{id}:
+    parameters:
+      - {$ref: '#/components/parameters/identity'}
+    get:
+      operationId: getScheduleLifecycle
+      responses:
+        '200':
+          description: Version 1, schedule catalog record, normalized state, up to five dates including an overdue coalesced occurrence, and latest 100 occurrence metadata records. Older history count is separate; history remains in state. Run status is current, not an invented historical status. Paused dates are conditional; no dispatch happens on GET.
+        '404': {description: Missing schedule}
+  /api/studio/schedules/{id}/enabled:
+    parameters:
+      - {$ref: '#/components/parameters/identity'}
+    post:
+      operationId: setScheduleEnabled
+      description: Explicitly pause/enable at the reviewed catalog revision. Preserve dispatch progress when cadence is unchanged. Completed one-time jobs do not repeat on pause, resume or text edits. Timing edits deliberately create a new cadence. Queued/running/approval-paused prior jobs do not overlap.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision, enabled]
+              properties:
+                revision: {type: integer, minimum: 1}
+                enabled: {type: boolean}
+      responses:
+        '200': {description: New schedule catalog record}
+        '400': {description: Stale review or invalid enabled flag}
+        '403': {description: Invalid CSRF token or insufficient builder permission}
+components:
+  parameters:
+    identity:
+      name: id
+      in: path
+      required: true
+      schema: {type: string}

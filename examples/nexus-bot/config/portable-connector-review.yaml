@@ -1,0 +1,38 @@
+kind: agent
+name: reviewer
+spec:
+  systemPrompt: Review the supplied evidence.
+  modelProvider: [account]
+  skillRefs: [guidance]
+---
+kind: workflow
+name: review-flow
+spec:
+  appConfig:
+    toolsets: [local]
+    nodes:
+      - id: count
+        type: tool
+        tool_name: words
+        input: {text: '{{workflow.input.text}}'}
+      - id: lookup
+        type: tool
+        connector: service
+        tool: lookup
+        depends_on: [count]
+        input: {id: '{{workflow.input.id}}'}
+      - id: review
+        type: agent
+        agent_name: reviewer
+        depends_on: [lookup]
+        input: {message: 'Review {{lookup.output}} and {{count.output}}'}
+      - id: approve
+        type: approval
+        depends_on: [review]
+      - id: record
+        type: tool
+        connector: service
+        tool: record
+        depends_on: [approve]
+        input: {reply: '{{review.output}}'}
+    output_mapping: {result: '{{record.output}}'}

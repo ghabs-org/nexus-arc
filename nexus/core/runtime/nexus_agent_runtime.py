@@ -22,6 +22,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 from nexus.adapters.git.utils import build_issue_url
+from nexus.core.auth.execution_env_resolver import resolve_requester_git_token_for_issue
+from nexus.core.auth.git_token import resolve_automation_git_token as _runtime_token_override
 from nexus.core.completion import normalize_completion_comment_markdown
 from nexus.core.process_orchestrator import AgentRuntime
 
@@ -45,14 +47,6 @@ _ISSUE_OPEN_ERROR_LOG_COOLDOWN_SECONDS = 300
 _last_issue_open_error_log_at: dict[tuple[str, str], float] = {}
 
 
-def _runtime_token_override() -> str | None:
-    for key in ("GITHUB_TOKEN", "GH_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN"):
-        token = str(os.getenv(key, "")).strip()
-        if token:
-            return token
-    return None
-
-
 def _resolve_project_name_for_repo(repo: str) -> str | None:
     try:
         from nexus.core.config import PROJECT_CONFIG, get_default_project, get_repo, get_repos
@@ -69,131 +63,44 @@ def _resolve_project_name_for_repo(repo: str) -> str | None:
     )
 
 
+def _resolve_platform_for_project(project_name: str | None) -> str | None:
+    """Return 'github' or 'gitlab' for the given project, or None if unresolvable."""
+    try:
+        from nexus.core.config import get_project_platform
+
+        return get_project_platform(project_name) or None
+    except Exception:
+        return None
+
+
 def _resolve_requester_token_override(
     issue_number: str,
     repo: str,
     project_name: str | None = None,
 ) -> str | None:
-    env_token = _runtime_token_override()
-    try:
-        from nexus.core.auth.access_domain import auth_enabled, build_execution_env
-        from nexus.core.auth.credential_store import get_issue_requester, get_issue_requester_by_url
-    except Exception:
-        auth_flag = str(os.getenv("NEXUS_AUTH_ENABLED", "false")).strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        if auth_flag:
-            return None
-        return env_token
-
-    auth_is_enabled = bool(auth_enabled())
-    if not auth_is_enabled:
-        return env_token
-
     normalized_repo = str(repo or "").strip()
     normalized_issue = str(issue_number or "").strip()
     if not normalized_repo or not normalized_issue:
         return None
 
-    requester_nexus_id = None
-    try:
-        requester_nexus_id = get_issue_requester(normalized_repo, normalized_issue)
-    except Exception:
-        requester_nexus_id = None
-
-    if not requester_nexus_id:
-        candidates: list[str] = []
-        try:
-            project_cfg = {}
-            if project_name:
-                from nexus.core.config import PROJECT_CONFIG
-
-                raw_cfg = (PROJECT_CONFIG or {}).get(str(project_name), {})
-                if isinstance(raw_cfg, dict):
-                    project_cfg = raw_cfg
-            candidates.append(build_issue_url(normalized_repo, normalized_issue, project_cfg))
-        except Exception:
-            pass
-        # Legacy/default-host URL probes for bindings saved by URL.
-        candidates.append(
-            build_issue_url(
-                normalized_repo,
-                normalized_issue,
-                {"git_platform": "github"},
-            )
-        )
-        candidates.append(
-            build_issue_url(
-                normalized_repo,
-                normalized_issue,
-                {"git_platform": "gitlab", "gitlab_base_url": "https://gitlab.com"},
-            )
-        )
-
-        seen: set[str] = set()
-        for issue_url in candidates:
-            url = str(issue_url or "").strip()
-            if not url or url in seen:
-                continue
-            seen.add(url)
-            try:
-                requester_nexus_id = get_issue_requester_by_url(url)
-            except Exception:
-                requester_nexus_id = None
-            if requester_nexus_id:
-                break
-
-    if not requester_nexus_id:
-        logger.warning(
-            "Requester binding missing for issue #%s repo=%s project=%s; refusing service-token fallback.",
-            normalized_issue,
-            normalized_repo,
-            project_name,
-        )
-        return None
-
-    user_env, env_error = build_execution_env(str(requester_nexus_id))
-    if env_error:
-        logger.warning(
-            "Requester token unavailable for issue #%s repo=%s project=%s requester=%s: %s",
-            normalized_issue,
-            normalized_repo,
-            project_name,
-            requester_nexus_id,
-            env_error,
-        )
-        return None
-
-    platform = "github"
+    explicit_issue_url = None
     try:
         if project_name:
-            from nexus.core.config import get_project_platform
+            from nexus.core.config import PROJECT_CONFIG
 
-            platform = str(get_project_platform(str(project_name)) or "github").strip().lower()
+            project_cfg = (PROJECT_CONFIG or {}).get(str(project_name), {})
+            if isinstance(project_cfg, dict):
+                explicit_issue_url = build_issue_url(normalized_repo, normalized_issue, project_cfg)
     except Exception:
-        platform = "github"
+        explicit_issue_url = None
 
-    preferred_keys = (
-        ("GITLAB_TOKEN", "GLAB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
-        if platform == "gitlab"
-        else ("GITHUB_TOKEN", "GH_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN")
+    return resolve_requester_git_token_for_issue(
+        repo_name=normalized_repo,
+        issue_number=normalized_issue,
+        project_name=project_name,
+        issue_url=explicit_issue_url,
+        purpose="git",
     )
-    for key in preferred_keys:
-        token = str(user_env.get(key) or "").strip()
-        if token:
-            return token
-
-    logger.warning(
-        "Requester token missing for issue #%s repo=%s project=%s requester=%s after credential resolution.",
-        normalized_issue,
-        normalized_repo,
-        project_name,
-        requester_nexus_id,
-    )
-    return None
 
 
 def _extract_http_status_code(exc: Exception) -> int | None:
@@ -410,6 +317,9 @@ class NexusAgentRuntime(AgentRuntime):
         except Exception:
             pass
 
+        if not self._autofix_retry_allowed(issue_key, normalized_agent):
+            return False
+
         try:
             from nexus.core.state_manager import HostStateManager
 
@@ -590,6 +500,66 @@ class NexusAgentRuntime(AgentRuntime):
         # (The actual retry-budget decision lives in the fuse logic above.)
         return True
 
+    def _autofix_retry_allowed(self, issue_number: str, agent_type: str) -> bool:
+        """Guard retries when recent autofix history shows repeated failures."""
+        try:
+            from nexus.core.audit_store import AuditStore
+
+            issue_int = int(str(issue_number))
+        except Exception:
+            return True
+
+        try:
+            events = AuditStore.get_autofix_events(
+                issue_int,
+                agent_type=agent_type,
+                limit=12,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Autofix retry-guard lookup failed for issue #%s agent %s: %s",
+                issue_number,
+                agent_type,
+                exc,
+            )
+            return True
+
+        if not events:
+            return True
+
+        recent_types = [str(item.get("event_type") or "").strip().upper() for item in events]
+        if any(event_type == "AUTOFIX_VALIDATED" for event_type in recent_types[:4]):
+            return True
+
+        failure_streak = 0
+        for event_type in recent_types:
+            if event_type == "AUTOFIX_FAILED":
+                failure_streak += 1
+                continue
+            break
+
+        recent_window = recent_types[:6]
+        repeated_recent_failures = recent_window.count("AUTOFIX_FAILED") >= 4 and (
+            "AUTOFIX_VALIDATED" not in recent_window
+        )
+        if failure_streak < 3 and not repeated_recent_failures:
+            return True
+
+        reason = (
+            f"Blocked retry for issue #{issue_number} agent {agent_type}: "
+            f"autofix failure streak={failure_streak}, recent={recent_window}"
+        )
+        logger.warning(reason)
+        try:
+            AuditStore.audit_log(
+                issue_int,
+                "AUTOFIX_RETRY_GUARD_BLOCKED",
+                reason,
+            )
+        except Exception:
+            pass
+        return False
+
     def _is_issue_open_for_retry(self, issue_number: str) -> bool | None:
         """Best-effort issue status check used by retry gating."""
         try:
@@ -719,13 +689,17 @@ class NexusAgentRuntime(AgentRuntime):
         try:
             normalized_body = normalize_completion_comment_markdown(body)
             project_name = _resolve_project_name_for_repo(str(repo))
+            repo_platform = _resolve_platform_for_project(project_name)
             platform = get_git_platform(
                 repo,
                 project_name=project_name,
-                token_override=_resolve_requester_token_override(
-                    str(issue_number),
-                    str(repo),
-                    project_name,
+                token_override=(
+                    _runtime_token_override(repo_platform)
+                    or _resolve_requester_token_override(
+                        str(issue_number),
+                        str(repo),
+                        project_name,
+                    )
                 ),
             )
             import asyncio

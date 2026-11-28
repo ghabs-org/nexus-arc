@@ -1,0 +1,10 @@
+version: 1
+name: Synthetic authenticated A2A callback receiver
+slug: studio-a2a-push
+protocol: http
+port: 49649
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

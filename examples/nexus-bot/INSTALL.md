@@ -1,22 +1,22 @@
 # Nexus Chat Bot — Installation Guide
 
-This guide covers two deployment scenarios for the Nexus Telegram/Discord bot runtimes:
+This guide covers three runtime modes for Nexus ARC installations:
 
-| Scenario       | External Deps      | Best For                                           |
-|----------------|--------------------|----------------------------------------------------|
-| **Lite**       | None               | Solo developer, quick start, local experimentation |
-| **Enterprise** | PostgreSQL + Redis | Production, multi-project, persistent chat memory  |
+| Runtime Mode   | Native Nexus Bots | Typical External Deps      | Best For                                                     |
+|----------------|-------------------|----------------------------|--------------------------------------------------------------|
+| **Standalone** | Yes               | None or PostgreSQL + Redis | Nexus-owned Telegram/Discord chat surfaces                   |
+| **OpenClaw**   | No                | None or PostgreSQL         | OpenClaw-owned chat UX with Nexus as workflow/bridge backend |
+| **Advanced**   | Optional          | Depends on selected mix    | Mixed OpenClaw + native Nexus surfaces                       |
 
 ---
 
-## Prerequisites (Both Scenarios)
+## Prerequisites
 
 - Python 3.11+
-- A Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
-- Your Telegram User ID (from [@userinfobot](https://t.me/userinfobot))
+- A Telegram Bot Token and User ID only if you plan to enable Telegram
 - A GitHub **or** GitLab Personal Access Token (for issue integration)
-- A Discord Bot Token (optional, if you want to use the Discord UI)
-- At least one AI provider CLI installed (`copilot`, `gemini`, `codex`, or `claude`)
+- A Discord Bot Token only if you plan to enable Discord
+- At least one AI provider CLI installed (`copilot`, `codex`, or `claude`)
 
 > **Note:** Nexus supports both **GitHub** and **GitLab** as first-class VCS platforms.
 > Each project can independently target either platform via `git_platform` in `project_config.yaml`.
@@ -27,22 +27,21 @@ This guide covers two deployment scenarios for the Nexus Telegram/Discord bot ru
 
 ```bash
 # Clone nexus-arc
-git clone https://github.com/Ghabs95/nexus-arc.git
+git clone https://github.com/ghabs-org/nexus-arc.git
 cd nexus-arc
 
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
-# Install nexus-arc with all bot dependencies
+# Standalone / advanced with native bots:
 pip install -e ".[nexus-bot]"
 
-# Install the Nexus bot console scripts
-cd examples/nexus-bot
-pip install -e .
+# OpenClaw-only runtime:
+# pip install -e .
 ```
 
-After installation, six commands become available:
+If you install the native bot package, six commands become available:
 
 | Command              | Service                                |
 |----------------------|----------------------------------------|
@@ -56,7 +55,7 @@ After installation, six commands become available:
 
 ## 2. Configure (Interactive Setup)
 
-The easiest way to configure the bot, generate the `.env` file, and install external CLIs (like Copilot, Gemini, Ollama,
+The easiest way to configure the bot, generate the `.env` file, and install external CLIs (like Copilot, Ollama,
 etc.) is to use our interactive setup wizard:
 
 ```bash
@@ -67,12 +66,12 @@ etc.) is to use our interactive setup wizard:
 > **Prefer a quick curl install instead of cloning the whole repo?**
 > You can download and run the setup script directly using bash:
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/Ghabs95/nexus-arc/main/examples/nexus-bot/install.sh | bash
+> curl -fsSL https://raw.githubusercontent.com/ghabs-org/nexus-arc/main/examples/nexus-bot/install.sh | bash
 > ```
 > *(A Python version `install.py` is also available if preferred).*
 
-The wizard will ask you for your Storage preferences (Lite vs Enterprise), ask to setup Postgres/Redis for you, and
-securely configure your Tokens.
+The wizard now asks for `runtime mode` first, then only shows the questions that apply to that mode. In
+`runtime=openclaw`, it skips Telegram/Discord bot installation prompts and does not ask for Redis by default.
 
 Alternatively, you can configure it manually by copying the `.env`:
 
@@ -85,7 +84,7 @@ Edit `.env` with your credentials. The sections below show the key variables for
 
 ---
 
-## Scenario A — Lite (Filesystem, No External Deps)
+## Scenario A — Standalone Lite (Filesystem, No External Deps)
 
 Everything runs on the local filesystem. No database, no Redis.
 
@@ -97,7 +96,7 @@ Everything runs on the local filesystem. No database, no Redis.
 | Workflow orchestration & auto-chaining                   | ✅      |
 | GitHub issue integration (issues, PRs, comments, labels) | ✅      |
 | GitLab issue integration (issues, MRs, comments, labels) | ✅      |
-| Agent execution (Copilot, Gemini, Codex, Claude)         | ✅      |
+| Agent execution (Copilot, Codex, Claude)         | ✅      |
 | Inbox task queue (file-based)                            | ✅      |
 | Workflow state persistence (file-based)                  | ✅      |
 | Webhook processing                                       | ✅      |
@@ -151,7 +150,7 @@ nexus-health       # optional health endpoint
 
 ---
 
-## Scenario B — Enterprise (PostgreSQL + Redis)
+## Scenario B — Standalone Enterprise (PostgreSQL + Redis)
 
 Full-featured deployment with persistent queue, chat memory, and deduplication.
 
@@ -164,6 +163,90 @@ Full-featured deployment with persistent queue, chat memory, and deduplication.
 | Inbox deduplication (replay protection)              | ✅      |
 | Concurrent inbox processing                          | ✅      |
 | Production-grade persistence                         | ✅      |
+
+---
+
+## Scenario C — OpenClaw Runtime
+
+Use this when OpenClaw is the primary operator/chat surface and Nexus runs as the bridge, workflow runtime, audit, and
+recovery backend.
+
+In this mode, OpenClaw owns the user-facing transcript/session history. Nexus keeps the active chat context,
+workspace/agent bindings, and other operational metadata it needs to route work safely.
+
+### What the Installer Changes
+
+| Behavior                      | OpenClaw Mode |
+|-------------------------------|---------------|
+| Installs Telegram bot         | ❌             |
+| Installs Discord bot          | ❌             |
+| Prompts for Redis             | ❌ by default  |
+| Prompts for bridge auth token | ✅             |
+| Recommends `nexus-bridge`     | ✅             |
+
+### Typical Install
+
+```bash
+pip install -e .
+```
+
+### Typical `.env` Keys
+
+```bash
+NEXUS_RUNTIME_MODE=openclaw
+NEXUS_AUTH_AUTHORITY=openclaw
+NEXUS_CHAT_TRANSCRIPT_OWNER=openclaw
+NEXUS_COMMAND_BRIDGE_ENABLED=true
+NEXUS_COMMAND_BRIDGE_AUTH_TOKEN=replace_with_a_long_random_secret
+NEXUS_COMMAND_BRIDGE_ALLOWED_SOURCES=openclaw
+NEXUS_OPENCLAW_WAKE_MODE=
+
+# Choose one:
+NEXUS_STORAGE_BACKEND=filesystem
+# or
+NEXUS_STORAGE_BACKEND=postgres
+NEXUS_STORAGE_DSN=postgresql://nexus:your_password@127.0.0.1:5432/nexus
+
+# Redis usually omitted in OpenClaw mode because Nexus is not the transcript owner
+# REDIS_URL=
+
+# Typically disabled because OpenClaw owns end-user auth flows
+NEXUS_AUTH_ENABLED=false
+```
+
+Leave `NEXUS_OPENCLAW_WAKE_MODE` unset unless you explicitly want Nexus workflow notifications to wake the OpenClaw
+agent session. The passive default avoids notification loops and stuck "Compacting context" states in the operator
+chat.
+
+If OpenClaw is already stuck on `Compacting context...`, clear `NEXUS_OPENCLAW_WAKE_MODE`, restart the bridge/runtime,
+and verify the effective setting before retrying:
+
+```bash
+curl -s http://127.0.0.1:8091/api/v1/operator/runtime-health \
+  -H "Authorization: Bearer $NEXUS_COMMAND_BRIDGE_AUTH_TOKEN"
+```
+
+In a safe passive setup, `bridge.openclaw_wake_mode` should be `null` (or absent) and `warnings` should be empty.
+
+### Run
+
+```bash
+nexus-bridge
+```
+
+Then install and configure the OpenClaw plugin from [`packages/nexus-arc`](../../packages/nexus-arc/README.md).
+
+---
+
+## Scenario D — Advanced Runtime
+
+Advanced mode lets you mix OpenClaw with optional native Nexus surfaces. The installer asks which surfaces to enable
+and who owns transcript memory:
+
+- `openclaw`
+- `telegram`
+- `discord`
+- transcript owner: `openclaw`, `nexus`, or `split`
 
 ### Infrastructure Setup
 
@@ -211,7 +294,8 @@ cd examples/nexus-bot
 docker compose up -d
 ```
 
-This starts five services (`telegram`, `discord`, `processor`, `webhook`, `health`) as containers.
+This starts six services (`telegram`, `discord`, `processor`, `webhook`, `bridge`, `health`) as containers.
+Set `NEXUS_COMMAND_BRIDGE_AUTH_TOKEN` in `.env` before starting the bridge container or systemd unit.
 
 ### Run with systemd (Production)
 
@@ -220,8 +304,8 @@ This starts five services (`telegram`, `discord`, `processor`, `webhook`, `healt
 cd examples/nexus-bot
 sudo cp nexus-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-health
-sudo systemctl start nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-health
+sudo systemctl enable nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-bridge nexus-health
+sudo systemctl start nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-bridge nexus-health
 ```
 
 ---
@@ -286,7 +370,7 @@ After starting the bot, send `/start` in your Telegram chat. You should see the 
 /help          → list all commands
 /status        → show pending inbox tasks
 /menu          → interactive command menu
-/plan          → request a technical implementation plan
+/plan          → create a new planning task
 ```
 
 If using the health check, visit `http://localhost:8080/health` to confirm all services are running.

@@ -57,7 +57,7 @@ examples/
 
 **When to use:** Embed team knowledge/governance into AI Chat assistants for developers.
 
-**Reference:** See [github.com/Ghabs95/agents](https://github.com/Ghabs95/agents) for organizational agent patterns.
+**Reference:** See [github.com/ghabs-org/agents](https://github.com/ghabs-org/agents) for organizational agent patterns.
 
 ---
 
@@ -315,7 +315,7 @@ All progress is tracked in GitHub as comments and PRs — complete audit trail.
 
 1. Read [docs/USAGE.md](../docs/USAGE.md) for framework concepts
 2. Check [docs/POSITIONING.md](../docs/POSITIONING.md) for competitive context
-3. Look at [basic_workflow.py](basic_workflow.py) for code patterns
+3. Look at [workflows/](workflows/) for workflow definitions
 4. Create your first agent using the translator tools
 
 ---

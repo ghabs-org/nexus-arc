@@ -15,8 +15,26 @@ fi
 DEPLOY_TYPE=$(grep -E '^DEPLOY_TYPE=' "$ENV_FILE" | cut -d= -f2- | tr -d '[:space:]')
 DEPLOY_TYPE=${DEPLOY_TYPE:-compose}
 
+ensure_runtime_dirs() {
+  local runtime_dir="${NEXUS_RUNTIME_DIR:-/var/lib/nexus}"
+  local logs_dir="${LOGS_DIR:-/var/lib/nexus/logs}"
+  local owner_uid="${NEXUS_UID:-$(id -u)}"
+  local owner_gid="${NEXUS_GID:-$(id -g)}"
+
+  if command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$runtime_dir" "$runtime_dir/auth" "$logs_dir"
+    sudo chown -R "$owner_uid:$owner_gid" "$runtime_dir" "$logs_dir"
+  else
+    mkdir -p "$runtime_dir" "$runtime_dir/auth" "$logs_dir"
+    chown -R "$owner_uid:$owner_gid" "$runtime_dir" "$logs_dir"
+  fi
+}
+
 run_compose() {
   cd "$NEXUS_DIR"
+  export NEXUS_UID="${NEXUS_UID:-$(id -u)}"
+  export NEXUS_GID="${NEXUS_GID:-$(id -g)}"
+  ensure_runtime_dirs
   case "$ACTION" in
     up)
       docker compose up -d --build
@@ -32,7 +50,7 @@ run_compose() {
       docker compose ps
       ;;
     logs)
-      docker compose logs -f telegram discord processor webhook health
+      docker compose logs -f telegram discord processor webhook bridge health
       ;;
     *)
       echo "Unknown action: $ACTION"
@@ -46,19 +64,19 @@ run_systemd() {
   case "$ACTION" in
     up)
       sudo systemctl daemon-reload
-      sudo systemctl enable --now nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-health
+      sudo systemctl enable --now nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-bridge nexus-health
       ;;
     down)
-      sudo systemctl disable --now nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-health || true
+      sudo systemctl disable --now nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-bridge nexus-health || true
       ;;
     restart)
-      sudo systemctl restart nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-health
+      sudo systemctl restart nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-bridge nexus-health
       ;;
     status)
-      sudo systemctl status nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-health --no-pager
+      sudo systemctl status nexus-telegram nexus-discord nexus-processor nexus-webhook nexus-bridge nexus-health --no-pager
       ;;
     logs)
-      sudo journalctl -u nexus-telegram -u nexus-discord -u nexus-processor -u nexus-webhook -u nexus-health -f
+      sudo journalctl -u nexus-telegram -u nexus-discord -u nexus-processor -u nexus-webhook -u nexus-bridge -u nexus-health -f
       ;;
     *)
       echo "Unknown action: $ACTION"

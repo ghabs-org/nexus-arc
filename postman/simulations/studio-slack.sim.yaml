@@ -1,0 +1,5 @@
+simulation: studio-slack
+routing: path
+mocks:
+  - routeKey: slack
+    path: ../mocks/studio-slack/config.yaml

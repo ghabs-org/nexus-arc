@@ -56,6 +56,15 @@ if _SA_AVAILABLE:
     class _AuthBase(DeclarativeBase):
         pass
 
+    class _LoginIdentityRow(_AuthBase):
+        """Verified social subjects; publishing pages and usernames are not identities."""
+
+        __tablename__ = "nexus_login_identities"
+        provider: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(32), primary_key=True)
+        client_id: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(255), primary_key=True)
+        subject: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(255), primary_key=True)
+        nexus_id: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(64), nullable=False, index=True)
+
     class _AuthSessionRow(_AuthBase):
         __tablename__ = "nexus_auth_sessions"
 
@@ -106,6 +115,19 @@ if _SA_AVAILABLE:
         gemini_api_key_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
         claude_api_key_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
         copilot_github_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        opencode_api_key_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        # Social platform tokens
+        linkedin_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        linkedin_token_expires_at: sa.orm.Mapped[datetime | None] = sa.orm.mapped_column(
+            sa.DateTime(timezone=True)
+        )
+        linkedin_author_urn: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.String(255))
+        x_bearer_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        x_oauth_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        x_oauth_secret_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        meta_page_token_enc: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.Text)
+        meta_page_id: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.String(128))
+        meta_ig_account_id: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.String(128))
         codex_account_enabled: sa.orm.Mapped[bool] = sa.orm.mapped_column(
             sa.Boolean, nullable=False, default=False
         )
@@ -116,6 +138,9 @@ if _SA_AVAILABLE:
             sa.Boolean, nullable=False, default=False
         )
         copilot_account_enabled: sa.orm.Mapped[bool] = sa.orm.mapped_column(
+            sa.Boolean, nullable=False, default=False
+        )
+        agy_account_enabled: sa.orm.Mapped[bool] = sa.orm.mapped_column(
             sa.Boolean, nullable=False, default=False
         )
         org_verified: sa.orm.Mapped[bool] = sa.orm.mapped_column(sa.Boolean, nullable=False, default=False)
@@ -182,6 +207,28 @@ if _SA_AVAILABLE:
             sa.DateTime(timezone=True), nullable=False, default=_now_utc
         )
 
+    class _SocialPublishEventRow(_AuthBase):
+        __tablename__ = "nexus_social_publish_events"
+        __table_args__ = (
+            sa.UniqueConstraint("platform", "idempotency_key", name="uq_social_publish_platform_idempotency"),
+        )
+
+        id: sa.orm.Mapped[int] = sa.orm.mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+        nexus_id: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.String(64), index=True)
+        platform: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(32), nullable=False, index=True)
+        campaign_id: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(255), nullable=False, index=True)
+        post_id: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.String(255), index=True)
+        post_url: sa.orm.Mapped[str | None] = sa.orm.mapped_column(sa.String(1024))
+        idempotency_key: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.String(64), nullable=False, index=True)
+        metadata_json: sa.orm.Mapped[str] = sa.orm.mapped_column(sa.Text, nullable=False, default="{}")
+        published_at: sa.orm.Mapped[datetime | None] = sa.orm.mapped_column(sa.DateTime(timezone=True))
+        created_at: sa.orm.Mapped[datetime] = sa.orm.mapped_column(
+            sa.DateTime(timezone=True), nullable=False, default=_now_utc
+        )
+        updated_at: sa.orm.Mapped[datetime] = sa.orm.mapped_column(
+            sa.DateTime(timezone=True), nullable=False, default=_now_utc
+        )
+
 
 @dataclass
 class CredentialRecord:
@@ -201,6 +248,16 @@ class CredentialRecord:
     gemini_api_key_enc: str | None
     claude_api_key_enc: str | None
     copilot_github_token_enc: str | None
+    # Social platform tokens
+    linkedin_token_enc: str | None
+    linkedin_token_expires_at: datetime | None
+    linkedin_author_urn: str | None
+    x_bearer_token_enc: str | None
+    x_oauth_token_enc: str | None
+    x_oauth_secret_enc: str | None
+    meta_page_token_enc: str | None
+    meta_page_id: str | None
+    meta_ig_account_id: str | None
     codex_account_enabled: bool
     gemini_account_enabled: bool
     claude_account_enabled: bool
@@ -209,6 +266,8 @@ class CredentialRecord:
     org_verified_at: datetime | None
     last_access_sync_at: datetime | None
     key_version: int
+    agy_account_enabled: bool = False
+    opencode_api_key_enc: str | None = None
 
 
 @dataclass
@@ -237,6 +296,21 @@ class ProjectGrant:
     synced_at: datetime
 
 
+@dataclass
+class SocialPublishEventRecord:
+    id: int
+    nexus_id: str | None
+    platform: str
+    campaign_id: str
+    post_id: str | None
+    post_url: str | None
+    idempotency_key: str
+    metadata: dict[str, Any]
+    published_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 _ENGINE: Any | None = None
 
 
@@ -258,6 +332,26 @@ def _run_schema_migrations(engine: Any) -> None:
             "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
             ")"
         ),
+        (
+            "CREATE TABLE IF NOT EXISTS nexus_social_publish_events ("
+            "id SERIAL PRIMARY KEY, "
+            "nexus_id VARCHAR(64), "
+            "platform VARCHAR(32) NOT NULL, "
+            "campaign_id VARCHAR(255) NOT NULL, "
+            "post_id VARCHAR(255), "
+            "post_url VARCHAR(1024), "
+            "idempotency_key VARCHAR(64) NOT NULL, "
+            "metadata_json TEXT NOT NULL DEFAULT '{}', "
+            "published_at TIMESTAMPTZ, "
+            "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), "
+            "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), "
+            "CONSTRAINT uq_social_publish_platform_idempotency UNIQUE (platform, idempotency_key)"
+            ")"
+        ),
+        "CREATE INDEX IF NOT EXISTS ix_nexus_social_publish_events_nexus_id ON nexus_social_publish_events (nexus_id)",
+        "CREATE INDEX IF NOT EXISTS ix_nexus_social_publish_events_platform ON nexus_social_publish_events (platform)",
+        "CREATE INDEX IF NOT EXISTS ix_nexus_social_publish_events_campaign_id ON nexus_social_publish_events (campaign_id)",
+        "CREATE INDEX IF NOT EXISTS ix_nexus_social_publish_events_post_id ON nexus_social_publish_events (post_id)",
         # User credentials
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(32)",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS gitlab_user_id BIGINT",
@@ -269,6 +363,17 @@ def _run_schema_migrations(engine: Any) -> None:
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS gemini_api_key_enc TEXT",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS claude_api_key_enc TEXT",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS copilot_github_token_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS opencode_api_key_enc TEXT",
+        # Social platform tokens
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS linkedin_token_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS linkedin_token_expires_at TIMESTAMPTZ",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS linkedin_author_urn VARCHAR(255)",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS x_bearer_token_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS x_oauth_token_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS x_oauth_secret_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS meta_page_token_enc TEXT",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS meta_page_id VARCHAR(128)",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS meta_ig_account_id VARCHAR(128)",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS codex_account_enabled BOOLEAN DEFAULT FALSE",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS gemini_account_enabled BOOLEAN DEFAULT FALSE",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS claude_account_enabled BOOLEAN DEFAULT FALSE",
@@ -277,6 +382,8 @@ def _run_schema_migrations(engine: Any) -> None:
         "UPDATE nexus_user_credentials SET gemini_account_enabled = FALSE WHERE gemini_account_enabled IS NULL",
         "UPDATE nexus_user_credentials SET claude_account_enabled = FALSE WHERE claude_account_enabled IS NULL",
         "UPDATE nexus_user_credentials SET copilot_account_enabled = FALSE WHERE copilot_account_enabled IS NULL",
+        "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS agy_account_enabled BOOLEAN DEFAULT FALSE",
+        "UPDATE nexus_user_credentials SET agy_account_enabled = FALSE WHERE agy_account_enabled IS NULL",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS last_access_sync_at TIMESTAMPTZ",
         "ALTER TABLE IF EXISTS nexus_user_credentials ADD COLUMN IF NOT EXISTS key_version INTEGER",
         "UPDATE nexus_user_credentials SET key_version = 1 WHERE key_version IS NULL OR key_version < 1",
@@ -386,10 +493,21 @@ def _row_to_credential(row: Any) -> CredentialRecord:
         gemini_api_key_enc=row.gemini_api_key_enc,
         claude_api_key_enc=row.claude_api_key_enc,
         copilot_github_token_enc=row.copilot_github_token_enc,
+        opencode_api_key_enc=getattr(row, "opencode_api_key_enc", None),
+        linkedin_token_enc=getattr(row, "linkedin_token_enc", None),
+        linkedin_token_expires_at=getattr(row, "linkedin_token_expires_at", None),
+        linkedin_author_urn=getattr(row, "linkedin_author_urn", None),
+        x_bearer_token_enc=getattr(row, "x_bearer_token_enc", None),
+        x_oauth_token_enc=getattr(row, "x_oauth_token_enc", None),
+        x_oauth_secret_enc=getattr(row, "x_oauth_secret_enc", None),
+        meta_page_token_enc=getattr(row, "meta_page_token_enc", None),
+        meta_page_id=getattr(row, "meta_page_id", None),
+        meta_ig_account_id=getattr(row, "meta_ig_account_id", None),
         codex_account_enabled=bool(getattr(row, "codex_account_enabled", False)),
         gemini_account_enabled=bool(getattr(row, "gemini_account_enabled", False)),
         claude_account_enabled=bool(getattr(row, "claude_account_enabled", False)),
         copilot_account_enabled=bool(getattr(row, "copilot_account_enabled", False)),
+        agy_account_enabled=bool(getattr(row, "agy_account_enabled", False)),
         org_verified=bool(row.org_verified),
         org_verified_at=row.org_verified_at,
         last_access_sync_at=row.last_access_sync_at,
@@ -434,6 +552,28 @@ def get_auth_session(session_id: str) -> AuthSessionRecord | None:
     engine = _get_engine()
     with Session(engine) as session:
         row = session.get(_AuthSessionRow, str(session_id))
+        return _row_to_session(row) if row else None
+
+
+def get_latest_auth_session_for_chat(chat_platform: str, chat_id: str) -> AuthSessionRecord | None:
+    """Return the latest auth session record for a chat sender (platform + chat id).
+
+    This is used to map incoming chat messages (Telegram, Discord) to the canonical
+    nexus_id stored in the auth session created during onboarding.
+    """
+    engine = _get_engine()
+    platform = str(chat_platform or "").strip().lower()
+    cid = str(chat_id or "").strip()
+    if not (platform and cid):
+        return None
+    with Session(engine) as session:
+        row = (
+            session.query(_AuthSessionRow)
+            .filter(_AuthSessionRow.chat_platform == platform)
+            .filter(_AuthSessionRow.chat_id == cid)
+            .order_by(_AuthSessionRow.created_at.desc())
+            .first()
+        )
         return _row_to_session(row) if row else None
 
 
@@ -512,6 +652,114 @@ def cleanup_expired_auth_sessions() -> int:
             session.delete(row)
         session.commit()
         return count
+
+
+def _row_to_social_publish_event(row: Any) -> SocialPublishEventRecord:
+    metadata_raw = str(getattr(row, "metadata_json", "") or "").strip()
+    metadata: dict[str, Any] = {}
+    if metadata_raw:
+        try:
+            parsed = json.loads(metadata_raw)
+            if isinstance(parsed, dict):
+                metadata = parsed
+        except Exception:
+            metadata = {}
+    return SocialPublishEventRecord(
+        id=int(row.id),
+        nexus_id=str(row.nexus_id) if getattr(row, "nexus_id", None) else None,
+        platform=str(row.platform),
+        campaign_id=str(row.campaign_id),
+        post_id=str(row.post_id) if getattr(row, "post_id", None) else None,
+        post_url=str(row.post_url) if getattr(row, "post_url", None) else None,
+        idempotency_key=str(row.idempotency_key),
+        metadata=metadata,
+        published_at=getattr(row, "published_at", None),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def record_social_publish_event(
+    *,
+    platform: str,
+    campaign_id: str,
+    post_id: str | None,
+    idempotency_key: str,
+    nexus_id: str | None = None,
+    post_url: str | None = None,
+    published_at: datetime | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> SocialPublishEventRecord:
+    engine = _get_engine()
+    safe_platform = str(platform or "").strip().lower()
+    safe_campaign_id = str(campaign_id or "").strip()
+    safe_post_id = str(post_id or "").strip() or None
+    safe_post_url = str(post_url or "").strip() or None
+    safe_idempotency_key = str(idempotency_key or "").strip()
+    safe_nexus_id = str(nexus_id or "").strip() or None
+    if not safe_platform:
+        raise ValueError("platform is required")
+    if not safe_campaign_id:
+        raise ValueError("campaign_id is required")
+    if not safe_idempotency_key:
+        raise ValueError("idempotency_key is required")
+    metadata_json = json.dumps(metadata or {}, sort_keys=True)
+    with Session(engine) as session:
+        row = (
+            session.query(_SocialPublishEventRow)
+            .filter(
+                _SocialPublishEventRow.platform == safe_platform,
+                _SocialPublishEventRow.idempotency_key == safe_idempotency_key,
+            )
+            .first()
+        )
+        now = _now_utc()
+        if not row:
+            row = _SocialPublishEventRow(
+                nexus_id=safe_nexus_id,
+                platform=safe_platform,
+                campaign_id=safe_campaign_id,
+                post_id=safe_post_id,
+                post_url=safe_post_url,
+                idempotency_key=safe_idempotency_key,
+                metadata_json=metadata_json,
+                published_at=published_at,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(row)
+        else:
+            row.nexus_id = safe_nexus_id or row.nexus_id
+            row.campaign_id = safe_campaign_id
+            row.post_id = safe_post_id or row.post_id
+            row.post_url = safe_post_url or row.post_url
+            row.metadata_json = metadata_json
+            row.published_at = published_at or row.published_at
+            row.updated_at = now
+        session.commit()
+        session.refresh(row)
+        return _row_to_social_publish_event(row)
+
+
+def list_social_publish_events(
+    *,
+    nexus_id: str | None = None,
+    platform: str | None = None,
+    campaign_id: str | None = None,
+    limit: int = 50,
+) -> list[SocialPublishEventRecord]:
+    engine = _get_engine()
+    safe_limit = max(1, int(limit))
+    with Session(engine) as session:
+        query = session.query(_SocialPublishEventRow)
+        if nexus_id is not None:
+            query = query.filter(_SocialPublishEventRow.nexus_id == (str(nexus_id).strip() or None))
+        if platform is not None:
+            query = query.filter(_SocialPublishEventRow.platform == str(platform).strip().lower())
+        if campaign_id is not None:
+            query = query.filter(_SocialPublishEventRow.campaign_id == str(campaign_id).strip())
+        rows = query.order_by(_SocialPublishEventRow.created_at.desc()).limit(safe_limit).all()
+        return [_row_to_social_publish_event(row) for row in rows]
 
 
 def get_user_tracking_state(*, storage_key: str = "default") -> tuple[dict[str, Any] | None, datetime | None]:
@@ -642,10 +890,12 @@ def upsert_ai_provider_keys(
     gemini_api_key_enc: str | None = None,
     claude_api_key_enc: str | None = None,
     copilot_github_token_enc: str | None = None,
+    opencode_api_key_enc: str | None = None,
     codex_account_enabled: bool | None = None,
     gemini_account_enabled: bool | None = None,
     claude_account_enabled: bool | None = None,
     copilot_account_enabled: bool | None = None,
+    agy_account_enabled: bool | None = None,
     key_version: int = 1,
 ) -> None:
     engine = _get_engine()
@@ -667,6 +917,8 @@ def upsert_ai_provider_keys(
             row.claude_api_key_enc = str(claude_api_key_enc or "").strip() or None
         if copilot_github_token_enc is not None:
             row.copilot_github_token_enc = str(copilot_github_token_enc or "").strip() or None
+        if opencode_api_key_enc is not None:
+            row.opencode_api_key_enc = str(opencode_api_key_enc or "").strip() or None
         if codex_account_enabled is not None:
             row.codex_account_enabled = bool(codex_account_enabled)
         if gemini_account_enabled is not None:
@@ -675,6 +927,8 @@ def upsert_ai_provider_keys(
             row.claude_account_enabled = bool(claude_account_enabled)
         if copilot_account_enabled is not None:
             row.copilot_account_enabled = bool(copilot_account_enabled)
+        if agy_account_enabled is not None:
+            row.agy_account_enabled = bool(agy_account_enabled)
         row.key_version = max(1, int(key_version or 1))
         row.updated_at = now
         session.commit()
@@ -686,6 +940,81 @@ def upsert_codex_key(*, nexus_id: str, codex_api_key_enc: str, key_version: int 
         codex_api_key_enc=codex_api_key_enc,
         key_version=key_version,
     )
+
+
+def upsert_linkedin_credentials(
+    *,
+    nexus_id: str,
+    linkedin_token_enc: str,
+    linkedin_author_urn: str,
+    linkedin_token_expires_at: datetime | None = None,
+    key_version: int = 1,
+) -> None:
+    """Store LinkedIn OAuth access token and author URN."""
+    engine = _get_engine()
+    with Session(engine) as session:
+        row = session.get(_UserCredentialRow, str(nexus_id))
+        now = _now_utc()
+        if not row:
+            row = _UserCredentialRow(nexus_id=str(nexus_id), created_at=now, updated_at=now)
+            session.add(row)
+        row.linkedin_token_enc = str(linkedin_token_enc or "").strip() or None
+        row.linkedin_author_urn = str(linkedin_author_urn or "").strip() or None
+        row.linkedin_token_expires_at = linkedin_token_expires_at
+        row.key_version = max(1, int(key_version or 1))
+        row.updated_at = now
+        session.commit()
+
+
+def upsert_x_credentials(
+    *,
+    nexus_id: str,
+    x_bearer_token_enc: str | None = None,
+    x_oauth_token_enc: str | None = None,
+    x_oauth_secret_enc: str | None = None,
+    key_version: int = 1,
+) -> None:
+    """Store X (Twitter) OAuth 2.0 bearer token and/or OAuth 1.0a token pair."""
+    engine = _get_engine()
+    with Session(engine) as session:
+        row = session.get(_UserCredentialRow, str(nexus_id))
+        now = _now_utc()
+        if not row:
+            row = _UserCredentialRow(nexus_id=str(nexus_id), created_at=now, updated_at=now)
+            session.add(row)
+        if x_bearer_token_enc is not None:
+            row.x_bearer_token_enc = str(x_bearer_token_enc or "").strip() or None
+        if x_oauth_token_enc is not None:
+            row.x_oauth_token_enc = str(x_oauth_token_enc or "").strip() or None
+        if x_oauth_secret_enc is not None:
+            row.x_oauth_secret_enc = str(x_oauth_secret_enc or "").strip() or None
+        row.key_version = max(1, int(key_version or 1))
+        row.updated_at = now
+        session.commit()
+
+
+def upsert_meta_credentials(
+    *,
+    nexus_id: str,
+    meta_page_token_enc: str,
+    meta_page_id: str,
+    meta_ig_account_id: str | None = None,
+    key_version: int = 1,
+) -> None:
+    """Store Meta (Facebook/Instagram) page access token and account IDs."""
+    engine = _get_engine()
+    with Session(engine) as session:
+        row = session.get(_UserCredentialRow, str(nexus_id))
+        now = _now_utc()
+        if not row:
+            row = _UserCredentialRow(nexus_id=str(nexus_id), created_at=now, updated_at=now)
+            session.add(row)
+        row.meta_page_token_enc = str(meta_page_token_enc or "").strip() or None
+        row.meta_page_id = str(meta_page_id or "").strip() or None
+        row.meta_ig_account_id = str(meta_ig_account_id or "").strip() or None
+        row.key_version = max(1, int(key_version or 1))
+        row.updated_at = now
+        session.commit()
 
 
 def update_gitlab_oauth_tokens(
@@ -718,6 +1047,27 @@ def get_user_credentials(nexus_id: str) -> CredentialRecord | None:
     with Session(engine) as session:
         row = session.get(_UserCredentialRow, str(nexus_id))
         return _row_to_credential(row) if row else None
+
+
+def get_login_identity(*, provider: str, client_id: str, subject: str) -> str | None:
+    """Look up an immutable subject within the configured OAuth app."""
+    with Session(_get_engine()) as session:
+        row = session.get(_LoginIdentityRow, (provider, client_id, subject))
+        return str(row.nexus_id) if row else None
+
+
+def bind_login_identity(*, provider: str, client_id: str, subject: str, nexus_id: str) -> None:
+    """Idempotently bind a verified subject, refusing reassignment to another user."""
+    if provider not in {"linkedin", "x", "meta"} or not all((client_id, subject, nexus_id)):
+        raise ValueError("Invalid social login identity.")
+    with Session(_get_engine()) as session:
+        row = session.get(_LoginIdentityRow, (provider, client_id, subject))
+        if row:
+            if row.nexus_id != nexus_id:
+                raise ValueError("This social account is already linked to another Nexus account.")
+            return
+        session.add(_LoginIdentityRow(provider=provider, client_id=client_id, subject=subject, nexus_id=nexus_id))
+        session.commit()
 
 
 def find_user_credentials_by_github_identity(

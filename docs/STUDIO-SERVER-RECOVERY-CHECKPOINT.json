@@ -1,0 +1,166 @@
+{
+  "format": "nexus-studio-server-recovery-acceptance/v1",
+  "date": "2026-10-26",
+  "status": "local-runtime-verified",
+  "scope": "Source-runtime POSIX service-manager termination and disposable Linux server restart/backup/restore. No actual personal VM deployment or desktop packaging.",
+  "acceptance_complete": true,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "reproduced_before_fix": {
+    "check": "tests/studio_server_recovery_acceptance.py -k files -x",
+    "result": "failed",
+    "cause": "SIGTERM used the process default action; the real CLI exited by signal before StudioService.close could run."
+  },
+  "changes": [
+    "A main-thread Studio launch now handles SIGTERM by setting a cooperative stop event, without raising inside state operations.",
+    "HTTP shutdown runs outside serve_forever; worker-only mode ends its wait and both reuse the existing service cleanup.",
+    "Repeated SIGTERM remains cooperative during cleanup; previous signal handling is restored on return/error. Embedded thread launches retain host policy.",
+    "A stop received during initialization closes the service before listening or operational dispatch.",
+    "Added a thin public-API example, explicit POSIX process acceptance and repeatable Linux test image; no persisted formats or HTTP payloads changed."
+  ],
+  "verified": [
+    "File and SQLite workspaces each survive normal termination, SIGKILL restart and an inactive restored-copy launch: four real CLI launches per backend.",
+    "Every live controller rejects a second writer with exit status 75; no listener survives a terminated controller.",
+    "Existing agent/workflow definitions and paused approval remain readable; no extra run is created.",
+    "Original and replacement artifact bytes survive; lexical retrieval still cites original pinned revision 1.",
+    "Instrumented real controller/SQL-worker close methods finish after two SIGTERM signals, including a signal received during cleanup.",
+    "Existing file/SQL backup, integrity checks, inactive restores, workspace ownership and native parent-pipe regressions pass on both hosts."
+  ],
+  "validation": {
+    "macos": {
+      "report": "/private/tmp/nexus-server-recovery-required.xml",
+      "tests": 92,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "duration_seconds": 85.24,
+      "sha256": "b54b4be42c6f807a98b21bc26fb8e2c15e6d10b69ffb793c550ac28ae2f772f4"
+    },
+    "linux": {
+      "report": "/private/tmp/nexus-linux-server-recovery.log",
+      "tests": 92,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "deselected": 0,
+      "duration_seconds": 36.04,
+      "exit_code": 0,
+      "sha256": "f7ee3f810411c2ab9052fad021906b4836d1550df133a1106719bac52ca557c4"
+    },
+    "test_groups": {
+      "termination": 8,
+      "backup": 13,
+      "sql_restore": 31,
+      "workspace": 23,
+      "parent_unit": 7,
+      "actual_parent": 6,
+      "actual_server": 4
+    },
+    "warning": "One existing SQLAlchemy memory-URL pool-selection deprecation per host, from the rejected ephemeral-target fixture. No failures or skips.",
+    "lint": "Ruff passes for the changed runtime, helper, consumer and tests; git diff --check passes."
+  },
+  "linux_image": {
+    "id": "sha256:f495c3e080fd74a910e2bcc9baa01b84508519e790ae9edd92e990de88bedc2e",
+    "tag": "nexus-studio-recovery:acceptance-20261026",
+    "os": "linux",
+    "architecture": "arm64",
+    "size_bytes": 348177150,
+    "base": "python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+    "recipe": "deploy/studio/recovery-checks/Dockerfile",
+    "context": "default",
+    "build_context": "/private/tmp/nexus-linux-server-recovery-context",
+    "build_scope": "Only source package, metadata, selected tests/legacy fixtures and three example consumers were staged. Build explicitly downloaded test dependencies. No credentials or personal workspace were copied.",
+    "runtime": {
+      "user": "65534:65534",
+      "network": "none",
+      "read_only_root": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_options": [
+        "no-new-privileges"
+      ],
+      "pids_limit": 128,
+      "memory_bytes": 805306368,
+      "tmpfs": {
+        "/tmp": "rw,nosuid,nodev,size=384m"
+      },
+      "host_mounts": 0,
+      "published_ports": 0,
+      "external_account_calls": 0
+    },
+    "container_removed": true,
+    "package_snapshot": {
+      "architecture": "aarch64",
+      "os_release": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.7\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+      "packages": {
+        "PyYAML": "6.0.3",
+        "Pygments": "2.21.0",
+        "SQLAlchemy": "2.1.6",
+        "annotated-types": "0.8.0",
+        "certifi": "2026.10.23",
+        "charset-normalizer": "3.5.2",
+        "idna": "3.20",
+        "iniconfig": "2.3.1",
+        "nexus-arc": "0.1.1",
+        "packaging": "26.3",
+        "pip": "26.2.1",
+        "pluggy": "1.7.0",
+        "pydantic": "2.14.1",
+        "pydantic_core": "2.50.1",
+        "pypdf": "6.21.2",
+        "pytest": "9.1.1",
+        "pytest-asyncio": "1.4.1",
+        "requests": "2.34.2",
+        "typing-inspection": "0.4.4",
+        "typing_extensions": "4.16.0",
+        "urllib3": "2.8.0"
+      },
+      "python": "3.13.16"
+    },
+    "package_report": "/private/tmp/nexus-linux-server-recovery-packages.json",
+    "package_report_sha256": "a4e89804d7981d0d5782fc6d48cb7ce9b336fe20f6e24a9c2fc666d72a0e07bd"
+  },
+  "source_sha256": {
+    "nexus/studio.py": "91d4420dae277f1a2b140fa003c723ab0a0700179bb3a695267de6cba76d4830",
+    "nexus/core/studio_termination.py": "69e13744e5c4c54f967977f03ea9e5cce06e94cd3b923c845519f7ccef21125f",
+    "nexus/core/studio.py": "446b507bd42369742af5173708df2a6ab21183f506e7ca01458811a890937ea6",
+    "nexus/core/studio_backup.py": "cd90210994c40fd05eddbafba13a38a713d1e83d7a58f9100cafe339d7b2d819",
+    "nexus/core/studio_sql_restore.py": "6c806af57abc4afdd0123fda83c45fed4125192ff0061aef3a936ded5a6448de",
+    "nexus/core/studio_state.py": "1d384e9249d5f832735cb09e7aa53319e6d377bf0df40768ad1c0e8c8e028112",
+    "nexus/core/studio_desktop.py": "989b6afbd06ddfe02c4b1c43767bd490872d97296b904d93ed772b8a247b7b91",
+    "nexus/core/studio_desktop_parent.py": "3f649fb8a76a74ddfebebceef1987dbae89a0a5f9a171d4ef56e4087780a4b6a",
+    "nexus/core/studio_knowledge.py": "38b40449a7f45f76ad68d8a15b44f7f225a9e886750f413f558093eb7ede991e",
+    "nexus/core/studio_artifacts.py": "81ffce544e375e89a1428094a592b8f42ca5b6c83bee1c2bd3d4bf53aa00c0c0",
+    "examples/nexus-bot/src/studio_server_recovery.py": "4580e7ca4c5681f67ecb7c122c2f9d187ff56bb2897b22526abb6e1bad2b28c4",
+    "examples/nexus-bot/src/studio_desktop_parent.py": "048da97b3a7d68da9af51ed76a17df4c7ef9ae59cbdc22029d6246fc6945821d",
+    "tests/test_studio_termination.py": "4e2b63d09301e4657f3f3c418e226397dc0dfd9df177629ae1e508add1eabb8b",
+    "tests/studio_server_recovery_acceptance.py": "cd38cbae2a858f4ef6d4bc06bc4e0492f1e1e8f1eda5233c4143676b95975dcc",
+    "tests/test_studio_backup.py": "e4045d2fa2b3b0fb161a97b1c6c1742ddafe1b0ad081034af3ecf4cfe7eb0844",
+    "tests/test_studio_sql_restore.py": "99ce4d8ea3cec482d68794db504ca748dfac2c9c431f42fd7eb015126440c8e2",
+    "tests/test_studio_desktop.py": "3b2e79d4cb89eb4d4d3e63b9202bbffd3d2936e1aec025ed808dbb1a3a614368",
+    "tests/test_studio_desktop_parent.py": "ab82a35fedf664a7b57fba2dcb143ff397b8ddce92917707fff5f510faecc63f",
+    "tests/studio_desktop_parent_acceptance.py": "fbc0d48677ba142c75c0d6e9d226f39bb7149724c79d1b3a08394899b2da85e9",
+    "deploy/studio/recovery-checks/Dockerfile": "ff044f3676cc850553883d483cc4177ae3b973c0ebe5e09911be91df0a7f9b24"
+  },
+  "compatibility": {
+    "schema_changes": false,
+    "api_format_changes": false,
+    "authentication_changes": false,
+    "upgrade": "Install the updated source package and restart the selected service normally. Existing service-manager stop limits remain applicable; SIGKILL cannot run cleanup."
+  },
+  "pending": [
+    "Actual personal HTTPS VM installation, systemd restart/upgrade/restore, existing Nexus login and account-specific checks.",
+    "Native Windows termination, Linux desktop/WebKitGTK, macOS native installed/frozen validation of this source fix.",
+    "Physical voice devices and selected speech API accounts; remote/SSH Docker, daemon restart and concurrent route changes.",
+    "MCP descendants escaping the SDK process group and the previously unclassified historical PDF event.",
+    "Desktop distribution remains last and requires its separate platform/signing/installation gates."
+  ],
+  "user_workspace_changed": false,
+  "vm_changed": false,
+  "desktop_app_built": false,
+  "dmg_rebuilt": false,
+  "release_checksum_manifest_sha256": "c303cadd620b85fd73bed7b7d94aaf5cb9ec40a12e68dd5599da9af08f2b2e75",
+  "release_note": "Checksum manifest remains unchanged; prior DMG files are absent and were not reverified or recreated."
+}

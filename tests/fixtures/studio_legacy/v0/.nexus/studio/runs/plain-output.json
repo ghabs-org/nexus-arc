@@ -1,0 +1,9 @@
+{
+  "id": "plain-output",
+  "session_id": "conversation",
+  "status": "completed",
+  "kind": "chat",
+  "output": "Plain text retained.",
+  "created_at": "2025-01-15T09:00:00+00:00",
+  "updated_at": "2025-01-15T09:00:00+00:00"
+}

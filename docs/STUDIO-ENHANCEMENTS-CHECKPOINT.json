@@ -1,0 +1,73 @@
+{
+  "format": "nexus-studio-enhancements-checkpoint/v1",
+  "date": "2026-11-02",
+  "status": "implemented",
+  "whole_plan_complete": false,
+  "scope": "Studio enhancements outside frozen inventory: IDEA-01 (workflow canvas undo/redo) and IDEA-02 (opt-in run/approval notifications)",
+  "features": {
+    "IDEA-01": {
+      "title": "Workflow canvas undo/redo with bounded validated edit history",
+      "status": "implemented",
+      "history_bound": 50,
+      "keyboard_shortcuts": [
+        "Ctrl+Z",
+        "Cmd+Z",
+        "Ctrl+Shift+Z",
+        "Cmd+Shift+Z",
+        "Ctrl+Y"
+      ],
+      "operations_tracked": [
+        "node additions",
+        "node deletions",
+        "edge additions",
+        "edge deletions",
+        "auto-layout",
+        "node dragging",
+        "arrow key movements",
+        "node configuration changes"
+      ],
+      "tests": "tests/studio_graph_browser.test.cjs",
+      "test_count": 7
+    },
+    "IDEA-02": {
+      "title": "Opt-in run-completion and approval notifications with private-content limits",
+      "status": "implemented",
+      "opt_in_required": true,
+      "storage_key": "nexus-notifications-optin",
+      "private_content_limits": "Only short run ID, status, and kind; zero prompt text, secrets, or variable values exposed",
+      "deduplication": "Dual layer via in-memory Set and Web Notification tag: nexus-run-${id}",
+      "fallback": "In-app Activity and Approval inbox always display status; notification click navigates to #activity or #inbox",
+      "tests": "tests/studio_notifications.test.cjs",
+      "test_count": 8
+    }
+  },
+  "validation": {
+    "frontend_node": {
+      "command": "node --test tests/studio_*.test.cjs",
+      "tests": 320,
+      "passed": 320,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_focused": {
+      "command": ".venv/bin/python -m pytest -o addopts=\"\" tests/test_studio_source_map.py tests/test_studio_completion_audit.py tests/test_studio_requirements.py tests/test_studio_catalog_closure.py tests/test_studio_evaluation_gate.py",
+      "tests": 43,
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_evaluation": {
+      "command": ".venv/bin/python -m pytest -o addopts=\"\" tests/test_studio_evaluation_export.py tests/test_studio_evaluation_import.py",
+      "tests": 49,
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "constraints": {
+    "vm_work": "deferred",
+    "desktop_builds": "only on explicit user request",
+    "milestone_9": "last",
+    "public_release_publication": "withheld"
+  }
+}

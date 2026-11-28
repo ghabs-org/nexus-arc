@@ -1,0 +1,9 @@
+# Real mutual-TLS transport acceptance; no application or installer build.
+ARG CHECK_IMAGE=nexus-ssh-proxy-checks:20261026
+FROM ${CHECK_IMAGE}
+COPY examples/nexus-bot/src/studio_proxy_ssh.py examples/nexus-bot/src/studio_proxy_tls.py /checks/examples/nexus-bot/src/
+USER 0:0
+RUN mkdir /tls-client /tls-server \
+    && chown 1001:1001 /tls-client /tls-server \
+    && chmod 700 /tls-client /tls-server
+USER 1001:1001

@@ -50,7 +50,7 @@ def build_help_text() -> str:
         "🤖 **Nexus Commands**\n\n"
         "Use /menu for a categorized, button-driven view.\n\n"
         "🔐 **Onboarding:**\n"
-        "/login [github|gitlab|codex|gemini|claude|copilot] - Link Git provider and configure AI credentials (Codex/Gemini/Claude/Copilot)\n"
+        "/login [github|gitlab|codex|claude|copilot] - Link Git provider and configure AI credentials (Codex/Claude/Copilot)\n"
         "/setup_status - Show onboarding and project-access readiness\n"
         "/whoami - Show your Telegram/Nexus identity mapping\n\n"
         "🗣️ **Chat & Strategy:**\n"
@@ -98,7 +98,7 @@ def build_help_text() -> str:
         "• /assign <project> <issue#> - Assign issue to yourself\n"
         "• /implement <project> <issue#> - Request AI Agent implementation\n"
         "• /prepare <project> <issue#> - Add AI Agent instructions\n"
-        "• /plan <project> <issue#> - Request a technical implementation plan\n\n"
+        "• /plan <project> <request> - Create a new planning task\n\n"
         "ℹ️ /help - Show this list"
     )
 

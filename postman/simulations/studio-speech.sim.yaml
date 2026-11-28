@@ -1,0 +1,5 @@
+simulation: studio-speech
+routing: path
+mocks:
+  - routeKey: speech
+    path: ../mocks/studio-speech/config.yaml

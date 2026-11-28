@@ -1,0 +1,5 @@
+simulation: studio-openapi-health
+routing: path
+mocks:
+  - routeKey: health-service
+    path: ../mocks/studio-openapi-health/config.yaml

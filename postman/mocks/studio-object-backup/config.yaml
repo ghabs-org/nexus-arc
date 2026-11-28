@@ -1,0 +1,10 @@
+version: 1
+name: Read-only S3 artifact backup contract
+slug: studio-object-backup
+protocol: http
+port: 49941
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

@@ -44,12 +44,16 @@ from nexus.core.config.repos import (
     get_repos as _svc_get_repos,
 )
 from nexus.core.config.runtime import (
+    default_rate_limit_backend as _default_rate_limit_backend,
     get_inbox_dir as _svc_get_inbox_dir,
     get_nexus_dir as _svc_get_nexus_dir,
     get_nexus_dir_name as _svc_get_nexus_dir_name,
     get_tasks_active_dir as _svc_get_tasks_active_dir,
     get_tasks_closed_dir as _svc_get_tasks_closed_dir,
     get_tasks_logs_dir as _svc_get_tasks_logs_dir,
+    normalize_auth_authority as _normalize_auth_authority,
+    normalize_chat_transcript_owner as _normalize_chat_transcript_owner,
+    normalize_runtime_mode as _normalize_runtime_mode,
 )
 from nexus.core.config.validators import validate_project_config as _svc_validate_project_config
 from nexus.core.project.registry import (
@@ -73,6 +77,24 @@ DISCORD_ENABLE_USER_INSTALL_PRIVATE_CHAT = _env_bool(
     False,
 )
 
+# --- ROUTER FEEDBACK CONFIGURATION ---
+NEXUS_ROUTER_URL = str(os.getenv("NEXUS_ROUTER_URL", "")).strip()
+NEXUS_ROUTER_FEEDBACK_ENABLED = _env_bool("NEXUS_ROUTER_FEEDBACK_ENABLED", False)
+NEXUS_ROUTER_FEEDBACK_TELEGRAM_ENABLED = _env_bool(
+    "NEXUS_ROUTER_FEEDBACK_TELEGRAM_ENABLED",
+    True,
+)
+NEXUS_ROUTER_FEEDBACK_DISCORD_ENABLED = _env_bool(
+    "NEXUS_ROUTER_FEEDBACK_DISCORD_ENABLED",
+    False,
+)
+NEXUS_ROUTER_FEEDBACK_CONFIG = {
+    "router_url": NEXUS_ROUTER_URL,
+    "enabled": NEXUS_ROUTER_FEEDBACK_ENABLED,
+    "telegram_enabled": NEXUS_ROUTER_FEEDBACK_ENABLED and NEXUS_ROUTER_FEEDBACK_TELEGRAM_ENABLED,
+    "discord_enabled": NEXUS_ROUTER_FEEDBACK_ENABLED and NEXUS_ROUTER_FEEDBACK_DISCORD_ENABLED,
+}
+
 # --- PATHS & DIRECTORIES ---
 _PATH_CONFIG = load_path_config_from_env()
 BASE_DIR = _PATH_CONFIG["BASE_DIR"]
@@ -92,6 +114,17 @@ TELEGRAM_BOT_LOG_FILE = _PATH_CONFIG["TELEGRAM_BOT_LOG_FILE"]
 AI_PERSONA = os.getenv(
     "AI_PERSONA",
     "You are Nexus, a brilliant business advisor and technical architect (like Jarvis from Iron Man).\n\nAnswer the following question or brainstorm ideas directly and concisely. Keep your tone professional, highly capable, and slightly witty but always helpful.",
+)
+
+# --- RUNTIME MODE CONFIGURATION ---
+NEXUS_RUNTIME_MODE = _normalize_runtime_mode(os.getenv("NEXUS_RUNTIME_MODE", "standalone"))
+NEXUS_CHAT_TRANSCRIPT_OWNER = _normalize_chat_transcript_owner(
+    os.getenv("NEXUS_CHAT_TRANSCRIPT_OWNER", ""),
+    NEXUS_RUNTIME_MODE,
+)
+NEXUS_AUTH_AUTHORITY = _normalize_auth_authority(
+    os.getenv("NEXUS_AUTH_AUTHORITY", ""),
+    NEXUS_RUNTIME_MODE,
 )
 
 # --- REDIS CONFIGURATION ---
@@ -154,6 +187,22 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")  # Git webhook secret for signature
 NEXUS_WEBHOOK_INTERNAL_URL = str(
     os.getenv("NEXUS_WEBHOOK_INTERNAL_URL", f"http://127.0.0.1:{WEBHOOK_PORT}")
 ).strip().rstrip("/")
+
+# --- COMMAND BRIDGE CONFIGURATION ---
+NEXUS_COMMAND_BRIDGE_ENABLED = _env_bool("NEXUS_COMMAND_BRIDGE_ENABLED", False)
+NEXUS_COMMAND_BRIDGE_HOST = str(os.getenv("NEXUS_COMMAND_BRIDGE_HOST", "127.0.0.1")).strip()
+NEXUS_COMMAND_BRIDGE_PORT = _get_int_env("NEXUS_COMMAND_BRIDGE_PORT", 8091)
+NEXUS_COMMAND_BRIDGE_AUTH_TOKEN = str(os.getenv("NEXUS_COMMAND_BRIDGE_AUTH_TOKEN", "")).strip()
+NEXUS_COMMAND_BRIDGE_ALLOWED_SOURCES = [
+    str(value).strip().lower()
+    for value in _parse_csv_list("NEXUS_COMMAND_BRIDGE_ALLOWED_SOURCES")
+    if str(value).strip()
+]
+NEXUS_COMMAND_BRIDGE_ALLOWED_SENDER_IDS = [
+    str(value).strip()
+    for value in _parse_csv_list("NEXUS_COMMAND_BRIDGE_ALLOWED_SENDER_IDS")
+    if str(value).strip()
+]
 
 # --- AUTH / CREDENTIALS CONFIGURATION ---
 NEXUS_AUTH_ENABLED = str(os.getenv("NEXUS_AUTH_ENABLED", "false")).strip().lower() in {
@@ -263,6 +312,50 @@ def get_profile_provider_priority(project: str = "nexus") -> dict:
     return {}
 
 
+_agent_spec_model_cache: dict[tuple[str, str], str] = {}
+
+
+def get_agent_spec_model(agent_type: str, project: str = "nexus") -> str:
+    """Return the pinned ``spec.model`` for an agent type, or "".
+
+    Scans the project's ``agents_dir`` plus the shared org agents dir using
+    the standard agent-definition lookup. Results are cached per process
+    (restart picks up YAML edits), matching the other lazy config wrappers.
+    """
+    key = (str(project or "nexus"), str(agent_type or ""))
+    if key in _agent_spec_model_cache:
+        return _agent_spec_model_cache[key]
+    model = ""
+    try:
+        from nexus.core.execution import find_agent_definition
+
+        config = _get_project_config()
+        dirs: list[str] = []
+        proj_config = config.get(key[0]) if isinstance(config, dict) else None
+        if isinstance(proj_config, dict):
+            agents_dir = str(proj_config.get("agents_dir") or "").strip()
+            if agents_dir:
+                dirs.append(
+                    agents_dir if os.path.isabs(agents_dir) else os.path.join(BASE_DIR, agents_dir)
+                )
+        shared = config.get("shared_agents_dir", "") if isinstance(config, dict) else ""
+        if shared:
+            shared = str(shared)
+            dirs.append(shared if os.path.isabs(shared) else os.path.join(BASE_DIR, shared))
+        found = find_agent_definition(key[1], dirs) if dirs else None
+        if found:
+            import yaml as _yaml
+
+            with open(found, encoding="utf-8") as handle:
+                data = _yaml.safe_load(handle)
+            spec = data.get("spec", {}) if isinstance(data, dict) else {}
+            model = str(spec.get("model") or "").strip()
+    except Exception as exc:
+        logger.debug("get_agent_spec_model failed for %s: %s", key, exc)
+    _agent_spec_model_cache[key] = model
+    return model
+
+
 def get_system_operations(project: str = "nexus") -> dict:
     """Get operation-task -> agent-type mapping for a project.
 
@@ -294,6 +387,21 @@ def get_copilot_permissions(project: str = "nexus") -> dict:
 
     if "copilot_permissions" in config:
         return config["copilot_permissions"]
+
+    return {}
+
+
+def get_execution_mode_cli_config(project: str = "nexus") -> dict:
+    """Get execution-mode CLI overrides for a project."""
+    config = _get_project_config()
+
+    if project in config:
+        proj_config = config[project]
+        if isinstance(proj_config, dict) and "execution_mode_cli_config" in proj_config:
+            return proj_config["execution_mode_cli_config"]
+
+    if "execution_mode_cli_config" in config:
+        return config["execution_mode_cli_config"]
 
     return {}
 
@@ -417,6 +525,7 @@ _model_profiles_cache = {}
 _profile_provider_priority_cache = {}
 _system_operations_cache = {}
 _copilot_permissions_cache = {}
+_execution_mode_cli_config_cache = {}
 
 
 class _LazyConfigWrapper:
@@ -478,6 +587,11 @@ COPILOT_PERMISSIONS = _LazyConfigWrapper(
     _copilot_permissions_cache,
     "nexus",
 )
+EXECUTION_MODE_CLI_CONFIG = _LazyConfigWrapper(
+    get_execution_mode_cli_config,
+    _execution_mode_cli_config_cache,
+    "nexus",
+)
 
 # Orchestrator configuration (lazy-loaded)
 _orchestrator_config_cache = {}
@@ -493,24 +607,29 @@ def _get_orchestrator_config():
             "copilot_model": os.getenv("COPILOT_MODEL", "").strip(),
             "copilot_supports_model": os.getenv("COPILOT_SUPPORTS_MODEL", "false").lower()
             == "true",
-            "gemini_cli_path": os.getenv("GEMINI_CLI_PATH", "gemini"),
-            "gemini_model": os.getenv("GEMINI_MODEL", "").strip(),
             "codex_cli_path": os.getenv("CODEX_CLI_PATH", "codex"),
             "codex_model": os.getenv("CODEX_MODEL", "").strip(),
             "claude_cli_path": os.getenv("CLAUDE_CLI_PATH", "claude"),
             "claude_model": os.getenv("CLAUDE_MODEL", "").strip(),
+            "opencode_cli_path": os.getenv("OPENCODE_CLI_PATH", "opencode"),
+            "opencode_model": os.getenv(
+                "OPENCODE_MODEL", "opencode/glm-5.3-flash-free"
+            ).strip(),
             "ai_tool_preferences_strict": os.getenv("AI_TOOL_PREFERENCES_STRICT", "false").lower()
             == "true",
             "tool_preferences": AI_TOOL_PREFERENCES._ensure_loaded(),
             "tool_preferences_resolver": get_ai_tool_preferences,
             "model_profiles": MODEL_PROFILES._ensure_loaded(),
             "model_profiles_resolver": get_model_profiles,
+            "agent_spec_model_resolver": get_agent_spec_model,
             "profile_provider_priority": PROFILE_PROVIDER_PRIORITY._ensure_loaded(),
             "profile_provider_priority_resolver": get_profile_provider_priority,
             "system_operations": SYSTEM_OPERATIONS._ensure_loaded(),
             "system_operations_resolver": get_system_operations,
             "copilot_permissions": COPILOT_PERMISSIONS._ensure_loaded(),
             "copilot_permissions_resolver": get_copilot_permissions,
+            "execution_mode_cli_config": EXECUTION_MODE_CLI_CONFIG._ensure_loaded(),
+            "execution_mode_cli_config_resolver": get_execution_mode_cli_config,
             "chat_agent_types_resolver": get_chat_agent_types,
             "fallback_enabled": os.getenv("AI_FALLBACK_ENABLED", "true").lower() == "true",
             "rate_limit_ttl": int(os.getenv("AI_RATE_LIMIT_TTL", "3600")),
@@ -580,7 +699,11 @@ NEXUS_INBOX_BACKEND = _normalize_backend_enum(
 NEXUS_RATE_LIMIT_BACKEND = _normalize_backend_enum(
     os.getenv("NEXUS_RATE_LIMIT_BACKEND"),
     env_name="NEXUS_RATE_LIMIT_BACKEND",
-    default="redis",
+    default=_default_rate_limit_backend(
+        NEXUS_STORAGE_BACKEND,
+        runtime_mode=NEXUS_RUNTIME_MODE,
+        transcript_owner=NEXUS_CHAT_TRANSCRIPT_OWNER,
+    ),
     allowed=_VALID_RATE_LIMIT_BACKENDS,
     aliases=_RATE_LIMIT_BACKEND_ALIASES,
 )
@@ -607,6 +730,9 @@ class RuntimeSettings:
     nexus_state_dir: str
     nexus_storage_backend: str
     nexus_rate_limit_backend: str
+    nexus_runtime_mode: str
+    nexus_chat_transcript_owner: str
+    nexus_auth_authority: str
     redis_url: str
     nexus_core_storage_dir: str
 
@@ -617,6 +743,9 @@ def get_runtime_settings() -> RuntimeSettings:
         nexus_state_dir=NEXUS_STATE_DIR,
         nexus_storage_backend=NEXUS_STORAGE_BACKEND,
         nexus_rate_limit_backend=NEXUS_RATE_LIMIT_BACKEND,
+        nexus_runtime_mode=NEXUS_RUNTIME_MODE,
+        nexus_chat_transcript_owner=NEXUS_CHAT_TRANSCRIPT_OWNER,
+        nexus_auth_authority=NEXUS_AUTH_AUTHORITY,
         redis_url=REDIS_URL,
         nexus_core_storage_dir=NEXUS_CORE_STORAGE_DIR,
     )
@@ -867,6 +996,7 @@ def validate_configuration():
                 "task_types",
                 "ai_tool_preferences",
                 "copilot_permissions",
+                "execution_mode_cli_config",
                 "system_operations",
                 "merge_queue",
                 "workflow_chains",

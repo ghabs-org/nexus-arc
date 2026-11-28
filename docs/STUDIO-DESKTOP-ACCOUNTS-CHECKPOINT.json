@@ -1,0 +1,78 @@
+{
+  "format": "nexus-studio-native-accounts/v1",
+  "verified_at": "2026-11-06T08:29:57.156670+00:00",
+  "status": "macos-source-fixture-verified",
+  "whole_plan_complete": false,
+  "implementation": [
+    "Optional native Account menu with browser login, state-bound loopback return and PKCE S256 exchange.",
+    "Nexus device credentials in macOS Keychain; no webview/frontend token storage.",
+    "Existing Nexus identity and dynamic project-name inspection, thirty-day expiry and per-device sign-out/revocation.",
+    "Additive idempotent attempt/device tables in existing auth store, with hashed random secrets and atomic approval/code consumption.",
+    "Guided local Codex/Claude Code/Antigravity login via framework-owned CLI guidance and Terminal; custom arguments rejected to prevent copying secrets or non-login actions into launchers."
+  ],
+  "verification": {
+    "python_regressions": {
+      "passed": 284,
+      "failed": 0,
+      "skipped": 0
+    },
+    "native_tests": {
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0
+    },
+    "postman_simulation": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Real Rust network/loopback client against synthetic Nexus HTTP dependency; not a live identity provider."
+    },
+    "keychain": {
+      "real_round_trip": true,
+      "synthetic_origin": "https://nexus-desktop-keychain-fixture.invalid",
+      "synthetic_entry_removed": true
+    },
+    "macos_socket_regression": {
+      "reproduced_before_fix": true,
+      "delayed_request_passed_after_fix": true,
+      "cause": "Accepted stream inherited nonblocking mode on macOS; now switched to blocking with bounded read deadline."
+    },
+    "native_development_build": "passed; not a DMG/release build",
+    "clippy": "passed with -D warnings",
+    "rustfmt": "passed",
+    "new_python_lint": "passed",
+    "webhook_preexisting_lint": {
+      "baseline": 46,
+      "current": 46,
+      "new_findings": 0
+    },
+    "openapi_syntax": "Postman passed; no reporting/publication",
+    "native_ui": "blocked by locked Mac; no menu interaction claimed",
+    "isolated_ui_process_stopped": true,
+    "isolated_workspace_lock_released": true
+  },
+  "remaining": [
+    "Deploy reviewed hosted bridge and register provider callback.",
+    "Actual native menu/browser flow with configured identity provider, cancellation and reconnect.",
+    "Real local provider subscription sign-in and invocation; guided terminal opening alone is not authentication.",
+    "Signed-app Keychain continuity and another physical Mac.",
+    "Windows/Linux native OS credential storage and guided terminal launch are implementation gaps.",
+    "Package reviewed source only after an explicit DMG request."
+  ],
+  "vm_work_performed": false,
+  "dmg_rebuilt": false,
+  "published": false,
+  "source_head": "3160ebbeb7a0764e545eee6cefcfb545b8b14bba",
+  "source_sha256": {
+    "nexus/core/auth/desktop_login.py": "a07642722eca6885a3636c15b6df7e4bcb48597ea29907ac6a95a34868a3a04a",
+    "nexus/core/auth/desktop_routes.py": "5dc9090556655f9f6eff9a1f8e2e2f83d9fb1b3b50103add5d1d83636308532c",
+    "nexus/core/studio_desktop_accounts.py": "bbc302746325a59a48c0cfda8b77c78dd84146e6be3ff7e9fe6194b688209039",
+    "nexus/core/studio_desktop_cli.py": "6c529d2a82847ffbc65524500376f5ffc915c56425c98c0fadaf3d6d30cf6ac7",
+    "examples/nexus-bot/src/webhook_server.py": "95c69de46675ebbb23760e4785216ab4f4744a319d0132dbc1142b8df24f198e",
+    "apps/studio-desktop/src-tauri/src/accounts.rs": "1fed6fe1ecd2b3b1925c91e087a2bf2b30e5c44abc454c2bf62cf56d57885c7f",
+    "apps/studio-desktop/src-tauri/src/main.rs": "53f2008a0821e7431a50c767ea9ccd02679cdfd1f4d81f16747a6912d883c23f",
+    "apps/studio-desktop/src-tauri/Cargo.toml": "1effb6c496575386edd0d26f139eb66056d40867edbaec9a1da641cf5f8f63fe",
+    "postman/contracts/nexus-desktop-login.yaml": "dfd2df0e59080a3fac27022921eaff1561c56e389a7eed0ee3ca64ce241c55fa"
+  },
+  "instructions": "docs/STUDIO-DESKTOP-ACCOUNTS.md"
+}

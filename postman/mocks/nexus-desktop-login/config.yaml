@@ -1,0 +1,10 @@
+version: 1
+name: Nexus native account contract fixture
+slug: nexus-desktop-login
+protocol: http
+port: 49674
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

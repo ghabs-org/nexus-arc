@@ -48,5 +48,38 @@ Thumbs.db
 .cache/
 *.pid
 .env
+target/
+**/src-tauri/target/
+**/src-tauri/gen/
+# Bundled desktop backend outputs and dev wrappers (build_desktop.py; wrappers embed a local Python path)
+apps/studio-desktop/src-tauri/binaries/nexus-sidecar
+apps/studio-desktop/src-tauri/binaries/nexus-sidecar-*
+apps/studio-desktop/src-tauri/binaries/nexus-backend-*/
+apps/studio-desktop/src-tauri/binaries/*.manifest.json
+apps/studio-desktop/src-tauri/binaries/tauri.bundle.conf.json
+apps/studio-desktop/src-tauri/binaries/build.log
+node_modules/
 # Accidental pip output files
 =*
+
+# Runtime data (workspaces, chat memory, logs)
+data/
+
+# Local-only implementation audit and planning records
+/docs/STUDIO-AUDIT.json
+/docs/STUDIO-BUILD-CHECKPOINT.json
+/docs/STUDIO-CANCELLATION-CHECKPOINT.json
+/docs/STUDIO-CANCELLATION.md
+/docs/STUDIO-CONFIGURATION-CHECKPOINT.json
+/docs/STUDIO-CONFIGURATION.md
+/docs/STUDIO-CONTROLS-CHECKPOINT.json
+/docs/STUDIO-CONTROLS.md
+/docs/STUDIO-DECISIONS-CHECKPOINT.json
+/docs/STUDIO-DECISIONS.md
+/docs/STUDIO-IMPLEMENTATION-PLAN.md
+/docs/STUDIO-POLICIES-CHECKPOINT.json
+/docs/STUDIO-POLICIES.md
+/docs/STUDIO-PROGRESS.md
+
+# Local distribution artifacts
+/releases/

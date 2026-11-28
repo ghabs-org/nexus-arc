@@ -4,15 +4,13 @@
 
 ## Elevator Pitch (30 seconds)
 
-**"Nexus ARC is the Git-native AI orchestration framework. Unlike Google ADK or LangChain that log agent actions to
-files, we create permanent artifacts in GitHub — every decision becomes an issue, every implementation becomes a PR,
-every workflow has a complete audit trail. Think Temporal meets GitHub Actions for AI agents."**
+**"Nexus ARC is a Git-native orchestration framework that is evolving into the authenticated integration layer for AI agents. It runs multi-step workflows, keeps a durable audit trail in Git artifacts, and gives agent systems a safe place for connectors, credentials, and policy-aware external actions. Think Temporal meets GitHub Actions for AI agents — plus the integration backbone they actually need in production."**
 
 ---
 
 ## One-Liner
 
-**"The only AI workflow framework where agent actions become part of your Git history, not ephemeral logs."**
+**"Git-native workflows, authenticated connectors, and durable audit trails for AI agents."**
 
 ---
 
@@ -35,7 +33,7 @@ every workflow has a complete audit trail. Think Temporal meets GitHub Actions f
 ### 3. Open & Pluggable
 
 - Apache 2.0 license (corporate-friendly)
-- Works with any AI provider (Copilot, Gemini, soon Claude and Codex)
+- Works with any AI provider (Copilot, Claude and Codex)
 - Pluggable storage (File, PostgreSQL, Redis, S3)
 - Multi-platform (GitHub, GitLab, Bitbucket)
 
@@ -208,7 +206,7 @@ development workflow. Open source (Apache 2.0)."**
 queries. Nexus ARC takes a different approach: every agent action creates a permanent artifact in your Git platform.
 Issues track decisions, comments preserve reasoning, PRs link to implementations. The result is complete traceability
 integrated with your existing development workflow. Battle-tested reliability features (retry, timeout, fallback) ensure
-production readiness. Works with any AI provider (Copilot, Gemini, soon Claude and Codex). Apache 2.0 licensed."**
+production readiness. Works with any AI provider (Copilot, Claude and Codex). Apache 2.0 licensed."**
 
 ---
 
@@ -249,7 +247,7 @@ development workflow.
 
 - ✅ Git-native workflows (issues, PRs, comments)
 - ✅ Production reliability (retry, timeout, fallback)
-- ✅ Multi-provider AI (Copilot, Gemini, soon Claude and Codex)
+- ✅ Multi-provider AI (Copilot, Claude and Codex)
 - ✅ Pluggable architecture (storage, platforms, notifications)
 - ✅ Apache 2.0 license (corporate-friendly)
 
@@ -264,7 +262,7 @@ development workflow.
 
 - Try it: `pip install nexus-arc` *(Coming soon to PyPI)*
 - Docs: https://nexus-arc.readthedocs.io *(Coming soon!)*
-- GitHub: https://github.com/Ghabs95/nexus-arc
+- GitHub: https://github.com/ghabs-org/nexus-arc
 
 ---
 

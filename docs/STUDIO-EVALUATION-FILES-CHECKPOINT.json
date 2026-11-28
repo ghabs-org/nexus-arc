@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "evaluation-file-roles",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "contract": "Optional input_files/reference_files arrays of explicit artifact id/revision; reference files require an explicit judge. Existing routes and case formats remain valid.",
+  "tests": {
+    "python": {
+      "passed": 183,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/test_studio_evaluation_files.py",
+        "tests/test_studio_design.py",
+        "tests/test_studio_dataset_design.py",
+        "tests/test_studio_datasets.py",
+        "tests/test_studio_experiments.py",
+        "tests/test_studio_evaluators.py",
+        "tests/test_studio_evaluation_gate.py",
+        "tests/test_studio_resources.py",
+        "tests/test_studio_retrieval_evidence.py"
+      ]
+    },
+    "browser_logic": {
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "tests/studio_evaluation_context.test.cjs",
+        "tests/studio_datasets.test.cjs",
+        "tests/studio_evaluators.test.cjs",
+        "tests/studio_evaluation_gate.test.cjs"
+      ]
+    },
+    "browser": "Disposable Studio: selected distinct input/reference revision 1; chooser excluded a foreign user artifact. No provider invocation or browser save claimed.",
+    "example": "Synthetic local target/judge example passed",
+    "lint": "Affected checks pass; pre-existing studio_operations.py:83 B904 unchanged. JavaScript syntax and diff whitespace pass."
+  },
+  "guarantees": [
+    "Only input text is passed into target/workflow invocation payload",
+    "Reference text is passed separately to the configured judge",
+    "Current and pinned historical artifacts both require access",
+    "Prequeue copies survive later source edits/archival and JSON serialization",
+    "Forged snapshots are discarded and oversized files reject before queueing",
+    "Reports copy provenance metadata, not source reference text"
+  ],
+  "bounds": {
+    "files_per_role": 5,
+    "extracted_characters_per_file": 16000,
+    "copied_snapshot_bytes": 921600
+  },
+  "limits": [
+    "Extracted text only; original multimodal inputs are not supported by these roles",
+    "Live provider quality, real-device mobile and deployed-worker recovery not tested in this slice",
+    "Model answers/reasons may quote supplied text; reports remain private"
+  ],
+  "migration": "Additive optional case fields; no data migration. Older runtimes cannot execute file-bearing suites correctly.",
+  "vm_contacted": false,
+  "dmg_rebuilt": false,
+  "next": "Private continuation of shared conversation snapshots"
+}

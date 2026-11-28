@@ -1,0 +1,10 @@
+# Current framework source against an explicitly installed SDK-complete image.
+ARG CHECK_IMAGE
+FROM ${CHECK_IMAGE}
+USER 0:0
+COPY nexus /checks/nexus
+RUN mkdir -p /validation && chown 1001:1001 /validation && chmod 0700 /validation
+ENV PYTHONPATH=/checks PYTHONDONTWRITEBYTECODE=1
+WORKDIR /checks
+USER 1001:1001
+ENTRYPOINT ["python"]

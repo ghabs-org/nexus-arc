@@ -80,6 +80,13 @@ def _cli_account_mode_enabled() -> bool:
     return _cli_auth_mode() in {"account", "auto"}
 
 
+def _normalize_execution_purpose(value: str | None) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"git", "issue_write"}:
+        return normalized
+    return "agent_run"
+
+
 def _ensure_private_runtime_dir(path: str) -> str | None:
     try:
         os.makedirs(path, mode=0o700, exist_ok=True)
@@ -688,14 +695,18 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
             "ready": True,
             "github_linked": False,
             "gitlab_linked": False,
+            "linkedin_linked": False,
+            "x_linked": False,
+            "meta_linked": False,
+            "instagram_linked": False,
             "git_provider_linked": False,
             "codex_key_set": False,
-            "gemini_key_set": False,
             "claude_key_set": False,
+            "opencode_key_set": False,
             "codex_account_enabled": False,
-            "gemini_account_enabled": False,
             "claude_account_enabled": False,
             "copilot_account_enabled": False,
+            "agy_account_enabled": False,
             "account_provider_ready": False,
             "ai_provider_key_set": False,
             "copilot_ready": False,
@@ -711,25 +722,29 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
 
     github_linked = bool(record and record.github_token_enc and record.github_login)
     gitlab_linked = bool(record and record.gitlab_token_enc and record.gitlab_username)
+    linkedin_linked = bool(record and record.linkedin_token_enc and record.linkedin_author_urn)
+    x_linked = bool(record and (record.x_bearer_token_enc or record.x_oauth_token_enc))
+    meta_linked = bool(record and record.meta_page_token_enc and record.meta_page_id)
+    instagram_linked = bool(record and record.meta_ig_account_id)
     git_provider_linked = bool(github_linked or gitlab_linked)
     codex_key_set = bool(record and record.codex_api_key_enc)
-    gemini_key_set = bool(record and record.gemini_api_key_enc)
     claude_key_set = bool(record and record.claude_api_key_enc)
     copilot_token_set = bool(record and record.copilot_github_token_enc)
+    opencode_key_set = bool(record and getattr(record, "opencode_api_key_enc", None))
     codex_account_enabled = bool(record and getattr(record, "codex_account_enabled", False))
-    gemini_account_enabled = bool(record and getattr(record, "gemini_account_enabled", False))
     claude_account_enabled = bool(record and getattr(record, "claude_account_enabled", False))
     copilot_account_enabled = bool(record and getattr(record, "copilot_account_enabled", False))
-    ai_provider_key_set = bool(codex_key_set or gemini_key_set or claude_key_set)
+    agy_account_enabled = bool(record and getattr(record, "agy_account_enabled", False))
+    ai_provider_key_set = bool(codex_key_set or claude_key_set or opencode_key_set)
     # Copilot is available with linked GitHub OAuth or an explicit Copilot GitHub token.
     copilot_ready = bool(github_linked or copilot_token_set or (account_mode_enabled and copilot_account_enabled))
     account_provider_ready = bool(
         account_mode_enabled
         and (
             codex_account_enabled
-            or gemini_account_enabled
             or claude_account_enabled
             or copilot_account_enabled
+            or agy_account_enabled
         )
     )
     ai_provider_ready = bool(ai_provider_key_set or copilot_ready or account_provider_ready)
@@ -746,14 +761,18 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
         "ready": ready,
         "github_linked": github_linked,
         "gitlab_linked": gitlab_linked,
+        "linkedin_linked": linkedin_linked,
+        "x_linked": x_linked,
+        "meta_linked": meta_linked,
+        "instagram_linked": instagram_linked,
         "git_provider_linked": git_provider_linked,
         "codex_key_set": codex_key_set,
-        "gemini_key_set": gemini_key_set,
         "claude_key_set": claude_key_set,
+        "opencode_key_set": opencode_key_set,
         "codex_account_enabled": codex_account_enabled,
-        "gemini_account_enabled": gemini_account_enabled,
         "claude_account_enabled": claude_account_enabled,
         "copilot_account_enabled": copilot_account_enabled,
+        "agy_account_enabled": agy_account_enabled,
         "account_provider_ready": account_provider_ready,
         "copilot_token_set": copilot_token_set,
         "ai_provider_key_set": ai_provider_key_set,
@@ -762,6 +781,9 @@ def get_setup_status(nexus_id: str) -> dict[str, Any]:
         "org_verified": org_verified,
         "github_login": (record.github_login if record else None),
         "gitlab_username": (record.gitlab_username if record else None),
+        "linkedin_author_urn": (record.linkedin_author_urn if record else None),
+        "meta_page_id": (record.meta_page_id if record else None),
+        "meta_ig_account_id": (record.meta_ig_account_id if record else None),
         "project_access_count": project_access_count,
         "projects": projects,
     }
@@ -792,7 +814,9 @@ def has_setup_ready_user_for_project(project_key: str) -> bool:
             gitlab_linked = bool(record.gitlab_token_enc and record.gitlab_username)
             git_provider_linked = bool(github_linked or gitlab_linked)
             ai_provider_key_set = bool(
-                record.codex_api_key_enc or record.gemini_api_key_enc or record.claude_api_key_enc
+                record.codex_api_key_enc
+                or record.claude_api_key_enc
+                or getattr(record, "opencode_api_key_enc", None)
             )
             copilot_ready = bool(
                 github_linked
@@ -803,9 +827,9 @@ def has_setup_ready_user_for_project(project_key: str) -> bool:
                 account_mode_enabled
                 and (
                     bool(getattr(record, "codex_account_enabled", False))
-                    or bool(getattr(record, "gemini_account_enabled", False))
                     or bool(getattr(record, "claude_account_enabled", False))
                     or bool(getattr(record, "copilot_account_enabled", False))
+                    or bool(getattr(record, "agy_account_enabled", False))
                 )
             )
             ai_provider_ready = bool(ai_provider_key_set or copilot_ready or account_provider_ready)
@@ -1004,18 +1028,104 @@ def resolve_project_polling_git_token(project_key: str) -> tuple[str | None, str
     return None, None
 
 
-def build_execution_env(nexus_id: str) -> tuple[dict[str, str], str | None]:
+def prepare_execution_env(
+    nexus_id: str,
+    env: Mapping[str, Any] | None,
+    *,
+    purpose: str = "agent_run",
+) -> tuple[dict[str, str], str | None]:
+    normalized_purpose = _normalize_execution_purpose(purpose)
+    prepared_env = {
+        str(key).strip(): str(value)
+        for key, value in (env.items() if isinstance(env, Mapping) else [])
+        if str(key).strip() and value is not None
+    }
+
+    for retired_key in ("GEMINI_API_KEY", "GEMINI_HOME", "GEMINI_CLI_HOME"):
+        prepared_env.pop(retired_key, None)
+
+    if "GITLAB_TOKEN" not in prepared_env and "GITHUB_TOKEN" in prepared_env:
+        prepared_env["GITLAB_TOKEN"] = prepared_env["GITHUB_TOKEN"]
+
+    if "GITHUB_TOKEN" not in prepared_env and "GITLAB_TOKEN" in prepared_env:
+        prepared_env["GITHUB_TOKEN"] = prepared_env["GITLAB_TOKEN"]
+
+    git_token_present = bool(
+        str(prepared_env.get("GITHUB_TOKEN") or "").strip()
+        or str(prepared_env.get("GH_TOKEN") or "").strip()
+        or str(prepared_env.get("GITLAB_TOKEN") or "").strip()
+        or str(prepared_env.get("GLAB_TOKEN") or "").strip()
+    )
+    if not git_token_present:
+        return {}, "Missing Git provider token."
+
+    account_auth_providers = [
+        item.strip()
+        for item in str(prepared_env.get("NEXUS_ACCOUNT_AUTH_PROVIDERS", "") or "").split(",")
+        if item.strip() in {"codex", "claude", "copilot", "agy"}
+    ]
+    if account_auth_providers:
+        prepared_env["NEXUS_ACCOUNT_AUTH_PROVIDERS"] = ",".join(account_auth_providers)
+    else:
+        prepared_env.pop("NEXUS_ACCOUNT_AUTH_PROVIDERS", None)
+    ai_key_present = (
+        bool(str(prepared_env.get("OPENAI_API_KEY") or "").strip())
+        or bool(str(prepared_env.get("ANTHROPIC_API_KEY") or "").strip())
+        or bool(str(prepared_env.get("CLAUDE_API_KEY") or "").strip())
+        or bool(str(prepared_env.get("OPENCODE_API_KEY") or "").strip())
+    )
+    if normalized_purpose == "agent_run" and not ai_key_present and not account_auth_providers:
+        return (
+            {},
+            "Missing AI provider credentials (Codex/OpenAI, Claude, GitHub for Copilot, "
+            "or account-based provider login via `/login`).",
+        )
+
+    auth_root = os.path.join(NEXUS_RUNTIME_DIR, "auth")
+    user_home_root = os.path.join(auth_root, "home")
+    user_home = os.path.join(user_home_root, str(nexus_id))
+    codex_root = os.path.join(auth_root, "codex")
+    claude_root = os.path.join(auth_root, "claude")
+    agy_root = os.path.join(auth_root, "agy")
+    codex_home = os.path.join(codex_root, str(nexus_id))
+    claude_home = os.path.join(claude_root, str(nexus_id))
+    agy_home = os.path.join(agy_root, str(nexus_id))
+    for path in (
+        auth_root,
+        user_home_root,
+        user_home,
+        codex_root,
+        claude_root,
+        agy_root,
+        codex_home,
+        claude_home,
+        agy_home,
+    ):
+        dir_err = _ensure_private_runtime_dir(path)
+        if dir_err:
+            return {}, dir_err
+    prepared_env["HOME"] = user_home
+    prepared_env["CODEX_HOME"] = codex_home
+    prepared_env["CLAUDE_HOME"] = claude_home
+    # Antigravity CLI keeps login and state under $HOME/.gemini; agy runs use AGY_HOME as HOME.
+    prepared_env["AGY_HOME"] = agy_home
+    return prepared_env, None
+
+
+def build_execution_env(
+    nexus_id: str,
+    *,
+    purpose: str = "agent_run",
+) -> tuple[dict[str, str], str | None]:
     record = get_user_credentials(str(nexus_id))
     if not record:
         return {}, "No credential record found."
 
     env: dict[str, str] = {}
-    github_token_present = False
 
     if record.github_token_enc:
         try:
             env["GITHUB_TOKEN"] = decrypt_secret(record.github_token_enc)
-            github_token_present = True
         except Exception:
             return {}, "Stored GitHub token could not be decrypted."
 
@@ -1050,12 +1160,6 @@ def build_execution_env(nexus_id: str) -> tuple[dict[str, str], str | None]:
         except Exception:
             return {}, "Stored Codex API key could not be decrypted."
 
-    if record.gemini_api_key_enc:
-        try:
-            env["GEMINI_API_KEY"] = decrypt_secret(record.gemini_api_key_enc)
-        except Exception:
-            return {}, "Stored Gemini API key could not be decrypted."
-
     if record.claude_api_key_enc:
         try:
             claude_key = decrypt_secret(record.claude_api_key_enc)
@@ -1064,61 +1168,33 @@ def build_execution_env(nexus_id: str) -> tuple[dict[str, str], str | None]:
         except Exception:
             return {}, "Stored Claude API key could not be decrypted."
 
+    if getattr(record, "opencode_api_key_enc", None):
+        try:
+            env["OPENCODE_API_KEY"] = decrypt_secret(record.opencode_api_key_enc)
+        except Exception:
+            return {}, "Stored OpenCode API key could not be decrypted."
+
     account_mode_enabled = _cli_account_mode_enabled()
     account_auth_providers: list[str] = []
     if account_mode_enabled:
         if bool(getattr(record, "codex_account_enabled", False)):
             account_auth_providers.append("codex")
-        if bool(getattr(record, "gemini_account_enabled", False)):
-            account_auth_providers.append("gemini")
         if bool(getattr(record, "claude_account_enabled", False)):
             account_auth_providers.append("claude")
         if bool(getattr(record, "copilot_account_enabled", False)):
             account_auth_providers.append("copilot")
+        if bool(getattr(record, "agy_account_enabled", False)):
+            account_auth_providers.append("agy")
     if account_auth_providers:
         env["NEXUS_ACCOUNT_AUTH_PROVIDERS"] = ",".join(account_auth_providers)
+    from nexus.core.utils.logging_filters import omit_secret_keys
 
-    ai_key_present = (
-        "OPENAI_API_KEY" in env
-        or "GEMINI_API_KEY" in env
-        or "ANTHROPIC_API_KEY" in env
-        or "CLAUDE_API_KEY" in env
+    logger.debug(
+        "Resolved execution env for nexus_id=%s: keys=%s",
+        nexus_id,
+        sorted(omit_secret_keys(env)),
     )
-    if not ai_key_present and not github_token_present and not account_auth_providers:
-        return (
-            {},
-            "Missing AI provider credentials (Codex/OpenAI, Gemini, Claude, GitHub for Copilot, "
-            "or account-based provider login via `/login`).",
-        )
-
-    auth_root = os.path.join(NEXUS_RUNTIME_DIR, "auth")
-    user_home_root = os.path.join(auth_root, "home")
-    user_home = os.path.join(user_home_root, str(nexus_id))
-    codex_root = os.path.join(auth_root, "codex")
-    gemini_root = os.path.join(auth_root, "gemini")
-    claude_root = os.path.join(auth_root, "claude")
-    codex_home = os.path.join(codex_root, str(nexus_id))
-    gemini_home = os.path.join(gemini_root, str(nexus_id))
-    claude_home = os.path.join(claude_root, str(nexus_id))
-    for path in (
-        auth_root,
-        user_home_root,
-        user_home,
-        codex_root,
-        gemini_root,
-        claude_root,
-        codex_home,
-        gemini_home,
-        claude_home,
-    ):
-        dir_err = _ensure_private_runtime_dir(path)
-        if dir_err:
-            return {}, dir_err
-    env["HOME"] = user_home
-    env["CODEX_HOME"] = codex_home
-    env["GEMINI_HOME"] = gemini_home
-    env["CLAUDE_HOME"] = claude_home
-    return env, None
+    return prepare_execution_env(nexus_id, env, purpose=purpose)
 
 
 def refresh_stale_access_grants(limit: int = 200) -> dict[str, int]:

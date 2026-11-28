@@ -1,15 +1,78 @@
 """Workflow finalization helpers extracted from inbox_processor."""
 
 import asyncio
+import inspect
 import json
 import logging
 import os
 import re
 import subprocess
+import threading
+from typing import Any
+
+from nexus.core.auth.git_token import resolve_automation_git_token as _automation_git_token
 
 logger = logging.getLogger(__name__)
 _GITHUB_PR_URL_RE = re.compile(r"github\.com/[^/]+/[^/]+/pull/([0-9]+)", re.IGNORECASE)
 _GITLAB_MR_URL_RE = re.compile(r"/-/merge_requests/([0-9]+)", re.IGNORECASE)
+
+
+def _run_sync(awaitable_factory):
+    def _close_awaitable_if_needed(candidate: object | None) -> None:
+        if candidate is None or not inspect.isawaitable(candidate):
+            return
+        close = getattr(candidate, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                return
+
+    try:
+        asyncio.get_running_loop()
+        in_running_loop = True
+    except RuntimeError:
+        in_running_loop = False
+
+    if not in_running_loop:
+        candidate = None
+        try:
+            candidate = awaitable_factory()
+            if not inspect.isawaitable(candidate):
+                return candidate
+            return asyncio.run(candidate)
+        except Exception:
+            _close_awaitable_if_needed(candidate)
+            raise
+
+    # A 28-second inner timeout leaves headroom before the 30-second join
+    # deadline, and ensures the coroutine is actually cancelled rather than
+    # abandoned in a detached daemon thread.
+    _INNER_TIMEOUT = 28
+
+    holder: dict[str, object | BaseException | None] = {"value": None, "error": None}
+
+    def _runner() -> None:
+        candidate = None
+        try:
+            candidate = awaitable_factory()
+            if not inspect.isawaitable(candidate):
+                holder["value"] = candidate
+                return
+            holder["value"] = asyncio.run(asyncio.wait_for(candidate, timeout=_INNER_TIMEOUT))
+        except BaseException as exc:
+            _close_awaitable_if_needed(candidate)
+            holder["error"] = exc
+
+    worker = threading.Thread(target=_runner, daemon=True)
+    worker.start()
+    worker.join(timeout=30)
+    if worker.is_alive():
+        raise TimeoutError("Timed out waiting for async helper to finish")
+    error = holder.get("error")
+    if isinstance(error, BaseException):
+        raise error
+    return holder.get("value")
 
 
 def emit_alert(*args, **kwargs):
@@ -37,6 +100,21 @@ def get_git_platform(
         project_name=project_name,
         token_override=token_override,
     )
+
+
+def _detect_project_platform(project_name: str | None) -> str | None:
+    """Return 'github' or 'gitlab' for the given project, or None if unresolvable."""
+    try:
+        from nexus.core.config import get_project_platform
+
+        return get_project_platform(project_name) or None
+    except Exception:
+        return None
+
+
+def _get_project_platform(project_name: str | None) -> str | None:
+    """Backward-compatible alias for project platform detection."""
+    return _detect_project_platform(project_name)
 
 
 def _is_git_repo(path: str) -> bool:
@@ -109,7 +187,7 @@ def _resolve_issue_worktree_dir(
 
 def _git(args: list[str], *, cwd: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git"] + args,
+        ["git", "-c", f"safe.directory={str(cwd or '').strip()}"] + args,
         cwd=cwd,
         text=True,
         capture_output=True,
@@ -151,7 +229,7 @@ def _gitlab_mr_has_non_empty_diff(platform, mr_iid: str) -> bool | None:
     if not callable(fetch) or not str(encoded_repo or "").strip():
         return None
     try:
-        payload = asyncio.run(fetch(f"projects/{encoded_repo}/merge_requests/{mr_iid}/changes"))
+        payload = _run_sync(lambda: fetch(f"projects/{encoded_repo}/merge_requests/{mr_iid}/changes"))
     except Exception:
         return None
 
@@ -171,18 +249,29 @@ def _gitlab_mr_has_non_empty_diff(platform, mr_iid: str) -> bool | None:
 
 def _github_pr_has_non_empty_diff(platform, pr_number: str) -> bool | None:
     runner = getattr(platform, "_run_gh_command", None)
-    if not callable(runner):
-        return None
-    args = ["pr", "view", str(pr_number)]
-    repo_name = str(getattr(platform, "repo", "") or "").strip()
-    if repo_name:
-        args.extend(["--repo", repo_name])
-    args.extend(["--json", "changedFiles,additions,deletions"])
-    try:
-        output = runner(args, timeout=30)
-        payload = json.loads(output)
-    except Exception:
-        return None
+    payload = None
+
+    if callable(runner):
+        args = ["pr", "view", str(pr_number)]
+        repo_name = str(getattr(platform, "repo", "") or "").strip()
+        if repo_name:
+            args.extend(["--repo", repo_name])
+        args.extend(["--json", "changedFiles,additions,deletions"])
+        try:
+            output = runner(args, timeout=30)
+            payload = json.loads(output)
+        except Exception:
+            payload = None
+
+    if payload is None:
+        fetch = getattr(platform, "_get", None)
+        repo_name = str(getattr(platform, "repo", "") or "").strip()
+        if not callable(fetch) or not repo_name:
+            return None
+        try:
+            payload = _run_sync(lambda: fetch(f"repos/{repo_name}/pulls/{pr_number}"))
+        except Exception:
+            return None
 
     try:
         changed_files = int(payload.get("changedFiles", 0) or 0)
@@ -204,7 +293,7 @@ def verify_workflow_terminal_before_finalize(
     """Return True when finalization may proceed; emit alert on non-terminal state."""
     try:
         if workflow_plugin and hasattr(workflow_plugin, "get_workflow_status"):
-            status = asyncio.run(workflow_plugin.get_workflow_status(str(issue_num)))
+            status = _run_sync(lambda: workflow_plugin.get_workflow_status(str(issue_num)))
             state = str((status or {}).get("state", "")).strip().lower()
             if state and state not in {"completed", "failed", "cancelled"}:
                 logger.warning(
@@ -261,10 +350,10 @@ def create_pr_from_changes(
     platform = get_git_platform(
         repo,
         project_name=project_name,
-        token_override=token_override,
+        token_override=(_automation_git_token(_detect_project_platform(project_name)) or token_override),
     )
-    pr_result = asyncio.run(
-        platform.create_pr_from_changes(
+    pr_result = _run_sync(
+        lambda: platform.create_pr_from_changes(
             repo_dir=target_repo_dir,
             issue_number=issue_number,
             title=title,
@@ -289,7 +378,7 @@ def close_issue(
         project_name=project_name,
         token_override=token_override,
     )
-    return bool(asyncio.run(platform.close_issue(issue_number, comment=comment)))
+    return bool(_run_sync(lambda: platform.close_issue(issue_number, comment=comment)))
 
 
 def find_existing_pr(
@@ -299,17 +388,41 @@ def find_existing_pr(
     issue_number: str,
     token_override: str | None = None,
 ) -> str | None:
+    details = find_existing_pr_details(
+        project_name=project_name,
+        repo=repo,
+        issue_number=issue_number,
+        token_override=token_override,
+    )
+    if not details:
+        return None
+    return str(details.get("url") or "").strip() or None
+
+
+def find_existing_pr_details(
+    *,
+    project_name: str,
+    repo: str,
+    issue_number: str,
+    token_override: str | None = None,
+) -> dict[str, str] | None:
     platform = get_git_platform(
         repo,
         project_name=project_name,
         token_override=token_override,
     )
-    linked = asyncio.run(platform.search_linked_prs(str(issue_number)))
+    linked = _run_sync(lambda: platform.search_linked_prs(str(issue_number)))
     if not linked:
         return None
     open_pr = next((pr for pr in linked if str(pr.state).lower() == "open"), None)
     selected = open_pr or linked[0]
-    return selected.url
+    url = str(getattr(selected, "url", "") or "").strip()
+    if not url:
+        return None
+    return {
+        "url": url,
+        "state": str(getattr(selected, "state", "") or "").strip().lower(),
+    }
 
 
 def validate_pr_non_empty_diff(
@@ -327,18 +440,10 @@ def validate_pr_non_empty_diff(
     if not normalized_repo_dir:
         return False, f"{repo}: missing local repo_dir for PR/MR diff validation"
 
-    target_repo_dir = _resolve_issue_worktree_dir(
-        repo_dir=normalized_repo_dir,
-        issue_number=str(issue_number),
-        base_branch=base_branch,
-        create_if_missing=False,
-    )
-    if not target_repo_dir:
-        return (
-            False,
-            f"{repo}: missing issue worktree .nexus/worktrees/issue-{issue_number} (finalization blocked)",
-        )
-
+    # Check the remote PR/MR diff FIRST (before requiring the local worktree).
+    # The worktree may have been cleaned up by the time finalization runs (e.g. after
+    # the writer step completes and before the PR is merged), but the remote API
+    # still has the authoritative diff.
     normalized_url = str(pr_url or "").strip()
     platform = None
     if normalized_url:
@@ -366,6 +471,19 @@ def validate_pr_non_empty_diff(
                 return True, ""
             if remote_ok is False:
                 return False, f"{repo}: GitLab MR has empty diff ({normalized_url})"
+
+    # Fall back to local worktree diff check when remote check was inconclusive.
+    target_repo_dir = _resolve_issue_worktree_dir(
+        repo_dir=normalized_repo_dir,
+        issue_number=str(issue_number),
+        base_branch=base_branch,
+        create_if_missing=False,
+    )
+    if not target_repo_dir:
+        return (
+            False,
+            f"{repo}: missing issue worktree .nexus/worktrees/issue-{issue_number} (finalization blocked)",
+        )
 
     local_ok, local_reason = _repo_has_non_empty_diff(
         target_repo_dir,
@@ -493,6 +611,7 @@ def finalize_workflow(
     create_pr_from_changes_fn,
     resolve_repo_branch_fn,
     find_existing_pr_fn,
+    find_existing_pr_details_fn=None,
     cleanup_worktree_fn,
     close_issue_fn,
     send_notification,
@@ -504,7 +623,15 @@ def finalize_workflow(
     get_tasks_closed_dir,
     resolve_token_override_fn=None,
     sync_existing_pr_changes_fn=None,
-) -> None:
+    emit_notifications: bool = True,
+) -> dict[str, Any]:
+    blocked_result = {
+        "pr_urls": [],
+        "issue_closed": False,
+        "notification_sent": False,
+        "finalization_blocked": True,
+        "blocking_reasons": [],
+    }
     try:
         workflow_plugin = get_workflow_state_plugin(
             **workflow_state_plugin_kwargs,
@@ -516,7 +643,8 @@ def finalize_workflow(
             project_name=project_name,
             alert_source="inbox_processor",
         ):
-            return
+            blocked_result["blocking_reasons"] = ["Workflow is not terminal yet."]
+            return blocked_result
     except Exception as exc:
         logger.warning(
             "Could not verify workflow state before finalize for issue #%s: %s",
@@ -530,6 +658,7 @@ def finalize_workflow(
         create_pr_from_changes=create_pr_from_changes_fn,
         resolve_repo_branch=resolve_repo_branch_fn,
         find_existing_pr=find_existing_pr_fn,
+        find_existing_pr_details=find_existing_pr_details_fn,
         cleanup_worktree=cleanup_worktree_fn,
         sync_existing_pr_changes=(
             sync_existing_pr_changes_fn if callable(sync_existing_pr_changes_fn) else None
@@ -571,6 +700,7 @@ def finalize_workflow(
         repo=repo,
         last_agent=last_agent,
         project_name=project_name,
+        emit_notifications=emit_notifications,
     )
     if result.get("finalization_blocked"):
         reasons = [str(item) for item in (result.get("blocking_reasons") or []) if str(item).strip()]
@@ -582,7 +712,7 @@ def finalize_workflow(
             )
         else:
             logger.warning("Finalization blocked for issue #%s", issue_num)
-        return
+        return result
 
     pr_urls = result.get("pr_urls") if isinstance(result, dict) else None
     if isinstance(pr_urls, list) and pr_urls:
@@ -607,3 +737,10 @@ def finalize_workflow(
         )
         if archived:
             logger.info("📦 Archived %s task file(s) for closed issue #%s", archived, issue_num)
+    return result if isinstance(result, dict) else {
+        "pr_urls": [],
+        "issue_closed": False,
+        "notification_sent": False,
+        "finalization_blocked": False,
+        "blocking_reasons": [],
+    }

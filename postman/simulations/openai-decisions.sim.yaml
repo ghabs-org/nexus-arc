@@ -1,0 +1,5 @@
+simulation: openai-decisions
+routing: path
+mocks:
+  - routeKey: native
+    path: ../mocks/openai-decisions/config.yaml

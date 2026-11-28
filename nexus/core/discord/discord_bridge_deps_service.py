@@ -7,7 +7,9 @@ from nexus.adapters.git.utils import build_issue_url, resolve_repo
 from nexus.core.analytics.reporting import get_stats_report
 from nexus.core.audit_store import AuditStore
 from nexus.core.completion import scan_for_completions
+from nexus.core.execution_mode import PLANNING_EXECUTION_MODE
 from nexus.core.config import (
+
     AI_PERSONA,
     BASE_DIR,
     LOGS_DIR,
@@ -15,6 +17,7 @@ from nexus.core.config import (
     NEXUS_FEATURE_REGISTRY_DEDUP_SIMILARITY,
     NEXUS_FEATURE_REGISTRY_ENABLED,
     NEXUS_FEATURE_REGISTRY_MAX_ITEMS_PER_PROJECT,
+    NEXUS_ROUTER_FEEDBACK_CONFIG,
     NEXUS_STORAGE_BACKEND,
     NEXUS_STORAGE_DSN,
     NEXUS_WORKFLOW_BACKEND,
@@ -39,9 +42,15 @@ from nexus.core.git.direct_issue_plugin_service import (
     get_direct_issue_plugin as _svc_get_direct_issue_plugin,
 )
 from nexus.core.handlers.feature_registry_command_handlers import FeatureRegistryCommandDeps
-from nexus.core.handlers.inbox_routing_handler import TYPES
+from nexus.core.command_bridge.operator import BridgeOperatorService
+from nexus.core.handlers.common_routing import extract_json_dict
+from nexus.core.handlers.inbox_routing_handler import (
+    TYPES,
+    process_inbox_task,
+    save_resolved_task,
+)
 from nexus.core.integrations.workflow_state_factory import get_workflow_state
-from nexus.core.memory import append_message, create_chat, get_chat_history
+from nexus.core.memory import append_message, create_chat, get_chat, get_chat_history
 from nexus.core.orchestration.ai_orchestrator import get_orchestrator
 from nexus.core.orchestration.nexus_core_helpers import get_workflow_definition_path
 from nexus.core.orchestration.plugin_runtime import (
@@ -93,6 +102,12 @@ from nexus.core.telegram.telegram_handler_deps_service import (
 )
 from nexus.core.telegram.telegram_handler_deps_service import (
     build_workflow_handler_deps as _svc_build_workflow_handler_deps,
+)
+from nexus.core.telegram.telegram_handler_deps_service import (
+    build_feature_ideation_handler_deps as _svc_build_feature_ideation_handler_deps,
+)
+from nexus.core.telegram.telegram_handler_deps_service import (
+    build_hands_free_routing_handler_deps as _svc_build_hands_free_routing_handler_deps,
 )
 from nexus.core.telegram.telegram_issue_selection_service import (
     list_project_issues as _svc_list_project_issues,
@@ -159,6 +174,7 @@ _orchestrator = None
 _user_manager = None
 _tracked_issues: dict[str, Any] | None = None
 _feature_registry_service: FeatureRegistryService | None = None
+_bridge_operator_service: BridgeOperatorService | None = None
 
 _WORKFLOW_STATE_PLUGIN_KWARGS = {
     "storage_dir": NEXUS_CORE_STORAGE_DIR,
@@ -266,6 +282,15 @@ def _get_feature_registry_service() -> FeatureRegistryService:
             dedup_similarity=NEXUS_FEATURE_REGISTRY_DEDUP_SIMILARITY,
         )
     return _feature_registry_service
+
+
+def _get_bridge_operator_service() -> BridgeOperatorService:
+    global _bridge_operator_service
+    if _bridge_operator_service is None:
+        _bridge_operator_service = BridgeOperatorService(
+            workflow_state_plugin_kwargs=_WORKFLOW_STATE_PLUGIN_KWARGS
+        )
+    return _bridge_operator_service
 
 
 def get_issue_details(
@@ -482,7 +507,31 @@ def ops_bridge_deps(*, allowed_user_ids, prompt_project_selection, ensure_projec
             "platform_user_id": str(user_id),
             "nexus_id": str(_get_user_manager().resolve_nexus_id("discord", str(user_id)) or ""),
         },
+        run_doctor=lambda **kwargs: _get_bridge_operator_service().doctor(**kwargs),
     )
+
+
+async def _create_planning_task(
+    *,
+    text: str,
+    project_key: str,
+    message_id: str,
+    requester_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    system_ops = PROJECT_CONFIG.get("system_operations", {})
+    plan_agent = str(system_ops.get("plan") or system_ops.get("default") or "").strip()
+    orchestrator = get_orchestrator()
+    return await process_inbox_task(
+        text=text,
+        orchestrator=orchestrator,
+        message_id_or_unique_id=message_id,
+        project_hint=project_key,
+        requester_context=requester_context,
+        agent_type=plan_agent or None,
+        issue_labels=["agent:plan-requested"],
+        execution_mode=PLANNING_EXECUTION_MODE,
+    )
+
 
 
 def issue_bridge_deps(*, allowed_user_ids, prompt_project_selection, ensure_project_issue):
@@ -510,6 +559,44 @@ def issue_bridge_deps(*, allowed_user_ids, prompt_project_selection, ensure_proj
         default_issue_url=_default_issue_url,
         get_project_label=_get_project_label,
         track_short_projects=get_track_short_projects(),
+        create_planning_task=_create_planning_task,
+    )
+
+
+def hands_free_bridge_deps(*, requester_context_builder=None):
+    feature_ideation_deps = _svc_build_feature_ideation_handler_deps(
+        logger=logger,
+        allowed_user_ids=[],
+        projects=PROJECTS_MAP,
+        get_project_label=_get_project_label,
+        orchestrator=_get_orchestrator(),
+        base_dir=BASE_DIR,
+        project_config=PROJECT_CONFIG,
+        process_inbox_task=process_inbox_task,
+        requester_context_builder=requester_context_builder,
+        authorize_project=None,
+        feature_registry_service=_get_feature_registry_service(),
+        dedup_similarity=NEXUS_FEATURE_REGISTRY_DEDUP_SIMILARITY,
+    )
+    return _svc_build_hands_free_routing_handler_deps(
+        logger=logger,
+        orchestrator=_get_orchestrator(),
+        ai_persona=AI_PERSONA,
+        projects=PROJECTS_MAP,
+        extract_json_dict=extract_json_dict,
+        get_chat_history=get_chat_history,
+        append_message=append_message,
+        get_chat=get_chat,
+        process_inbox_task=process_inbox_task,
+        feature_ideation_deps=feature_ideation_deps,
+        normalize_project_key=_normalize_project_key,
+        save_resolved_task=save_resolved_task,
+        task_confirmation_mode=os.getenv("TASK_CONFIRMATION_MODE", "smart").strip().lower(),
+        requester_context_builder=requester_context_builder,
+        authorize_project=None,
+        base_dir=BASE_DIR,
+        project_config=PROJECT_CONFIG,
+        router_feedback_config=NEXUS_ROUTER_FEEDBACK_CONFIG,
     )
 
 

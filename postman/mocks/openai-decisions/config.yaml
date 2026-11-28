@@ -1,0 +1,10 @@
+version: 1
+name: OpenAI native Decisions contract subset
+slug: openai-decisions
+protocol: http
+port: 49643
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

@@ -300,6 +300,68 @@ def setup_event_handlers() -> None:
         except Exception as exc:
             logger.warning("Failed to setup Slack event handler: %s", exc)
 
+    # OpenClaw — activated when NEXUS_RUNTIME_MODE=openclaw and bridge token is set
+    oc_token = os.getenv("NEXUS_OPENCLAW_BRIDGE_TOKEN", "")
+    oc_runtime = os.getenv("NEXUS_RUNTIME_MODE", "")
+    if oc_token and oc_runtime == "openclaw":
+        try:
+            from nexus.plugins.builtin.openclaw_event_handler_plugin import OpenClawEventHandler
+
+            handler = OpenClawEventHandler(
+                {
+                    "bridge_url": os.getenv("NEXUS_OPENCLAW_BRIDGE_URL"),
+                    "auth_token": oc_token,
+                    "sender_id": os.getenv("NEXUS_OPENCLAW_SENDER_ID"),
+                    "channel": os.getenv("NEXUS_OPENCLAW_CHANNEL", "telegram"),
+                    "session_key": os.getenv("NEXUS_OPENCLAW_SESSION_KEY", ""),
+                }
+            )
+            handler.attach(bus)
+            logger.info("OpenClaw event handler attached to EventBus")
+        except Exception as exc:
+            logger.warning("Failed to setup OpenClaw event handler: %s", exc)
+
+
+_SOCIAL_PUBLISHER_PLUGIN: Any = None
+
+
+def get_social_publisher(project_name: str | None = None) -> Any | None:
+    """Return the global SocialPublisherPlugin instance, initialised on first call."""
+    global _SOCIAL_PUBLISHER_PLUGIN
+    if _SOCIAL_PUBLISHER_PLUGIN is not None:
+        return _SOCIAL_PUBLISHER_PLUGIN
+
+    # Build config from env vars (project-specific config can be added later)
+    config: dict[str, Any] = {}
+    if os.getenv("NEXUS_LINKEDIN_ACCESS_TOKEN") and os.getenv("NEXUS_LINKEDIN_AUTHOR_URN"):
+        config["linkedin"] = {
+            "access_token": os.getenv("NEXUS_LINKEDIN_ACCESS_TOKEN"),
+            "author_urn": os.getenv("NEXUS_LINKEDIN_AUTHOR_URN"),
+        }
+    if os.getenv("NEXUS_DISCORD_SOCIAL_WEBHOOK_URL"):
+        config["discord"] = {"webhook_url": os.getenv("NEXUS_DISCORD_SOCIAL_WEBHOOK_URL")}
+    if os.getenv("NEXUS_X_API_KEY"):
+        config["x"] = {
+            "api_key": os.getenv("NEXUS_X_API_KEY"),
+            "api_secret": os.getenv("NEXUS_X_API_SECRET"),
+            "access_token": os.getenv("NEXUS_X_ACCESS_TOKEN"),
+            "access_secret": os.getenv("NEXUS_X_ACCESS_SECRET"),
+        }
+    if not config:
+        return None
+
+    try:
+        from nexus.plugins.builtin.social_publisher_plugin import SocialPublisherPlugin
+        _SOCIAL_PUBLISHER_PLUGIN = SocialPublisherPlugin(config)
+        logger.info(
+            "SocialPublisherPlugin initialised. Platforms: %s",
+            _SOCIAL_PUBLISHER_PLUGIN.available_platforms(),
+        )
+    except Exception as exc:
+        logger.warning("Failed to initialise SocialPublisherPlugin: %s", exc)
+
+    return _SOCIAL_PUBLISHER_PLUGIN
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.getenv(name)
@@ -309,8 +371,9 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def _allow_env_token_fallback_default() -> bool:
-    """Allow global env-token fallback only when auth is disabled."""
-    return not _env_bool("NEXUS_AUTH_ENABLED", False)
+    """Allow global env-token fallback only when requester-scoped auth is inactive."""
+    auth_enabled = _env_bool("NEXUS_AUTH_ENABLED", False)
+    return not auth_enabled
 
 
 def get_git_platform(
@@ -331,9 +394,12 @@ def get_git_platform(
     default_token_var = "GITLAB_TOKEN" if platform_type == "gitlab" else "GITHUB_TOKEN"
     token_var = project_config.get("git_token_var_name", default_token_var)
     auth_is_enabled = _env_bool("NEXUS_AUTH_ENABLED", False)
-    allow_service_token_fallback = str(
-        os.getenv("NEXUS_ALLOW_SERVICE_GIT_TOKEN_FALLBACK", "true")
-    ).strip().lower() in {"1", "true", "yes", "on"}
+    raw_allow_service_token_fallback = os.getenv("NEXUS_ALLOW_SERVICE_GIT_TOKEN_FALLBACK")
+    allow_service_token_fallback = (
+        _allow_env_token_fallback_default()
+        if raw_allow_service_token_fallback is None
+        else str(raw_allow_service_token_fallback).strip().lower() in {"1", "true", "yes", "on"}
+    )
     override_token = str(token_override or "").strip()
     token = override_token
     if not token and not auth_is_enabled:

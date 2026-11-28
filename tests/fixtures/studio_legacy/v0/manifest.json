@@ -1,0 +1,15 @@
+{
+  "fixture_version": 1,
+  "source": "Handcrafted historical Studio v0 formats; no provider credentials or production user state.",
+  "schema_version": 0,
+  "files": {
+    ".nexus/studio/catalog/artifacts/notes.json": "dc4cc3d84eef9a9df3135c1f32d28dcc19f7fafe90c9048c9aef50a2b4f97733",
+    ".nexus/studio/catalog/schedules/interval.json": "5e606ea79b84bd407e5b2b6187c6283a272115af8610e8c39767e3e2a22e0c0a",
+    ".nexus/studio/catalog/schedules/once.json": "09308fe546a6e88955633eebb6d09952abad7a4f2993d28e629a9f9da3d1e39b",
+    ".nexus/studio/runs/plain-output.json": "0f3dbce6edcdce3b388974aef1a05b51075582f9672a5602304cc00b56970dd4",
+    ".nexus/studio/sessions/conversation.json": "83378fe3a9a3121b5b018a4c068de66de30b810cc2a5106d617de4987c3337af",
+    "agents/reviewer.yaml": "b7b129539904511899867a417e6db93afc7dd9bbcd4f2e51bf9ae36a697ab878",
+    "workflows/legacy-graph.yaml": "478ad4d6a249259ec4d4b4fcdfa79a337e273558f3b96559b709fd6984106eb8",
+    "workflows/legacy-yaml.yaml": "96c8b5c13956020edad3c5a87f413b0b0259bc1bae689192ea3b399d1b59be68"
+  }
+}

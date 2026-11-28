@@ -1,0 +1,113 @@
+{
+  "format": "nexus-studio-browser-private-connection/v1",
+  "date": "2026-10-29",
+  "status": "implemented-deployed-live-verified",
+  "whole_plan_complete": false,
+  "scope": "Owner-facing read-only diagnostic in existing Workspace tools Deployment checks. Browser automatically supplies its existing same-origin session; the checker never reads cookie/token values or response bodies.",
+  "implementation": [
+    "nexus/studio_static/workbench.js",
+    "nexus/studio_static/index.html",
+    "nexus/studio_static/service-worker.js"
+  ],
+  "example": "examples/nexus-bot/src/studio_connection_check.mjs",
+  "validation": {
+    "frontend_regressions": {
+      "tests": 226,
+      "failures": 0,
+      "skips": 0,
+      "report_sha256": "50aec76603b4ec977c83115f57bac2d8ef53936eb9bfe7e3a5cb7bc643763c39"
+    },
+    "example_http_fixture": {
+      "passed": true,
+      "requests": 2,
+      "scope": "Disposable loopback fixture, not real identity acceptance."
+    },
+    "live_browser": {
+      "existing_owner_session_accepted": true,
+      "shell_update_activated": true,
+      "requests_per_check": 2,
+      "method": "GET",
+      "routes": [
+        "/api/bootstrap",
+        "/api/workbench/inbox"
+      ],
+      "checks_each": {
+        "http_200": true,
+        "application_json": true,
+        "cache_control_no_store": true
+      },
+      "session_values_read_or_exported": false,
+      "response_bodies_read": false,
+      "task_or_settings_mutation": false,
+      "proof_text_sha256": "28fe95f8b77a76940cde5ee576ad8d79dd24f59a2d69e16f8c79d0514e66ae0c",
+      "private_screenshot_sha256": "c09ba919a9a13c00923cb415680917254900595add8055eb9830af10c1b6d4cc"
+    },
+    "post_deployment": {
+      "host_checks": 12,
+      "anonymous_https_passed": 15,
+      "nexus_units_active": 5,
+      "selected_containers_running": 3,
+      "generated_workers_remaining": 0
+    },
+    "external_anonymous_https_passed": 15
+  },
+  "candidate": {
+    "base_image": "sha256:4bbdeb3ab2c8304d9e98401d47b70e783465211348d2a95da7fcfba025046532",
+    "candidate_image": "sha256:c0f9356b56f4ec73ef5f83857cfb5e5de28cb703e6c4841519cd2674b033a65a",
+    "base_public_assets_match_repository": true,
+    "candidate_files": [
+      "workbench.js",
+      "index.html",
+      "service-worker.js"
+    ],
+    "live_deployed": true,
+    "installed_files_compared": 654,
+    "changed_files": [
+      "studio_static/index.html",
+      "studio_static/service-worker.js",
+      "studio_static/workbench.js"
+    ],
+    "exact_source_hashes_match": true
+  },
+  "deployment": {
+    "status": "deployed-verified",
+    "source_assets_changed": 3,
+    "dmg_rebuilt": false,
+    "credentials_exported": false,
+    "database_migrated": false,
+    "proxy_restarted": false,
+    "resolved_config_only_image_changed": true,
+    "image": "sha256:c0f9356b56f4ec73ef5f83857cfb5e5de28cb703e6c4841519cd2674b033a65a",
+    "served_asset_hashes_match": true,
+    "environment_unchanged": true,
+    "original_proxy_unchanged": true,
+    "maintenance_seconds": 6.147,
+    "rollback_used": false
+  },
+  "source_sha256": {
+    "nexus/studio_static/workbench.js": "c36f7c3c0b1db723114f2a3cb187634c8c8b6d5c4e39fa96a121dcdac26cb5e6",
+    "nexus/studio_static/index.html": "cf7c2e1100974da5d354aefa9783fd73515d0b26895194322204015007cb1b11",
+    "nexus/studio_static/service-worker.js": "a1388befc3d337047eef4a9f43cbf152e5508ef744abb5b00ac2180dd9fd9779",
+    "examples/nexus-bot/src/studio_connection_check.mjs": "19e3a5b3a1b82e5cba8749e97cb27d9109038a109d82f19464f80a4d846ef104",
+    "tests/studio_connection_check.test.cjs": "88dc5333007135bac8261db3e1dea8d345b560bb79976830d385efe0e4264092"
+  },
+  "limitations": [
+    "This checks current browser access and private response headers, not a fresh OAuth login or a recovered-host browser login.",
+    "Physical devices, OS/ingress/daemon/power-loss and installed signed desktop release remain separate."
+  ],
+  "dmg_rebuilt": false,
+  "recovered_host_preflight": {
+    "candidate_supplied_by_user": true,
+    "dns_record_exists": false,
+    "anonymous_https_resolves": false,
+    "existing_origin_certificate_covers_candidate": true,
+    "ingress": "Nginx over Tailscale",
+    "dns_provider": "Cloudflare",
+    "matching_dns_plugin_found": false,
+    "required_record": "DNS-only CNAME to existing Studio ingress",
+    "dns_or_ingress_changed": false,
+    "isolated_ui_and_auth_routing_prepared": false,
+    "provider_callback_review_pending": true,
+    "private_operator_review_sha256": "74b42beb3dbddb60bbcf851f28e911295637304a5e173ef152d60ac59bba41fc"
+  }
+}

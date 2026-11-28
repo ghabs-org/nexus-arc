@@ -1,0 +1,11 @@
+# Existing Nexus auth service listens on 127.0.0.1:8080.
+# Studio listens on 127.0.0.1:5003. Restrict both backend ports to this host.
+studio.example.com {
+    @nexus_auth path /login /auth /auth/*
+    handle @nexus_auth {
+        reverse_proxy 127.0.0.1:8080
+    }
+    handle {
+        reverse_proxy 127.0.0.1:5003
+    }
+}

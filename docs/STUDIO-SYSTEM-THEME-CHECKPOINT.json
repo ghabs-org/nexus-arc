@@ -1,0 +1,119 @@
+{
+  "format": "nexus-studio-system-theme-checkpoint/v1",
+  "date": "2026-10-30",
+  "status": "source-implemented-palette-contract-verified",
+  "whole_plan_complete": false,
+  "whole_design_audit_complete": false,
+  "scope": "System light/dark CSS roles across first-party workspace/viewers/startup; shared enabled-control contrast and isolated-preview metadata",
+  "findings": {
+    "DT-02": "Source implementation added; rendered two-theme acceptance pending",
+    "DT-06": "Shared enabled-control source boundaries updated; all computed browser states not certified",
+    "DT-08": "Color/shadow/preview role consolidation only; radius/layer/pressed-state work remains"
+  },
+  "source_head": "cd8bde12dc3945f26f89742471578b4786d0f842",
+  "working_tree_snapshot": true,
+  "source_sha256": {
+    "nexus/studio_static/studio.css": "c83df44a6ec9aced1234fc0e0476be96be358c385358fe4fd3462a4764752205",
+    "nexus/studio_static/service-worker.js": "a63039824f93c3474a5a84e438731153f32475f79edfeb90e15b6701902ea3fb",
+    "nexus/studio_static/index.html": "2402f18b56f6259de827230b0917cf45615ed1b3b4097cf2d87d03803a3c30c4",
+    "nexus/studio_static/shared.html": "1400c6a7647aa950c9c029aa9f572527e712435c27defbf344d4ba869dcf637d",
+    "nexus/studio_static/artifact.html": "00786750572232cc608fe1b8edbcc7f9b3c3c9bb1bd51ca7e543538c0dcb6fee",
+    "nexus/studio_static/content.js": "76a26dc60fccfd84b31910765d40b0bfb7fff8d39580a3c3466c021b2601bcfe",
+    "apps/studio-desktop/ui/startup.css": "ebc9f7556c5049243e475a016e03f6a73a6f86a87737730ecaf3aca23f92be84",
+    "apps/studio-desktop/ui/index.html": "4eacb1eba232b25766734d0b49a87fa05ffb2590125b7ac7e8e2efb4bc33e479",
+    "examples/nexus-bot/src/studio.py": "1e359f8e011ef1846ddb06b12e9746187393bf288718aa7c913447ff959e9b66",
+    "tests/studio_theme.test.cjs": "a0e550bbeb9fb5d3ff7e228d7a4ae61ba0ab051420661d7f8b51830f9d520cd0"
+  },
+  "behavior": [
+    "System screen preference selects light/dark CSS without account state, browser storage, new API or theme library",
+    "Workspace, shared/artifact viewers, controls, semantic status colors, code/table previews and native graphs resolve shared roles",
+    "Native startup shares canvas/ink/muted/accent colors with workspace",
+    "Enabled control borders use control tokens; decorative separators remain line tokens",
+    "Restricted HTML preview receives only host-owned color-scheme metadata; sanitizer forbids artifact-supplied meta, style, script, input and embedded-media authority",
+    "Empty sandbox, no-referrer and no-network/no-style CSP stay intact",
+    "Screen-only dark palette preserves existing light print behavior; user media and downloaded document content not inverted or rewritten",
+    "System changes require no run submission, replay, restart or provider call"
+  ],
+  "validation": {
+    "initial_gate": {
+      "tests": 5,
+      "passed": 0,
+      "failed": 5,
+      "scope": "New contracts before implementation, including 1.574:1 control border and missing dark palette",
+      "report_sha256": "bdfa2793abe594daede38a7269cba95c50641d72c326dd6aa6324fa67647e476"
+    },
+    "final_focused_gate": {
+      "tests": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "file": "tests/studio_theme.test.cjs",
+      "note": "A sixth native-startup consistency test was added after the initial five-case reproduction; included in the full gate"
+    },
+    "full_frontend_gate": {
+      "tests": 273,
+      "passed": 273,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "command": "node --test tests/studio_*.test.cjs",
+      "report_sha256": "4a3e694ce0397e2e95cc2af268601c7d95d4b3161ad2cd357a26a90e3a29f4af",
+      "scope": "Node logic/source/palette fixtures, not real browser rendering"
+    },
+    "palette_pairs": {
+      "workspace_text": 54,
+      "text_target": 4.5,
+      "control_and_diagram": 20,
+      "non_text_target": 3,
+      "startup_text": 2,
+      "results": {
+        "light": {
+          "text_pairs": 27,
+          "text_minimum_ratio": 4.7107,
+          "boundary_pairs": 10,
+          "boundary_minimum_ratio": 3.2218,
+          "control_on_surface": 3.7602
+        },
+        "dark": {
+          "text_pairs": 27,
+          "text_minimum_ratio": 5.8199,
+          "boundary_pairs": 10,
+          "boundary_minimum_ratio": 3.4666,
+          "control_on_surface": 5.1171
+        }
+      },
+      "scope": "Literal declared tokens and alias resolution; not all computed combinations, opacity/disabled states or actual layout"
+    },
+    "preview_security": "Fixture checks empty sandbox, no-referrer, fixed CSP, owned scheme metadata and existing sanitizer exclusions",
+    "static": [
+      "content.js, service-worker.js and new test JavaScript syntax",
+      "Existing CSS comments preserved",
+      "Stylesheet delimiter balance outside comments and quoted SVG data URLs",
+      "Example Python compilation and Ruff",
+      "git diff --check"
+    ],
+    "browser": "Not attempted; previous local-origin access denial not retried or bypassed"
+  },
+  "pwa": {
+    "public_shell_cache": "nexus-studio-shell-v66",
+    "previous_source_cache": "nexus-studio-shell-v65",
+    "explicit_update_flow_preserved": true,
+    "private_cache_policy_unchanged": true,
+    "platform_launch_behavior": "Manifest fallback colors are static; actual installed PWA/browser chrome needs device checks"
+  },
+  "example": "examples/nexus-bot/src/studio.py continues to consume the shared framework UI and documents manual system-theme, control and preview checks without AI",
+  "migration": "No state/configuration/API migration. Existing deployed/installed copies need an explicitly authorized delivery; no VM or desktop build performed.",
+  "pending": [
+    "Authorized browser inspection of actual light/dark desktop/tablet/phone views and computed focus/hover/selected states",
+    "Keyboard/screen-reader, real touch and OS preference-change acceptance",
+    "Complex diagrams, platform preview widgets and print output inspection",
+    "PWA installed chrome/splash acceptance and performance measurements",
+    "Local fonts, documented icon family and remaining visual consistency/punctuation/dialog-layout animation work"
+  ],
+  "vm_contacted": false,
+  "provider_invoked": false,
+  "dmg_rebuilt": false,
+  "release_published": false,
+  "dependencies_installed": false,
+  "next": "Locally packaged fonts and one documented icon family; desktop distribution stays last and requires explicit new build authorization."
+}

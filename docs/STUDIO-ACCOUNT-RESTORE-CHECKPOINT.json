@@ -1,0 +1,46 @@
+{
+  "format": "nexus-account-restore/v1",
+  "status": "passed-logical-restore-only",
+  "live_database_modified": false,
+  "production_services_stopped": false,
+  "master_key_read": false,
+  "credentials_decrypted": false,
+  "backup_exported_off_vm": false,
+  "application_started_on_restore": false,
+  "tcp_listener_enabled": false,
+  "source_database_bytes": 8869567,
+  "source_server_version": "18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)",
+  "snapshot_bytes": 38922,
+  "archive_entries": 95,
+  "restored_tables": 15,
+  "restored_account_tables": 15,
+  "invalid_indexes": 0,
+  "restored_roundtrip_readable": true,
+  "isolated_cluster_stopped": true,
+  "postcheck": {
+    "private_directory_mode": "0o700",
+    "snapshot_mode": "0o600",
+    "isolated_cluster_pid_absent": true,
+    "https_auth_status": 200,
+    "existing_containers_running": true,
+    "nexus_services_active": true
+  },
+  "date": "2026-10-28",
+  "whole_plan_complete": false,
+  "whole_milestone_complete": false,
+  "scope": "Actual local Nexus account PostgreSQL database: consistent native custom-format archive, isolated same-host PostgreSQL 18 restore, all restored tables readable through a second export. Private archive stays on VM; no application starts against the restored database.",
+  "evidence_sha256": {
+    "aggregate_report": "35694db485f7381e3fe0fb5707093c079bf65de89799d5f684a760eedee9e702",
+    "private_operator_script": "dbd0a24022379f07110b071e3852653bdf0be6911fc08e945871d019b46ed88e"
+  },
+  "source_sha256": {
+    "nexus/core/auth/credential_store.py": "12e65a467f5f0c6186be919d2b587b90fe9540c66941dc2f770128c21119ed1d",
+    "nexus/core/auth/credential_crypto.py": "aada5e2ccfffc5b6680177e2abb292a48b80daa0ffd36acd44c7c2fd04d86f16"
+  },
+  "remaining": [
+    "Cross-store consistency across Studio SQL/files, account database, credential homes, project definitions and configuration requires a coordinated full-host recovery procedure.",
+    "Master-key escrow/restore and restored-account authentication are unverified; no key was read or exported. Restoring encrypted database contents alone does not prove credential usability.",
+    "Daemon/power-loss, selected real-device/account and installed desktop acceptance remain separate. Milestone 9 stays last."
+  ],
+  "retention": "Private archive and stopped restore cluster remain on the VM in a mode-0700 directory; archive mode 0600. Aggregate evidence alone returned locally. No off-host snapshot or master-key backup is claimed."
+}

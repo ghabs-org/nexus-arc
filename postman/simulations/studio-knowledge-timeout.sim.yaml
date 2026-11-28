@@ -1,0 +1,9 @@
+simulation: studio-knowledge-timeout
+routing: path
+mocks:
+  - routeKey: embeddings
+    path: ../mocks/studio-embeddings/config.yaml
+    scenarios:
+      - overrides:
+          conditions:
+            latency: {delay_ms: 11000}

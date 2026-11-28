@@ -1,0 +1,38 @@
+kind: agent
+name: reviewer
+spec:
+  systemPrompt: Return a JSON review flag without taking external actions.
+  modelProvider: [api-demo]
+---
+kind: workflow
+name: policy-review
+spec:
+  appConfig:
+    retry_strategy:
+      limit: 1
+      retry_policy: OnFailure
+      backoff: {duration: 1ms, factor: 2, max_duration: 2ms}
+    tools:
+      - tool_type: builtin
+        tool_name: count_words
+    on_exit:
+      always: cleanup
+      on_success: notify
+    nodes:
+      - id: review
+        type: agent
+        agent_name: reviewer
+      - id: cleanup
+        type: tool
+        tool_name: count_words
+        retry_strategy: {limit: 0}
+        input: {text: '{{workflow.status}}'}
+      - id: notify
+        type: tool
+        tool_name: count_words
+        retry_strategy: {limit: 0}
+        input: {text: '{{workflow.status}}'}
+    output_mapping:
+      review: '{{review.output}}'
+      cleanup: '{{cleanup.output}}'
+      notify: '{{notify.output}}'

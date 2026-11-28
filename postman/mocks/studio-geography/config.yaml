@@ -1,0 +1,10 @@
+version: 1
+name: Open-Meteo geographic contract fixture
+slug: studio-geography
+protocol: http
+port: 49821
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

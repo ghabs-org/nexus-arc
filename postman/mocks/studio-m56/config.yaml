@@ -1,0 +1,10 @@
+version: 1
+name: Milestone 5 and 6 contract peers
+slug: studio-m56
+protocol: http
+port: 49731
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

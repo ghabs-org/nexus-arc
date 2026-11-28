@@ -19,7 +19,7 @@ import os
 import time
 from datetime import UTC, datetime
 from hmac import compare_digest
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import requests
 from flask import Flask, jsonify, make_response, redirect, request, send_from_directory
@@ -46,6 +46,7 @@ except ImportError:
             return app.run(*args, **kwargs)
 
 from nexus.core.project.repo_utils import project_repos_from_config as _project_repos
+from src import auth_pages as _auth_pages
 from nexus.core.workspace import WorkspaceManager
 
 from nexus.core.config import (
@@ -90,7 +91,10 @@ from nexus.core.webhook.issue_service import handle_issue_opened_event as _handl
 from nexus.core.webhook.comment_service import (
     handle_issue_comment_event as _handle_issue_comment_event,
 )
-from nexus.core.webhook.pr_service import handle_pull_request_event as _handle_pull_request_event
+from nexus.core.webhook.pr_service import (
+    evaluate_issue_close_for_pr_merge,
+    handle_pull_request_event as _handle_pull_request_event,
+)
 from nexus.core.webhook.pr_review_service import (
     handle_pull_request_review_event as _handle_pull_request_review_event,
 )
@@ -105,6 +109,15 @@ from nexus.core.auth import (
     complete_gitlab_oauth as _svc_complete_gitlab_oauth,
 )
 from nexus.core.auth import (
+    complete_linkedin_oauth as _svc_complete_linkedin_oauth,
+)
+from nexus.core.auth import (
+    complete_x_oauth as _svc_complete_x_oauth,
+)
+from nexus.core.auth import (
+    complete_meta_oauth as _svc_complete_meta_oauth,
+)
+from nexus.core.auth import (
     format_login_session_ref as _svc_format_login_session_ref,
 )
 from nexus.core.auth import (
@@ -115,9 +128,6 @@ from nexus.core.auth import (
 )
 from nexus.core.auth import (
     refresh_stale_access_grants as _svc_refresh_stale_access_grants,
-)
-from nexus.core.auth import (
-    relay_provider_account_login_callback as _svc_relay_provider_account_login_callback,
 )
 from nexus.core.auth import (
     resolve_login_session_id as _svc_resolve_login_session_id,
@@ -136,6 +146,10 @@ from nexus.core.auth import (
 )
 from nexus.core.auth.credential_store import get_auth_session as _svc_get_auth_session
 from nexus.core.auth.credential_store import get_auth_session_by_state as _svc_get_auth_session_by_state
+from nexus.core.auth import browser_login as _browser_login
+from nexus.core.auth import desktop_login as _desktop_login  # noqa: E402 - runtime bootstrap above
+from nexus.core.auth.desktop_routes import install_desktop_login_routes  # noqa: E402
+from nexus.core.auth import subscription_accounts as _subscription_accounts
 from nexus.core.runtime_mode import is_issue_process_running
 
 logging.basicConfig(
@@ -187,6 +201,8 @@ def _allow_api_keys_in_web_setup() -> bool:
 
 def _oauth_provider_configured(provider: str) -> bool:
     normalized = str(provider or "").strip().lower()
+    if normalized == "instagram":
+        normalized = "meta"
     if normalized == "github":
         return bool(
             str(os.getenv("NEXUS_GITHUB_CLIENT_ID", "")).strip()
@@ -197,23 +213,36 @@ def _oauth_provider_configured(provider: str) -> bool:
             str(os.getenv("NEXUS_GITLAB_CLIENT_ID", "")).strip()
             and str(os.getenv("NEXUS_GITLAB_CLIENT_SECRET", "")).strip()
         )
+    if normalized == "linkedin":
+        return bool(
+            str(os.getenv("NEXUS_LINKEDIN_CLIENT_ID", "")).strip()
+            and str(os.getenv("NEXUS_LINKEDIN_CLIENT_SECRET", "")).strip()
+        )
+    if normalized == "x":
+        return bool(
+            str(os.getenv("NEXUS_X_CLIENT_ID", "")).strip()
+            and str(os.getenv("NEXUS_X_CLIENT_SECRET", "")).strip()
+        )
+    if normalized == "meta":
+        return bool(
+            str(os.getenv("NEXUS_META_APP_ID", "")).strip()
+            and str(os.getenv("NEXUS_META_APP_SECRET", "")).strip()
+        )
     return False
 
 
 def _configured_oauth_providers() -> list[str]:
     providers: list[str] = []
-    if _oauth_provider_configured("github"):
-        providers.append("github")
-    if _oauth_provider_configured("gitlab"):
-        providers.append("gitlab")
+    for provider in ("github", "gitlab", "linkedin", "x", "meta"):
+        if _oauth_provider_configured(provider):
+            providers.append(provider)
     return providers
 
 
 def _default_oauth_provider(providers: list[str]) -> str:
-    if "gitlab" in providers:
-        return "gitlab"
-    if "github" in providers:
-        return "github"
+    for preferred in ("gitlab", "github", "linkedin", "x", "meta"):
+        if preferred in providers:
+            return preferred
     return ""
 
 # Track processed events to avoid duplicates
@@ -251,10 +280,8 @@ def _run_acl_sync_if_due() -> None:
 
 
 def _safe_next_path(raw_path: str | None, *, default: str = "/visualizer") -> str:
-    candidate = str(raw_path or "").strip()
-    if candidate.startswith("/") and not candidate.startswith("//"):
-        return candidate
-    return default
+    # Browsers treat "\" like "/", so "/\evil.example" would leave this origin.
+    return _browser_login.safe_return_path(raw_path, default=default)
 
 
 def _parse_iso_utc(raw_value: str | None) -> datetime | None:
@@ -307,13 +334,13 @@ def _resolve_ready_web_session(session_id: str | None = None) -> tuple[str, dict
     return resolved_session_id, payload
 
 
-def _set_web_session_cookie(response, session_id: str) -> None:
+def _set_web_session_cookie(response, session_id: str, *, secure: bool = False) -> None:
     response.set_cookie(
         _WEB_SESSION_COOKIE_NAME,
         str(session_id),
         max_age=_WEB_SESSION_COOKIE_MAX_AGE_SECONDS,
         httponly=True,
-        secure=_WEB_SESSION_COOKIE_SECURE,
+        secure=secure or _WEB_SESSION_COOKIE_SECURE or request.is_secure or _browser_login.browser_cookie_requires_https(request.host),
         samesite="Lax",
         path="/",
     )
@@ -403,62 +430,74 @@ def _visualizer_login_redirect(next_path: str = "/visualizer"):
     return redirect(f"/?next={safe_next}", code=302)
 
 
-def _render_login_page(*, message_html: str = "", session_hint: str = ""):
+def _render_login_page(*, message_html: str = "", session_hint: str = "", next_path: str = "/visualizer"):
+    if not session_hint:
+        return _render_web_sign_in_page(next_path=next_path, message_html=message_html)
     providers = _configured_oauth_providers()
     preferred_provider = _default_oauth_provider(providers) or "github"
-    session_value = html.escape(str(session_hint or "").strip(), quote=True)
     ordered_providers = (
         providers
         if preferred_provider == "github"
         else sorted(providers, key=lambda item: (item != "gitlab", item))
     )
-    provider_options = "".join(
-        f'<option value="{name}">{name.title()}</option>' for name in ordered_providers
-    )
-    provider_disabled_attr = "" if ordered_providers else " disabled"
-    submit_disabled_attr = "" if ordered_providers else " disabled"
-    missing_provider_note = (
-        ""
-        if ordered_providers
-        else (
-            "<p><small>No OAuth providers are fully configured yet. "
-            "Set both client ID and client secret for GitHub and/or GitLab.</small></p>"
+    if ordered_providers:
+        options = "".join(
+            f'<option value="{name}">{"GitHub" if name == "github" else "GitLab" if name == "gitlab" else name.title()}</option>'
+            for name in ordered_providers
         )
+        provider_field = (
+            '<div><label class="field" for="provider">Continue with</label>'
+            f'<select id="provider" name="provider" class="select">{options}</select></div>'
+        )
+    else:
+        provider_field = (
+            '<p class="status-line bad">No Git sign-in is configured yet. '
+            "Set the GitHub or GitLab OAuth client ID and secret.</p>"
+        )
+    body = _auth_pages.render_field_form(
+        action="/auth/start",
+        method="get",
+        title="Session reference",
+        description="Finish the Git sign-in that <code>/login</code> started in Telegram or Discord.",
+        field_name="session",
+        field_label="Reference",
+        placeholder="lsr_…",
+        field_value=str(session_hint or "").strip(),
+        submit_label="Continue",
+        message_html=message_html,
+        extra_fields_html=provider_field,
+        aside_title="No reference yet?",
+        aside_html=(
+        "<p>Send <code>/login</code> to the Nexus bot in Telegram or Discord and continue with GitHub.</p>"
+        "<p>When GitHub sign-in finishes, the reference is shown on your account page and in the chat. "
+        "Copy it from there.</p>"
+    ),
     )
-    if not provider_options:
-        provider_options = '<option value="">No OAuth providers configured</option>'
-    body = f"""
-<p>Authenticate using the same OAuth onboarding used by Telegram/Discord <code>/login</code>.</p>
-{message_html}
-<form method="get" action="/auth/start" autocomplete="off">
-  <label for="session"><strong>Session Reference</strong></label>
-  <input id="session" name="session" type="text" value="{session_value}" placeholder="Paste the session reference from /login" spellcheck="false" autocapitalize="off" autocorrect="off" required />
-  <label for="provider"><strong>Provider</strong></label>
-  <select id="provider" name="provider" style="width:100%; padding:0.6rem; border-radius:8px; border:1px solid #94a3b8;"{provider_disabled_attr}>
-    {provider_options}
-  </select>
-  <button type="submit" class="form-submit"{submit_disabled_attr}>Continue Login</button>
-</form>
-{missing_provider_note}
-<p><small>Tip: run <code>/login</code> in Telegram or Discord, then paste the session reference shown in chat.</small></p>
-"""
-    return _render_auth_message("Nexus Login", body, status_code=200)
+    page = _auth_pages.render_page("Sign in", body, subline="Link your Git account to Nexus.")
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def _render_visualizer_token_page(*, message_html: str = "", next_path: str = "/visualizer"):
-    safe_next = html.escape(_safe_next_path(next_path), quote=True)
-    body = f"""
-<p>Visualizer access requires the shared token configured in <code>NEXUS_VISUALIZER_SHARED_TOKEN</code>.</p>
-{message_html}
-<form method="post" action="/visualizer/access" autocomplete="off">
-  <input type="hidden" name="next" value="{safe_next}" />
-  <label for="token"><strong>Visualizer Token</strong></label>
-  <input id="token" name="token" type="password" placeholder="Paste shared token" spellcheck="false" autocapitalize="off" autocorrect="off" required />
-  <button type="submit" class="form-submit">Open Visualizer</button>
-</form>
-<p><small>Alternative: send header <code>{_VISUALIZER_SHARED_TOKEN_HEADER}</code> or <code>Authorization: Bearer ...</code>.</small></p>
-"""
-    return _render_auth_message("Visualizer Access", body, status_code=200)
+    body = _auth_pages.render_field_form(
+        action="/visualizer/access",
+        hidden={"next": _safe_next_path(next_path)},
+        title="Shared token",
+        description="The workflow visualizer is protected by the token set in "
+        "<code>NEXUS_VISUALIZER_SHARED_TOKEN</code>.",
+        field_name="token",
+        field_label="Token",
+        field_type="password",
+        placeholder="Paste the shared token",
+        submit_label="Open visualizer",
+        message_html=message_html,
+        aside_title="From a script?",
+        aside_html=(
+            f"<p>Send the token in the <code>{html.escape(_VISUALIZER_SHARED_TOKEN_HEADER)}</code> header, "
+            "or as <code>Authorization: Bearer …</code>.</p>"
+        ),
+    )
+    page = _auth_pages.render_page("Visualizer access", body, subline="Watch Nexus workflows as they run.")
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def _collect_visualizer_snapshot() -> list[dict]:
@@ -616,6 +655,20 @@ def _cleanup_worktree_for_issue(repo_name: str, issue_number: str) -> bool:
 def _close_issue_for_pr_merge(repo_name: str, issue_number: str) -> bool:
     project_key = _repo_to_project_key(repo_name)
     try:
+        workflow_plugin = _get_runtime_workflow_plugin()
+        workflow_status = None
+        if workflow_plugin and hasattr(workflow_plugin, "get_workflow_status"):
+            workflow_status = asyncio.run(workflow_plugin.get_workflow_status(str(issue_number)))
+        allowed, reason = evaluate_issue_close_for_pr_merge(workflow_status)
+        if not allowed:
+            logger.info(
+                "Skipping webhook PR-merge issue close for issue #%s in %s: %s",
+                issue_number,
+                repo_name,
+                reason,
+            )
+            return False
+
         platform = get_git_platform(repo_name, project_name=project_key)
         return bool(
             asyncio.run(
@@ -781,38 +834,9 @@ def handle_pull_request_review(payload, event):
     return _handle_pull_request_review_event(event=event, logger=logger)
 
 
-def _render_auth_message(title: str, body: str, *, status_code: int = 200):
-    html = f"""<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-    <style>
-      body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #0f172a; }}
-      main {{ max-width: 720px; margin: 0 auto; }}
-      .card {{ border: 1px solid #cbd5e1; border-radius: 12px; padding: 1rem 1.2rem; background: #f8fafc; }}
-      code {{ background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 4px; }}
-      input[type=text], input[type=password] {{ width: 100%; padding: 0.6rem; border-radius: 8px; border: 1px solid #94a3b8; box-sizing: border-box; }}
-      .field-row {{ display: grid; grid-template-columns: 1fr 110px; gap: 0.6rem; align-items: center; }}
-      .field-action-spacer {{ visibility: hidden; }}
-      button {{ background: #0f766e; color: white; border: none; padding: 0.7rem 1rem; border-radius: 8px; cursor: pointer; }}
-      .inline-reset {{ margin-top: 0; width: 100%; }}
-      .form-submit {{ margin-top: 0.8rem; }}
-      @media (max-width: 720px) {{
-        .field-row {{ grid-template-columns: 1fr; }}
-      }}
-      small {{ color: #475569; }}
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>{title}</h1>
-      <div class="card">{body}</div>
-    </main>
-  </body>
-</html>"""
-    return html, status_code, {"Content-Type": "text/html; charset=utf-8"}
+def _render_auth_message(title: str, body: str, *, status_code: int = 200, subline: str = ""):
+    html_page = _auth_pages.render_message(title, body, status_code=status_code, subline=subline)
+    return html_page, status_code, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def _render_ai_key_form(
@@ -823,503 +847,154 @@ def _render_ai_key_form(
     show_copilot_option: bool,
     copilot_token_set: bool,
     codex_key_set: bool,
-    gemini_key_set: bool,
     claude_key_set: bool,
     codex_account_enabled: bool,
-    gemini_account_enabled: bool,
     claude_account_enabled: bool,
     copilot_account_enabled: bool,
     existing_keys_note: str,
+    agy_account_enabled: bool = False,
+    identity_rows: list[tuple[str, str]] | None = None,
+    session_ref: str = "",
+    opencode_key_set: bool = False,
 ) -> str:
-    checked_attr = " checked" if copilot_checked else ""
-    codex_account_attr = " checked" if codex_account_enabled else ""
-    gemini_account_attr = " checked" if gemini_account_enabled else ""
-    claude_account_attr = " checked" if claude_account_enabled else ""
-    copilot_account_attr = " checked" if copilot_account_enabled else ""
-    api_key_mode_notice = ""
-    if show_api_key_inputs:
-        codex_field = """
-  <label for="codex_api_key"><strong>Codex/OpenAI API Key (optional)</strong></label>
-  <div class="field-row">
-    <input id="codex_api_key" name="codex_api_key" type="password" placeholder="sk-..." autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" />
-    <button type="button" class="field-action-spacer" disabled>Reset</button>
-  </div>
-""" if not codex_key_set else """
-  <label><strong>Codex/OpenAI API Key (optional)</strong></label>
-  <div id="codex_api_key_saved" class="field-row">
-    <input type="text" value="********" disabled />
-    <button type="button" class="inline-reset" onclick="enableProviderField('codex_api_key')">Reset</button>
-  </div>
-  <div id="codex_api_key_editor" style="display:none;">
-    <div class="field-row">
-      <input id="codex_api_key" name="codex_api_key" type="password" placeholder="Leave empty to clear, or paste new key" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" disabled />
-      <button type="button" class="field-action-spacer" disabled>Reset</button>
-    </div>
-    <small>Leave empty and save to clear this key.</small>
-  </div>
-"""
-        gemini_field = """
-  <label for="gemini_api_key"><strong>Gemini API Key (optional)</strong></label>
-  <div class="field-row">
-    <input id="gemini_api_key" name="gemini_api_key" type="password" placeholder="AIza..." autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" />
-    <button type="button" class="field-action-spacer" disabled>Reset</button>
-  </div>
-""" if not gemini_key_set else """
-  <label><strong>Gemini API Key (optional)</strong></label>
-  <div id="gemini_api_key_saved" class="field-row">
-    <input type="text" value="********" disabled />
-    <button type="button" class="inline-reset" onclick="enableProviderField('gemini_api_key')">Reset</button>
-  </div>
-  <div id="gemini_api_key_editor" style="display:none;">
-    <div class="field-row">
-      <input id="gemini_api_key" name="gemini_api_key" type="password" placeholder="Leave empty to clear, or paste new key" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" disabled />
-      <button type="button" class="field-action-spacer" disabled>Reset</button>
-    </div>
-    <small>Leave empty and save to clear this key.</small>
-  </div>
-"""
-        claude_field = """
-  <label for="claude_api_key"><strong>Claude API Key (optional)</strong></label>
-  <div class="field-row">
-    <input id="claude_api_key" name="claude_api_key" type="password" placeholder="sk-ant-..." autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" />
-    <button type="button" class="field-action-spacer" disabled>Reset</button>
-  </div>
-""" if not claude_key_set else """
-  <label><strong>Claude API Key (optional)</strong></label>
-  <div id="claude_api_key_saved" class="field-row">
-    <input type="text" value="********" disabled />
-    <button type="button" class="inline-reset" onclick="enableProviderField('claude_api_key')">Reset</button>
-  </div>
-  <div id="claude_api_key_editor" style="display:none;">
-    <div class="field-row">
-      <input id="claude_api_key" name="claude_api_key" type="password" placeholder="Leave empty to clear, or paste new key" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" disabled />
-      <button type="button" class="field-action-spacer" disabled>Reset</button>
-    </div>
-    <small>Leave empty and save to clear this key.</small>
-  </div>
-"""
-        copilot_token_field = """
-  <label for="copilot_github_token"><strong>Copilot Token (optional)</strong></label>
-  <div class="field-row">
-    <input id="copilot_github_token" name="copilot_github_token" type="password" placeholder="ghp_..." autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" />
-    <button type="button" class="field-action-spacer" disabled>Reset</button>
-  </div>
-""" if not copilot_token_set else """
-  <label><strong>Copilot Token (optional)</strong></label>
-  <div id="copilot_github_token_saved" class="field-row">
-    <input type="text" value="********" disabled />
-    <button type="button" class="inline-reset" onclick="enableProviderField('copilot_github_token')">Reset</button>
-  </div>
-  <div id="copilot_github_token_editor" style="display:none;">
-    <div class="field-row">
-      <input id="copilot_github_token" name="copilot_github_token" type="password" placeholder="Leave empty to clear, or paste new token" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" disabled />
-      <button type="button" class="field-action-spacer" disabled>Reset</button>
-    </div>
-    <small>Leave empty and save to clear this token.</small>
-  </div>
-"""
-    else:
-        codex_field = ""
-        gemini_field = ""
-        claude_field = ""
-        copilot_token_field = ""
-        api_key_mode_notice = (
-            '<p><small>API key/token fields are hidden because '
-            '<code>NEXUS_CLI_AUTH_MODE=account</code>.</small></p>'
-        )
-    account_mode_html = f"""
-  <hr />
-  <p><strong>Provider Account Login (No API Key)</strong><br /><small>Enable these toggles if you connected provider account login for this workspace.</small></p>
-  <div style="margin:0.4rem 0 0.8rem;">
-    <button type="button" onclick="startProviderConnect('codex')">Connect Codex Account</button>
-    <button type="button" onclick="startProviderConnect('gemini')">Connect Gemini Account</button>
-    <button type="button" onclick="startProviderConnect('claude')">Connect Claude Account</button>
-    <small id="provider_connect_status" style="display:block; margin-top:0.4rem;">This opens a browser-based device flow and saves the result to your session.</small>
-  </div>
-  <div id="gemini_code_section" style="display:none; margin:0.45rem 0 0.8rem;">
-    <label for="gemini_authorization_code"><small>Gemini authorization code</small></label>
-    <input id="gemini_authorization_code" type="text" placeholder="Paste the code shown after Google sign-in" spellcheck="false" autocapitalize="off" autocorrect="off" />
-    <button type="button" style="margin-top:0.45rem; margin-bottom:0.25rem;" onclick="submitProviderAuthCode('gemini')">Submit Gemini Authorization Code</button>
-    <small style="display:block;">If prompted with "Enter the authorization code", paste it here.</small>
-  </div>
-  <div id="gemini_callback_section" style="display:none; margin:0.2rem 0 0.8rem;">
-    <label for="gemini_callback_url"><small>Gemini localhost callback URL (fallback)</small></label>
-    <input id="gemini_callback_url" type="text" placeholder="http://localhost:41725/oauth2callback?..." spellcheck="false" autocapitalize="off" autocorrect="off" />
-    <button type="button" style="margin-top:0.45rem; margin-bottom:0.25rem;" onclick="relayProviderCallback('gemini')">Submit Gemini Callback URL</button>
-    <small style="display:block;">Use this only if Gemini redirects to localhost and login remains pending.</small>
-  </div>
-  <label style="display:block; margin-top:0.4rem;">
-    <input type="checkbox" name="use_codex_account" value="1"{codex_account_attr} />
-    Use Codex account login
-  </label>
-  <label style="display:block; margin-top:0.4rem;">
-    <input type="checkbox" name="use_gemini_account" value="1"{gemini_account_attr} />
-    Use Gemini account login
-  </label>
-  <label style="display:block; margin-top:0.4rem;">
-    <input type="checkbox" name="use_claude_account" value="1"{claude_account_attr} />
-    Use Claude account login
-  </label>
-"""
-    copilot_html = (
-        f"""
-  <label style="display:block; margin-top:0.8rem;">
-    <input type="checkbox" name="use_copilot" value="1"{checked_attr} />
-    Use Copilot with a linked GitHub account (no separate Copilot API key)
-  </label>
-  <label style="display:block; margin-top:0.4rem;">
-    <input type="checkbox" name="use_copilot_account" value="1"{copilot_account_attr} />
-    Use Copilot account mode (requires linked GitHub OAuth)
-  </label>
-"""
-        if show_copilot_option
-        else ""
+    return _auth_pages.render_setup_form(
+        session_id=session_id,
+        show_api_key_inputs=show_api_key_inputs,
+        copilot_checked=copilot_checked,
+        show_copilot_option=show_copilot_option,
+        copilot_token_set=copilot_token_set,
+        codex_key_set=codex_key_set,
+        claude_key_set=claude_key_set,
+        account_flags={
+            "claude": claude_account_enabled,
+            "codex": codex_account_enabled,
+            "agy": agy_account_enabled,
+        },
+        copilot_account_enabled=copilot_account_enabled,
+        existing_keys_note=existing_keys_note,
+        identity_rows=identity_rows,
+        session_ref=session_ref,
+        opencode_key_set=opencode_key_set,
     )
-    return f"""
-<form method="post" action="/auth/ai-keys" autocomplete="off">
-  <input type="hidden" name="session_id" value="{session_id}" />
-  {codex_field}
-  {gemini_field}
-  {claude_field}
-  {copilot_token_field}
-  {api_key_mode_notice}
-  {account_mode_html}
-  {copilot_html}
-  <button type="submit" class="form-submit">Save Setup</button>
-  <p><small>{existing_keys_note}</small></p>
-</form>
-<script>
-function enableProviderField(fieldName) {{
-  var saved = document.getElementById(fieldName + "_saved");
-  var editor = document.getElementById(fieldName + "_editor");
-  if (saved) saved.style.display = "none";
-  if (editor) {{
-    editor.style.display = "block";
-    var input = editor.querySelector('input[name="' + fieldName + '"]');
-    if (input) input.disabled = false;
-  }}
-}}
-var providerConnectPoll = null;
-var providerConnectOpenedUrls = Object.create(null);
-var providerConnectPopups = Object.create(null);
-function providerDisplayName(provider) {{
-  var key = String(provider || "").trim().toLowerCase();
-  if (key === "gemini") return "Gemini";
-  if (key === "claude") return "Claude";
-  return "Codex";
-}}
-function setProviderAccountToggle(provider, enabled) {{
-  var key = String(provider || "").trim().toLowerCase();
-  var fieldName = "";
-  if (key === "gemini") fieldName = "use_gemini_account";
-  else if (key === "claude") fieldName = "use_claude_account";
-  else if (key === "codex") fieldName = "use_codex_account";
-  if (!fieldName) return;
-  var input = document.querySelector('input[name="' + fieldName + '"]');
-  if (input) input.checked = !!enabled;
-}}
-function _escapeHtml(value) {{
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}}
-function setProviderConnectStatus(text) {{
-  var el = document.getElementById("provider_connect_status");
-  if (el) el.textContent = String(text || "");
-}}
-function setProviderConnectStatusWithLink(message, verifyUrl, userCode) {{
-  var el = document.getElementById("provider_connect_status");
-  if (!el) return;
-  var url = String(verifyUrl || "").trim();
-  if (!url) {{
-    setProviderConnectStatus(message);
-    return;
-  }}
-  var safeMessage = _escapeHtml(message || "Open the verification link and confirm login.");
-  var safeUrl = _escapeHtml(url);
-  var safeCode = _escapeHtml(String(userCode || "").trim());
-  var codeHtml = safeCode ? ("<br />Code: <code>" + safeCode + "</code>") : "";
-  el.innerHTML =
-    safeMessage
-    + ' <a href="' + safeUrl + '" target="_blank" rel="noopener noreferrer">Open verification link</a>.'
-    + codeHtml;
-}}
-function _isVisible(el) {{
-  return !!el && String(el.style.display || "") !== "none";
-}}
-function setGeminiProviderSections(opts) {{
-  var showCode = !!(opts && opts.showCode);
-  var showCallback = !!(opts && opts.showCallback);
-  var codeSection = document.getElementById("gemini_code_section");
-  var callbackSection = document.getElementById("gemini_callback_section");
-  if (codeSection) codeSection.style.display = showCode ? "block" : "none";
-  if (callbackSection) callbackSection.style.display = showCallback ? "block" : "none";
-}}
-function _providerConnectPendingUrl(provider, sessionId) {{
-  var key = encodeURIComponent(String(provider || "").trim().toLowerCase() || "codex");
-  var sid = encodeURIComponent(String(sessionId || "").trim());
-  return "/auth/provider-connect/pending?provider=" + key + "&session_id=" + sid;
-}}
-function primeProviderPopup(provider, sessionId) {{
-  try {{
-    var existing = providerConnectPopups[provider];
-    if (existing && !existing.closed) return;
-    var pendingUrl = _providerConnectPendingUrl(provider, sessionId);
-    var popup = window.open(pendingUrl, "_blank");
-    if (!popup) return;
-    providerConnectPopups[provider] = popup;
-  }} catch (err) {{
-    return;
-  }}
-}}
-function maybeOpenProviderVerifyUrl(provider, verifyUrl) {{
-  var url = String(verifyUrl || "").trim();
-  if (!url) return false;
-  var dedupeKey = String(provider || "") + "::" + url;
-  if (providerConnectOpenedUrls[dedupeKey]) return true;
-  providerConnectOpenedUrls[dedupeKey] = true;
-  try {{
-    var popup = providerConnectPopups[provider];
-    if (popup && !popup.closed) {{
-      popup.location.href = url;
-      return true;
-    }}
-  }} catch (err) {{
-    // Fall through and try regular open.
-  }}
-  try {{
-    var opened = window.open(url, "_blank", "noopener,noreferrer");
-    return !!opened;
-  }} catch (err) {{
-    return false;
-  }}
-}}
-window.addEventListener("message", function(event) {{
-  try {{
-    if (!event || event.origin !== window.location.origin) return;
-    var payload = event.data;
-    if (!payload || payload.source !== "nexus-provider-connect") return;
-    var provider = String(payload.provider || "").trim().toLowerCase();
-    var state = String(payload.state || "").trim().toLowerCase();
-    var message = String(payload.message || "").trim();
-    if (payload.verify_url) {{
-      maybeOpenProviderVerifyUrl(provider, String(payload.verify_url));
-    }}
-    if (state === "connected") {{
-      setProviderAccountToggle(provider, true);
-      if (provider === "gemini") {{
-        setGeminiProviderSections({{ showCode: false, showCallback: false }});
-      }}
-      setProviderConnectStatus(providerDisplayName(provider) + " account connected. Save Setup to keep the toggle.");
-      if (providerConnectPoll) {{
-        clearTimeout(providerConnectPoll);
-        providerConnectPoll = null;
-      }}
-      var popup = providerConnectPopups[provider];
-      if (popup && !popup.closed) {{
-        try {{ popup.close(); }} catch (err) {{ /* ignore */ }}
-      }}
-      return;
-    }}
-    if (message) {{
-      setProviderConnectStatus(message);
-    }}
-  }} catch (err) {{
-    return;
-  }}
-}});
-async function pollProviderConnect(provider, sessionId) {{
-  try {{
-    var response = await fetch("/auth/provider-connect/status?provider=" + encodeURIComponent(provider) + "&session_id=" + encodeURIComponent(sessionId));
-    var payload = await response.json();
-    var state = String(payload.state || "");
-    if (String(provider || "").toLowerCase() === "gemini") {{
-      var callbackInput = document.getElementById("gemini_callback_url");
-      if (payload.callback_url_hint && callbackInput && !String(callbackInput.value || "").trim()) {{
-        callbackInput.value = String(payload.callback_url_hint);
-      }}
-      var callbackVisible = _isVisible(document.getElementById("gemini_callback_section"));
-      var messageLower = String(payload.message || "").toLowerCase();
-      var shouldShowCallback = callbackVisible
-        || !!payload.callback_url_hint
-        || messageLower.indexOf("localhost") >= 0;
-      setGeminiProviderSections({{
-        showCode: state !== "connected",
-        showCallback: state !== "connected" && shouldShowCallback
-      }});
-    }}
-    if (payload.verify_url) {{
-      var openedFromPoll = maybeOpenProviderVerifyUrl(provider, payload.verify_url);
-      setProviderConnectStatusWithLink(
-        openedFromPoll
-          ? "Verification tab opened."
-          : "If no browser tab opened automatically, use this link:",
-        payload.verify_url,
-        payload.user_code
-      );
-    }} else if (payload.message) {{
-      setProviderConnectStatus(String(payload.message));
-    }}
-    if (state === "connected") {{
-      setProviderAccountToggle(provider, true);
-      setProviderConnectStatus(providerDisplayName(provider) + " account connected. Save Setup to keep the toggle.");
-      var popup = providerConnectPopups[provider];
-      if (popup && !popup.closed) {{
-        try {{ popup.close(); }} catch (err) {{ /* ignore */ }}
-      }}
-      if (providerConnectPoll) {{
-        clearTimeout(providerConnectPoll);
-        providerConnectPoll = null;
-      }}
-      return;
-    }}
-    if (
-      state === "failed"
-      || state === "connected_but_not_saved"
-      || state === "rate_limited"
-      || state === "interactive_required"
-      || state === "unsupported_provider"
-      || state === "invalid_session"
-    ) {{
-      if (providerConnectPoll) {{
-        clearTimeout(providerConnectPoll);
-        providerConnectPoll = null;
-      }}
-      return;
-    }}
-    providerConnectPoll = setTimeout(function() {{ pollProviderConnect(provider, sessionId); }}, 1500);
-  }} catch (err) {{
-    setProviderConnectStatus("Could not poll provider-connect status. Retry.");
-  }}
-}}
-async function startProviderConnect(provider) {{
-  var sessionInput = document.querySelector('input[name="session_id"]');
-  var sessionId = sessionInput ? String(sessionInput.value || "").trim() : "";
-  if (!sessionId) {{
-    setProviderConnectStatus("Missing session id.");
-    return;
-  }}
-  var providerKey = String(provider || "").toLowerCase();
-  if (providerKey === "codex" || providerKey === "gemini" || providerKey === "claude") {{
-    primeProviderPopup(provider, sessionId);
-  }}
-  if (providerKey === "gemini") {{
-    setGeminiProviderSections({{ showCode: true, showCallback: false }});
-  }} else {{
-    setGeminiProviderSections({{ showCode: false, showCallback: false }});
-  }}
-  setProviderConnectStatus("Starting " + providerDisplayName(provider) + " account connection...");
-  try {{
-    var response = await fetch("/auth/provider-connect/start", {{
-      method: "POST",
-      headers: {{ "Content-Type": "application/json" }},
-      body: JSON.stringify({{ provider: provider, session_id: sessionId }})
-    }});
-    var payload = await response.json();
-    if (!response.ok) {{
-      setProviderConnectStatus(String(payload.message || "Could not start provider connect."));
-      return;
-    }}
-    if (payload.verify_url) {{
-      var openedFromStart = maybeOpenProviderVerifyUrl(provider, payload.verify_url);
-      setProviderConnectStatusWithLink(
-        openedFromStart
-          ? "Verification tab opened."
-          : "If no browser tab opened automatically, use this link:",
-        payload.verify_url,
-        payload.user_code
-      );
-    }} else if (payload.message) {{
-      setProviderConnectStatus(String(payload.message));
-    }}
-    if (providerConnectPoll) clearTimeout(providerConnectPoll);
-    var initialPollDelay = String(provider || "").toLowerCase() === "gemini" ? 250 : 1000;
-    providerConnectPoll = setTimeout(function() {{ pollProviderConnect(provider, sessionId); }}, initialPollDelay);
-  }} catch (err) {{
-    setProviderConnectStatus("Could not start provider connect.");
-  }}
-}}
-async function relayProviderCallback(provider) {{
-  var sessionInput = document.querySelector('input[name="session_id"]');
-  var sessionId = sessionInput ? String(sessionInput.value || "").trim() : "";
-  if (!sessionId) {{
-    setProviderConnectStatus("Missing session id.");
-    return;
-  }}
-  var callbackInput = document.getElementById("gemini_callback_url");
-  var callbackUrl = callbackInput ? String(callbackInput.value || "").trim() : "";
-  if (!callbackUrl) {{
-    setProviderConnectStatus("Paste the Gemini localhost callback URL first.");
-    return;
-  }}
-  setProviderConnectStatus("Relaying callback URL to Gemini CLI...");
-  try {{
-    var response = await fetch("/auth/provider-connect/relay-callback", {{
-      method: "POST",
-      headers: {{ "Content-Type": "application/json" }},
-      body: JSON.stringify({{
-        provider: provider,
-        session_id: sessionId,
-        callback_url: callbackUrl
-      }})
-    }});
-    var payload = await response.json();
-    if (!response.ok) {{
-      setProviderConnectStatus(String(payload.message || "Could not relay callback URL."));
-      return;
-    }}
-    if (payload.message) {{
-      setProviderConnectStatus(String(payload.message));
-    }}
-    if (providerConnectPoll) clearTimeout(providerConnectPoll);
-    providerConnectPoll = setTimeout(function() {{ pollProviderConnect(provider, sessionId); }}, 1000);
-  }} catch (err) {{
-    setProviderConnectStatus("Could not relay callback URL.");
-  }}
-}}
-async function submitProviderAuthCode(provider) {{
-  var sessionInput = document.querySelector('input[name="session_id"]');
-  var sessionId = sessionInput ? String(sessionInput.value || "").trim() : "";
-  if (!sessionId) {{
-    setProviderConnectStatus("Missing session id.");
-    return;
-  }}
-  var codeInput = document.getElementById("gemini_authorization_code");
-  var authorizationCode = codeInput ? String(codeInput.value || "").trim() : "";
-  if (!authorizationCode) {{
-    setProviderConnectStatus("Paste the Gemini authorization code first.");
-    return;
-  }}
-  setProviderConnectStatus("Submitting authorization code to Gemini CLI...");
-  try {{
-    var response = await fetch("/auth/provider-connect/submit-code", {{
-      method: "POST",
-      headers: {{ "Content-Type": "application/json" }},
-      body: JSON.stringify({{
-        provider: provider,
-        session_id: sessionId,
-        authorization_code: authorizationCode
-      }})
-    }});
-    var payload = await response.json();
-    if (!response.ok) {{
-      setProviderConnectStatus(String(payload.message || "Could not submit authorization code."));
-      return;
-    }}
-    if (payload.message) {{
-      setProviderConnectStatus(String(payload.message));
-    }}
-    if (providerConnectPoll) clearTimeout(providerConnectPoll);
-    providerConnectPoll = setTimeout(function() {{ pollProviderConnect(provider, sessionId); }}, 1000);
-  }} catch (err) {{
-    setProviderConnectStatus("Could not submit authorization code.");
-  }}
-}}
-</script>
-"""
+
+
+_AI_ACCOUNT_KEYS = ("claude", "codex", "agy")
+_AI_ACCOUNT_LABELS = {"claude": "Claude", "codex": "Codex", "agy": "Antigravity"}
+
+
+def _setup_missing_items(setup: dict) -> list[str]:
+    """What still blocks agent runs, in the words a person acts on."""
+    missing: list[str] = []
+    if not setup.get("git_provider_linked"):
+        missing.append("Sign in with GitHub or GitLab (send /login to the bot)")
+    elif not setup.get("org_verified"):
+        missing.append("Membership of an allowed GitHub organisation")
+    if not int(setup.get("project_access_count") or 0):
+        missing.append("Access to a Nexus project (ask an admin to grant your team)")
+    if not setup.get("ai_provider_ready"):
+        missing.append("A connected AI account or an API key")
+    return missing
+
+
+def _render_setup_saved_page(*, session_id: str, ready: bool):
+    payload = _svc_get_session_and_setup_status(session_id)
+    setup = payload.get("setup") if isinstance(payload, dict) and isinstance(payload.get("setup"), dict) else {}
+    session_ref = _svc_format_login_session_ref(session_id) or session_id
+    identity = str(setup.get("github_login") or setup.get("gitlab_username") or "").strip()
+    accounts = [(_AI_ACCOUNT_LABELS[key], bool(setup.get(f"{key}_account_enabled"))) for key in _AI_ACCOUNT_KEYS]
+    connected = sum(1 for _name, on in accounts if on)
+    body = _auth_pages.render_setup_saved(
+        ready=ready,
+        missing=[] if ready else _setup_missing_items(setup),
+        accounts=accounts,
+        projects=[str(item) for item in (setup.get("projects") or []) if str(item).strip()],
+        setup_url=f"/auth/setup?session={quote(session_ref, safe='')}",
+    )
+    subline = (
+        f"{'Signed in as ' + html.escape(identity) + ' · ' if identity else ''}"
+        f"{connected} of {len(accounts)} AI accounts connected"
+    )
+    actions = '<a class="btn primary" href="/login?next=/">Open workspace</a>' if ready else ""
+    return _auth_pages.render_page("Setup saved", body, subline=subline, account=identity, actions_html=actions)
+
+
+def _render_account_setup_page(
+    *,
+    session_id: str,
+    setup: dict | None,
+    show_copilot_option: bool,
+    copilot_checked: bool,
+    connection: dict | None = None,
+):
+    """The account setup screen for a session that finished Git OAuth."""
+    setup = setup if isinstance(setup, dict) else {}
+    session_ref = _svc_format_login_session_ref(session_id) or session_id
+    github_login = str(setup.get("github_login") or "").strip()
+    gitlab_username = str(setup.get("gitlab_username") or "").strip()
+    projects = [str(item) for item in (setup.get("projects") or []) if str(item).strip()]
+    connected = sum(1 for key in _AI_ACCOUNT_KEYS if setup.get(f"{key}_account_enabled"))
+    identity_rows: list[tuple[str, str]] = []
+    if github_login:
+        identity_rows.append(("GitHub", f"<strong>{html.escape(github_login)}</strong>"))
+    if gitlab_username:
+        identity_rows.append(("GitLab", f"<strong>{html.escape(gitlab_username)}</strong>"))
+    identity_rows.append(
+        (
+            "Project access",
+            html.escape(", ".join(projects)) if projects else '<span class="pill bad">None yet</span>',
+        )
+    )
+    identity = github_login or gitlab_username
+    subline = (
+        f"{'Signed in as ' + html.escape(identity) + ' · ' if identity else ''}"
+        f"{connected} of {len(_AI_ACCOUNT_KEYS)} AI accounts connected"
+    )
+    api_keys_allowed = _allow_api_keys_in_web_setup()
+    note = (
+        "Connected accounts are saved as soon as sign-in finishes. Save setup to keep changes "
+        "to the Use switches"
+        + (" and API keys." if api_keys_allowed else ".")
+    )
+    body = _render_ai_key_form(
+        session_id=session_ref,
+        show_api_key_inputs=api_keys_allowed,
+        copilot_checked=copilot_checked,
+        show_copilot_option=show_copilot_option,
+        copilot_token_set=bool(setup.get("copilot_token_set")),
+        codex_key_set=bool(setup.get("codex_key_set")),
+        claude_key_set=bool(setup.get("claude_key_set")),
+        codex_account_enabled=bool(setup.get("codex_account_enabled")),
+        claude_account_enabled=bool(setup.get("claude_account_enabled")),
+        copilot_account_enabled=bool(setup.get("copilot_account_enabled")),
+        agy_account_enabled=bool(setup.get("agy_account_enabled")),
+        opencode_key_set=bool(setup.get("opencode_key_set")),
+        existing_keys_note=note,
+        identity_rows=identity_rows,
+        session_ref=session_ref,
+    )
+    social = [item for item in _browser_login.configured_identity_providers()
+              if item["id"] in {"linkedin", "x", "meta"}]
+    if social:
+        links = "".join(
+            '<a class="btn" href="/auth/start?' + urlencode({"session": session_ref, "provider": item["id"]})
+            + '">Connect ' + item["label"] + '</a>' for item in social
+        )
+        body += ('<section class="setting" aria-labelledby="social-sign-in-h">'
+                 '<div class="label"><h2 id="social-sign-in-h">Other sign-in accounts</h2>'
+                 '<p>Connect a social account once to use it for future Nexus sign-ins.</p></div>'
+                 '<div class="panel"><div class="row-actions">' + links + '</div>'
+                 '<p class="note">Social accounts keep your existing project permissions. '
+                 'Older connections need one reconnect to enable sign-in.</p></div></section>')
+    if connection and connection["id"] == "copilot" and not connection["github_linked"]:
+        github_available = any(item["id"] == "github" for item in _browser_login.configured_identity_providers())
+        link = ("/auth/start?" + urlencode({"session": session_ref, "provider": "github"}))
+        action = ('<a class="btn" href="' + html.escape(link, quote=True) + '">Link GitHub for Copilot</a>'
+                  if github_available else '<p class="note">GitHub sign-in must be configured on this server first.</p>')
+        body = ('<section class="setting" aria-labelledby="copilot-h"><div class="label">'
+                '<h2 id="copilot-h">Copilot needs a linked GitHub account</h2></div>'
+                '<div class="panel"><p>Link your GitHub account, then enable Copilot in Account setup.</p>'
+                + action + '</div></section>' + body)
+    return _auth_pages.render_page("Account setup", body, subline=subline, account=identity)
 
 
 def _telegram_edit_message(*, chat_id: str, message_id: str, text: str) -> None:
@@ -1397,24 +1072,112 @@ def _notify_onboarding_message(
         )
 
 
+
+def _clear_browser_login_cookie(response):
+    response.set_cookie(_browser_login.COOKIE_NAME, "", max_age=0, path="/auth",
+                        httponly=True, secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure,
+                        samesite="Lax")
+    return response
+
+
+@app.route("/auth/browser/start", methods=["POST"])
+def browser_login_start():
+    """Start identity login without a chat account or a pasted session reference."""
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    provider = str(request.form.get("provider", "")).strip().lower()
+    try:
+        origin_matches = _browser_login.browser_login_origin_allowed(
+            provider=provider, origin=request.headers.get("Origin"), fetch_site=request.headers.get("Sec-Fetch-Site"),
+        )
+    except ValueError:
+        return _render_auth_message("Sign-in unavailable", "Check the server's public sign-in address and provider configuration.", status_code=400)
+    if not origin_matches:
+        return _render_auth_message("Sign-in error", "This page does not match the configured sign-in address. "
+                                    "Ask your administrator to check the public callback address.", status_code=403)
+    try:
+        result = _browser_login.start_browser_login(
+            provider=provider,
+            next_path=_safe_next_path(request.form.get("next"), default="/"),
+        )
+    except Exception:
+        return _render_auth_message("Sign-in unavailable", "This sign-in provider is unavailable. "
+                                    '<a href="/login">Return to sign in</a>.', status_code=400)
+    response = make_response(redirect(str(result["authorization_url"]), code=303))
+    response.set_cookie(_browser_login.COOKIE_NAME, str(result["context"]),
+                        max_age=int(result["max_age"]), path="/auth", httponly=True,
+                        secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure or _browser_login.browser_callback_origin(provider)[0] == "https", samesite="Lax")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+def _handle_browser_login_callback(provider: str):
+    """Keep chat linking unchanged; web attempts require their browser context."""
+    state = str(request.args.get("state", "")).strip()
+    context = request.cookies.get(_browser_login.COOKIE_NAME, "")
+    try:
+        record = _svc_get_auth_session_by_state(state) if state else None
+    except Exception:
+        record = None
+    if getattr(record, "chat_platform", None) not in {"web-login", "web-connect"} and (record or not context):
+        return None
+    try:
+        _browser_login.validate_browser_callback(context=context, provider=provider, state=state)
+        if request.args.get("error"):
+            _browser_login.onboarding.update_auth_session(
+                session_id=record.session_id, status="expired", oauth_state_hash="",
+            )
+            raise ValueError("Sign-in was cancelled. Please start again.")
+        result = _browser_login.complete_browser_login(
+            context=context, provider=provider, state=state,
+            code=str(request.args.get("code", "")).strip(),
+        )
+    except Exception as exc:
+        detail = str(exc) if isinstance(exc, ValueError) else "Sign-in could not complete. Please try again."
+        response = make_response(_render_auth_message(
+            "Sign-in error", html.escape(detail) + ' <a href="/login">Return to sign in</a>.', status_code=400,
+        ))
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return _clear_browser_login_cookie(response)
+    session_id = str(result["session_id"])
+    status = _svc_get_session_and_setup_status(session_id)
+    setup = status.get("setup") or {}
+    if (setup.get("ready") or result.get("intent") == "connect"
+            or _subscription_accounts.is_account_connection_destination(result["next"])
+            or _desktop_login.is_authorization_destination(result["next"])):
+        response = make_response(redirect(result["next"], code=303))
+    else:
+        page = _render_account_setup_page(
+            session_id=session_id, setup=setup, show_copilot_option=provider == "github",
+            copilot_checked=bool(setup.get("copilot_ready")),
+        )
+        response = make_response(page)
+    _set_web_session_cookie(response, session_id, secure=_browser_login.browser_callback_origin(provider)[0] == "https")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return _clear_browser_login_cookie(response)
+
+
 @app.route("/auth/start", methods=["GET"])
 def auth_start():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
     session_value = str(request.args.get("session", "")).strip()
     if not session_value:
-        return _render_auth_message("Invalid Request", "Missing <code>session</code> parameter.", status_code=400)
+        return _render_auth_message("Invalid request", "Missing <code>session</code> parameter.", status_code=400)
     resolved_session_id = _svc_resolve_login_session_id(session_value)
     if not resolved_session_id:
-        return _render_auth_message("Invalid Request", "Invalid <code>session</code> parameter.", status_code=400)
+        return _render_auth_message("Invalid request", "Invalid <code>session</code> parameter.", status_code=400)
     configured_providers = _configured_oauth_providers()
     if not configured_providers:
         return _render_auth_message(
-            "Login Error",
+            "Sign-in error",
             (
                 "OAuth is not configured. Set both client ID and client secret for "
                 "GitHub and/or GitLab."
@@ -1422,28 +1185,43 @@ def auth_start():
             status_code=400,
         )
     provider = str(request.args.get("provider", "")).strip().lower()
+    if provider == "instagram":
+        provider = "meta"
     if not provider:
         provider = _default_oauth_provider(configured_providers)
-    if provider not in {"github", "gitlab"}:
+    if provider not in {"github", "gitlab", "linkedin", "x", "meta"}:
         return _render_auth_message(
-            "Invalid Request",
-            "Unsupported <code>provider</code>. Use <code>github</code> or <code>gitlab</code>.",
+            "Invalid request",
+            "Unsupported <code>provider</code>. Use <code>github</code>, <code>gitlab</code>, <code>linkedin</code>, <code>x</code>, or <code>meta</code>.",
             status_code=400,
         )
-    if provider not in configured_providers:
+    if provider in {"github", "gitlab"} and provider not in configured_providers:
         return _render_auth_message(
-            "Login Error",
+            "Sign-in error",
             f"{provider.title()} OAuth is not fully configured in this environment.",
             status_code=400,
         )
     try:
+        record = _svc_get_auth_session(resolved_session_id)
+        if getattr(record, "chat_platform", None) in {"web-login", "web-connect"}:
+            result = _browser_login.start_browser_connection(
+                session_id=resolved_session_id, provider=provider,
+                next_path="/auth/setup?" + urlencode({"session": session_value}),
+            )
+            response = make_response(redirect(str(result["authorization_url"]), code=303))
+            response.set_cookie(_browser_login.COOKIE_NAME, str(result["context"]),
+                                max_age=int(result["max_age"]), path="/auth", httponly=True,
+                                secure=_WEB_SESSION_COOKIE_SECURE or request.is_secure or _browser_login.browser_callback_origin(provider)[0] == "https", samesite="Lax")
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
         oauth_url, _state = _svc_start_oauth_flow(session_value, provider=provider)
     except Exception as exc:
         _notify_onboarding_message(
             session_id=resolved_session_id,
             text=f"❌ OAuth start failed for {provider.title()}: {exc}\nRun /login to retry.",
         )
-        return _render_auth_message("Login Error", f"Failed to start OAuth: <code>{exc}</code>", status_code=400)
+        return _render_auth_message("Sign-in error", f"Failed to start OAuth: <code>{exc}</code>", status_code=400)
     return redirect(oauth_url, code=302)
 
 
@@ -1451,10 +1229,13 @@ def auth_start():
 def auth_github_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
+    browser_response = _handle_browser_login_callback("github")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1476,10 +1257,10 @@ def auth_github_callback():
             except Exception:
                 pass
         safe_detail = html.escape(oauth_error_detail, quote=True)
-        return _render_auth_message("OAuth Error", f"GitHub returned: <code>{safe_detail}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"GitHub returned: <code>{safe_detail}</code>", status_code=400)
     if not code or not state:
         return _render_auth_message(
-            "OAuth Error",
+            "OAuth error",
             "Missing <code>code</code> or <code>state</code> in callback.",
             status_code=400,
         )
@@ -1497,7 +1278,7 @@ def auth_github_callback():
                 session_id=session_id,
                 text=f"❌ GitHub OAuth failed: {exc}\nRun /login to retry.",
             )
-        return _render_auth_message("OAuth Error", f"{exc}", status_code=400)
+        return _render_auth_message("OAuth error", f"{exc}", status_code=400)
 
     source_nexus_id = str(result.get("source_nexus_id") or "").strip()
     resolved_nexus_id = str(result.get("nexus_id") or "").strip()
@@ -1518,54 +1299,11 @@ def auth_github_callback():
     github_login = str(result.get("github_login") or "").strip()
     setup_payload = _svc_get_session_and_setup_status(session_id)
     setup = setup_payload.get("setup") if isinstance(setup_payload, dict) else {}
-    has_existing_keys = bool(
-        isinstance(setup, dict)
-        and (
-            setup.get("codex_key_set")
-            or setup.get("gemini_key_set")
-            or setup.get("claude_key_set")
-            or setup.get("codex_account_enabled")
-            or setup.get("gemini_account_enabled")
-            or setup.get("claude_account_enabled")
-            or setup.get("copilot_account_enabled")
-        )
-    )
-    api_keys_allowed = _allow_api_keys_in_web_setup()
-    form_body = f"""
-<p>GitHub login linked successfully as <strong>{github_login or "unknown"}</strong>.</p>
-<p>Project grants resolved: <strong>{grants_count}</strong>.</p>
-<p>Session reference: <code>{session_ref or session_id}</code>.</p>
-    """ + _render_ai_key_form(
-        session_id=session_ref or session_id,
-        show_api_key_inputs=api_keys_allowed,
-        copilot_checked=True,
+    page_html = _render_account_setup_page(
+        session_id=session_id,
+        setup=setup,
         show_copilot_option=True,
-        copilot_token_set=bool(isinstance(setup, dict) and setup.get("copilot_token_set")),
-        codex_key_set=bool(isinstance(setup, dict) and setup.get("codex_key_set")),
-        gemini_key_set=bool(isinstance(setup, dict) and setup.get("gemini_key_set")),
-        claude_key_set=bool(isinstance(setup, dict) and setup.get("claude_key_set")),
-        codex_account_enabled=bool(isinstance(setup, dict) and setup.get("codex_account_enabled")),
-        gemini_account_enabled=bool(isinstance(setup, dict) and setup.get("gemini_account_enabled")),
-        claude_account_enabled=bool(isinstance(setup, dict) and setup.get("claude_account_enabled")),
-        copilot_account_enabled=bool(isinstance(setup, dict) and setup.get("copilot_account_enabled")),
-        existing_keys_note=(
-            "All fields are optional. Leave fields blank to keep previously saved values unchanged. "
-            + (
-                "Existing provider configuration is already saved for this account. "
-                if has_existing_keys
-                else ""
-            )
-            + (
-                "Use Reset to clear a saved value. If all provider credentials are cleared, "
-                "setup may show as not ready until one is added again. Keys/tokens are encrypted at "
-                "rest and used only for your own task execution."
-                if api_keys_allowed
-                else (
-                    "CLI auth mode is account-only, so API key/token fields are hidden on this page. "
-                    "Enable provider account login toggles and save setup."
-                )
-            )
-        ),
+        copilot_checked=True,
     )
     _notify_onboarding_message(
         session_id=session_id,
@@ -1574,7 +1312,7 @@ def auth_github_callback():
             "Continue in the browser to save provider setup (API keys or account login), then run /setup-status (Discord) or /setup_status (Telegram)."
         ),
     )
-    response = make_response(_render_auth_message("Complete Setup", form_body, status_code=200))
+    response = make_response(page_html)
     _set_web_session_cookie(response, session_id)
     return response
 
@@ -1583,10 +1321,13 @@ def auth_github_callback():
 def auth_gitlab_callback():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
+    browser_response = _handle_browser_login_callback("gitlab")
+    if browser_response is not None:
+        return browser_response
     code = str(request.args.get("code", "")).strip()
     state = str(request.args.get("state", "")).strip()
     oauth_error = str(request.args.get("error", "")).strip()
@@ -1608,10 +1349,10 @@ def auth_gitlab_callback():
             except Exception:
                 pass
         safe_detail = html.escape(oauth_error_detail, quote=True)
-        return _render_auth_message("OAuth Error", f"GitLab returned: <code>{safe_detail}</code>", status_code=400)
+        return _render_auth_message("OAuth error", f"GitLab returned: <code>{safe_detail}</code>", status_code=400)
     if not code or not state:
         return _render_auth_message(
-            "OAuth Error",
+            "OAuth error",
             "Missing <code>code</code> or <code>state</code> in callback.",
             status_code=400,
         )
@@ -1629,7 +1370,7 @@ def auth_gitlab_callback():
                 session_id=session_id,
                 text=f"❌ GitLab OAuth failed: {exc}\nRun /login to retry.",
             )
-        return _render_auth_message("OAuth Error", f"{exc}", status_code=400)
+        return _render_auth_message("OAuth error", f"{exc}", status_code=400)
 
     source_nexus_id = str(result.get("source_nexus_id") or "").strip()
     resolved_nexus_id = str(result.get("nexus_id") or "").strip()
@@ -1650,55 +1391,12 @@ def auth_gitlab_callback():
     gitlab_username = str(result.get("gitlab_username") or "").strip()
     setup_payload = _svc_get_session_and_setup_status(session_id)
     setup = setup_payload.get("setup") if isinstance(setup_payload, dict) else {}
-    has_existing_keys = bool(
-        isinstance(setup, dict)
-        and (
-            setup.get("codex_key_set")
-            or setup.get("gemini_key_set")
-            or setup.get("claude_key_set")
-            or setup.get("codex_account_enabled")
-            or setup.get("gemini_account_enabled")
-            or setup.get("claude_account_enabled")
-            or setup.get("copilot_account_enabled")
-        )
-    )
-    api_keys_allowed = _allow_api_keys_in_web_setup()
     copilot_ready = bool(isinstance(setup, dict) and setup.get("copilot_ready"))
-    form_body = f"""
-<p>GitLab account linked successfully as <strong>{gitlab_username or "unknown"}</strong>.</p>
-<p>Project grants resolved: <strong>{grants_count}</strong>.</p>
-<p>Session reference: <code>{session_ref or session_id}</code>.</p>
-    """ + _render_ai_key_form(
-        session_id=session_ref or session_id,
-        show_api_key_inputs=api_keys_allowed,
-        copilot_checked=copilot_ready,
+    page_html = _render_account_setup_page(
+        session_id=session_id,
+        setup=setup,
         show_copilot_option=False,
-        copilot_token_set=bool(isinstance(setup, dict) and setup.get("copilot_token_set")),
-        codex_key_set=bool(isinstance(setup, dict) and setup.get("codex_key_set")),
-        gemini_key_set=bool(isinstance(setup, dict) and setup.get("gemini_key_set")),
-        claude_key_set=bool(isinstance(setup, dict) and setup.get("claude_key_set")),
-        codex_account_enabled=bool(isinstance(setup, dict) and setup.get("codex_account_enabled")),
-        gemini_account_enabled=bool(isinstance(setup, dict) and setup.get("gemini_account_enabled")),
-        claude_account_enabled=bool(isinstance(setup, dict) and setup.get("claude_account_enabled")),
-        copilot_account_enabled=bool(isinstance(setup, dict) and setup.get("copilot_account_enabled")),
-        existing_keys_note=(
-            "All fields are optional. Leave fields blank to keep previously saved values unchanged. "
-            + (
-                "Existing provider configuration is already saved for this account. "
-                if has_existing_keys
-                else ""
-            )
-            + (
-                "Use Reset to clear a saved value. If all provider credentials are cleared, "
-                "setup may show as not ready until one is added again. Keys/tokens are encrypted at "
-                "rest and used only for your own task execution."
-                if api_keys_allowed
-                else (
-                    "CLI auth mode is account-only, so API key/token fields are hidden on this page. "
-                    "Enable provider account login toggles and save setup."
-                )
-            )
-        ),
+        copilot_checked=copilot_ready,
     )
     _notify_onboarding_message(
         session_id=session_id,
@@ -1707,16 +1405,112 @@ def auth_gitlab_callback():
             "Continue in the browser to save provider setup (API keys or account login), then run /setup-status (Discord) or /setup_status (Telegram)."
         ),
     )
-    response = make_response(_render_auth_message("Complete Setup", form_body, status_code=200))
+    response = make_response(page_html)
     _set_web_session_cookie(response, session_id)
     return response
+
+
+@app.route("/auth/linkedin/callback", methods=["GET"])
+def auth_linkedin_callback():
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    browser_response = _handle_browser_login_callback("linkedin")
+    if browser_response is not None:
+        return browser_response
+    code = str(request.args.get("code", "")).strip()
+    state = str(request.args.get("state", "")).strip()
+    oauth_error = str(request.args.get("error", "")).strip()
+    if oauth_error:
+        detail = str(request.args.get("error_description") or oauth_error).strip()
+        return _render_auth_message("OAuth error", f"LinkedIn returned: <code>{html.escape(detail)}</code>", status_code=400)
+    if not code or not state:
+        return _render_auth_message("OAuth error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
+    try:
+        result = _svc_complete_linkedin_oauth(code=code, state=state)
+    except Exception as exc:
+        return _render_auth_message("OAuth error", f"LinkedIn login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
+    session_id = str(result.get("session_id") or "").strip()
+    name = str(result.get("linkedin_name") or "").strip()
+    urn = str(result.get("linkedin_author_urn") or "").strip()
+    _notify_onboarding_message(
+        session_id=session_id,
+        text=f"✅ LinkedIn connected!\nName: {name}\nAuthor URN: `{urn}`",
+    )
+    return _render_auth_message(
+        "LinkedIn connected",
+        f"LinkedIn account connected for <strong>{html.escape(name)}</strong>.<br>You can close this window.",
+    )
+
+
+@app.route("/auth/x/callback", methods=["GET"])
+def auth_x_callback():
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    browser_response = _handle_browser_login_callback("x")
+    if browser_response is not None:
+        return browser_response
+    code = str(request.args.get("code", "")).strip()
+    state = str(request.args.get("state", "")).strip()
+    oauth_error = str(request.args.get("error", "")).strip()
+    if oauth_error:
+        detail = str(request.args.get("error_description") or oauth_error).strip()
+        return _render_auth_message("OAuth error", f"X returned: <code>{html.escape(detail)}</code>", status_code=400)
+    if not code or not state:
+        return _render_auth_message("OAuth error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
+    try:
+        result = _svc_complete_x_oauth(code=code, state=state)
+    except Exception as exc:
+        return _render_auth_message("OAuth error", f"X login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
+    session_id = str(result.get("session_id") or "").strip()
+    username = str(result.get("x_username") or "").strip()
+    _notify_onboarding_message(
+        session_id=session_id,
+        text=f"✅ X (Twitter) connected! Username: @{username}",
+    )
+    return _render_auth_message(
+        "X connected",
+        f"X account <strong>@{html.escape(username)}</strong> connected.<br>You can close this window.",
+    )
+
+
+@app.route("/auth/meta/callback", methods=["GET"])
+def auth_meta_callback():
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    browser_response = _handle_browser_login_callback("meta")
+    if browser_response is not None:
+        return browser_response
+    code = str(request.args.get("code", "")).strip()
+    state = str(request.args.get("state", "")).strip()
+    oauth_error = str(request.args.get("error", "")).strip()
+    if oauth_error:
+        detail = str(request.args.get("error_description") or oauth_error).strip()
+        return _render_auth_message("OAuth error", f"Meta returned: <code>{html.escape(detail)}</code>", status_code=400)
+    if not code or not state:
+        return _render_auth_message("OAuth error", "Missing <code>code</code> or <code>state</code>.", status_code=400)
+    try:
+        result = _svc_complete_meta_oauth(code=code, state=state)
+    except Exception as exc:
+        return _render_auth_message("OAuth error", f"Meta login failed: <code>{html.escape(str(exc))}</code>", status_code=400)
+    session_id = str(result.get("session_id") or "").strip()
+    page_name = str(result.get("meta_page_name") or "").strip()
+    ig_id = str(result.get("meta_ig_account_id") or "").strip()
+    ig_note = f"\nInstagram account ID: `{ig_id}`" if ig_id else "\n⚠️ No Instagram Business account linked to this page."
+    _notify_onboarding_message(
+        session_id=session_id,
+        text=f"✅ Meta connected!\nPage: {page_name}{ig_note}",
+    )
+    return _render_auth_message(
+        "Meta connected",
+        f"Meta page <strong>{html.escape(page_name)}</strong> connected.<br>{'Instagram account linked.' if ig_id else 'No Instagram Business account found.'}<br>You can close this window.",
+    )
 
 
 @app.route("/auth/ai-keys", methods=["POST"])
 def auth_ai_keys():
     if not NEXUS_AUTH_ENABLED:
         return _render_auth_message(
-            "Auth Disabled",
+            "Auth disabled",
             "Auth onboarding is disabled in this environment.",
             status_code=404,
         )
@@ -1724,14 +1518,14 @@ def auth_ai_keys():
     payload = payload if isinstance(payload, dict) else {}
     session_id = str(request.form.get("session_id") or payload.get("session_id") or "").strip()
     codex_api_key = str(request.form.get("codex_api_key") or payload.get("codex_api_key") or "").strip()
-    gemini_api_key = str(
-        request.form.get("gemini_api_key") or payload.get("gemini_api_key") or ""
-    ).strip()
     claude_api_key = str(
         request.form.get("claude_api_key") or payload.get("claude_api_key") or ""
     ).strip()
     copilot_github_token = str(
         request.form.get("copilot_github_token") or payload.get("copilot_github_token") or ""
+    ).strip()
+    opencode_api_key = str(
+        request.form.get("opencode_api_key") or payload.get("opencode_api_key") or ""
     ).strip()
     raw_use_copilot = request.form.get("use_copilot")
     if raw_use_copilot is None:
@@ -1749,14 +1543,6 @@ def auth_ai_keys():
         use_codex_account = raw_use_codex_account
     elif raw_use_codex_account is not None:
         use_codex_account = str(raw_use_codex_account).strip().lower() in {"1", "true", "yes", "on"}
-    raw_use_gemini_account = request.form.get("use_gemini_account")
-    if raw_use_gemini_account is None:
-        raw_use_gemini_account = payload.get("use_gemini_account")
-    use_gemini_account = None
-    if isinstance(raw_use_gemini_account, bool):
-        use_gemini_account = raw_use_gemini_account
-    elif raw_use_gemini_account is not None:
-        use_gemini_account = str(raw_use_gemini_account).strip().lower() in {"1", "true", "yes", "on"}
     raw_use_claude_account = request.form.get("use_claude_account")
     if raw_use_claude_account is None:
         raw_use_claude_account = payload.get("use_claude_account")
@@ -1765,6 +1551,14 @@ def auth_ai_keys():
         use_claude_account = raw_use_claude_account
     elif raw_use_claude_account is not None:
         use_claude_account = str(raw_use_claude_account).strip().lower() in {"1", "true", "yes", "on"}
+    raw_use_agy_account = request.form.get("use_agy_account")
+    if raw_use_agy_account is None:
+        raw_use_agy_account = payload.get("use_agy_account")
+    use_agy_account = None
+    if isinstance(raw_use_agy_account, bool):
+        use_agy_account = raw_use_agy_account
+    elif raw_use_agy_account is not None:
+        use_agy_account = str(raw_use_agy_account).strip().lower() in {"1", "true", "yes", "on"}
     raw_use_copilot_account = request.form.get("use_copilot_account")
     if raw_use_copilot_account is None:
         raw_use_copilot_account = payload.get("use_copilot_account")
@@ -1776,22 +1570,23 @@ def auth_ai_keys():
     codex_supplied = ("codex_api_key" in request.form) or (
         isinstance(payload, dict) and "codex_api_key" in payload
     )
-    gemini_supplied = ("gemini_api_key" in request.form) or (
-        isinstance(payload, dict) and "gemini_api_key" in payload
-    )
     claude_supplied = ("claude_api_key" in request.form) or (
         isinstance(payload, dict) and "claude_api_key" in payload
     )
     copilot_token_supplied = ("copilot_github_token" in request.form) or (
         isinstance(payload, dict) and "copilot_github_token" in payload
     )
+    # The OpenCode key is that provider's login, so account mode still accepts it.
+    opencode_supplied = ("opencode_api_key" in request.form) or (
+        isinstance(payload, dict) and "opencode_api_key" in payload
+    )
     api_keys_allowed = _allow_api_keys_in_web_setup()
     if (
         not api_keys_allowed
-        and (codex_supplied or gemini_supplied or claude_supplied or copilot_token_supplied)
+        and (codex_supplied or claude_supplied or copilot_token_supplied)
     ):
         return _render_auth_message(
-            "Credential Error",
+            "Credential error",
             (
                 "API key/token submission is disabled because "
                 "<code>NEXUS_CLI_AUTH_MODE=account</code>. Use provider account login toggles instead."
@@ -1800,7 +1595,7 @@ def auth_ai_keys():
         )
     if not session_id:
         return _render_auth_message(
-            "Invalid Request",
+            "Invalid request",
             "Field <code>session_id</code> is required.",
             status_code=400,
         )
@@ -1808,40 +1603,89 @@ def auth_ai_keys():
         result = _svc_store_ai_provider_keys(
             session_id=session_id,
             codex_api_key=(codex_api_key if codex_supplied else None),
-            gemini_api_key=(gemini_api_key if gemini_supplied else None),
             claude_api_key=(claude_api_key if claude_supplied else None),
             copilot_github_token=(copilot_github_token if copilot_token_supplied else None),
+            opencode_api_key=(opencode_api_key if opencode_supplied else None),
             allow_copilot=use_copilot,
             use_codex_account=use_codex_account,
-            use_gemini_account=use_gemini_account,
             use_claude_account=use_claude_account,
             use_copilot_account=use_copilot_account,
+            use_agy_account=use_agy_account,
         )
     except Exception as exc:
         _notify_onboarding_message(
             session_id=session_id,
             text=f"❌ Credential save failed: {exc}\nRetry from the web form or run /login again.",
         )
-        return _render_auth_message("Credential Error", f"{exc}", status_code=400)
+        return _render_auth_message("Credential error", f"{exc}", status_code=400)
 
     ready = bool(result.get("ready"))
     grants = int(result.get("project_access_count") or 0)
-    body = (
-        "<p>✅ Setup completed successfully.</p>"
-        if ready
-        else "<p>⚠️ Credentials saved, but setup is not fully ready yet.</p>"
-    )
-    body += (
-        f"<p>Project access count: <strong>{grants}</strong>.</p>"
-        "<p>Go back to your chat app and run the matching command:"
-        " Discord <code>/setup-status</code>, Telegram <code>/setup_status</code>.</p>"
-    )
     _notify_onboarding_message(
         session_id=session_id,
         text=_svc_build_setup_completed_chat_message(session_id=session_id, ready=ready),
     )
-    response = make_response(_render_auth_message("Setup Complete", body, status_code=200))
+    # The form posts the session reference; pages and the cookie use the session ID.
+    resolved_session_id = _svc_resolve_login_session_id(session_id) or session_id
+    response = make_response(_render_setup_saved_page(session_id=resolved_session_id, ready=ready))
+    _set_web_session_cookie(response, resolved_session_id)
+    return response
+
+
+@app.route("/auth/setup", methods=["GET"])
+def auth_setup():
+    """Reopen account setup for a session that already finished Git OAuth."""
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message(
+            "Auth disabled", "Auth onboarding is disabled in this environment.", status_code=404
+        )
+    connection = None
+    connection_id = str(request.args.get("connection", "")).strip()
+    if connection_id:
+        try:
+            connection = _subscription_accounts.account_setup_context(
+                session_id=request.cookies.get(_WEB_SESSION_COOKIE_NAME, ""), provider=connection_id,
+            )
+        except ValueError as exc:
+            return _render_auth_message("Unknown account", html.escape(str(exc)), status_code=400)
+        except PermissionError:
+            destination = _subscription_accounts.account_setup_destination(connection_id, request.args.get("next", "/"))
+            response = make_response(redirect("/login?" + urlencode({"next": destination}), code=302))
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
+        except Exception:
+            return _render_auth_message("Account service unavailable", "Try again shortly.", status_code=503)
+    session_hint = (connection["session_id"] if connection else
+                    str(request.args.get("session") or request.cookies.get(_WEB_SESSION_COOKIE_NAME) or "").strip())
+    payload = _svc_get_session_and_setup_status(session_hint) if session_hint else {}
+    expires_at = _parse_iso_utc(payload.get("expires_at")) if isinstance(payload, dict) else None
+    if (
+        not isinstance(payload, dict)
+        or not payload.get("exists")
+        or str(payload.get("status") or "") not in {"oauth_done", "completed"}
+        or (expires_at is not None and expires_at <= datetime.now(tz=UTC))
+    ):
+        return _render_auth_message(
+            "Session not found",
+            "<p>This setup link has expired or the sign-in is not finished. "
+            "Run <code>/login</code> in Telegram or Discord to get a new one.</p>",
+            status_code=404,
+        )
+    session_id = str(payload.get("session_id") or session_hint)
+    setup = payload.get("setup") if isinstance(payload.get("setup"), dict) else {}
+    response = make_response(
+        _render_account_setup_page(
+            session_id=session_id,
+            setup=setup,
+            show_copilot_option=bool(setup.get("github_linked") or (connection and connection["id"] == "copilot" and connection["github_linked"])),
+            copilot_checked=bool(setup.get("copilot_ready")),
+            connection=connection,
+        )
+    )
     _set_web_session_cookie(response, session_id)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
@@ -1862,159 +1706,6 @@ def auth_provider_connect_start():
     return jsonify({"status": "ok", **result}), 200
 
 
-def _render_provider_connect_pending_page(*, provider: str, session_id: str) -> str:
-    provider_key = str(provider or "codex").strip().lower()
-    if provider_key not in {"codex", "gemini", "claude"}:
-        provider_key = "codex"
-    provider_label = "Codex" if provider_key == "codex" else ("Gemini" if provider_key == "gemini" else "Claude")
-    safe_provider = html.escape(provider_key, quote=True)
-    safe_provider_label = html.escape(provider_label, quote=False)
-    safe_session_id = html.escape(str(session_id or ""), quote=True)
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{safe_provider_label} Login</title>
-  <style>
-    body {{
-      margin: 0;
-      padding: 1.2rem;
-      font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #0f172a;
-      background: #f8fafc;
-    }}
-    .card {{
-      max-width: 42rem;
-      margin: 0 auto;
-      background: #ffffff;
-      border: 1px solid #cbd5e1;
-      border-radius: 10px;
-      padding: 1rem 1.1rem;
-    }}
-    .status {{
-      margin-top: 0.6rem;
-      color: #334155;
-      white-space: pre-wrap;
-    }}
-    code {{
-      background: #e2e8f0;
-      border-radius: 5px;
-      padding: 0.05rem 0.25rem;
-    }}
-  </style>
-</head>
-<body data-provider="{safe_provider}" data-session-id="{safe_session_id}">
-  <div class="card">
-    <h2 style="margin:0 0 0.4rem;">{safe_provider_label} Account Login</h2>
-    <div id="provider_pending_status" class="status">
-      Waiting for Nexus to generate the verification link...
-    </div>
-    <p style="margin:0.9rem 0 0; color:#475569;">
-      Keep this tab open. It will redirect automatically when the provider link is ready.
-    </p>
-  </div>
-  <script>
-  (function() {{
-    var root = document.body;
-    var provider = String(root.getAttribute("data-provider") || "codex");
-    var sessionId = String(root.getAttribute("data-session-id") || "");
-    var statusEl = document.getElementById("provider_pending_status");
-    var openerOrigin = window.location.origin;
-    function setStatus(text) {{
-      if (statusEl) statusEl.textContent = String(text || "");
-    }}
-    function notifyOpener(payload) {{
-      try {{
-        if (!window.opener || window.opener.closed) return;
-        var body = payload && typeof payload === "object" ? payload : {{}};
-        body.source = "nexus-provider-connect";
-        body.provider = provider;
-        body.session_id = sessionId;
-        window.opener.postMessage(body, openerOrigin);
-      }} catch (err) {{
-        return;
-      }}
-    }}
-    var stopStates = {{
-      failed: true,
-      connected: true,
-      connected_but_not_saved: true,
-      rate_limited: true,
-      interactive_required: true,
-      unsupported_provider: true,
-      invalid_session: true
-    }};
-    async function poll() {{
-      if (!sessionId) {{
-        setStatus("Missing session id.");
-        return;
-      }}
-      try {{
-        var response = await fetch(
-          "/auth/provider-connect/status?provider=" + encodeURIComponent(provider) + "&session_id=" + encodeURIComponent(sessionId),
-          {{ credentials: "same-origin" }}
-        );
-        var payload = await response.json();
-        var verifyUrl = String(payload.verify_url || "").trim();
-        if (verifyUrl) {{
-          notifyOpener({{
-            state: String(payload.state || "pending"),
-            verify_url: verifyUrl,
-            message: String(payload.message || "")
-          }});
-          setStatus("Redirecting to provider verification...");
-          window.location.replace(verifyUrl);
-          return;
-        }}
-        if (payload.message) {{
-          setStatus(String(payload.message));
-        }}
-        var state = String(payload.state || "");
-        if (stopStates[state]) {{
-          notifyOpener({{
-            state: state,
-            message: String(payload.message || "")
-          }});
-          if (state === "connected") {{
-            setStatus("Connected. Closing this tab...");
-            window.setTimeout(function() {{
-              try {{ window.close(); }} catch (err) {{ /* ignore */ }}
-            }}, 450);
-          }}
-          return;
-        }}
-      }} catch (err) {{
-        setStatus("Waiting for provider instructions...");
-      }}
-      window.setTimeout(poll, 1200);
-    }}
-    poll();
-  }})();
-  </script>
-</body>
-</html>
-"""
-
-
-@app.route("/auth/provider-connect/pending", methods=["GET"])
-def auth_provider_connect_pending():
-    if not NEXUS_AUTH_ENABLED:
-        return _render_auth_message("Auth Disabled", "Auth onboarding is disabled.", status_code=404)
-    session_id = str(request.args.get("session_id", "")).strip()
-    provider = str(request.args.get("provider", "codex")).strip().lower()
-    if not session_id:
-        return _render_auth_message(
-            "Missing Session",
-            "Missing <code>session_id</code> for provider account login.",
-            status_code=400,
-        )
-    response = make_response(_render_provider_connect_pending_page(provider=provider, session_id=session_id))
-    response.headers["Content-Type"] = "text/html; charset=utf-8"
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    return response
-
-
 @app.route("/auth/provider-connect/status", methods=["GET"])
 def auth_provider_connect_status():
     if not NEXUS_AUTH_ENABLED:
@@ -2027,30 +1718,6 @@ def auth_provider_connect_status():
     return jsonify({"status": "ok", **result}), 200
 
 
-@app.route("/auth/provider-connect/relay-callback", methods=["POST"])
-def auth_provider_connect_relay_callback():
-    if not NEXUS_AUTH_ENABLED:
-        return jsonify({"status": "disabled", "message": "Auth onboarding is disabled."}), 404
-    payload = request.get_json(silent=True) if request.is_json else {}
-    payload = payload if isinstance(payload, dict) else {}
-    session_id = str(payload.get("session_id") or request.form.get("session_id") or "").strip()
-    provider = str(payload.get("provider") or request.form.get("provider") or "gemini").strip().lower()
-    callback_url = str(payload.get("callback_url") or request.form.get("callback_url") or "").strip()
-    if not session_id:
-        return jsonify({"status": "error", "message": "session_id is required"}), 400
-    if not callback_url:
-        return jsonify({"status": "error", "message": "callback_url is required"}), 400
-    try:
-        result = _svc_relay_provider_account_login_callback(
-            session_id=session_id,
-            provider=provider,
-            callback_url=callback_url,
-        )
-    except Exception as exc:
-        return jsonify({"status": "error", "message": str(exc), "provider": provider}), 400
-    return jsonify({"status": "ok", **result}), 200
-
-
 @app.route("/auth/provider-connect/submit-code", methods=["POST"])
 def auth_provider_connect_submit_code():
     if not NEXUS_AUTH_ENABLED:
@@ -2058,7 +1725,7 @@ def auth_provider_connect_submit_code():
     payload = request.get_json(silent=True) if request.is_json else {}
     payload = payload if isinstance(payload, dict) else {}
     session_id = str(payload.get("session_id") or request.form.get("session_id") or "").strip()
-    provider = str(payload.get("provider") or request.form.get("provider") or "gemini").strip().lower()
+    provider = str(payload.get("provider") or request.form.get("provider") or "claude").strip().lower()
     authorization_code = str(
         payload.get("authorization_code") or request.form.get("authorization_code") or ""
     ).strip()
@@ -2458,7 +2125,7 @@ def index():
 
     if mode == "disabled":
         return _render_auth_message(
-            "Visualizer Disabled",
+            "Visualizer disabled",
             "The visualizer is disabled (<code>NEXUS_VISUALIZER_ENABLED=false</code>).",
             status_code=404,
         )
@@ -2470,7 +2137,7 @@ def index():
 
     if mode == "unconfigured":
         return _render_auth_message(
-            "Visualizer Locked",
+            "Visualizer locked",
             (
                 "No access method is configured. "
                 "Set <code>NEXUS_VISUALIZER_SHARED_TOKEN</code> or enable "
@@ -2495,8 +2162,125 @@ def index():
         _render_login_page(
             message_html=info_message,
             session_hint=session_hint,
+            next_path=next_path,
         )
     )
+    if session_hint:
+        _clear_web_session_cookie(response)
+    return response
+
+
+@app.route("/auth/subscription", methods=["GET"])
+def auth_subscription():
+    """Offer an existing subscription flow to the current Nexus account only."""
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message("Auth disabled", "Auth is disabled.", status_code=404)
+    try:
+        provider = _subscription_accounts.normalize_subscription_provider(request.args.get("provider", ""))
+    except ValueError as exc:
+        return _render_auth_message("Unknown subscription", html.escape(str(exc)), status_code=400)
+    next_path = _safe_next_path(request.args.get("next"), default="/")
+    try:
+        account = _subscription_accounts.subscription_account_context(
+            session_id=request.cookies.get(_WEB_SESSION_COOKIE_NAME, ""), provider=provider,
+        )
+    except PermissionError:
+        destination = _subscription_accounts.subscription_destination(provider, next_path)
+        response = make_response(redirect("/login?" + urlencode({"next": destination}), code=302))
+    except Exception:
+        response = make_response(_render_auth_message(
+            "Account service unavailable", "Your Nexus account could not be loaded. Try again shortly.", status_code=503,
+        ))
+    else:
+        response = make_response(_auth_pages.render_subscription_connection(
+            account, continue_url="/login?" + urlencode({"next": next_path}),
+        ))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+def _render_web_sign_in_page(*, next_path: str, message_html: str = ""):
+    providers = _browser_login.configured_identity_providers()
+    buttons = "".join(
+        '<button class="btn ' + ('primary' if item["id"] == "github" else '')
+        + '" type="submit" name="provider" value="' + item["id"] + '">Continue with '
+        + item["label"] + '</button>' for item in providers
+    )
+    provider_section = (
+        '<section class="setting login-providers" aria-labelledby="identity-login-h">'
+        '<div class="label"><h2 id="identity-login-h">Your account</h2>'
+        '<p>Sign in directly with a connected account.</p></div>'
+        '<div class="panel"><form class="provider-actions" method="post" action="/auth/browser/start">'
+        '<input type="hidden" name="next" value="' + html.escape(next_path, quote=True) + '">'
+        + buttons + '</form><p class="note">GitHub and GitLab establish your Nexus identity. '
+        'LinkedIn, X and Meta must first be connected from Account setup.</p></div></section>'
+        if providers else '<p class="note">Direct sign-in is not configured on this server. '
+        'Use an existing session reference below.</p>'
+    )
+    body = _auth_pages.render_field_form(
+        action="/login",
+        hidden={"next": next_path},
+        title="Session reference",
+        description="Paste the reference Nexus gave you to open your workspace on this site.",
+        field_name="session",
+        field_label="Reference",
+        placeholder="lsr_…",
+        submit_label="Sign in",
+        message_html="",
+    )
+    subscription_buttons = "".join(
+        '<a class="btn" href="' + html.escape(_subscription_accounts.subscription_destination(
+            item["id"], _subscription_accounts.subscription_return_path(next_path)), quote=True)
+        + '">Connect ' + item["label"] + '</a>' for item in _subscription_accounts.subscription_accounts()
+    )
+    subscription_buttons += "".join(
+        '<a class="btn" href="' + html.escape(_subscription_accounts.account_setup_destination(
+            item["id"], _subscription_accounts.subscription_return_path(next_path)), quote=True)
+        + '">' + item["action"] + '</a>' for item in _subscription_accounts.account_setup_options()
+    )
+    subscriptions = ('<section class="setting" aria-labelledby="subscription-login-h">'
+        '<div class="label"><h2 id="subscription-login-h">AI accounts</h2>'
+        '<p>Connect a subscription or configure an API key.</p></div><div class="panel">'
+        '<div class="provider-actions">' + subscription_buttons + '</div>'
+        '<p class="note">Sign in to Nexus first. Copilot uses a linked GitHub account; '
+        'OpenCode requires its own API key. Provider plan limits and API billing apply.</p></div></section>')
+    body = (message_html + provider_section + subscriptions
+            + '<details class="login-reference"' + (' open' if not providers or message_html else '')
+            + '><summary>Use a session reference instead</summary>' + body + '</details>')
+    page = _auth_pages.render_page(
+        "Sign in", body, subline="Open your Nexus workspace."
+    )
+    return page, 200, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store",
+                       "Referrer-Policy": _browser_login.FORM_REFERRER_POLICY}
+
+@app.route("/login", methods=["GET", "POST"])
+def web_login():
+    """Exchange a ready auth session for this origin's HttpOnly session cookie.
+
+    Apps proxied next to ``/auth`` on the same origin (e.g. Nexus Studio) send
+    unauthenticated users here; ``next`` must be a same-origin path.
+    """
+    if not NEXUS_AUTH_ENABLED:
+        return _render_auth_message(
+            "Auth disabled",
+            "Auth onboarding is disabled in this environment.",
+            status_code=404,
+        )
+    next_path = _safe_next_path(request.values.get("next"), default="/")
+    session_hint = str(request.values.get("session", "")).strip()
+    ready_session_id, _payload = _resolve_ready_web_session(session_hint or None)
+    if ready_session_id:
+        response = make_response(redirect(next_path, code=302))
+        _set_web_session_cookie(response, ready_session_id)
+        return response
+    message_html = (
+        '<p class="status-line bad">Session not found, expired, or setup is not ready yet. '
+        "Complete OAuth from <code>/login</code> first.</p>"
+        if session_hint
+        else ""
+    )
+    response = make_response(_render_web_sign_in_page(next_path=next_path, message_html=message_html))
     if session_hint:
         _clear_web_session_cookie(response)
     return response
@@ -2507,7 +2291,7 @@ def visualizer_access():
     """Exchange shared visualizer token for an HttpOnly cookie session."""
     if not _VISUALIZER_ENABLED:
         return _render_auth_message(
-            "Visualizer Disabled",
+            "Visualizer disabled",
             "The visualizer is disabled (<code>NEXUS_VISUALIZER_ENABLED=false</code>).",
             status_code=404,
         )
@@ -2546,13 +2330,13 @@ def visualizer():
     if not allowed:
         if mode == "disabled":
             return _render_auth_message(
-                "Visualizer Disabled",
+                "Visualizer disabled",
                 "The visualizer is disabled (<code>NEXUS_VISUALIZER_ENABLED=false</code>).",
                 status_code=404,
             )
         if mode == "unconfigured":
             return _render_auth_message(
-                "Visualizer Locked",
+                "Visualizer locked",
                 (
                     "No access method is configured. "
                     "Set <code>NEXUS_VISUALIZER_SHARED_TOKEN</code> or enable "
@@ -2576,7 +2360,7 @@ def visualizer():
             visualizer_path = os.path.join(app.static_folder or "", "visualizer.html")
             logger.exception("Visualizer asset not found at %s", visualizer_path)
             return _render_auth_message(
-                "Visualizer Unavailable",
+                "Visualizer unavailable",
                 (
                     "Visualizer assets could not be loaded. "
                     "Rebuild the image and ensure <code>src/static/visualizer.html</code> is present."
@@ -2668,13 +2452,20 @@ def main():
         allow_unsafe_werkzeug = True
     logger.info("Socket.IO async mode: %s", async_mode)
 
+    host = os.getenv("NEXUS_WEBHOOK_HOST", "127.0.0.1").strip() or "127.0.0.1"
     socketio.run(
         app,
-        host="0.0.0.0",
+        host=host,
         port=port,
         debug=False,
         allow_unsafe_werkzeug=allow_unsafe_werkzeug,
     )
+
+
+install_desktop_login_routes(
+    app, enabled=lambda: NEXUS_AUTH_ENABLED,
+    session_cookie_name=_WEB_SESSION_COOKIE_NAME, render_page=_auth_pages.render_page,
+)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import logging
 from nexus.adapters.git.utils import build_issue_url, resolve_repo
 from nexus.core.analytics.reporting import get_stats_report
 from nexus.core.audit_store import AuditStore
+from nexus.core.command_bridge.operator import BridgeOperatorService
 from nexus.core.completion import scan_for_completions
 # Import configuration from centralized config module
 from nexus.core.config import (
@@ -24,8 +25,10 @@ from nexus.core.config import (
     get_track_short_projects,
 )
 from nexus.core.error_handling import format_error_for_user
+from nexus.core.execution_mode import PLANNING_EXECUTION_MODE
 from nexus.core.handlers.inbox_routing_handler import (
     TYPES,
+    process_inbox_task,
 )
 from nexus.core.handlers.issue_command_handlers import (
     IssueHandlerDeps,
@@ -97,7 +100,7 @@ install_secret_redaction([TELEGRAM_TOKEN or ""], logging.getLogger())
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-# Initialize AI Orchestrator (CLI-only: gemini-cli + copilot-cli)
+# Initialize AI Orchestrator (CLI-only: codex-cli + copilot-cli)
 orchestrator = get_orchestrator(ORCHESTRATOR_CONFIG)
 
 # Initialize rate limiter
@@ -107,6 +110,18 @@ rate_limiter = get_rate_limiter()
 user_manager = get_user_manager()
 
 DEFAULT_REPO = get_default_repo()
+_bridge_operator_service: BridgeOperatorService | None = None
+
+
+def get_bridge_operator_service() -> BridgeOperatorService:
+    global _bridge_operator_service
+    if _bridge_operator_service is None:
+        _bridge_operator_service = BridgeOperatorService(
+            workflow_state_plugin_kwargs=_WORKFLOW_STATE_PLUGIN_KWARGS
+        )
+    return _bridge_operator_service
+
+
 _WORKFLOW_STATE_PLUGIN_KWARGS = {
     "storage_dir": NEXUS_CORE_STORAGE_DIR,
     "storage_type": "postgres" if NEXUS_WORKFLOW_BACKEND == "postgres" else "file",
@@ -214,6 +229,26 @@ def _monitoring_handler_deps() -> MonitoringHandlersDeps:
 
 
 def _issue_handler_deps() -> IssueHandlerDeps:
+    async def _create_planning_task(
+        *,
+        text: str,
+        project_key: str,
+        message_id: str,
+        requester_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        system_ops = PROJECT_CONFIG.get("system_operations", {})
+        plan_agent = str(system_ops.get("plan") or system_ops.get("default") or "").strip()
+        return await process_inbox_task(
+            text=text,
+            orchestrator=orchestrator,
+            message_id_or_unique_id=message_id,
+            project_hint=project_key,
+            requester_context=requester_context,
+            agent_type=plan_agent or None,
+            issue_labels=["agent:plan-requested"],
+            execution_mode=PLANNING_EXECUTION_MODE,
+        )
+
     return IssueHandlerDeps(
         logger=logger,
         allowed_user_ids=TELEGRAM_ALLOWED_USER_IDS,
@@ -238,6 +273,12 @@ def _issue_handler_deps() -> IssueHandlerDeps:
         default_issue_url=_default_issue_url,
         get_project_label=_get_project_label,
         track_short_projects=get_track_short_projects(),
+        create_planning_task=_create_planning_task,
+        requester_context_builder=lambda user_id: {
+            "platform": "telegram",
+            "platform_user_id": str(user_id),
+            "nexus_id": str(user_manager.resolve_nexus_id("telegram", str(user_id)) or ""),
+        },
     )
 
 
@@ -270,6 +311,7 @@ def _ops_handler_deps() -> OpsHandlerDeps:
         get_chat_history=get_chat_history,
         append_message=append_message,
         create_chat=create_chat,
+        run_doctor=lambda **kwargs: _bridge_operator_service.doctor(**kwargs),
         requester_context_builder=lambda user_id: {
             "platform": "telegram",
             "platform_user_id": str(user_id),

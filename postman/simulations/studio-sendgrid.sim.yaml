@@ -1,0 +1,5 @@
+simulation: studio-sendgrid
+routing: path
+mocks:
+  - routeKey: mail
+    path: ../mocks/studio-sendgrid/config.yaml

@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info:
+  title: Synthetic OAuth token compatibility subset
+  version: 1.0.0
+  description: >-
+    Local contract derived from OAuth 2 authorization-code/refresh and MCP resource
+    indicators. Public pre-registered client, explicit resource, S256 verifier.
+    Tests exercise the real bounded HTTP client; discovery and browser ownership
+    run against independent local HTTP fixtures. This is not a vendor API mock.
+paths:
+  /token:
+    post:
+      operationId: exchangeSyntheticToken
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id, resource]
+              properties:
+                grant_type: {enum: [authorization_code, refresh_token]}
+                client_id: {const: synthetic-client}
+                resource: {type: string, format: uri}
+                code: {type: string}
+                code_verifier: {type: string}
+                redirect_uri: {type: string, format: uri}
+                refresh_token: {type: string}
+      responses:
+        '200': {description: Bearer token, reviewed scopes and rotating refresh token}
+        '400': {description: Invalid request or grant}
+        '302': {description: Redirect must not be followed}
+        '502': {description: HTML proxy failure must be sanitized}

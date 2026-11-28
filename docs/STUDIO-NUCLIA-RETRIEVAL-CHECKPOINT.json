@@ -1,0 +1,136 @@
+{
+  "format": "nexus-studio-nuclia-retrieval-checkpoint/v1",
+  "date": "2026-10-24",
+  "status": "fixture-verified",
+  "whole_catalog_entry_complete": false,
+  "whole_milestone_complete": false,
+  "whole_plan_complete": false,
+  "scope": "Explicit preservation of neighbouring-paragraph and document-title/summary context strategies through native fixed ask settings and reviewed descriptor bindings.",
+  "implemented": [
+    "Native rag_strategies validates and normalizes at most one neighbouring_paragraphs and one hierarchy strategy. Booleans, unknown fields, duplicate strategies and out-of-bounds counts fail before HTTP.",
+    "Optional preserve_retrieval=true bindings map the frozen reference tool strategy names to explicit counts from the pinned NucliaDB model: two preceding/two following paragraphs and hierarchy count zero. Import review declares the changed provider context and potential usage.",
+    "Fixed settings reject conflicting caller replacements, including an empty strategy list. Equivalent omitted default counts normalize before comparison. Search rejects this ask-only argument.",
+    "No implicit enablement, migration or external request occurs during conversion. Bindings without the flag retain the previous source/native shape and default context behavior.",
+    "Review/plan/apply/source export, native settings, file/SQLite restart and mismatched-connection rejection pass focused acceptance. Studio connection edits already preserve fixed ask settings.",
+    "The real framework transport receives both augmented paragraph and hierarchy citations from the saved local stand-in. Their private artifact revisions retain exact text; provider rejection does not replay the action."
+  ],
+  "limits": {
+    "strategies": 2,
+    "neighbour_before_after_minimum": 0,
+    "neighbour_before_after_maximum": 10,
+    "hierarchy_count_minimum": 0,
+    "hierarchy_count_maximum": 1024
+  },
+  "validation": {
+    "affected_regressions": {
+      "tests": 318,
+      "passed": 318,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-retrieval-required.xml"
+    },
+    "actual_http": {
+      "tests": 19,
+      "passed": 19,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-retrieval-http.xml",
+      "scope": "Real framework transport against the existing local Postman Nuclia dependency stand-in. Includes legacy/expanded descriptors, audit, context, original-file and conversation consumers."
+    },
+    "frontend": {
+      "tests": 160,
+      "passed": 160,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-nuclia-retrieval-frontend.log",
+      "command": "node --test tests/studio*.test.cjs"
+    },
+    "example": {
+      "path": "examples/nexus-bot/src/studio_nuclia_descriptors.py --preserve-retrieval",
+      "provider_requests": 2,
+      "expanded_citation_files": 2,
+      "reviewed_binding": true,
+      "no_action_replay": true,
+      "live_verified": false
+    },
+    "simulation": {
+      "log": "/private/tmp/nexus-nuclia-retrieval-simulation.ndjson",
+      "requests": 183,
+      "methods": {
+        "GET": 127,
+        "POST": 56
+      },
+      "status_codes": {
+        "200": 164,
+        "429": 8,
+        "307": 7,
+        "403": 2,
+        "206": 2
+      },
+      "members_served": [
+        "nuclia"
+      ],
+      "members_silent": [],
+      "scope": "Combined real-HTTP suite, diagnostic attempt counters and intentional failure scenarios. No live account."
+    },
+    "authoring_status_reconciliation": {
+      "tests": 23,
+      "passed": 23,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "report": "/private/tmp/nexus-authoring-reconciliation.xml",
+      "scope": "Already implemented authoring and CLI behavior; reconcile missing explicit local acceptance flag, not a new feature or frozen requirement promotion."
+    },
+    "completion_claim_audit": {
+      "accepted": 98,
+      "open": 37,
+      "inconsistencies": [],
+      "plan_complete": false,
+      "checkpoints_complete": {
+        "7": false,
+        "8": false,
+        "9": false,
+        "10": true,
+        "11": true,
+        "12": false
+      },
+      "report": "/private/tmp/nexus-nuclia-retrieval-completion.json"
+    }
+  },
+  "authority": {
+    "vendor_documentation": "https://docs.rag.progress.cloud/docs/rag/rag-strategy/",
+    "vendor_model": "https://github.com/nuclia/nucliadb/blob/274e33dc73cbadea7b25ac42ecc00fb43ab062c5/nucliadb_models/src/nucliadb_models/search.py",
+    "frozen_tool_commit": "7599710a38318a336c47cf605e4774d4add24d8e",
+    "scope": "Frozen _query_nuclia declares both strategy names; explicit defaults and supported count bounds come from the pinned provider model. This is not an independent frozen SDK/runtime quality comparison.",
+    "discovery": "Orbit returned unrelated paragraph and Box APIs. None was integrated. The existing primary-source-backed Nuclia simulation was reused; owner mock discovery remains unavailable while Postman is signed out."
+  },
+  "migration": "Additive optional rag_strategies ask setting and optional boolean preserve_retrieval binding. Existing records are not rewritten, prior bindings remain unchanged, and no secrets are exported. Operators must explicitly configure and review expanded retrieval.",
+  "status_reconciliation": "The local desktop plan header now matches its incomplete prototype gate. The authoring checkpoint now includes the missing explicit milestone_complete=true flag after 23 rechecked local tests. Desktop remains incomplete and last; live authoring loading remains separately pending.",
+  "validation_pending": [
+    "Descriptor presentation variants outside the supported profile, non-file/split attachments, vendor ephemeral links, historical remote-original behavior and evaluation equivalence.",
+    "Real Nuclia quality, permissions, account usage/billing and independent frozen runtime comparison.",
+    "Personal HTTPS VM, physical devices, other catalog/cross-cutting gates and standalone desktop distribution."
+  ],
+  "static": "Changed Python lint/format, mock JavaScript syntax and diff whitespace checks pass.",
+  "source_sha256": {
+    "nexus/core/studio_nuclia_retrieval.py": "ebac864aa584fc28659fd68afb833c9694952ebae4082442d5c01f680807451e",
+    "nexus/core/studio_nuclia.py": "eebd46254334f84dc798e55caffbcef7a57aad2912a900e61daa85942a25a827",
+    "nexus/core/studio_nuclia_descriptors.py": "f2312d865820d475c19b162e439b28ac811a520fb205d23ad36ba74d06178706",
+    "nexus/core/studio_interop_configuration.py": "1daba490b79d83661067b7887fd45995b8f5b13ad2e004b5d8b4e311787c4466",
+    "tests/test_studio_nuclia_retrieval.py": "1e18902df0abda551535002b71cfc4905783dc421496935d9e524138b6b13581",
+    "tests/studio_nuclia_acceptance.py": "22dd331dd5e3fc695711261a02beb6338d82b7e3fc70ef1ebe76cd692521351d",
+    "examples/nexus-bot/src/studio_nuclia_descriptors.py": "38fb8b913e36022ed1c497246100c575eae390bd68dae13df109d0ca829bdd5a",
+    "postman/contracts/studio-nuclia.md": "05e478b83896950b3064d2ee0bc552166b30f214e87a8028cdc71bf29362448f",
+    "postman/mocks/studio-nuclia/default.js": "ae3d99e643e04eef8dd0c7ec528b0043b398601bb717bbead930b59ab43c832c",
+    "postman/simulations/studio-nuclia.context.md": "0d1bc076ad5ff5c5585cbf30a4c204f50ab05781efc8db7b8235b134ab23e987",
+    "docs/STUDIO-NUCLIA.md": "5d6f9234055490e5ae68bef07807a5aa88637058b7e4ecc947238ca3b5741c70"
+  },
+  "real_account_requests_performed": false,
+  "user_studio_restarted": false,
+  "cloud_publication": false,
+  "temporary_simulation_stopped": true,
+  "desktop_stays_last": true
+}

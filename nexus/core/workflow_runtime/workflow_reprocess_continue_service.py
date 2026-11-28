@@ -454,7 +454,13 @@ async def _handle_continue_status_outcome(
     finalize_workflow: Callable[..., Any],
 ) -> bool:
     status = str(continue_ctx.get("status") or "")
-    if status in {"error", "already_running", "mismatch", "workflow_done_closed"}:
+    if status in {
+        "error",
+        "already_running",
+        "mismatch",
+        "workflow_done_closed",
+        "awaiting_human",
+    }:
         await ctx.reply_text(continue_ctx["message"])
         return True
 
@@ -464,12 +470,40 @@ async def _handle_continue_status_outcome(
             f"Issue is still open — running finalization now..."
         )
         try:
-            finalize_workflow(
+            finalization_result = finalize_workflow(
                 issue_num,
                 continue_ctx["repo"],
                 continue_ctx["resumed_from"],
                 continue_ctx["project_name"],
+                emit_notifications=False,
             )
+            if isinstance(finalization_result, dict) and finalization_result.get("finalization_blocked"):
+                reasons = [
+                    str(item)
+                    for item in (finalization_result.get("blocking_reasons") or [])
+                    if str(item).strip()
+                ]
+                details = "\n".join(f"- {item}" for item in reasons) if reasons else "- Unknown reason"
+                await ctx.edit_message_text(
+                    message_id=msg_id,
+                    text=(
+                        f"⛔ Workflow complete for issue #{issue_num}, but finalization is blocked.\n"
+                        f"Last agent: `{continue_ctx['resumed_from']}`\n"
+                        "Issue remains open.\n\n"
+                        f"Reasons:\n{details}"
+                    ),
+                )
+                return True
+            if isinstance(finalization_result, dict) and finalization_result.get("issue_closed"):
+                await ctx.edit_message_text(
+                    message_id=msg_id,
+                    text=(
+                        f"✅ Workflow complete for issue #{issue_num}\n"
+                        f"Last agent: `{continue_ctx['resumed_from']}`\n"
+                        "Issue finalized and closed."
+                    ),
+                )
+                return True
             await ctx.edit_message_text(
                 message_id=msg_id,
                 text=(
@@ -535,6 +569,11 @@ async def _maybe_reset_continue_workflow_position(
                 raw_agent_type,
             )
         return False
+    if agent_type == "human":
+        await ctx.reply_text(
+            f"⏸️ Issue #{issue_num} is waiting for human action, not another agent launch."
+        )
+        return False
 
     reset_ok = False
     if workflow_plugin:
@@ -558,6 +597,12 @@ async def _maybe_reset_continue_workflow_position(
 async def _launch_continue_agent(
     ctx: Any, deps: Any, *, issue_num: Any, continue_ctx: dict[str, Any]
 ) -> None:
+    if str(continue_ctx.get("agent_type") or "").strip().lower() == "human":
+        await ctx.reply_text(
+            f"⏸️ Issue #{issue_num} is waiting for human action, not another agent launch."
+        )
+        return
+
     async def _finalize_progress_message(message_id: Any, text: str) -> None:
         try:
             await ctx.edit_message_text(

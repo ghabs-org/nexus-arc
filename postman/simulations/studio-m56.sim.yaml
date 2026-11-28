@@ -1,0 +1,5 @@
+simulation: studio-m56
+routing: path
+mocks:
+  - routeKey: graph
+    path: ../mocks/studio-m56/config.yaml

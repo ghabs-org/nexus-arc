@@ -1,0 +1,8 @@
+apiVersion: nexus-arc/v1
+kind: Workflow
+metadata:
+  name: Legacy YAML
+steps:
+  - id: review
+    agent_type: reviewer
+    prompt_template: Review {task}

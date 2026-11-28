@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "feature": "inline-ai-dataset-drafting",
+  "status": "fixture-verified",
+  "whole_plan_complete": false,
+  "implementation": [
+    "existing design job extended with dataset schema/count/duplicate validation",
+    "inline dataset and evaluation case editors with explicit review/apply/save",
+    "builder authorization and private run ownership",
+    "empty temporary generation workspace; no automatic workspace metadata"
+  ],
+  "validation": {
+    "python": {
+      "passed": 117,
+      "failed": 0,
+      "skipped": 0,
+      "command": ".venv/bin/pytest -o addopts='' -q tests/test_studio_design.py tests/test_studio_dataset_design.py tests/test_studio_datasets.py tests/test_studio_evaluators.py tests/test_studio_evaluation_gate.py tests/test_studio_resources.py"
+    },
+    "browser_logic": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "command": "node --test tests/studio_datasets.test.cjs tests/studio_evaluators.test.cjs tests/studio_evaluation_gate.test.cjs tests/studio_evaluation_context.test.cjs"
+    },
+    "browser": "Disposable Studio with injected synthetic provider: edited existing case, generated five cases, reviewed JSON, appended; unsaved original input retained.",
+    "example": "PYTHONPATH=. .venv/bin/python examples/nexus-bot/src/studio_dataset_drafting.py passed",
+    "lint": "ruff and JavaScript syntax passed"
+  },
+  "limits": [
+    "No live provider quality/account validation",
+    "No physical-mobile check in this slice",
+    "No VM deployment or desktop rebuild; existing DMG unchanged"
+  ],
+  "migration": "No persisted schema changes; existing design route and run ownership reused",
+  "next": "Pinned evaluation input and grading-reference artifact roles"
+}

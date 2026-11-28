@@ -6,6 +6,7 @@ extras installed.
 """
 
 import asyncio
+import json
 import os
 from pathlib import Path
 from typing import Any, cast
@@ -104,6 +105,29 @@ class TestAdapterRegistry:
             getattr(_mod, "_openai_module").AsyncOpenAI = MagicMock(return_value=MagicMock())
             provider = _mod.OpenAIProvider(api_key="sk-test")
         assert provider.name == "openai"
+
+    def test_create_claude_provider(self):
+        from nexus.adapters.registry import AdapterRegistry
+
+        AdapterRegistry()
+
+        import nexus.adapters.ai.claude_provider as _mod
+
+        original_available = _mod._ANTHROPIC_AVAILABLE
+        original_module = _mod._anthropic_module if _mod._ANTHROPIC_AVAILABLE else None
+        mock_anthropic = MagicMock()
+        mock_anthropic.AsyncAnthropic = MagicMock(return_value=MagicMock())
+        setattr(_mod, "_ANTHROPIC_AVAILABLE", True)
+        setattr(_mod, "_anthropic_module", mock_anthropic)
+        try:
+            provider = _mod.ClaudeProvider(api_key="sk-ant-test")
+        finally:
+            setattr(_mod, "_ANTHROPIC_AVAILABLE", original_available)
+            if original_module is not None:
+                setattr(_mod, "_anthropic_module", original_module)
+            elif hasattr(_mod, "_anthropic_module"):
+                delattr(_mod, "_anthropic_module")
+        assert provider.name == "claude"
 
     def test_raises_for_unknown_type(self):
         from nexus.adapters.registry import AdapterRegistry
@@ -366,19 +390,61 @@ class TestGitHubPlatform:
         with patch.object(
             platform,
             "_get",
-            new=AsyncMock(side_effect=[open_pulls, search_results, pr_detail]),
+            new=AsyncMock(side_effect=[open_pulls, [], search_results, pr_detail]),
         ) as mock_get:
             prs = asyncio.run(platform.search_linked_prs("113"))
 
         assert len(prs) == 1
         assert prs[0].number == 77
-        assert mock_get.await_count == 3
+        assert mock_get.await_count == 4
         first_call = mock_get.await_args_list[0].args[0]
         second_call = mock_get.await_args_list[1].args[0]
         third_call = mock_get.await_args_list[2].args[0]
+        fourth_call = mock_get.await_args_list[3].args[0]
         assert first_call == "repos/owner/repo/pulls?state=open&per_page=100"
-        assert second_call.startswith("search/issues?q=")
-        assert third_call == "repos/owner/repo/pulls/77"
+        assert second_call == "repos/owner/repo/pulls?state=closed&per_page=100"
+        assert third_call.startswith("search/issues?q=")
+        assert fourth_call == "repos/owner/repo/pulls/77"
+
+    def test_search_linked_prs_finds_closed_pull_before_search_api(self):
+        platform = self._make_platform()
+        open_pulls = [
+            {
+                "id": 41,
+                "number": 41,
+                "title": "chore: unrelated",
+                "body": "No linked issue in body",
+                "state": "open",
+                "head": {"ref": "chore/unrelated"},
+                "base": {"ref": "main"},
+                "html_url": "https://github.com/owner/repo/pull/41",
+            }
+        ]
+        closed_pulls = [
+            {
+                "id": 120,
+                "number": 120,
+                "title": "feat: design social media marketing workflow",
+                "body": "## Related Issue\nCloses #119",
+                "state": "closed",
+                "head": {"ref": "feat/design-social-marketing-workflow"},
+                "base": {"ref": "main"},
+                "html_url": "https://github.com/owner/repo/pull/120",
+            }
+        ]
+        with patch.object(
+            platform,
+            "_get",
+            new=AsyncMock(side_effect=[open_pulls, closed_pulls]),
+        ) as mock_get:
+            prs = asyncio.run(platform.search_linked_prs("119"))
+
+        assert len(prs) == 1
+        assert prs[0].number == 120
+        assert prs[0].state == "closed"
+        assert mock_get.await_count == 2
+        assert mock_get.await_args_list[0].args[0] == "repos/owner/repo/pulls?state=open&per_page=100"
+        assert mock_get.await_args_list[1].args[0] == "repos/owner/repo/pulls?state=closed&per_page=100"
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +537,38 @@ class TestGitHubCLIPlatform:
         assert pr.number == 0
         assert pr.url == "https://github.com/owner/repo/pull/42"
         assert ["git", "checkout", "-b", "nexus/issue-42"] not in seen_commands
+
+    def test_search_linked_prs_falls_back_to_all_states_search(self):
+        platform = self._make_platform()
+        seen_commands: list[list[str]] = []
+
+        def _run(args, timeout=None):
+            del timeout
+            seen_commands.append(list(args))
+            if args[:3] == ["pr", "list", "--state"] and args[3] == "open":
+                return "[]"
+            if args[:3] == ["pr", "list", "--state"] and args[3] == "all":
+                return json.dumps(
+                    [
+                        {
+                            "number": 77,
+                            "title": "fix: resolve #113",
+                            "state": "closed",
+                            "headRefName": "fix/issue-113",
+                            "baseRefName": "main",
+                            "url": "https://github.com/owner/repo/pull/77",
+                        }
+                    ]
+                )
+            raise AssertionError(f"Unexpected gh command: {args}")
+
+        with patch.object(platform, "_run_gh_command", side_effect=_run):
+            prs = asyncio.run(platform.search_linked_prs("113"))
+
+        assert len(prs) == 1
+        assert prs[0].number == 77
+        assert prs[0].state == "closed"
+        assert seen_commands[1][:4] == ["pr", "list", "--state", "all"]
 
 
 # ---------------------------------------------------------------------------
@@ -1060,6 +1158,168 @@ class TestOpenAIProvider:
 
 
 # ---------------------------------------------------------------------------
+# ClaudeProvider
+# ---------------------------------------------------------------------------
+
+
+class TestClaudeProvider:
+    def _make_provider(self):
+        """Build a ClaudeProvider with the anthropic SDK mocked out."""
+        import nexus.adapters.ai.claude_provider as _mod
+
+        mock_anthropic = MagicMock()
+        mock_client = MagicMock()
+        mock_anthropic.AsyncAnthropic = MagicMock(return_value=mock_client)
+        mock_anthropic.RateLimitError = type("RateLimitError", (Exception,), {})
+        mock_anthropic.APITimeoutError = type("APITimeoutError", (Exception,), {})
+
+        original_available = _mod._ANTHROPIC_AVAILABLE
+        original_module = getattr(_mod, "_anthropic_module", None)
+        setattr(_mod, "_ANTHROPIC_AVAILABLE", True)
+        setattr(_mod, "_anthropic_module", mock_anthropic)
+
+        provider = _mod.ClaudeProvider(api_key="sk-ant-test")
+
+        def _cleanup():
+            setattr(_mod, "_ANTHROPIC_AVAILABLE", original_available)
+            if original_module is not None:
+                setattr(_mod, "_anthropic_module", original_module)
+            elif hasattr(_mod, "_anthropic_module"):
+                delattr(_mod, "_anthropic_module")
+
+        return (provider, mock_client, _cleanup)
+
+    def test_name(self):
+        provider, _, cleanup = self._make_provider()
+        try:
+            assert provider.name == "claude"
+        finally:
+            cleanup()
+
+    def test_preference_score_reasoning(self):
+        provider, _, cleanup = self._make_provider()
+        try:
+            assert provider.get_preference_score("reasoning") == 0.9
+            assert provider.get_preference_score("analysis") == 0.9
+            assert provider.get_preference_score("code_generation") == 0.75
+        finally:
+            cleanup()
+
+    def test_execute_agent_success(self):
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider, mock_client, cleanup = self._make_provider()
+        try:
+            mock_content = MagicMock()
+            mock_content.text = "Analysis complete."
+            mock_response = MagicMock()
+            mock_response.content = [mock_content]
+            mock_response.model = "claude-sonnet-4-5"
+            mock_response.usage.input_tokens = 50
+            mock_response.usage.output_tokens = 20
+            mock_response.stop_reason = "end_turn"
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+            ctx = ExecutionContext(
+                agent_name="triage",
+                prompt="Analyze this issue",
+                workspace=Path("/tmp"),
+            )
+            result = asyncio.run(provider.execute_agent(ctx))
+            assert result.success is True
+            assert result.output == "Analysis complete."
+            assert result.provider_used == "claude"
+            assert result.metadata["usage"]["input_tokens"] == 50
+            assert result.metadata["usage"]["output_tokens"] == 20
+        finally:
+            cleanup()
+
+    def test_execute_agent_appends_issue_context_after_prompt(self):
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider, mock_client, cleanup = self._make_provider()
+        try:
+            mock_content = MagicMock()
+            mock_content.text = "ok"
+            mock_response = MagicMock()
+            mock_response.content = [mock_content]
+            mock_response.model = "claude-sonnet-4-5"
+            mock_response.usage.input_tokens = 10
+            mock_response.usage.output_tokens = 2
+            mock_response.stop_reason = "end_turn"
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+            ctx = ExecutionContext(
+                agent_name="triage",
+                prompt="Analyze this issue",
+                workspace=Path("/tmp"),
+                issue_url="https://github.com/org/repo/issues/42",
+            )
+            result = asyncio.run(provider.execute_agent(ctx))
+            assert result.success is True
+
+            payload = mock_client.messages.create.await_args.kwargs
+            user_content = payload["messages"][0]["content"]
+            assert user_content.startswith("Analyze this issue")
+            assert user_content.endswith("Issue: https://github.com/org/repo/issues/42")
+        finally:
+            cleanup()
+
+    def test_execute_agent_rate_limit(self):
+        import nexus.adapters.ai.claude_provider as _mod
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider, mock_client, cleanup = self._make_provider()
+        try:
+            mock_anthropic_mod = getattr(_mod, "_anthropic_module")
+            RateLimitError = mock_anthropic_mod.RateLimitError
+            mock_client.messages.create = AsyncMock(side_effect=RateLimitError("Rate limited"))
+
+            ctx = ExecutionContext(
+                agent_name="triage",
+                prompt="Analyze",
+                workspace=Path("/tmp"),
+            )
+            result = asyncio.run(provider.execute_agent(ctx))
+            assert result.success is False
+            assert "Rate limit" in result.error
+        finally:
+            cleanup()
+
+    def test_execute_agent_timeout(self):
+        import nexus.adapters.ai.claude_provider as _mod
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider, mock_client, cleanup = self._make_provider()
+        try:
+            mock_anthropic_mod = getattr(_mod, "_anthropic_module")
+            APITimeoutError = mock_anthropic_mod.APITimeoutError
+            mock_client.messages.create = AsyncMock(side_effect=APITimeoutError("Timed out"))
+
+            ctx = ExecutionContext(
+                agent_name="triage",
+                prompt="Analyze",
+                workspace=Path("/tmp"),
+            )
+            result = asyncio.run(provider.execute_agent(ctx))
+            assert result.success is False
+            assert "Timeout" in result.error
+        finally:
+            cleanup()
+
+    def test_requires_sdk_without_install(self):
+        import nexus.adapters.ai.claude_provider as _mod
+
+        original = _mod._ANTHROPIC_AVAILABLE
+        _mod._ANTHROPIC_AVAILABLE = False
+        try:
+            with pytest.raises(ImportError, match="anthropic"):
+                _mod._require_anthropic()
+        finally:
+            _mod._ANTHROPIC_AVAILABLE = original
+
+
+# ---------------------------------------------------------------------------
 # CodexCLIProvider
 # ---------------------------------------------------------------------------
 
@@ -1082,7 +1342,7 @@ class TestCodexCLIProvider:
         from nexus.adapters.ai.codex_provider import CodexCLIProvider
 
         provider = CodexCLIProvider()
-        with patch("nexus.adapters.ai.codex_provider.shutil.which", return_value=None):
+        with patch("nexus.adapters.ai.codex_provider.resolve_provider_cli", return_value=None):
             available = asyncio.run(provider.check_availability())
 
         assert available is False
@@ -1100,7 +1360,7 @@ class TestCodexCLIProvider:
         with patch(
             "nexus.adapters.ai.codex_provider.asyncio.create_subprocess_exec",
             return_value=mock_proc,
-        ):
+        ) as create_subprocess_exec:
             ctx = ExecutionContext(
                 agent_name="developer",
                 prompt="Implement feature X",
@@ -1111,6 +1371,20 @@ class TestCodexCLIProvider:
         assert result.success is True
         assert result.provider_used == "codex"
         assert "ok" in result.output
+        create_subprocess_exec.assert_called_once_with(
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--model",
+            "gpt-5-codex",
+            "-",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd="/tmp",
+        )
+
+        mock_proc.communicate.assert_awaited_once_with(b"Implement feature X")
 
     def test_execute_agent_timeout(self):
         from nexus.adapters.ai.base import ExecutionContext
@@ -1142,7 +1416,7 @@ class TestCodexCLIProvider:
         assert result.success is False
         assert "Timeout" in (result.error or "")
 
-    def test_execute_agent_cleans_empty_codex_rollout_files(self, tmp_path, monkeypatch):
+    def test_execute_agent_preserves_codex_owned_rollout_files(self, tmp_path, monkeypatch):
         from nexus.adapters.ai.base import ExecutionContext
         from nexus.adapters.ai.codex_provider import CodexCLIProvider
 
@@ -1174,7 +1448,8 @@ class TestCodexCLIProvider:
 
         assert result.success is True
         assert non_empty_rollout.exists()
-        assert not empty_rollout.exists()
+        assert empty_rollout.exists()
+        assert non_empty_rollout.read_text(encoding="utf-8") == '{"ok":true}\n'
 
 
 # ---------------------------------------------------------------------------
@@ -1285,12 +1560,16 @@ class TestDiscordNotificationChannel:
         from nexus.core.models import Severity
 
         channel = self._make_channel()
-        btns = [Button(label="Approve", callback_data="approve", url="https://example.com")]
+        btns = [
+            Button(label="Open", callback_data="open", url="https://example.com"),
+            Button(label="Approve", callback_data="nexus:approval-token"),
+        ]
         msg = Message(text="Approve?", severity=Severity.WARNING, buttons=btns)
         payload = channel._build_payload(msg)
-        assert "content" in payload
-        assert "Approve" in payload["content"]
-        assert "https://example.com" in payload["content"]
+        assert payload["components"] == [{"type": 1, "components": [
+            {"type": 2, "style": 5, "label": "Open", "url": "https://example.com"},
+            {"type": 2, "style": 1, "label": "Approve", "custom_id": "nexus:approval-token"},
+        ]}]
 
     async def test_send_message_uses_webhook(self):
         channel = self._make_channel()
@@ -1480,3 +1759,429 @@ class TestDiscordNotificationChannel:
         with patch.object(channel, "_post_webhook", side_effect=error):
             with pytest.raises(RuntimeError, match="Discord API 403"):
                 await channel.send_message("chan123", Message(text="test"))
+
+
+# ---------------------------------------------------------------------------
+# OpenClawNotificationChannel
+# ---------------------------------------------------------------------------
+
+
+class TestOpenClawNotificationChannel:
+    def _make_channel(self):
+        """Create an OpenClawNotificationChannel bypassing __init__ for test setup.
+
+        Bypasses ``__init__`` entirely so no ``aiohttp`` import is needed; only
+        tests that exercise ``_post`` or ``__init__`` directly require ``aiohttp``.
+        """
+        from nexus.adapters.notifications.openclaw import OpenClawNotificationChannel
+
+        channel = OpenClawNotificationChannel.__new__(OpenClawNotificationChannel)
+        channel._bridge_url = "http://127.0.0.1:18789"
+        channel._auth_token = "test-token"
+        channel._sender_id = "12345"
+        channel._channel = "telegram"
+        channel._session_key = ""
+        channel._wake_mode = ""
+        channel._timeout_seconds = 10
+        channel._reply_secret = "test-token"
+        channel._reply_ttl_seconds = 900
+        channel._sessions_by_loop = {}
+        return channel
+
+    def test_name(self):
+        from nexus.adapters.notifications.openclaw import OpenClawNotificationChannel
+
+        channel = OpenClawNotificationChannel.__new__(OpenClawNotificationChannel)
+        assert channel.name == "openclaw"
+
+    def test_init_raises_importerror_without_aiohttp(self):
+        import nexus.adapters.notifications.openclaw as _mod
+
+        original = _mod._AIOHTTP_AVAILABLE
+        _mod._AIOHTTP_AVAILABLE = False
+        try:
+            with pytest.raises(ImportError, match="pip install aiohttp"):
+                _mod.OpenClawNotificationChannel()
+        finally:
+            _mod._AIOHTTP_AVAILABLE = original
+
+    def test_build_payload_basic(self):
+        channel = self._make_channel()
+        payload = channel._build_payload("Hello OpenClaw")
+        assert payload["message"] == "Hello OpenClaw"
+        assert payload["name"] == "Nexus"
+        assert payload["deliver"] is True
+        assert payload["channel"] == "telegram"
+        assert "wakeMode" not in payload
+
+    def test_build_payload_includes_wake_mode_when_configured(self):
+        channel = self._make_channel()
+        channel._wake_mode = "now"
+        payload = channel._build_payload("Hello OpenClaw")
+        assert payload["wakeMode"] == "now"
+
+    def test_build_payload_includes_to_when_recipient_set(self):
+        channel = self._make_channel()
+        payload = channel._build_payload("Hi", target_user="99999")
+        assert payload["to"] == "99999"
+
+    def test_build_payload_falls_back_to_sender_id(self):
+        channel = self._make_channel()
+        payload = channel._build_payload("Hi")
+        assert payload["to"] == "12345"
+
+    def test_build_payload_includes_metadata_and_session_key_override(self):
+        channel = self._make_channel()
+        payload = channel._build_payload(
+            "Hi",
+            metadata={"source": "nexus", "kind": "workflow_notification"},
+            session_key="nexus:nexus:workflow:nexus-123-full",
+        )
+        assert payload["metadata"]["kind"] == "workflow_notification"
+        assert payload["sessionKey"] == "nexus:nexus:workflow:nexus-123-full"
+
+    def test_build_payload_omits_to_when_no_recipient(self):
+        channel = self._make_channel()
+        channel._sender_id = ""
+        payload = channel._build_payload("Hi", target_user="")
+        assert "to" not in payload
+
+    def test_headers_include_bearer_token(self):
+        channel = self._make_channel()
+        headers = channel._headers()
+        assert headers["Authorization"] == "Bearer test-token"
+        assert headers["Content-Type"] == "application/json"
+
+    def test_headers_omit_authorization_when_no_token(self):
+        channel = self._make_channel()
+        channel._auth_token = ""
+        headers = channel._headers()
+        assert "Authorization" not in headers
+
+    async def test_send_message_returns_ok_on_success(self):
+        from nexus.adapters.notifications.base import Message
+        from nexus.core.models import Severity
+
+        channel = self._make_channel()
+        msg = Message(text="Workflow complete", severity=Severity.INFO)
+        with patch.object(channel, "_post", new=AsyncMock(return_value=True)):
+            result = await channel.send_message("user1", msg)
+        assert result == "openclaw:ok"
+
+    async def test_send_message_returns_error_on_failure(self):
+        from nexus.adapters.notifications.base import Message
+        from nexus.core.models import Severity
+
+        channel = self._make_channel()
+        msg = Message(text="Step failed", severity=Severity.ERROR)
+        with patch.object(channel, "_post", new=AsyncMock(return_value=False)):
+            result = await channel.send_message("user1", msg)
+        assert result == ""
+
+    async def test_send_alert_posts_with_severity_emoji(self):
+        from nexus.core.models import Severity
+
+        channel = self._make_channel()
+        with patch.object(channel, "_post", new=AsyncMock(return_value=True)) as mock_post:
+            await channel.send_alert("Disk full", Severity.CRITICAL)
+        payload = mock_post.call_args[0][0]
+        assert "🔴" in payload["message"]
+        assert "Disk full" in payload["message"]
+
+    async def test_update_message_sends_new_message(self):
+        channel = self._make_channel()
+        with patch.object(channel, "_post", new=AsyncMock(return_value=True)) as mock_post:
+            await channel.update_message("openclaw:ok", "Updated text")
+        payload = mock_post.call_args[0][0]
+        assert "Updated text" in payload["message"]
+
+    async def test_request_input_returns_empty_string(self):
+        channel = self._make_channel()
+        with patch.object(channel, "_post", new=AsyncMock(return_value=True)):
+            result = await channel.request_input("user1", "Please confirm?")
+        assert result == ""
+
+    async def test_send_workflow_notification_includes_rich_metadata(self):
+        channel = self._make_channel()
+        with patch.object(channel, "_post", new=AsyncMock(return_value=True)) as mock_post:
+            ok = await channel.send_workflow_notification(
+                event_type="step.failed",
+                workflow_id="nexus-123-full",
+                project_key="nexus",
+                repo="ghabs-org/nexus-arc",
+                issue_number="123",
+                current_step="reviewer waiting",
+                step_num=4,
+                step_name="reviewer",
+                agent_type="reviewer",
+                severity="warning",
+                summary="Review requested for OpenClaw notification payload updates.",
+                blocked_reason="Waiting on human review.",
+                suggested_actions=["approve", "show_logs"],
+                correlation_token="corr-123",
+            )
+        assert ok is True
+        payload = mock_post.call_args[0][0]
+        assert payload["sessionKey"] == "nexus:nexus:workflow:nexus-123-full"
+        assert payload["metadata"]["payload"]["summary"] == (
+            "Review requested for OpenClaw notification payload updates."
+        )
+        assert "wakeMode" not in payload
+        assert payload["metadata"]["routing"]["reply_hint"]["correlation_token"] == "corr-123"
+        assert payload["metadata"]["actions"][0]["name"] == "approve"
+        assert "Workflow #123" in payload["message"]
+        assert "Actions: approve, show logs" in payload["message"]
+
+    def test_require_aiohttp_raises_when_unavailable(self):
+        import nexus.adapters.notifications.openclaw as _mod
+
+        original = _mod._AIOHTTP_AVAILABLE
+        _mod._AIOHTTP_AVAILABLE = False
+        try:
+            with pytest.raises(ImportError, match="aiohttp"):
+                _mod._require_aiohttp()
+        finally:
+            _mod._AIOHTTP_AVAILABLE = original
+
+
+# ---------------------------------------------------------------------------
+# OpenCodeProvider
+# ---------------------------------------------------------------------------
+
+
+class TestOpenCodeProvider:
+    def _make_provider(self, **kwargs):
+        from nexus.adapters.ai.opencode_provider import OpenCodeProvider
+
+        return OpenCodeProvider(**kwargs)
+
+    def test_name(self):
+        assert self._make_provider().name == "opencode"
+
+    def test_default_model_is_free_tier(self):
+        from nexus.adapters.ai.opencode_provider import DEFAULT_MODEL
+
+        assert self._make_provider()._model == DEFAULT_MODEL
+        assert "free" in DEFAULT_MODEL
+
+    def test_preference_score(self):
+        provider = self._make_provider()
+        assert provider.get_preference_score("reasoning") == 0.8
+        assert provider.get_preference_score("code_generation") == 0.7
+
+    def test_extract_run_text_from_json_events(self):
+        from nexus.adapters.ai.opencode_provider import extract_run_text
+
+        raw = (
+            '{"type":"step_start","part":{"type":"step-start"}}\n'
+            '{"type":"text","part":{"type":"text","text":"Hello"}}\n'
+            '{"type":"text","part":{"type":"text","text":"world"}}\n'
+        )
+        assert extract_run_text(raw) == "Hello\nworld"
+
+    def test_extract_run_text_falls_back_to_raw(self):
+        from nexus.adapters.ai.opencode_provider import extract_run_text
+
+        assert extract_run_text("> status line\nReal answer\n") == "Real answer"
+
+    def test_execute_agent_success(self):
+        import json as _json
+
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider = self._make_provider()
+        payload = _json.dumps({"type": "text", "part": {"type": "text", "text": "Hi free"}})
+
+        async def _fake_communicate():
+            return (payload.encode(), b"")
+
+        fake_process = MagicMock()
+        fake_process.communicate = _fake_communicate
+        fake_process.returncode = 0
+
+        async def _fake_create(*args, **kwargs):
+            return fake_process
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_fake_create):
+            ctx = ExecutionContext(agent_name="triage", prompt="Say hi", workspace=Path("/tmp"))
+            result = asyncio.run(provider.execute_agent(ctx))
+        assert result.success is True
+        assert result.output == "Hi free"
+        assert result.provider_used == "opencode"
+
+    def test_execute_agent_failure(self):
+        from nexus.adapters.ai.base import ExecutionContext
+
+        provider = self._make_provider()
+
+        async def _fake_communicate():
+            return (b"", b"auth required")
+
+        fake_process = MagicMock()
+        fake_process.communicate = _fake_communicate
+        fake_process.returncode = 1
+
+        async def _fake_create(*args, **kwargs):
+            return fake_process
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_fake_create):
+            ctx = ExecutionContext(agent_name="triage", prompt="Say hi", workspace=Path("/tmp"))
+            result = asyncio.run(provider.execute_agent(ctx))
+        assert result.success is False
+        assert "auth required" in (result.error or "")
+
+    def test_check_availability_false_without_binary(self):
+        provider = self._make_provider(cli_path="opencode-definitely-missing-xyz")
+        assert asyncio.run(provider.check_availability()) is False
+
+    def test_get_opencode_auth_env(self, monkeypatch):
+        from nexus.adapters.ai.opencode_provider import get_opencode_auth
+
+        monkeypatch.setenv("OPENCODE_API_KEY", "env-key-xyz")
+        assert get_opencode_auth() == ("env:OPENCODE_API_KEY", "env-key-xyz")
+
+    def test_get_opencode_auth_file(self, monkeypatch, tmp_path):
+        from nexus.adapters.ai.opencode_provider import get_opencode_auth
+
+        monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+        monkeypatch.delenv("OPENCODE_KEY", raising=False)
+        monkeypatch.delenv("OPENCODE_TOKEN", raising=False)
+        opencode_dir = tmp_path / "opencode"
+        opencode_dir.mkdir(exist_ok=True)
+        (opencode_dir / "auth.json").write_text(
+            '{"opencode": {"type": "api", "key": "file-key-abc"}}',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+        assert get_opencode_auth() == (str(opencode_dir / "auth.json"), "file-key-abc")
+
+    def test_resolve_opencode_cli(self, monkeypatch, tmp_path):
+        from nexus.adapters.ai.opencode_provider import resolve_opencode_cli
+
+        bin_file = tmp_path / "opencode"
+        bin_file.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        bin_file.chmod(0o755)
+        assert resolve_opencode_cli(str(bin_file)) == str(bin_file)
+        monkeypatch.setenv("OPENCODE_CLI_PATH", str(bin_file))
+        assert resolve_opencode_cli() == str(bin_file)
+
+    def test_registry_creates_opencode(self):
+        from nexus.adapters.registry import AdapterRegistry
+        from nexus.adapters.ai.opencode_provider import OpenCodeProvider
+
+        assert isinstance(AdapterRegistry().create_ai("opencode"), OpenCodeProvider)
+
+
+class TestOpenCodeSessionListing:
+    def _payload(self):
+        import json as _json
+
+        return _json.dumps(
+            {
+                "data": [
+                    {
+                        "id": "ses_new",
+                        "title": "New chat",
+                        "model": {"providerID": "opencode", "modelID": "spark-free"},
+                        "cost": 0.0,
+                        "tokens": {"input": 100, "output": 20},
+                        "time": {"created": 1, "updated": 2000},
+                    },
+                    {
+                        "id": "ses_old",
+                        "title": "Old chat",
+                        "model": {"providerID": "opencode", "modelID": "spark-free"},
+                        "cost": 0.5,
+                        "tokens": {"input": 10, "output": 2},
+                        "time": {"created": 1, "updated": 1000},
+                    },
+                ]
+            }
+        )
+
+    def test_lists_newest_first_with_limit(self):
+        from nexus.adapters.ai.opencode_provider import list_recent_sessions
+
+        fake = MagicMock()
+        fake.returncode = 0
+        fake.stdout = self._payload()
+        with patch("subprocess.run", return_value=fake) as mock_run:
+            sessions = list_recent_sessions(limit=1, cli_path="opencode")
+        mock_run.assert_called_once()
+        assert [s["id"] for s in sessions] == ["ses_new"]
+        assert sessions[0]["model"] == "opencode/spark-free"
+        assert sessions[0]["tokens_in"] == 100
+
+    def test_raises_on_cli_failure(self):
+        from nexus.adapters.ai.opencode_provider import list_recent_sessions
+
+        fake = MagicMock()
+        fake.returncode = 1
+        fake.stderr = "not logged in"
+        with patch("subprocess.run", return_value=fake):
+            import pytest as _pytest
+
+            with _pytest.raises(RuntimeError, match="not logged in"):
+                list_recent_sessions(cli_path="opencode")
+
+
+class TestNotificationRegistryCoverage:
+    def test_create_discord_channel(self):
+        import nexus.adapters.notifications.discord as _mod
+
+        original = _mod._AIOHTTP_AVAILABLE if hasattr(_mod, "_AIOHTTP_AVAILABLE") else None
+        from unittest.mock import MagicMock as _MagicMock
+
+        with patch.dict("sys.modules", {"aiohttp": _MagicMock()}):
+            setattr(_mod, "_AIOHTTP_AVAILABLE", True)
+            try:
+                from nexus.adapters.registry import AdapterRegistry
+
+                channel = AdapterRegistry().create_notification(
+                    "discord", webhook_url="https://discord.com/api/webhooks/x"
+                )
+            finally:
+                if original is not None:
+                    setattr(_mod, "_AIOHTTP_AVAILABLE", original)
+        assert channel.name == "discord"
+
+    def test_create_openclaw_channel(self):
+        import nexus.adapters.notifications.openclaw as _mod
+
+        from unittest.mock import MagicMock as _MagicMock
+
+        original = getattr(_mod, "_AIOHTTP_AVAILABLE", None)
+        with patch.dict("sys.modules", {"aiohttp": _MagicMock()}):
+            setattr(_mod, "_AIOHTTP_AVAILABLE", True)
+            try:
+                from nexus.adapters.registry import AdapterRegistry
+
+                channel = AdapterRegistry().create_notification(
+                    "openclaw", bridge_url="http://x:99"
+                )
+            finally:
+                if original is not None:
+                    setattr(_mod, "_AIOHTTP_AVAILABLE", original)
+        assert channel.name == "openclaw"
+
+
+class TestAgentSpecModel:
+    def _registry(self, tmp_path, model=None):
+        from nexus.adapters.ai.registry import AgentRegistry
+
+        spec_lines = ['spec:', '  agent_type: "writer"', '  provider: "opencode"']
+        if model:
+            spec_lines.append(f'  model: "{model}"')
+        (tmp_path / "w.yaml").write_text(
+            'apiVersion: "nexus-arc/v1"\nkind: "Agent"\nmetadata:\n  name: "W"\n'
+            + "\n".join(spec_lines)
+            + "\n"
+        )
+        return AgentRegistry(agents_dir=tmp_path)
+
+    def test_get_model_none_without_pin(self, tmp_path):
+        assert self._registry(tmp_path).get_model("writer") is None
+
+    def test_get_model_returns_pin(self, tmp_path):
+        registry = self._registry(tmp_path, model="opencode/spark-free")
+        assert registry.get_model("writer") == "opencode/spark-free"

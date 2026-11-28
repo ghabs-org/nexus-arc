@@ -1,0 +1,45 @@
+openapi: 3.0.3
+info:
+  title: Nexus strict typed-decision compatibility subset
+  version: 1.0.0
+  description: Text-only subset of the official OpenRouter Decisions and existing Jev/System One client contract. Optional provider statistics are required here for deterministic confidence/score routing; missing data fails explicitly. No real model-quality or account certification.
+externalDocs:
+  url: https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request
+paths:
+  /api/alpha/decisions:
+    post:
+      security: [{Bearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, state, questions]
+              properties:
+                model: {type: string}
+                state: {oneOf: [{type: string}, {type: object}, {type: array, items: {}}]}
+                questions: {type: object, minProperties: 1, maxProperties: 32, additionalProperties: {type: object, required: [type, instructions], properties: {type: {type: string, enum: [choice, noul, score]}, instructions: {type: string}, criteria: {oneOf: [{type: object}, {type: array, items: {type: string}}]}}}}
+      responses:
+        '200':
+          description: One typed answer for every question. Choice returns choice/probabilities/confidence; noul returns probability; score returns score/indexed probabilities/confidence/legend. Model and token usage retained when available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [answers]
+                properties:
+                  model: {type: string}
+                  answers: {type: object, additionalProperties: {type: object}}
+                  usage: {type: object}
+        '401': {description: Rejected credentials; never escalate or retry}
+        '402': {description: Quota/credits; never escalate or retry}
+        '403': {description: Forbidden; never escalate or retry}
+        '413': {description: Input too large; explicit escalation only}
+        '422': {description: Configuration error; never escalate or retry}
+        '429': {description: Bounded rate-limit retry; quota responses never retry/escalate}
+        '500': {description: Bounded transient retry; provider text never returned}
+        '503': {description: Bounded transient retry}
+components:
+  securitySchemes:
+    Bearer: {type: http, scheme: bearer}
