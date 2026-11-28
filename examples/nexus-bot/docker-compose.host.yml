@@ -58,8 +58,11 @@ services:
       HOME: /home/ubuntu
       PYTHONPATH: /home/ubuntu/git/ghabs/nexus-arc/examples/nexus-bot
     volumes:
-      # Same paths as the systemd unit so PROJECT_CONFIG_PATH, data/ and logs resolve.
-      - /home/ubuntu:/home/ubuntu
+      # Scoped mounts instead of whole /home/ubuntu (CISO 2026-11-27)
+      - /home/ubuntu/git/ghabs/nexus-arc:/home/ubuntu/git/ghabs/nexus-arc:ro
+      - /home/ubuntu/.openclaw:/home/ubuntu/.openclaw:ro
+      - /home/ubuntu/.local/bin:/home/ubuntu/.local/bin:ro
+      - /home/ubuntu/.local/lib:/home/ubuntu/.local/lib:ro
       # The host bridge persists callback tokens here. Without this bind,
       # feedback cards reach a bot with a different, empty container-local map.
       - type: bind
